@@ -28,7 +28,6 @@ class BankSearchProvider extends ChangeNotifier {
 
   /// ✅ Fetch suggestions from Hive cache
   Future<void> fetchSuggestions(String query) async {
-
     if (query.isEmpty) {
       suggestions = [];
       notifyListeners();
@@ -41,7 +40,6 @@ class BankSearchProvider extends ChangeNotifier {
       // ✅ Banks are stored under 'items'
       final banks = cachedData?['items'];
       if (banks is List) {
-
         suggestions = banks
             .where((bank) {
               final name = (bank['bankName']?.toLowerCase() ?? '');
@@ -53,7 +51,6 @@ class BankSearchProvider extends ChangeNotifier {
                   'bankMasterId': bank['bankMasterId'] ?? '',
                 })
             .toList();
-
       } else {
         suggestions = [];
       }
@@ -67,7 +64,6 @@ class BankSearchProvider extends ChangeNotifier {
 
   /// ✅ Add new bank to API + Hive
   Future<bool> addBank(String bankName) async {
-
     try {
       final url = Uri.parse('https://yenerp.com/masterapi/bankmasters/');
 
@@ -79,7 +75,6 @@ class BankSearchProvider extends ChangeNotifier {
           'status': 'active',
         }),
       );
-
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final resJson = jsonDecode(response.body);

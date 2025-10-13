@@ -90,7 +90,6 @@ class RegularModeProvider with ChangeNotifier {
               final item = (itemEntry['item'] ?? {}) as Map;
               final variances = (itemEntry['variance'] ?? {}) as Map;
 
-
               List<Map<String, dynamic>> variancesList =
                   variances.entries.map((v) {
                 final varianceKey = v.key;
@@ -120,15 +119,25 @@ class RegularModeProvider with ChangeNotifier {
                       }
                     }
                   }
-                } catch (e) {
-                }
+                } catch (e) {}
 
                 return {
                   'varianceName': (variance['varianceName'] ?? "").toString(),
-                  'varianceDefaultPrice':
-                      (variance['variance_Defaultprice'] as num?)?.toDouble() ??
-                          0.0,
+                  'varianceDefaultPrice': () {
+                    final rawPrice = variance['variance_Defaultprice'];
+                    if (rawPrice is num) {
+                      return rawPrice.toDouble();
+                    } else if (rawPrice is String &&
+                        rawPrice.trim().isNotEmpty) {
+                      return double.tryParse(rawPrice) ?? 0.0;
+                    }
+                    return 0.0;
+                  }(),
                   'varianceUOM': (variance['variance_Uom'] ?? "").toString(),
+                  'varianceItemCode': (variance['varianceitemCode'] ??
+                          variance['varianceItemCode'] ??
+                          "")
+                      .toString(), // ✅ handle both naming styles safely
                   'takeawayPrice': takeawayPrice,
                   'branchwise': branchwise,
                 };
@@ -314,7 +323,6 @@ class RegularModeProvider with ChangeNotifier {
   }
 
   void filterVarianceNamesBySearchQuery(String query) {
-
     final cleanQuery = query.trim().replaceAll(' ', '').toLowerCase();
 
     if (cleanQuery.isEmpty) {
@@ -340,6 +348,5 @@ class RegularModeProvider with ChangeNotifier {
 
   ScrollController get scrollController => _scrollController;
 
-  void changeCategoryOrOption(int i) {
-  }
+  void changeCategoryOrOption(int i) {}
 }

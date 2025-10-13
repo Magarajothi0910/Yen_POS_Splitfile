@@ -18,7 +18,6 @@ Future<void> restoreHeldOrderData(BuildContext context, HeldOrder order) async {
 
   try {
     await Future.microtask(() {
-
       final customerScreenProvider =
           Provider.of<CustomerScreenProvider>(context, listen: false);
       final audioprovider = Provider.of<AudioProvider>(context, listen: false);
@@ -62,11 +61,9 @@ Future<void> restoreHeldOrderData(BuildContext context, HeldOrder order) async {
 
       detailsProvider.filteredEmployeeFirstNames.clear();
 
-
       customerScreenProvider.setSelectedHoldOrderId(order.holdOrderId);
 
       for (int index = 0; index < order.itemName.length; index++) {
-
         cartProvider.addItemToCart(CartItem(
           varianceName: order.varianceName[index],
           itemName: order.itemName[index],
@@ -76,6 +73,8 @@ Future<void> restoreHeldOrderData(BuildContext context, HeldOrder order) async {
           uom: order.uom[index],
           quantity: order.qty[index],
           weight: order.weight[index],
+          itemWiseDiscountAmount: order.itemWiseDiscountAmount![index],
+          itemWiseDiscount: order.itemWiseDiscount![index],
         ));
       }
     });

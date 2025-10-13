@@ -1,8 +1,4 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:hive_flutter/hive_flutter.dart';
-import 'package:http/http.dart' as http;
-
 import '../../../hiveGlobal/hiveProvider.dart';
 
 class CustomerSearchProvider extends ChangeNotifier {
@@ -19,8 +15,8 @@ class CustomerSearchProvider extends ChangeNotifier {
     suggestions.clear();
     notifyListeners();
   }
-  Future<void> fetchSuggestions(String query) async {
 
+  Future<void> fetchSuggestions(String query) async {
     if (query.isEmpty) {
       suggestions = [];
       notifyListeners();
@@ -38,7 +34,7 @@ class CustomerSearchProvider extends ChangeNotifier {
                 customer['customerPhoneNumber']?.toString().contains(query) ??
                 false)
             .map((customer) => {
-                  'mobileNo': customer['customerPhoneNumber']?.toString() ?? '',
+                  'mobile': customer['customerPhoneNumber']?.toString() ?? '',
                   'name': customer['customerName']?.toString() ?? '',
                 })
             .toList();

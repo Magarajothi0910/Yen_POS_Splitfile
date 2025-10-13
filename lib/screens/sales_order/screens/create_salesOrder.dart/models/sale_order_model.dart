@@ -7,6 +7,11 @@ class SalesOrder {
   List<int> qty;
   List<int> price;
   String? branchName;
+  String? aliasName;
+
+  final String? imagePath1;
+  final String? imagePath2;
+  final String? audioPath;
   List<String> itemCode;
   List<int> tax;
   List<String> uom;
@@ -15,6 +20,7 @@ class SalesOrder {
   String? deliveryTime;
   String event;
   String? branchId;
+
   String customerNumber;
   String customerName;
   String deliveryType;
@@ -40,6 +46,7 @@ class SalesOrder {
   String? orderTime;
   String employeeName;
   String status;
+  String? shiftId;
   String? companyName;
   String? companyAddress;
   String? companyGST;
@@ -52,15 +59,13 @@ class SalesOrder {
   List<int>? boxQty;
   List<ApprovalOrderDetail>? approvalDetails;
   String? approvalOrderId;
-  final String? imagePath1;
-  final String? imagePath2;
-  final String? audioPath;
 
   SalesOrder({
     required this.itemName,
     required this.itemCode,
     required this.varianceName,
     this.branchName,
+    this.aliasName,
     this.branchId,
     this.itemWiseDiscount,
     this.itemWiseDiscountAmount,
@@ -76,6 +81,7 @@ class SalesOrder {
     this.deliveryDate,
     this.deliveryTime,
     required this.event,
+    required this.shiftId,
     this.boxQty,
     this.cash,
     this.card,
@@ -136,6 +142,8 @@ class SalesOrder {
       branchId: json['branchId']?.toString(),
       holdOrderId: json['holdOrderId']?.toString(),
       branchName: json['branchName']?.toString(),
+      aliasName: json['aliasName']?.toString(),
+      shiftId: json['shiftId']?.toString() ?? "",
       event: json['event']?.toString() ?? '',
       customerNumber: json['customerNumber']?.toString() ?? '',
       customerName: json['customerName']?.toString() ?? '',
@@ -173,8 +181,7 @@ class SalesOrder {
       cash: (json['cash'] as num?)?.toDouble(),
       card: (json['card'] as num?)?.toDouble(),
       upi: (json['upi'] as num?)?.toDouble(),
-       advanceDateTime: List<String>.from(json['advanceDateTime'] ?? []),
-   
+      advanceDateTime: List<String>.from(json['advanceDateTime'] ?? []),
       companyGST: json['companyGST']?.toString(),
       companyAddress: json['companyAddress']?.toString(),
       companyName: json['companyName']?.toString(),
@@ -218,6 +225,8 @@ class SalesOrder {
       'customerNumber': customerNumber,
       'customerName': customerName,
       'deliveryType': deliveryType,
+      "shiftId": shiftId ?? "",
+      "aliasName": aliasName,
       'address': address,
       'landmark': landmark,
       'discount': discount,

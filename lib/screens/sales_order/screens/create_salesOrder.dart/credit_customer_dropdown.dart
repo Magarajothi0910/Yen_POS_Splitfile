@@ -86,7 +86,7 @@ class _CreditCustomerSearchDropdownState
                         final suggestion = provider.suggestions[index];
                         return ListTile(
                           title:
-                              Text(suggestion['mobileNo'] ?? 'Unknown Mobile'),
+                              Text(suggestion['mobile'] ?? 'Unknown Mobile'),
                           subtitle: Text(suggestion['name'] ?? 'Unknown Name'),
                           onTap: () {
                             _onSuggestionSelected(suggestion, customerProvider);
@@ -112,7 +112,7 @@ class _CreditCustomerSearchDropdownState
 
   void _onSuggestionSelected(Map<String, dynamic> suggestion,
       CustomerScreenProvider customerProvider) {
-    customerProvider.mobileNoController.text = suggestion['mobileNo'] ?? '';
+    customerProvider.mobileNoController.text = suggestion['mobile'] ?? '';
     customerProvider.customerNameController.text = suggestion['name'] ?? '';
     FocusScope.of(context).unfocus();
   }

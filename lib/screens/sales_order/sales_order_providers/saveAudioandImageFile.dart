@@ -44,6 +44,7 @@ Future<Directory?> createOrderDir(String saleOrderId) async {
 /// Returns the saved file’s absolute path, or `null` if something failed.
 Future<String?> saveFile(File src, Directory dir, String fileName) async {
   try {
+    final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
     final ext = src.path.split('.').last;
     final dest = File('${dir.path}/$fileName.$ext');
     await dest.writeAsBytes(await src.readAsBytes());
@@ -57,8 +58,32 @@ Future<String?> saveFile(File src, Directory dir, String fileName) async {
 Future<bool> verifyFile(String path) async =>
     await File(path).exists() && (await File(path).length()) > 0;
 
-/// Deletes the file if it exists (silently ignores missing files).
-Future<void> clearFile(String path) async {
+Future<String?> clearFile(String? path) async {
+  if (path == null) {
+    print("[CLEAR FILE] Path is null, nothing to delete.");
+    return null;
+  }
+
   final f = File(path);
-  if (await f.exists()) await f.delete();
+  print("file path to delete: $f");
+  try {
+    final exists = await f.exists();
+    if (exists) {
+      print("[CLEAR FILE] File exists at path: $path. Deleting now...");
+      await f.delete();
+      print("[CLEAR FILE] File deleted successfully.");
+    } else {
+      print(
+          "[CLEAR FILE] File does not exist at path: $path. Nothing to delete.");
+    }
+  } catch (e, st) {
+    print("[CLEAR FILE] Error deleting file at path: $path");
+    print("Exception: $e");
+    print("StackTrace: $st");
+  }
+
+  // 🔑 Always return null so caller can reset the variable
+  return null;
 }
+
+/// Helper to clear a file and reset the variable

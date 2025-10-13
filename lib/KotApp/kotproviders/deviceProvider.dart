@@ -56,12 +56,7 @@ class DeviceProvider with ChangeNotifier {
       if (response.statusCode == 200) {
         deviceData?['status'] = '0';
         notifyListeners();
-      
-      } else {
-       
-      }
-    } catch (error) {
-      
-    }
+      } else {}
+    } catch (error) {}
   }
 }

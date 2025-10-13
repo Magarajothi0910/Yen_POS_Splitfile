@@ -21,7 +21,7 @@ class _CustomerManagementPageState extends State<CustomerManagementPage> {
   }
 
   Future<void> fetchCustomers() async {
-    const url = 'http://192.168.1.130:8888/fastapi/customers/';
+    const url = 'https://yenerp.com/fastapi/customers/';
     try {
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
@@ -51,7 +51,7 @@ class _CustomerManagementPageState extends State<CustomerManagementPage> {
       return;
     }
 
-    const url = 'http://192.168.1.130:8888/fastapi/customers/';
+    const url = 'https://yenerp.com/fastapi/customers/';
     try {
       final response = await http.post(
         Uri.parse(url),
@@ -133,7 +133,7 @@ class _CustomerManagementPageState extends State<CustomerManagementPage> {
       return;
     }
 
-    const String baseUrl = 'http://192.168.1.130:8888/fastapi/customers/';
+    const String baseUrl = 'https://yenerp.com/fastapi/customers/';
     final String url = '$baseUrl$customerId'; // Append customer ID to URL
 
     try {

@@ -12,15 +12,16 @@ import 'dart:math' as math;
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:yenposapp/screens/sales_order/globals.dart';
 
 import '../../../Global/branchSelection.dart';
 import '../../../data/global_data_manager.dart';
 import '../../../services/websocketService.dart';
 import '../../bottomNavigation_Regular_Page/takeorderNavigator.dart';
 import '../sales_order_print/invoicePrint.dart';
-import '../screens/all_orders_page/modified_order_print.dart';
+
 import '../screens/all_orders_page/services/get_sales_order_service.dart';
-import '../screens/model/sales_order_model.dart';
+import '../screens/model/sales_order_display_model.dart';
 import 'package:http_parser/http_parser.dart';
 import '../../../Global/globals_data.dart' as globalbranch;
 import '../globals.dart' as globals;
@@ -58,9 +59,12 @@ class EditCustomerScreenProvider with ChangeNotifier {
   String? photoScreenId;
   String? previousAudioId;
   String? previousImageId;
-  File? _pickedImage1;
-  File? _pickedImage2;
-  late modifiedSalesOrderReceiptPrinter receiptPrinter;
+
+  File? pickedImage1;
+  File? pickedImage2;
+// Global ScaffoldMessengerKey to safely show SnackBars without relying on context
+  final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
+      GlobalKey<ScaffoldMessengerState>();
   Map<String, dynamic>? here;
   String selectedPaymentMethod = 'Cash';
   int? selectedTransactionIndex;
@@ -92,18 +96,6 @@ class EditCustomerScreenProvider with ChangeNotifier {
     selectedOrderType = newValue;
     notifyListeners(); // Notify listeners to update the UI
   }
-
-  // void setModifyMode(bool value) {
-  //   isModifyMode = value;
-  //   // selectedTransactionIndex = null;
-  //   notifyListeners();
-  // }
-  // void setModifyMode(bool value) {
-  //   WidgetsBinding.instance.addPostFrameCallback((_) {
-  //     isModifyMode = value;
-  //     notifyListeners();
-  //   });
-  // }
 
   void _onModifyModeChanged() {
     if (!isModifyMode.value) {
@@ -140,11 +132,9 @@ class EditCustomerScreenProvider with ChangeNotifier {
   List<Map<String, dynamic>> decreasedItems = [];
 
   void addItemToOrder(Map<String, dynamic> item, double weightOrQuantity) {
-
     // Determine if the item is measured in kilograms
     bool isKgUnit = item['varianceUom']?.toLowerCase() == 'kg' ||
         item['varianceUom']?.toLowerCase() == 'kgs';
-
 
     // Check if the item already exists in the list
     int existingIndex = increasedItems.indexWhere(
@@ -152,7 +142,6 @@ class EditCustomerScreenProvider with ChangeNotifier {
     );
 
     if (existingIndex != -1) {
-
       // Update quantity or weight based on unit
       if (isKgUnit) {
         double prevWeight = increasedItems[existingIndex]['weight'];
@@ -169,9 +158,7 @@ class EditCustomerScreenProvider with ChangeNotifier {
               ? increasedItems[existingIndex]['weight']
               : increasedItems[existingIndex]['quantity']);
       increasedItems[existingIndex]['amount'] = updatedAmount;
-
     } else {
-
       // Construct new item entry
       Map<String, dynamic> newItem = {
         'varianceName': item['varianceName'],
@@ -191,8 +178,7 @@ class EditCustomerScreenProvider with ChangeNotifier {
     // Notify listeners of the change
     notifyListeners();
 
-    for (int i = 0; i < increasedItems.length; i++) {
-    }
+    for (int i = 0; i < increasedItems.length; i++) {}
   }
 
   void handleTransactionSelection(int newIndex) {
@@ -330,34 +316,16 @@ class EditCustomerScreenProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // void handleRecordingComplete(String path) {
-  //   // Store the audio file path in Hive after recording
-  //   saveRecordingToHive(path);
-  // }
+  void onImagesSelected(File? image1, File? image2) async {
+    if (image1 != null && image2 != null) {
+      final box = Hive.box('imagesBox');
+      await box.put('image1', image1.path);
+      await box.put('image2', image2.path);
 
-  // Future<void> saveRecordingToHive(String path) async {
-  //   var box = await Hive.openBox('recordings');
-  //   await box.add(path); // Store the file path in Hive
-  //   print("Recording saved at: $path");
-  // }
-
-  Future<void> printReceipt(
-      BuildContext context, Map<String, dynamic> modifieddata) async {
-    try {
-      if (!context.mounted) {
-        return;
-      }
-      await receiptPrinter.printReceiptDetails(context, modifieddata);
-    } catch (e) {
+      pickedImage1 = image1;
+      pickedImage2 = image2;
+      notifyListeners();
     }
-  }
-
-  void onImagesSelected(File? image1, File? image2) {
-    // setState(() {
-    _pickedImage1 = image1;
-    _pickedImage2 = image2;
-    notifyListeners();
-    // });
   }
 
   void fetchCompanySuggestionsDebounced(String query) {
@@ -390,18 +358,15 @@ class EditCustomerScreenProvider with ChangeNotifier {
       if (response.statusCode == 200) {
         // Parse the response if needed
         final data = json.decode(response.body);
-      } else {
-      }
-    } catch (e) {
-    }
+      } else {}
+    } catch (e) {}
   }
 
   Future<void> sendPaymentDataToServer(Map<String, dynamic> paymentData) async {
     try {
       final jsonData = jsonEncode(paymentData);
       _channel.sink.add(jsonData);
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   Future<bool> addCompany(String name, String address, String gst) async {
@@ -419,452 +384,85 @@ class EditCustomerScreenProvider with ChangeNotifier {
       if (response.statusCode == 200 || response.statusCode == 201) {
         return true;
       } else {
-       
         return false;
       }
     } catch (e) {
-     
       return false;
     }
   }
 
   void showAdvancePaymentPopup(
-      BuildContext context,
-      SalesOrderDisplay salesorder,
-      List<Map<String, dynamic>> increasedItems,
-      List<Map<String, dynamic>> decreasedItems,
-      String? path,
-      ApiServiceSalesOrderProvider apiprovider,
-      File? img1,
-      File? img2,
-      double modifiedTotal,
-      bool isModifyMode
-      // String customerType,
-      // String? audioOrderId,
-      // String? holdId
-      ) {
-    double orderAmount = modifiedTotal;
-
-    double discount = 0;
-    double customCharge = 0;
-    double totalAdvance = 0;
-    double deductedAmount = 0;
-    double totalAmount = modifiedTotal + customCharge - deductedAmount;
-    // double totalAmount = customCharge - deductedAmount;
-    TextEditingController discountController = TextEditingController();
-    TextEditingController customChargeController = TextEditingController();
-    TextEditingController advanceController = TextEditingController();
-    TextEditingController remarkController = TextEditingController();
+    BuildContext context,
+    SalesOrderDisplay salesorder,
+    List<Map<String, dynamic>> increasedItems,
+    List<Map<String, dynamic>> decreasedItems,
+    String? path,
+    ApiServiceSalesOrderProvider apiprovider,
+    File? img1,
+    File? img2,
+    double modifiedTotal,
+    bool isModifyMode,
+  ) {
+    final dialogContext = context; // Save context safely
 
     advanceAmountController.clear();
 
     showDialog(
       context: context,
-      builder: (context) {
-        return StatefulBuilder(builder: (context, setState) {
-          void updatePaymentData() {
-            Map<String, dynamic> paymentData = {
-              "type": "paymentDetails",
-              "orderAmount": orderAmount,
-              "discountPercentage": discount,
-              "discountAmount": deductedAmount,
-              "customCharge": customCharge,
-              "total": totalAmount,
-              "advance": totalAdvance,
-              "paymentMethod": selectedPaymentMethod,
-              "remark": remarkController.text,
-              "sync": "No",
-              "edit": "No"
-            };
-
-            // Call your API service method here
-            sendPaymentDataToServer(paymentData);
-          }
-
-          return AlertDialog(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-            title: const Text(
-              'Payment Details',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Confirm Order'),
+          content: const Text('Are you sure you want to complete the order?'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close dialog
+              },
+              child: const Text('Cancel'),
             ),
-            content: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Order Amount: ₹$orderAmount',
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Flexible(
-                          child: TextFormField(
-                            controller: discountController,
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [
-                              FilteringTextInputFormatter
-                                  .digitsOnly, // Allow digits only
-                              LengthLimitingTextInputFormatter(
-                                  2), // Restrict to 2 digits
-                            ],
-                            decoration: const InputDecoration(
-                              labelText: 'Discount (%)',
-                              border: OutlineInputBorder(),
-                              hintText: 'Enter discount percentage',
-                            ),
-                            onChanged: (value) {
-                              setState(() {
-                                discount = double.tryParse(value) ?? 0;
-                                deductedAmount = (discount / 100) * orderAmount;
-                                totalAmount =
-                                    orderAmount + customCharge - deductedAmount;
+            TextButton(
+              onPressed: () async {
+                Navigator.of(context).pop(); // Close dialog first
 
-                                // Check if the discount exceeds 6
-                                if (discount > 6) {
-                                  // Display an alert dialog
-                                  showDialog(
-                                    context: context,
-                                    builder: (context) {
-                                      return AlertDialog(
-                                        title: const Text('Approval Required'),
-                                        content: const Text(
-                                            'Discount exceeds the allowed limit of 6%. Approval is needed.'),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () {
-                                              Navigator.of(context)
-                                                  .pop(); // Close the dialog
-                                            },
-                                            child: const Text('OK'),
-                                          ),
-                                        ],
-                                      );
-                                    },
-                                  );
-                                }
-                                updatePaymentData();
-                              });
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          '-₹${deductedAmount.toStringAsFixed(2)}',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 16),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: remarkController,
-                      keyboardType: TextInputType.text,
-                      decoration: const InputDecoration(
-                        labelText: 'Remark',
-                        border: OutlineInputBorder(),
-                        hintText: 'Optional remarks',
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: customChargeController,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter
-                            .digitsOnly, // Allow digits only
-                        LengthLimitingTextInputFormatter(
-                            5), // Restrict to 2 digits
-                      ],
-                      decoration: const InputDecoration(
-                        labelText: 'Custom Charge',
-                        border: OutlineInputBorder(),
-                        hintText: 'Enter custom charge',
-                      ),
-                      onChanged: (value) {
-                        setState(() {
-                          customCharge = double.tryParse(value) ?? 0;
-                          totalAmount =
-                              modifiedTotal + customCharge - deductedAmount;
-                          updatePaymentData();
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      'Payment Method:',
-                      style: TextStyle(fontSize: 16),
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      children: [
-                        Radio<String>(
-                          value: 'Cash',
-                          groupValue: selectedPaymentMethod,
-                          onChanged: (value) {
-                            setState(() {
-                              selectedPaymentMethod = value!;
-                              updatePaymentData();
-                            });
-                          },
-                        ),
-                        const Text('Cash'),
-                        Radio<String>(
-                          value: 'Card',
-                          groupValue: selectedPaymentMethod,
-                          onChanged: (value) {
-                            setState(() {
-                              selectedPaymentMethod = value!;
-                              updatePaymentData();
-                            });
-                          },
-                        ),
-                        const Text('Card'),
-                        Radio<String>(
-                          value: 'UPI',
-                          groupValue: selectedPaymentMethod,
-                          onChanged: (value) {
-                            setState(() {
-                              selectedPaymentMethod = value!;
-                              updatePaymentData();
-                            });
-                          },
-                        ),
-                        const Text('UPI'),
-                      ],
-                    ),
-                    TextFormField(
-                      controller: advanceController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Advance',
-                        border: OutlineInputBorder(),
-                        hintText: 'Enter advance amount',
-                      ),
-                      onChanged: (value) {
-                        setState(() {
-                          double enteredValue = double.tryParse(value) ?? 0;
-                          if (enteredValue > totalAmount) {
-                            // Prevent exceeding total amount
-                            advanceController.text =
-                                totalAmount.toStringAsFixed(0);
-                            advanceController.selection =
-                                TextSelection.fromPosition(
-                              TextPosition(
-                                  offset: advanceController.text.length),
-                            );
-                            totalAdvance = totalAmount;
-                          } else {
-                            totalAdvance = enteredValue;
-                          }
-                          updatePaymentData();
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Total Advance: ₹$totalAdvance',
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Total Amount: ₹$totalAmount',
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Balance Amount: ₹${totalAmount - totalAdvance}',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            actions: [
-              ElevatedButton(
-                onPressed: () {
-                  if (discount > 6) {
-                    // Display an alert dialog for approval requirement
-                    showDialog(
-                      context: context,
-                      builder: (context) {
-                        return AlertDialog(
-                          title: const Text('Approval Required'),
-                          content: const Text(
-                              'Discount exceeds the allowed limit of 6%. Approval is needed.'),
-                          actions: [
-                            TextButton(
-                              onPressed: () {
-                                Navigator.of(context).pop(); // Close the dialog
-                              },
-                              child: const Text('OK'),
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                    return; // Stop further execution if approval is required
-                  }
-                  Navigator.pop(context);
-                  showDialog(
-                    context: context,
-                    builder: (BuildContext context) {
-                      return AlertDialog(
-                        title: const Text('Confirm Order'),
-                        content: const Text(
-                            'Are you sure you want to complete the order?'),
-                        actions: [
-                          TextButton(
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                            },
-                            child: const Text('Cancel'),
-                          ),
-                          TextButton(
-                            onPressed: () async {
-                              double balanceAmount = totalAmount - totalAdvance;
+                double totalAdvance = 0; // Replace with actual calculation
+                double totalAmount = modifiedTotal;
+                double balanceAmount = totalAmount - totalAdvance;
 
-                              await saveModifiedOrder(
-                                  salesorder,
-                                  increasedItems,
-                                  decreasedItems,
-                                  recordedFilePath,
-                                  _pickedImage1,
-                                  _pickedImage2,
-                                  totalAmount,
-                                  totalAdvance,
-                                  balanceAmount,
-                                  context,
-                                  isModifyMode);
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue,
-                            ),
-                            child: const Text(
-                              'Confirm',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
+                try {
+                  await saveModifiedOrder(
+                    salesorder,
+                    increasedItems,
+                    decreasedItems,
+                    path,
+                    img1,
+                    img2,
+                    totalAmount,
+                    totalAdvance,
+                    balanceAmount,
+                    dialogContext, // Use saved context
+                    isModifyMode,
                   );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                ),
-                child: const Text(
-                  'Complete Order',
-                  style: TextStyle(color: Colors.white),
-                ),
+                } catch (e, stack) {
+                  debugPrint("❌ Error in saveModifiedOrder: $e");
+                  debugPrint("$stack");
+                  rootScaffoldMessengerKey.currentState?.showSnackBar(
+                    SnackBar(
+                      content: Text('Error occurred: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+              child: const Text(
+                'Confirm',
+                style: TextStyle(color: Colors.white),
               ),
-            ],
-          );
-        });
+            ),
+          ],
+        );
       },
     );
-  }
-
-  void initializeReceiptPrinter({
-    required TextEditingController employeeNameController,
-    required TextEditingController customerNumberController,
-    required double discountController,
-    required double customChargeController,
-    required String selectedPaymentOptionValue,
-    required double totalAmount,
-    // required BuildContext context,
-    required double advanceAmount,
-    required String deliverydateprint,
-    required String deliveryTime,
-    required TextEditingController customAmountController,
-    required String selectedPaymentOption,
-    required double balanceAmount,
-    required String customerType,
-    Map<String, dynamic>? modifieddata,
-    // required Function saveInvoiceToHiveAndPrint,
-  }) {
-    receiptPrinter = modifiedSalesOrderReceiptPrinter(
-      employeeNameController: employeeNameController,
-      customerNumberController: customerNumberController,
-      discountController: discountController,
-      customChargeController: customChargeController,
-      selectedPaymentOptionValue: selectedPaymentOptionValue,
-      totalAmount: totalAmount,
-      advanceAmount: advanceAmount,
-      balanceAmount: balanceAmount,
-      customerType: customerType,
-      // context: context,
-      deliveryDateprint: dateController.text,
-      deliveryTimeprint: timeController.text,
-      customAmountController: customAmountController,
-      selectedPaymentOption: selectedPaymentOption,
-      modifiedOrderData: here,
-      // saveInvoiceToHiveAndPrint: saveInvoiceToHiveAndPrint,
-    );
-  }
-
-  Future<void> _postAudioFileAndPatch(
-      String salesOrderId, String filePath, BuildContext context) async {
-    final postUri = Uri.parse('http://$ipAddress/audioOrder/upload_audio');
-    final patchUri = Uri.parse('http://$ipAddress/media/patch_audio_id');
-
-    try {
-      // Post the audio file
-
-      // Create multipart request
-      String fileExtension = filePath.split('.').last.toLowerCase();
-      String contentType = 'audio/$fileExtension';
-
-      final request = http.MultipartRequest('POST', postUri);
-      var file = await http.MultipartFile.fromPath(
-        'file',
-        filePath,
-        contentType: MediaType.parse(contentType),
-      );
-      request.files.add(file);
-
-      final postResponse = await request.send();
-      final postResponseBody = await postResponse.stream.bytesToString();
-
-      if (postResponse.statusCode != 200) {
-        throw Exception('Failed to upload audio: ${postResponse.statusCode}');
-      }
-
-      // Extract custom_id from response
-      final postResult = jsonDecode(postResponseBody);
-      String currentCustomId =
-          postResult['custom_id']; // Assuming response includes this field
-
-      // Patch the audio ID
-      final patchResponse = await http.patch(
-        patchUri,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'current_custom_id': currentCustomId,
-          'new_custom_id': salesOrderId,
-        }),
-      );
-
-      if (patchResponse.statusCode != 200) {
-        throw Exception(
-            'Failed to patch audio custom_id: ${patchResponse.statusCode}');
-      }
-
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error during audio upload/patch: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
   }
 
   Future<void> updateCustomId(
@@ -898,25 +496,67 @@ class EditCustomerScreenProvider with ChangeNotifier {
   }
 
   int _sendInvoiceCallCount = 0;
+// 🔹 Global Counters & Trackers
+  int serverSendCount = 0;
+  int clientSendCount = 0;
+  int clientReceiveCount = 0;
+
+  final Map<String, int> serverSendTracker = {};
+  final Map<String, int> clientSendTracker = {};
+  final Map<String, int> clientReceiveTracker = {};
+
+  /// -------------------- SERVER SIDE -------------------- ///
 
   Future<void> sendModifyDataToServer(Map<String, dynamic> invoiceData) async {
-    _sendInvoiceCallCount++;
-
     try {
       final jsonData = jsonEncode(invoiceData);
+      final soNo = invoiceData['saleOrderNo'] ??
+          invoiceData['salesOrderId'] ??
+          'UNKNOWN';
+
+      // 🔹 Count increment
+      serverSendCount++;
+      serverSendTracker[soNo] = (serverSendTracker[soNo] ?? 0) + 1;
+
+      // 🔹 Block duplicates
+      if (serverSendTracker[soNo]! > 1) {
+        debugPrint("🚫 [Server] Duplicate send blocked for $soNo");
+        return;
+      }
+
+      debugPrint(
+          "📤 [Server] Sending ModifyData ($soNo) → Count: ${serverSendTracker[soNo]}");
       _channel.sink.add(jsonData);
+      // ✅ Reset tracker after success
+      serverSendTracker[soNo] = 0;
     } catch (e) {
+      debugPrint("❌ Error in sendModifyDataToServer: $e");
     }
   }
 
   Future<void> _sendPatchedDataToServer(
       Map<String, dynamic> invoiceData) async {
-    _sendInvoiceCallCount++;
-
     try {
       final jsonData = jsonEncode(invoiceData);
+      final soNo = invoiceData['saleOrderNo'] ?? 'UNKNOWN';
+
+      // 🔹 Count increment
+      serverSendCount++;
+      serverSendTracker[soNo] = (serverSendTracker[soNo] ?? 0) + 1;
+
+      // 🔹 Block duplicates
+      if (serverSendTracker[soNo]! > 1) {
+        debugPrint("🚫 [Server] Duplicate patched data blocked for $soNo");
+        return;
+      }
+
+      debugPrint(
+          "📤 [Server] Sending PatchedData ($soNo) → Count: ${serverSendTracker[soNo]}");
       _channel.sink.add(jsonData);
+      // ✅ Reset tracker after success
+      serverSendTracker[soNo] = 0;
     } catch (e) {
+      debugPrint("❌ Error in _sendPatchedDataToServer: $e");
     }
   }
 
@@ -933,20 +573,18 @@ class EditCustomerScreenProvider with ChangeNotifier {
     BuildContext context,
     bool isModified,
   ) async {
-   
-
     try {
-      // Prepare JSON for original order (POST)
+      debugPrint("🟦 [saveModifiedOrder] Started...");
+
       final jsonSalesOrder = jsonEncode({
         "data": originalOrder.toJson(),
         "deviceName": globals.deviceName,
-        "type": "modifySaleOrder", // Indicates this is the original order data
+        "type": "modifySaleOrder",
         "salesOrderId": originalOrder.salesOrderId,
         "sync": "No",
         "edit": "No"
       });
 
-      // Prepare JSON for modified order (PATCH)
       final modifiedOrderData = _mergeOrderModifications(
         originalOrder,
         increasedItems,
@@ -954,177 +592,193 @@ class EditCustomerScreenProvider with ChangeNotifier {
         totalAmount,
         totalAdvance,
         balanceAmount,
+        audioPath: audioPath,
+        imagePath1: newImage1?.path ?? originalOrder.image1,
+        imagePath2: newImage2?.path ?? originalOrder.image2,
       );
 
       final jsonModifiedSalesOrder = jsonEncode({
         "data": modifiedOrderData,
         "deviceName": globals.deviceName,
-        "type": "patchSaleOrder", // Indicates this is the modified version
+        "type": "patchSaleOrder",
         "saleOrderNo": originalOrder.saleOrderNo,
         "sync": "No",
         "edit": "Yes"
       });
 
-     
+      // Send original and modified order
       await sendModifyDataToServer(jsonDecode(jsonSalesOrder));
-
       await _sendPatchedDataToServer(jsonDecode(jsonModifiedSalesOrder));
 
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Order modification completed successfully.'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e, stackTrace) {
-   
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error occurred: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (context.mounted) {
-        Navigator.of(context).pop(); // Close the dialog or screen
-      }
-    }
-  }
-
-  /// Merges increased and decreased items into the existing order.
-  Map<String, dynamic> _mergeOrderModifications(
-    SalesOrderDisplay originalOrder,
-    List<Map<String, dynamic>> increasedItems,
-    List<Map<String, dynamic>> decreasedItems,
-    double totalAmount,
-    double totalAdvance,
-    double balanceAmount,
-  ) {
-    List<String> varianceNames = [...originalOrder.varianceName];
-    List<String> itemNames = [...originalOrder.itemName];
-    // List<num> qty = [...originalOrder.qty];
-    List<int> qty = originalOrder.qty.map((n) => n.toInt()).toList();
-    List<String> uom = [...originalOrder.uom];
-    List<num> weight = [...originalOrder.weight];
-    List<num> amount = [...originalOrder.amount];
-    List<num> price = [...originalOrder.price];
-
-    for (var item in increasedItems) {
-      int existingIndex = varianceNames.indexOf(item['varianceName']);
-      if (existingIndex != -1) {
-        if (uom[existingIndex].toLowerCase() == 'kg' ||
-            uom[existingIndex].toLowerCase() == 'kgs') {
-          weight[existingIndex] = item['weight'];
-          amount[existingIndex] = item['amount'];
-        } else {
-          // qty[existingIndex] += item['quantity'];
-          qty[existingIndex] += (item['quantity'] as num).toInt();
-          amount[existingIndex] += item['amount'];
-        }
-      } else {
-        varianceNames.add(item['varianceName']);
-        itemNames.add(item['itemName']);
-        qty.add(item['quantity']);
-        uom.add(item['uom']);
-        weight.add(item['weight']);
-        amount.add(item['amount']);
-        price.add(item['price']);
-      }
-    }
-
-    for (var item in decreasedItems) {
-      int existingIndex = varianceNames.indexOf(item['varianceName']);
-      if (existingIndex != -1) {
-        // qty[existingIndex] -= item['quantity'];
-        qty[existingIndex] -= (item['quantity'] as num).toInt();
-        amount[existingIndex] -= item['amount'];
-        if (qty[existingIndex] <= 0) {
-          varianceNames.removeAt(existingIndex);
-          itemNames.removeAt(existingIndex);
-          qty.removeAt(existingIndex);
-          uom.removeAt(existingIndex);
-          weight.removeAt(existingIndex);
-          amount.removeAt(existingIndex);
-          price.removeAt(existingIndex);
-        }
-      }
-    }
-
-    return {
-      'varianceName': varianceNames,
-      'itemName': itemNames,
-      'qty': qty,
-      'uom': uom,
-      'weight': weight,
-      'amount': amount,
-      'price': price,
-      'totalAmount': totalAmount,
-      'totalAmount2': totalAmount,
-      'advanceAmount': [totalAdvance],
-      'balanceAmount': balanceAmount,
-      'status':
-          decreasedItems.isNotEmpty ? 'Pending Approval' : 'Confirm Order',
-      'event': selectedEvent,
-      'deliveryType': selectedDeliveryType,
-      'address': addressController.text ?? '',
-      'landmark': landmarkController.text ?? '',
-      'customerName': customerNameController.text,
-      'customerNumber': mobileNoController.text,
-      'deliveryDate': dateController.text,
-      'deliveryTime': timeController.text,
-      'eventDate': birthdaydateController.text
-    };
-  }
-
-  /// Patches modified order data to the API.
-  Future<void> _patchModifiedOrder(String orderId,
-      Map<String, dynamic> modifiedOrderData, BuildContext context) async {
-    try {
-      final response = await http.patch(
-        Uri.parse('http://$ipAddress/CurrentOrder/withoutpagination/$orderId'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(modifiedOrderData),
+      // Show success SnackBar safely
+      rootScaffoldMessengerKey.currentState?.showSnackBar(
+        const SnackBar(
+          content: Text('Order modification completed successfully.'),
+          backgroundColor: Colors.green,
+        ),
       );
-      if (response.statusCode == 200) {
-        if (context.mounted) {
-          // Navigator.push(
-          //     context,
-          //     MaterialPageRoute(
-          //       builder: (context) => const AllOrdersPage(),
-          //     ));
 
-          Navigator.of(context).pop();
-          Provider.of<ApiServiceSalesOrderProvider>(context, listen: false)
-              .fetchAllOrders();
-          resetSelection();
-          // TakeAwayOrdersNavigator.navigatorKey.currentState
-          //     ?.pushNamed('/all-orders');
+      // Clear temporary lists
+      increasedItems.clear();
+      decreasedItems.clear();
+      serverSendTracker.clear();
+      clientSendTracker.clear();
+      clientReceiveTracker.clear();
+      serverSendCount = 0;
+      clientSendCount = 0;
+      clientReceiveCount = 0;
+      quantityChangesNotifier.value = {}; // clear changes after save
+    } catch (e, stackTrace) {
+      debugPrint("❌ [Error] Exception in saveModifiedOrder(): $e");
+      debugPrint("StackTrace: $stackTrace");
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content: Text('Order modified successfully'),
-                backgroundColor: Colors.green),
-          );
+      rootScaffoldMessengerKey.currentState?.showSnackBar(
+        SnackBar(
+          content: Text('Error occurred: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+// ----------------------------- _mergeOrderModifications -----------------------------
+  Map<String, dynamic> _mergeOrderModifications(
+      SalesOrderDisplay originalOrder,
+      List<Map<String, dynamic>> increasedItems,
+      List<Map<String, dynamic>> decreasedItems,
+      double totalAmount,
+      double totalAdvance,
+      double balanceAmount,
+      {String? audioPath,
+      String? imagePath1,
+      String? imagePath2}) {
+    // --- Start with original order values ---
+    List<String> mergedItemNames =
+        (originalOrder.itemName ?? []).map((e) => e.trim()).toList();
+    List<String> mergedVarianceNames =
+        (originalOrder.varianceName ?? []).map((e) => e.trim()).toList();
+    List<num> mergedQty = (originalOrder.qty ?? [])
+        .map((q) => q is int ? q.toDouble() : q)
+        .toList();
+    List<String> mergedUom = (originalOrder.uom ?? []).toList();
+    List<num> mergedWeight = (originalOrder.weight ?? [])
+        .map((w) => w is int ? w.toDouble() : w)
+        .toList();
+    List<num> mergedAmount = (originalOrder.amount ?? [])
+        .map((a) => a is int ? a.toDouble() : a)
+        .toList();
+    List<num> mergedPrice = (originalOrder.price ?? [])
+        .map((p) => p is int ? p.toDouble() : p)
+        .toList();
+
+    // --- Merge increased items ---
+    for (var item in increasedItems) {
+      int existingIndex = mergedVarianceNames.indexWhere(
+          (name) => name.toLowerCase() == item['varianceName'].toLowerCase());
+
+      if (existingIndex != -1) {
+        mergedQty[existingIndex] += (item['quantity'] is int
+            ? item['quantity'].toDouble()
+            : item['quantity']);
+        mergedAmount[existingIndex] += (item['amount'] is int
+            ? item['amount'].toDouble()
+            : item['amount']);
+        if (item['uom'].toLowerCase() == 'kg' ||
+            item['uom'].toLowerCase() == 'kgs') {
+          mergedWeight[existingIndex] += (item['weight'] is int
+              ? item['weight'].toDouble()
+              : item['weight']);
+        }
+        if (mergedItemNames[existingIndex] == "Unknown Item") {
+          mergedItemNames[existingIndex] = item['itemName'].isEmpty
+              ? item['varianceName']
+              : item['itemName'];
         }
       } else {
-        throw Exception(
-            'Failed to patch modified order. Status: ${response.statusCode}');
+        mergedVarianceNames.add(item['varianceName']);
+        mergedItemNames.add(
+            item['itemName'].isEmpty ? item['varianceName'] : item['itemName']);
+        mergedQty.add(item['quantity'] is int
+            ? item['quantity'].toDouble()
+            : item['quantity']);
+        mergedUom.add(item['uom']);
+        mergedWeight.add(
+            item['weight'] is int ? item['weight'].toDouble() : item['weight']);
+        mergedAmount.add(
+            item['amount'] is int ? item['amount'].toDouble() : item['amount']);
+        mergedPrice.add(
+            item['price'] is int ? item['price'].toDouble() : item['price']);
       }
-    } catch (e) {
-    
-    } finally {
-      setModifyMode(false);
     }
+
+    // --- Merge decreased items ---
+    for (var item in decreasedItems) {
+      int existingIndex = mergedVarianceNames.indexOf(item['varianceName']);
+      if (existingIndex != -1) {
+        num newQuantity = mergedQty[existingIndex];
+        num newAmount = mergedAmount[existingIndex];
+        num newWeight = mergedWeight[existingIndex];
+
+        if (mergedUom[existingIndex].toLowerCase() == 'kg' ||
+            mergedUom[existingIndex].toLowerCase() == 'kgs') {
+          newWeight -= item['weight'];
+          newAmount -= item['amount'];
+        } else {
+          newQuantity -= item['quantity'];
+          newAmount -= item['amount'];
+        }
+
+        if (newQuantity > 0 && newWeight >= 0) {
+          mergedQty[existingIndex] = newQuantity;
+          mergedAmount[existingIndex] = newAmount;
+          mergedWeight[existingIndex] = newWeight;
+        } else {
+          mergedItemNames.removeAt(existingIndex);
+          mergedVarianceNames.removeAt(existingIndex);
+          mergedQty.removeAt(existingIndex);
+          mergedUom.removeAt(existingIndex);
+          mergedWeight.removeAt(existingIndex);
+          mergedAmount.removeAt(existingIndex);
+          mergedPrice.removeAt(existingIndex);
+        }
+      }
+    }
+
+    // --- Build final modified order including audio and image paths ---
+    Map<String, dynamic> modifiedOrderData = {
+      'previousOrderId': originalOrder.salesOrderId,
+      'itemName': mergedItemNames,
+      'varianceName': mergedVarianceNames,
+      'qty': mergedQty,
+      'uom': mergedUom,
+      'weight': mergedWeight,
+      'amount': mergedAmount,
+      'price': mergedPrice,
+      'saleOrderNo': originalOrder.saleOrderNo,
+      'customerName': originalOrder.customerName,
+      'customerNumber': originalOrder.customerNumber,
+      'deliveryDate': originalOrder.deliveryDate,
+      'deliveryTime': originalOrder.deliveryTime,
+      'event': originalOrder.event,
+      'deliveryType': originalOrder.deliveryType,
+      'address': originalOrder.address,
+      'landmark': originalOrder.landmark,
+      'totalAmount': totalAmount,
+      'advanceAmount': originalOrder.advanceAmount ?? [],
+      'balanceAmount': balanceAmount,
+      'status': 'toApprove Orders',
+      'approvalType': 'ModifyOrder',
+      'audioPath': audioPath ?? originalOrder.audio,
+      'imagePath1': imagePath1 ?? originalOrder.image1,
+      'imagePath2': imagePath2 ?? originalOrder.image2,
+    };
+
+    return modifiedOrderData;
   }
 
   Timer? _debounceTimer; // Timer for debouncing
 
   Future<void> fetchSuggestions(String query) async {
-
     // Cancel previous timer if a new request comes in before delay
     _debounceTimer?.cancel();
 
@@ -1147,7 +801,7 @@ class EditCustomerScreenProvider with ChangeNotifier {
               .where((customer) =>
                   customer['customerPhoneNumber'].toString().startsWith(query))
               .map((customer) => {
-                    'mobileNo': customer['customerPhoneNumber'].toString(),
+                    'mobile': customer['customerPhoneNumber'].toString(),
                     'name': customer['customerName'].toString(),
                   })
               .toList();
@@ -1163,202 +817,6 @@ class EditCustomerScreenProvider with ChangeNotifier {
     });
   }
 
-  // Future<void> saveModifiedOrder(
-  //   SalesOrderDisplay originalOrder,
-  //   List<Map<String, dynamic>> increasedItems,
-  //   List<Map<String, dynamic>> decreasedItems,
-  //   String? audioPath,
-  //   File? newImage1,
-  //   File? newImage2,
-  //   double totalAmount,
-  //   double totalAdvance,
-  //   double balanceAmount,
-  //   BuildContext context,
-  // ) async {
-  //   try {
-  //     print("START: saveModifiedOrder");
-
-  //     // Step 1: Post existing data to the Modify API
-  //     print("Step 1: Preparing original order data for Modify API...");
-  //     Map<String, dynamic> originalOrderData = {
-  //       'previousOrderId': originalOrder.salesOrderId,
-  //       'itemName': originalOrder.itemName,
-  //       'qty': originalOrder.qty,
-  //       'uom': originalOrder.uom,
-  //       'weight': originalOrder.weight,
-  //       'amount': originalOrder.amount,
-  //       'price': originalOrder.price,
-  //       'totalAmount': originalOrder.totalAmount,
-  //       'branchId': originalOrder.branchId,
-  //       'branchName': originalOrder.branchName,
-  //       'event': originalOrder.event,
-  //       'deliveryType': originalOrder.deliveryType,
-  //       'address': originalOrder.address,
-  //       'landmark': originalOrder.landmark,
-  //       'discount': originalOrder.discount,
-  //       'discountAmount': originalOrder.discountAmount,
-  //       'remark': originalOrder.remark,
-  //       'customCharge': originalOrder.customCharge,
-  //       'advanceAmount': originalOrder.advanceAmount,
-  //       'advancePaymentType': originalOrder.advancePaymentType,
-  //       'advanceDateTime': originalOrder.advanceDateTime,
-  //       'customerName': originalOrder.customerName,
-  //       'customerNumber': originalOrder.customerNumber,
-  //       'deliveryDate': originalOrder.deliveryDate,
-  //       'deliveryTime': originalOrder.deliveryTime,
-  //       'balanceAmount': originalOrder.balanceAmount
-  //     };
-
-  //     print("Sending POST request to Modify API...");
-  //     final postResponse = await http.post(
-  //       Uri.parse('http://$ipAddress/modify/'),
-  //       headers: {'Content-Type': 'application/json'},
-  //       body: jsonEncode(originalOrderData),
-  //     );
-
-  //     print(
-  //         "Modify API response received with status: ${postResponse.statusCode}");
-  //     if (postResponse.statusCode != 200) {
-  //       print("Error: Modify API failed with response: ${postResponse.body}");
-  //       throw Exception('Failed to send original order data');
-  //     }
-
-  //     final responseBody = jsonDecode(postResponse.body);
-  //     String modifyId = responseBody;
-  //     print("Modify API success: Retrieved modifyId: $modifyId");
-
-  //     List<double> advanceAmountList = [totalAdvance];
-  //     double cashAdvance = 0.0;
-  //     double cardAdvance = 0.0;
-  //     double upiAdvance = 0.0;
-
-  //     if (audioPath != null) {
-  //       print("Handling audio file upload...");
-  //       await updateCustomId(originalOrder.salesOrderId, modifyId);
-  //       await _postAudioFile(modifyId, audioPath);
-  //       print("Audio file uploaded successfully");
-  //     }
-
-  //     if (newImage1 != null || newImage2 != null) {
-  //       print("Handling image uploads...");
-  //       await batchUpdateCustomId(originalOrder.salesOrderId, modifyId);
-  //       await _postImages(originalOrder.salesOrderId, newImage1, newImage2);
-  //       print("Images uploaded successfully");
-  //     }
-
-  //     print("Merging original, increased, and decreased items...");
-  //     List<String> mergedItemNames = [...originalOrder.itemName];
-  //     List<num> mergedQty = [...originalOrder.qty];
-  //     List<String> mergedUom = [...originalOrder.uom];
-  //     List<num> mergedWeight = [...originalOrder.weight];
-  //     List<num> mergedAmount = [...originalOrder.amount];
-  //     List<num> mergedPrice = [...originalOrder.price];
-
-  //     for (var item in increasedItems) {
-  //       print("Processing increased item: ${item['itemName']}");
-  //       int existingIndex = mergedItemNames.indexOf(item['itemName']);
-  //       if (existingIndex != -1) {
-  //         mergedQty[existingIndex] += item['quantity'];
-  //         mergedWeight[existingIndex] += item['weight'];
-  //         mergedAmount[existingIndex] += item['amount'];
-  //         print("Updated item: ${mergedItemNames[existingIndex]}");
-  //       } else {
-  //         mergedItemNames.add(item['itemName']);
-  //         mergedQty.add(item['quantity']);
-  //         mergedUom.add(item['uom']);
-  //         mergedWeight.add(item['weight']);
-  //         mergedAmount.add(item['amount']);
-  //         mergedPrice.add(item['price']);
-  //         print("Added new item: ${item['itemName']}");
-  //       }
-  //     }
-
-  //     for (var item in decreasedItems) {
-  //       print("Processing decreased item: ${item['itemName']}");
-  //       int existingIndex = mergedItemNames.indexOf(item['itemName']);
-  //       if (existingIndex != -1) {
-  //         mergedQty[existingIndex] -= item['quantity'];
-  //         mergedAmount[existingIndex] -= item['amount'];
-  //         if (mergedQty[existingIndex] <= 0) {
-  //           print("Removing item: ${mergedItemNames[existingIndex]}");
-  //           mergedItemNames.removeAt(existingIndex);
-  //           mergedQty.removeAt(existingIndex);
-  //           mergedUom.removeAt(existingIndex);
-  //           mergedWeight.removeAt(existingIndex);
-  //           mergedAmount.removeAt(existingIndex);
-  //           mergedPrice.removeAt(existingIndex);
-  //         }
-  //       }
-  //     }
-
-  //     print("Final merged item data:");
-  //     print("Items: $mergedItemNames");
-  //     print("Quantities: $mergedQty");
-  //     print("Weights: $mergedWeight");
-
-  //     Map<String, dynamic> modifiedOrderData = {
-  //       'itemName': mergedItemNames,
-  //       'qty': mergedQty,
-  //       'uom': mergedUom,
-  //       'weight': mergedWeight,
-  //       'amount': mergedAmount,
-  //       'price': mergedPrice,
-  //       'customerName': customerNameController.text,
-  //       'customerNumber': mobileNoController.text,
-  //       'deliveryDate': dateController.text,
-  //       'deliveryTime': timeController.text,
-  //       'event': selectedEvent,
-  //       'deliveryType': selectedDeliveryType,
-  //       'address': addressController.text,
-  //       'landmark': landmarkController.text,
-  //       'totalAmount': totalAmount,
-  //       'advanceAmount': advanceAmountList,
-  //       'balanceAmount': balanceAmount,
-  //       'status':
-  //           decreasedItems.isNotEmpty ? 'Pending Approval' : 'Confirm Order',
-  //     };
-
-  //     print("Sending PATCH request with modified order data...");
-  //     final patchResponse = await http.patch(
-  //       Uri.parse(
-  //           'http://$ipAddress/CurrentOrder/withoutpagination/${originalOrder.salesOrderId}'),
-  //       headers: {'Content-Type': 'application/json'},
-  //       body: jsonEncode(modifiedOrderData),
-  //     );
-
-  //     print(
-  //         "PATCH API response received with status: ${patchResponse.statusCode}");
-  //     if (patchResponse.statusCode == 200) {
-  //       print("Order modified successfully");
-  //       if (context.mounted) {
-  //         ScaffoldMessenger.of(context).showSnackBar(
-  //           SnackBar(
-  //             content: Text(decreasedItems.isNotEmpty
-  //                 ? 'Order sent for approval'
-  //                 : 'Order modified successfully'),
-  //             backgroundColor: Colors.green,
-  //           ),
-  //         );
-  //       }
-  //     } else {
-  //       print("Error: Failed to modify order. Response: ${patchResponse.body}");
-  //       throw Exception('Failed to patch modified order');
-  //     }
-  //   } catch (e) {
-  //     print("Exception occurred: $e");
-  //     if (context.mounted) {
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         SnackBar(
-  //           content: Text('Error occurred: $e'),
-  //           backgroundColor: Colors.red,
-  //         ),
-  //       );
-  //     }
-  //   } finally {
-  //     print("END: saveModifiedOrder");
-  //   }
-  // }
-
   Future<void> sendToApproval(
     SalesOrderDisplay originalOrder,
     List<Map<String, dynamic>> increasedItems,
@@ -1372,94 +830,7 @@ class EditCustomerScreenProvider with ChangeNotifier {
     BuildContext context,
   ) async {
     try {
-
-      // Print initial variables
-
       List<double> advanceAmountList = [totalAdvance];
-
-      // Copy original order data into merged lists
-      // List<String> mergedItemNames = [...originalOrder.itemName];
-      // List<String> mergedVarianceNames = [...originalOrder.varianceName];
-
-      // List<num> mergedQty = [...originalOrder.qty];
-      // List<String> mergedUom = [...originalOrder.uom];
-      // List<num> mergedWeight = [...originalOrder.weight];
-      // List<num> mergedAmount = [...originalOrder.amount];
-      // List<num> mergedPrice = [...originalOrder.price];
-
-      // print("Step 2: Initial merged data:");
-      // print("Item Names: $mergedItemNames");
-      // print("Quantities: $mergedQty");
-      // print("UOMs: $mergedUom");
-      // print("Weights: $mergedWeight");
-      // print("Amounts: $mergedAmount");
-      // print("Prices: $mergedPrice");
-
-      // // Process increased items
-      // print("Step 3: Processing increased items...");
-      // // for (var item in increasedItems) {
-      // //   print("Processing increased item: $item");
-      // //   int existingIndex = mergedItemNames.indexOf(item['varianceName']);
-      // //   if (existingIndex != -1) {
-      // //     print("Item exists, updating quantity and amount...");
-      // //     mergedQty[existingIndex] += item['quantity'];
-      // //     mergedAmount[existingIndex] += item['amount'];
-      // //   } else {
-      // //     print("Item does not exist, adding new item...");
-      // //     mergedVarianceNames.add(item['varianceName']);
-      // //     mergedItemNames.add(item['itemName']);
-      // //     mergedQty.add(item['quantity']);
-      // //     mergedUom.add(item['uom']);
-      // //     mergedWeight.add(item['weight']);
-      // //     mergedAmount.add(item['amount']);
-      // //     mergedPrice.add(item['price']);
-      // //   }
-      // // }
-
-      // for (var item in increasedItems) {
-      //   print("Processing increased item: $item");
-      //   int existingIndex = mergedVarianceNames.indexOf(item['varianceName']);
-      //   if (existingIndex != -1) {
-      //     print("Item exists, updating quantity and amount...");
-      //     mergedQty[existingIndex] = (mergedQty[existingIndex] is int
-      //             ? mergedQty[existingIndex].toDouble()
-      //             : mergedQty[existingIndex]) +
-      //         (item['quantity'] is int
-      //             ? item['quantity'].toDouble()
-      //             : item['quantity']);
-      //     mergedAmount[existingIndex] = (mergedAmount[existingIndex] is int
-      //             ? mergedAmount[existingIndex].toDouble()
-      //             : mergedAmount[existingIndex]) +
-      //         (item['amount'] is int
-      //             ? item['amount'].toDouble()
-      //             : item['amount']);
-      //     if (item['uom'].toLowerCase() == 'kg' ||
-      //         item['uom'].toLowerCase() == 'kgs') {
-      //       mergedWeight[existingIndex] = (mergedWeight[existingIndex] is int
-      //               ? mergedWeight[existingIndex].toDouble()
-      //               : mergedWeight[existingIndex]) +
-      //           (item['weight'] is int
-      //               ? item['weight'].toDouble()
-      //               : item['weight']);
-      //     }
-      //   } else {
-      //     print("Item does not exist, adding new item...");
-      //     mergedVarianceNames.add(item['varianceName']);
-      //     mergedItemNames.add(item['itemName']);
-      //     mergedQty.add(item['quantity'] is int
-      //         ? item['quantity'].toDouble()
-      //         : item['quantity']);
-      //     mergedUom.add(item['uom']);
-      //     mergedWeight.add(item['weight'] is int
-      //         ? item['weight'].toDouble()
-      //         : item['weight']);
-      //     mergedAmount.add(item['amount'] is int
-      //         ? item['amount'].toDouble()
-      //         : item['amount']);
-      //     mergedPrice.add(
-      //         item['price'] is int ? item['price'].toDouble() : item['price']);
-      //   }
-      // }
 
       List<String> mergedItemNames = (originalOrder.itemName ?? [])
           .map((item) => item.isEmpty ? "Unknown Item" : item)
@@ -1481,10 +852,8 @@ class EditCustomerScreenProvider with ChangeNotifier {
           .map((p) => p is int ? p.toDouble() : p)
           .toList();
 
-
       // Validate initial data
-      if (mergedVarianceNames.isEmpty) {
-      }
+      if (mergedVarianceNames.isEmpty) {}
 
       // Process increased items
       for (var item in increasedItems) {
@@ -1538,35 +907,10 @@ class EditCustomerScreenProvider with ChangeNotifier {
         }
       }
 
-
-      // Print merged data after processing increased items
-
-      // Process decreased items
-      // for (var item in decreasedItems) {
-      //   print("Processing decreased item: $item");
-      //   int existingIndex = mergedItemNames.indexOf(item['itemName']);
-      //   if (existingIndex != -1) {
-      //     print("Item exists, reducing quantity and amount...");
-      //     mergedQty[existingIndex] -= item['quantity'];
-      //     mergedAmount[existingIndex] -= item['amount'];
-      //     if (mergedQty[existingIndex] <= 0) {
-      //       print("Quantity is zero or less, removing item...");
-      //       mergedItemNames.removeAt(existingIndex);
-      //       mergedQty.removeAt(existingIndex);
-      //       mergedUom.removeAt(existingIndex);
-      //       mergedWeight.removeAt(existingIndex);
-      //       mergedAmount.removeAt(existingIndex);
-      //       mergedPrice.removeAt(existingIndex);
-      //     }
-      //   }
-      // }
-      // Process decreased items
-      // Process decreased items
       for (var item in decreasedItems) {
         int existingIndex = mergedVarianceNames.indexOf(item['varianceName']);
 
         if (existingIndex != -1) {
-
           // Get the current values
           num newQuantity = mergedQty[existingIndex];
           num newAmount = mergedAmount[existingIndex];
@@ -1580,14 +924,11 @@ class EditCustomerScreenProvider with ChangeNotifier {
                 item['weight']; // Reduced weight from the item
             newWeight -= reducedWeight; // Subtract the reduced weight
             newAmount -= item['amount']; // Subtract the amount
-
           } else {
             // For other units like Pcs or Pkt, reduce qty and amount
             newQuantity -= item['quantity'];
             newAmount -= item['amount'];
-
           }
-
 
           // Update the values if still valid
           if (newQuantity > 0 && newWeight >= 0) {
@@ -1604,10 +945,8 @@ class EditCustomerScreenProvider with ChangeNotifier {
             mergedAmount.removeAt(existingIndex);
             mergedPrice.removeAt(existingIndex);
           }
-        } else {
-        }
+        } else {}
       }
-
 
       Map<String, dynamic> modifiedOrderData = {
         'previousOrderId': originalOrder.salesOrderId,
@@ -1666,55 +1005,6 @@ class EditCustomerScreenProvider with ChangeNotifier {
 
       await _sendPostToapproveDataToServer(jsonDecode(jsonModifiedSalesOrder));
       await _sendPatchForSaleOrderDataToServer(jsonDecode(serverPatchData));
-      // print("Step 6: Sending HTTP POST request...");
-      // final patchResponse = await http.post(
-      //   Uri.parse('http://$ipAddress/toapprove/'),
-      //   headers: {'Content-Type': 'application/json'},
-      //   body: jsonEncode(modifiedOrderData),
-      // );
-
-      // print("HTTP Response Status: ${patchResponse.statusCode}");
-      // print("HTTP Response Body: ${patchResponse.body}");
-
-      // if (patchResponse.statusCode == 200 && context.mounted) {
-      //   print("Request successful. Handling response...");
-      //   print("Audio Path: $audioPath");
-      //   final patchData = jsonEncode({
-      //     "status": "toApprove Orders",
-      //     "approvalType": "ModifyOrder",
-      //   });
-      //   final patchResponseForApproval = await http.patch(
-      //     Uri.parse(
-      //         'http://$ipAddress/CurrentOrder/withoutpagination/${originalOrder.salesOrderId}'),
-      //     headers: {'Content-Type': 'application/json'},
-      //     body: patchData,
-      //   );
-      //   print('patchData$patchData');
-      //   if (patchResponseForApproval.statusCode == 200 && context.mounted) {
-      //     print("Status updated successfully.");
-
-      //     // if (context.mounted) {
-
-      //     ScaffoldMessenger.of(context).showSnackBar(
-      //       SnackBar(
-      //         content: Text(decreasedItems.isNotEmpty
-      //             ? 'Order sent for approval'
-      //             : 'Order modified successfully'),
-      //         backgroundColor: Colors.green,
-      //       ),
-      //     );
-      //     await printReceipt(context, modifiedOrderData);
-      //     // }
-      //     if (context.mounted) {
-      //       final apiProvider = Provider.of<ApiServiceSalesOrderProvider>(
-      //           context,
-      //           listen: false);
-      //       apiProvider.fetchAllOrders();
-      //     }
-      //   }
-      // } else {
-      //   throw Exception('Failed to patch modified order.');
-      // }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1732,20 +1022,8 @@ class EditCustomerScreenProvider with ChangeNotifier {
     try {
       final jsonData = jsonEncode(invoiceData);
       _channel.sink.add(jsonData);
-    } catch (e) {
-    }
+    } catch (e) {}
   }
-
-  // Future<void> _sendPatchForSaleOrderDataToServer(
-  //     Map<String, dynamic> patchData) async {
-  //   try {
-  //     final jsonData = jsonEncode(patchData);
-  //     _channel.sink.add(jsonData);
-  //     print('sendModifyOrderToServer$jsonData');
-  //   } catch (e) {
-  //     print('Error sending invoice data to server: $e');
-  //   }
-  // }
 
   int _sendCount = 0; // Add this as a member variable of your class
 
@@ -1755,8 +1033,7 @@ class EditCustomerScreenProvider with ChangeNotifier {
       final jsonData = jsonEncode(patchData);
       _channel.sink.add(jsonData);
       _sendCount++; // Increment the counter
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   Future<void> handleAudioOrder(
@@ -1781,7 +1058,6 @@ class EditCustomerScreenProvider with ChangeNotifier {
   Future<void> _postImages(
       String salesOrderId, File? pickedImage1, File? pickedImage2) async {
     try {
-
       var uri = Uri.parse(
           "http://$ipAddress/imageOrder/upload_photo"); // Change to your FastAPI endpoint
       var request = http.MultipartRequest('POST', uri);
@@ -1834,12 +1110,9 @@ class EditCustomerScreenProvider with ChangeNotifier {
 
         // Process the response to get the uploaded image URLs
         var uploadedPhotos = responseData['uploaded_photos'];
-        for (var photo in uploadedPhotos) {
-        }
-      } else {
-      }
-    } catch (e) {
-    }
+        for (var photo in uploadedPhotos) {}
+      } else {}
+    } catch (e) {}
   }
 
   Future<void> _postAudioFile(String customId, String filePath) async {
@@ -1878,32 +1151,13 @@ class EditCustomerScreenProvider with ChangeNotifier {
 
       // Debug: Check the server's response
       if (response.statusCode == 200) {
-      } else {
-      }
+      } else {}
     } catch (e) {
       // Optionally, handle error more gracefully (e.g., display a user-friendly message)
     }
   }
 
 // Helper function to calculate new total
-  double _calculateNewTotal(
-      double originalTotal,
-      List<Map<String, dynamic>> increasedItems,
-      List<Map<String, dynamic>> decreasedItems) {
-    double increasedAmount = increasedItems.fold(
-      0.0,
-      (sum, item) => sum + (item['amount'] as double),
-    );
-
-    double decreasedAmount = decreasedItems.fold(
-      0.0,
-      (sum, item) => sum + (item['amount'] as double),
-    );
-
-    return originalTotal + increasedAmount - decreasedAmount;
-  }
-
-// Helper function to print modified receipt
 
   Future<void> fetchCompanySuggestions(String query) async {
     if (query.isEmpty) {
@@ -1968,7 +1222,7 @@ class EditCustomerScreenProvider with ChangeNotifier {
   }
 
   void onSuggestionSelected(Map<String, String> suggestion) {
-    mobileNoController.text = suggestion['mobileNo']!;
+    mobileNoController.text = suggestion['mobile']!;
     customerNameController.text = suggestion['name']!;
     suggestions = []; // Clear suggestions after selection
     notifyListeners();
@@ -1977,7 +1231,7 @@ class EditCustomerScreenProvider with ChangeNotifier {
   Future<List<Map<String, String>>> fetchCustomerList() async {
     try {
       final response = await http.get(
-        // Uri.parse('http://192.168.1.103:8888/fastapi/customers/'),
+        // Uri.parse('https://yenerp.com/fastapi/customers/'),
         Uri.parse('http://$ipAddress/customer/'),
         headers: {'Content-Type': 'application/json'},
       );
@@ -2016,7 +1270,7 @@ class EditCustomerScreenProvider with ChangeNotifier {
                   .toString()
                   .startsWith(query)) // Filter by mobile number prefix
               .map((customer) => {
-                    'mobileNo': customer['customerPhoneNumber'].toString(),
+                    'mobile': customer['customerPhoneNumber'].toString(),
                     'name': customer['customerName'].toString(),
                   })
               .toList();
@@ -2025,7 +1279,6 @@ class EditCustomerScreenProvider with ChangeNotifier {
           throw Exception('Failed to load customers');
         }
       } catch (e) {
-
         suggestions = [];
         notifyListeners();
       }
@@ -2113,7 +1366,7 @@ class EditCustomerScreenProvider with ChangeNotifier {
                     enable) {
                   final suggestion = suggestions[index];
                   return ListTile(
-                    title: Text(suggestion['mobileNo'] ?? 'Unknown Mobile'),
+                    title: Text(suggestion['mobile'] ?? 'Unknown Mobile'),
                     subtitle: Text(suggestion['name'] ?? 'Unknown Name'),
                     onTap: () {
                       onSuggestionSelected(suggestion);
@@ -2533,9 +1786,6 @@ class EditCustomerScreenProvider with ChangeNotifier {
 
   String? selectedFilter = 'All Order';
 
-  File? pickedImage1;
-  File? pickedImage2;
-
   void setFilter(String? value) {
     selectedFilter = value;
     notifyListeners();
@@ -2816,11 +2066,8 @@ class EditCustomerScreenProvider with ChangeNotifier {
     }
   }
 
-
-
   void updateItemInOrder(
       Map<String, dynamic> item, double difference, int originalIndex) {
-
     bool isKgUnit = item['varianceUom']?.toLowerCase() == 'kg' ||
         item['varianceUom']?.toLowerCase() == 'kgs';
 
@@ -2928,7 +2175,6 @@ class EditCustomerScreenProvider with ChangeNotifier {
     _recalculateOrderTotals();
     notifyListeners();
   }
-
 
 // Helper method to recalculate order totals
   void _recalculateOrderTotals() {

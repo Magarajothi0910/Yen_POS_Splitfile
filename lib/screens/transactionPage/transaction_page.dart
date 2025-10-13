@@ -6,14 +6,14 @@ import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:yenposapp/Global/custom_button_reuse.dart';
 import 'package:yenposapp/Global/smartsearchtextfield.dart';
-import 'package:yenposapp/KotApp/kotproviders/transactionProvider.dart';
+import 'package:yenposapp/screens/transactionPage/transactionProvider.dart';
 
 import 'package:yenposapp/screens/sales_order/sales_order_providers/cartProvider.dart';
 import 'package:yenposapp/screens/sales_order/sales_order_providers/customerScreen_provider.dart';
 import 'package:yenposapp/screens/sales_order/sales_order_providers/editcustomerscreenProvider.dart';
 import 'package:yenposapp/screens/sales_order/screens/all_orders_page/services/get_sales_order_service.dart';
 import 'package:yenposapp/screens/sales_order/screens/create_salesOrder.dart/edit_outlet_so_customerdetails.dart';
-import 'package:yenposapp/screens/sales_order/screens/model/sales_order_model.dart';
+import 'package:yenposapp/screens/sales_order/screens/model/sales_order_display_model.dart';
 import 'package:yenposapp/screens/transactionPage/transaction_model.dart';
 import 'dart:convert';
 import '../../Global/globals_data.dart';
@@ -55,6 +55,9 @@ class _TransactionPageState extends State<TransactionPage> {
         .map((order) => Transaction.fromMap(order))
         .toList();
 
+    for (var tx in salesCompletedOrders) {
+      print("🧾 Transaction => ${tx.toMap()}");
+    }
     final openOrders = apiService.hivefilteredOrders
         .map((order) => SalesOrderDisplay.fromMap(order))
         .where((order) => order.status == "Open Order")
@@ -201,6 +204,11 @@ class _TransactionPageState extends State<TransactionPage> {
     List<Transaction> orders,
     ApiServiceSalesOrderProvider apiService,
   ) {
+    print("🔎 Building Sales Completed Layout...");
+    print("📊 Total Orders: ${orders.length}");
+    print(
+        "📍 Currently Selected Transaction Index: $_selectedTransactionIndex");
+
     return [
       Expanded(
         flex: 1,
@@ -214,20 +222,35 @@ class _TransactionPageState extends State<TransactionPage> {
                       itemBuilder: (context, index) {
                         final reversedList = orders.reversed.toList();
                         final item = reversedList[index];
+
+                        print("➡️ Rendering item at reversed index: $index");
+                        print("   - Transaction Total: ₹${item.totalAmount}");
+                        print("   - Branch: ${item.branchName}");
+                        print("   - Invoice Time: ${item.invoiceTime}");
+
+                        bool isSelected = _selectedTransactionIndex != null &&
+                            index ==
+                                (orders.length -
+                                    1 -
+                                    _selectedTransactionIndex!);
+
+                        print("   - Is Selected: $isSelected");
+
                         return ListTile(
                           title:
                               Text('₹${item.totalAmount.toStringAsFixed(0)}'),
                           subtitle: Text(item.branchName),
                           trailing: Text(item.invoiceTime),
-                          selected: _selectedTransactionIndex != null &&
-                              index ==
-                                  (orders.length -
-                                      1 -
-                                      _selectedTransactionIndex!),
+                          selected: isSelected,
                           onTap: () {
                             setState(() {
                               _selectedTransactionIndex =
                                   orders.length - 1 - index;
+                              print("✅ Transaction selected!");
+                              print(
+                                  "   -> Selected Index: $_selectedTransactionIndex");
+                              print(
+                                  "   -> Selected Transaction Total: ₹${item.totalAmount}");
                             });
                           },
                         );
@@ -242,7 +265,17 @@ class _TransactionPageState extends State<TransactionPage> {
         flex: 2,
         child: orders.isEmpty || _selectedTransactionIndex == null
             ? const Center(child: Text("Select a Transaction"))
-            : _buildTransactionDetail(orders[_selectedTransactionIndex!]),
+            : Builder(
+                builder: (_) {
+                  print(
+                      "📦 Showing Transaction Detail for Index: $_selectedTransactionIndex");
+                  final selectedItem = orders[_selectedTransactionIndex!];
+                  print("   -> Branch: ${selectedItem.branchName}");
+                  print("   -> Total Amount: ₹${selectedItem.totalAmount}");
+                  print("   -> Invoice Time: ${selectedItem.invoiceTime}");
+                  return _buildTransactionDetail(selectedItem);
+                },
+              ),
       ),
     ];
   }
@@ -633,13 +666,13 @@ class _TransactionPageState extends State<TransactionPage> {
   ) {
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: SmartSearchField(
-            controller: _searchController,
-            onSearch: apiService.searchOrders,
-          ),
-        ),
+        // Padding(
+        //   padding: const EdgeInsets.all(8.0),
+        //   child: SmartSearchField(
+        //     controller: _searchController,
+        //     onSearch: apiService.searchOrders,
+        //   ),
+        // ),
         Expanded(
           child: filteredSalesOrders.isEmpty
               ? const Center(child: Text("No orders available"))
@@ -772,7 +805,7 @@ class _TransactionPageState extends State<TransactionPage> {
                   const Text('Invoice ID',
                       style:
                           TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  Text('Receipt #${transaction.hiveInvoiceId}',
+                  Text('Receipt #${transaction.invoiceNo}',
                       style: const TextStyle(fontSize: 16)),
                 ],
               ),

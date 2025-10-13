@@ -6,7 +6,7 @@ class HiveManager {
   static final HiveManager _instance = HiveManager._internal();
   static Box? _salesOrderBox;
   static Box? _invoiceBox;
-
+  static Box? _salesOrderNumberBox;
   static Box? _modifyOrderBox;
   static Box? _toApproveOrderBox;
   static Box? _holdOrderBox;
@@ -24,6 +24,7 @@ class HiveManager {
     _modifyOrderBox = await Hive.openBox('modifyOrderBox');
     _toApproveOrderBox = await Hive.openBox('toApproveOrderBox');
     _holdOrderBox = await Hive.openBox('holdSalesOrderBox');
+    _salesOrderNumberBox = await Hive.openBox('salesOrderNumberBox');
   }
 
   Future<void> init() async {
@@ -72,5 +73,13 @@ class HiveManager {
           'Hive not initialized! Call HiveManager.initialize() first');
     }
     return _toApproveOrderBox!;
+  }
+
+  static Box get salesOrderNumberBox {
+    if (_salesOrderNumberBox == null) {
+      throw Exception(
+          'Hive not initialized! Call HiveManager.initialize() first');
+    }
+    return _salesOrderNumberBox!;
   }
 }

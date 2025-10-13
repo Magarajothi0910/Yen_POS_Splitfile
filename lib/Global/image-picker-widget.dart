@@ -35,9 +35,7 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
           widget.onImagesSelected!(_image1, _image2);
         }
       }
-    } catch (e) {
-     
-    }
+    } catch (e) {}
   }
 
   void _showImageSourceDialog(int imageNumber) {
@@ -111,9 +109,7 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
               ],
             ),
             // Second Image
-            SizedBox(
-              width: 20,
-            ),
+
             Column(
               children: [
                 GestureDetector(

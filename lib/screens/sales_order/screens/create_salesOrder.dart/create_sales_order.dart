@@ -2,11 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:yenposapp/Global/customAll_keyboard.dart';
-
 import 'package:yenposapp/screens/sales_order/screens/create_salesOrder.dart/create_sales_order_widgets/disposable_builder.dart';
 import 'package:yenposapp/screens/sales_order/screens/create_salesOrder.dart/create_sales_order_widgets/selected_items_dialogue.dart';
-
 import 'package:yenposapp/screens/sales_order/screens/create_salesOrder.dart/create_sales_order_widgets/storetype_selection_dialogue.dart';
 import '../../../../Global/custom_textWidgets.dart';
 import '../../globals.dart';
@@ -144,7 +141,7 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
     );
   }
 
-  void _applySingleItemDiscount(String key, String value) {
+  void applySingleItemDiscount(String key, String value) {
     if (value.isEmpty) {
       setState(() {
         _discountControllers[key]?.text = '';
@@ -602,7 +599,7 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
   Widget _buildAllBoxQtyField(String key) {
     _allBoxQtyController.addListener(() {
       final value = _allBoxQtyController.text;
-      _applySingleItemDiscount(key, value);
+      applySingleItemDiscount(key, value);
     });
     return SizedBox(
       width: 90,
@@ -699,8 +696,6 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
 
           // Add to selected total
           double selectedTotalAmount = baseAmount + customCharge;
-
-      
 
           return ListView(
             children: [
@@ -1070,6 +1065,7 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
               item: item,
               originalIndex: originalIndex,
               cartProvider: cartProvider,
+              key: key,
             ),
           ],
         ),
@@ -1115,7 +1111,6 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
   }
 
   Widget _buildDiscountField(String key) {
-
     // Ensure controller and focus node exist for this key
     _discountControllers.putIfAbsent(key, () {
       return TextEditingController();
@@ -1131,7 +1126,7 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
     // Listener to track live changes
     ctrl.addListener(() {
       final value = ctrl.text;
-      _applySingleItemDiscount(key, value);
+      applySingleItemDiscount(key, value);
     });
 
     return SizedBox(
@@ -1189,7 +1184,6 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
 
           // Restrict max value = 100
           TextInputFormatter.withFunction((oldValue, newValue) {
-
             if (newValue.text.isEmpty) {
               return newValue;
             }
@@ -1207,16 +1201,15 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
           }),
         ],
         onChanged: (value) {
-
           if (value.isEmpty) {
-            _applySingleItemDiscount(key, '');
+            applySingleItemDiscount(key, '');
             return;
           }
 
           final discount = double.tryParse(value);
           if (discount == null || discount <= 0) {
             _discountControllers[key]?.clear();
-            _applySingleItemDiscount(key, '');
+            applySingleItemDiscount(key, '');
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text("Discount must be between 1 and 100"),
@@ -1226,7 +1219,7 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
             return;
           }
 
-          _applySingleItemDiscount(key, value);
+          applySingleItemDiscount(key, value);
         },
       ),
     );
@@ -1236,6 +1229,7 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
     required dynamic item,
     required int originalIndex,
     required CartProvider cartProvider,
+    required String key,
   }) {
     return Row(
       children: [
@@ -1249,21 +1243,31 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
                 cartProvider.updateQuantity(originalIndex, item.quantity - 1);
               }
             }
+
+            // 🔹 Re-apply discount for this item
+            final ctrl = _discountControllers[key];
+            if (ctrl != null && ctrl.text.isNotEmpty) {
+              applySingleItemDiscount(key, ctrl.text);
+            }
           },
         ),
         const SizedBox(width: 8),
         GestureDetector(
           onTap: () {
             if (item.boxQuantity == null || item.boxQuantity == 0) {
-              // ✅ Only show dialog if no boxQty is set
               cartProvider.showQuantityDialog(
                 context,
                 originalIndex,
                 item.quantity,
                 item.uom,
               );
+
+              // 🔹 Re-apply discount after dialog update
+              final ctrl = _discountControllers[key];
+              if (ctrl != null && ctrl.text.isNotEmpty) {
+                applySingleItemDiscount(key, ctrl.text);
+              }
             } else {
-              // Optionally show feedback
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text(
@@ -1294,6 +1298,13 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
           icon: Icons.add,
           onPressed: () {
             cartProvider.updateQuantity(originalIndex, item.quantity + 1);
+
+            // 🔹 Re-apply discount for this item
+            final ctrl = _discountControllers[key];
+            if (ctrl != null && ctrl.text.isNotEmpty) {
+              applySingleItemDiscount(key, ctrl.text);
+            }
+
             cartProvider.calculateSubtotal();
           },
         ),

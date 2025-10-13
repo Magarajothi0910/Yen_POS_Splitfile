@@ -55,7 +55,7 @@ class AudioState {
 class AudioProvider extends ChangeNotifier {
   final AudioPlayer _player = AudioPlayer();
   AudioState _state = AudioState();
-  static const String baseUrl = 'http://192.168.1.130:8888/fastapi/audios';
+  static const String baseUrl = 'https://yenerp.com/fastapi/audios';
 
   AudioState get state => _state;
   AudioPlayer get player => _player;

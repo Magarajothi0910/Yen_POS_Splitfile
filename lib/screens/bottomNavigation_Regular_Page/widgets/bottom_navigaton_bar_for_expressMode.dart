@@ -25,21 +25,21 @@ class _BottomNavigationPageExpressModeScreenState
   late Box _invoiceBox;
   bool _isHiveInitialized = false; // Loading state
   late final List<Widget> _pages = [
-    const ExpressModeScreen(),
-    const BirthdayCakesScreen(),
-    // const PreInvoiceScreen(),
-    const TableScreen(),
-    // const CurrentOrdersP
-    // const CurrentOrdersPage(),
+    // const ExpressModeScreen(),
+    // const BirthdayCakesScreen(),
+    // // const PreInvoiceScreen(),
+    // const TableScreen(),
+    // // const CurrentOrdersP
+    // // const CurrentOrdersPage(),
     TakeAwayOrdersNavigator(
       keyboardKey: widget.keyboardKey,
     ),
     TransactionPage(
       keyboardKey: widget.keyboardKey,
     ),
-    MorePage(
-      keyboardKey: widget.keyboardKey,
-    ),
+    // MorePage(
+    //   keyboardKey: widget.keyboardKey,
+    // ),
   ];
 
   @override
@@ -89,18 +89,18 @@ class _BottomNavigationPageExpressModeScreenState
                 unselectedLabelStyle:
                     const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                 items: [
-                  const BottomNavigationBarItem(
-                    icon: Icon(Icons.grid_view),
-                    label: 'Take Away',
-                  ),
-                  const BottomNavigationBarItem(
-                    icon: Icon(Icons.cake),
-                    label: 'Birth Day Cakes',
-                  ),
-                  const BottomNavigationBarItem(
-                    icon: Icon(Icons.table_restaurant_outlined),
-                    label: 'Dine in',
-                  ),
+                  // const BottomNavigationBarItem(
+                  //   icon: Icon(Icons.grid_view),
+                  //   label: 'Take Away',
+                  // ),
+                  // const BottomNavigationBarItem(
+                  //   icon: Icon(Icons.cake),
+                  //   label: 'Birth Day Cakes',
+                  // ),
+                  // const BottomNavigationBarItem(
+                  //   icon: Icon(Icons.table_restaurant_outlined),
+                  //   label: 'Dine in',
+                  // ),
                   const BottomNavigationBarItem(
                     icon: Icon(Icons.chrome_reader_mode),
                     label: 'Order Management',
@@ -137,10 +137,10 @@ class _BottomNavigationPageExpressModeScreenState
                     ),
                     label: 'Transactions',
                   ),
-                  const BottomNavigationBarItem(
-                    icon: Icon(Icons.more_horiz),
-                    label: 'More',
-                  ),
+                  // const BottomNavigationBarItem(
+                  //   icon: Icon(Icons.more_horiz),
+                  //   label: 'More',
+                  // ),
                 ],
                 selectedItemColor: Colors.blue,
                 unselectedItemColor: Colors.black,

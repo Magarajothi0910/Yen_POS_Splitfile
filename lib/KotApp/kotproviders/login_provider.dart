@@ -21,11 +21,9 @@ class LoginProvider with ChangeNotifier {
         return List<Map<String, dynamic>>.from(
             data.map((item) => Map<String, dynamic>.from(item)));
       } else {
-       
         return [];
       }
     } catch (error) {
-    
       return [];
     }
   }

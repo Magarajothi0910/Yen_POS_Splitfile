@@ -44,7 +44,6 @@ class ProductProvider with ChangeNotifier {
     notifyListeners();
   }
 
-
   Map<String, dynamic> castToStringKeyedMap(dynamic value) {
     if (value is Map) {
       return value.map(
@@ -74,14 +73,11 @@ class ProductProvider with ChangeNotifier {
                       .toList(),
                 })
             .toList();
-      } else {
-      }
-    } catch (e) {
-    }
+      } else {}
+    } catch (e) {}
     notifyListeners();
   }
 
-  
   Future<void> printDataLengthFromHive() async {
     final storedData = _productBox.get('data');
 
@@ -90,8 +86,7 @@ class ProductProvider with ChangeNotifier {
         final value = storedData[key];
         if (value is Map) {}
       }
-    } else {
-    }
+    } else {}
   }
 
   Future<void> fetchTablesAndSaveInHive() async {
@@ -106,8 +101,7 @@ class ProductProvider with ChangeNotifier {
       } else {
         throw Exception('Failed to load tables data');
       }
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   Future<void> _loadAddOnsFromHive() async {
@@ -148,8 +142,7 @@ class ProductProvider with ChangeNotifier {
       } else {
         throw Exception('Failed to load add-ons data');
       }
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   Future<void> fetchVariantsAndSaveInHive() async {
@@ -165,8 +158,7 @@ class ProductProvider with ChangeNotifier {
       } else {
         throw Exception('Failed to load kotvariantsdata');
       }
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   Future<void> _loadvariantsFromHive() async {

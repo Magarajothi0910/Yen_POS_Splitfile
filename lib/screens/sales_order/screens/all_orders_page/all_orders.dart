@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:collection/collection.dart';
+import 'package:yenposapp/screens/sales_order/globals.dart';
 import 'package:yenposapp/screens/sales_order/sales_order_print/add_advance_dialogue.dart';
 
 import '../../../../Global/advance-dialog.dart';
@@ -22,8 +23,8 @@ import '../../sales_order_providers/editcustomerscreenProvider.dart';
 import '../create_salesOrder.dart/create_sales_order.dart';
 import '../create_salesOrder.dart/editcustomerdetails.dart';
 import '../create_salesOrder.dart/numeric_Calculator.dart';
-import '../model/sales_order_model.dart';
-import 'advance-dialog2.dart';
+import '../model/sales_order_display_model.dart';
+
 import 'services/get_sales_order_service.dart';
 
 class AllOrdersPage extends StatefulWidget {
@@ -55,7 +56,6 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
     "Rejected",
     'Confirm'
   ];
-  late ValueNotifier<Map<int, double>> quantityChangesNotifier;
 
   // Map<int, double> quantityChanges = {};
   @override
@@ -68,6 +68,10 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
       final apiService = context.read<ApiServiceSalesOrderProvider>();
       final customerScreenProvider = context.read<EditCustomerScreenProvider>();
       // customerScreenProvider.resetSelection();
+      apiService.fetchFilteredOrders(
+        startDate: apiService.startDate,
+        endDate: apiService.endDate,
+      );
       if (customerScreenProvider.selectedTransactionIndex != null &&
           customerScreenProvider.selectedTransactionIndex! >=
               apiService.filteredAllSalesOrders.length) {
@@ -86,7 +90,7 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
     return Consumer<EditCustomerScreenProvider>(
       builder: (context, customerScreenProvider, child) {
         final apiService = context.watch<ApiServiceSalesOrderProvider>();
-        final filteredSalesOrders = apiService.hivefilteredOrders
+        final filteredSalesOrders = apiService.hivefilteredAllOrders
             .map((order) => SalesOrderDisplay.fromMap(order))
             .where((order) =>
                 order.status != "Open Order") // <-- Exclude Open Order
@@ -512,9 +516,14 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                           // Reset end date if it's before start date
                           if (apiService.endDate != null &&
                               apiService.endDate!.isBefore(selectedDate)) {
-                            apiService
-                                .setEndDate(selectedDate); // ✅ Reset end date
+                            apiService.setEndDate(selectedDate);
                           }
+
+                          // Fetch filtered orders after setting startDate
+                          apiService.fetchFilteredOrders(
+                            startDate: apiService.startDate,
+                            endDate: apiService.endDate,
+                          );
                         }
                       },
                       style: ElevatedButton.styleFrom(
@@ -536,7 +545,10 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                       ),
                     ),
                   ),
+
                   const SizedBox(width: 8),
+
+// --- End Date Button ---
                   Flexible(
                     flex: 2,
                     child: ElevatedButton(
@@ -544,13 +556,15 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                         final selectedDate = await showDatePicker(
                           context: context,
                           initialDate: apiService.endDate ??
-                              (apiService.startDate ??
-                                  DateTime.now()), // default
+                              apiService.startDate ??
+                              DateTime.now(),
                           firstDate: apiService.startDate ?? DateTime(2000),
                           lastDate: DateTime(2100),
                         );
                         if (selectedDate != null) {
                           apiService.setEndDate(selectedDate);
+
+                          // Fetch filtered orders after setting endDate
                           apiService.fetchFilteredOrders(
                             startDate: apiService.startDate,
                             endDate: apiService.endDate,
@@ -580,6 +594,7 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                   Flexible(
                     flex: 3,
                     child: DropdownButtonFormField<String>(
+                      dropdownColor: Colors.white,
                       value: _selectedFilter,
                       decoration: InputDecoration(
                         labelText: 'Filter Orders',
@@ -818,6 +833,7 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
   ) {
     final isKg = salesOrder.uom[index].toLowerCase() == 'kg' ||
         salesOrder.uom[index].toLowerCase() == 'kgs';
+
     final currentQty = isKg
         ? (salesOrder.weight[index] is int
             ? (salesOrder.weight[index] as int).toDouble()
@@ -825,6 +841,7 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
         : (salesOrder.qty[index] is int
             ? (salesOrder.qty[index] as int).toDouble()
             : salesOrder.qty[index] ?? 0.0);
+
     final isBoxItem = salesOrder.isBoxItem != null &&
         salesOrder.isBoxItem!.length > index &&
         salesOrder.isBoxItem![index].toLowerCase() == "yes";
@@ -927,7 +944,14 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                         valueListenable: quantityChangesNotifier,
                         builder: (context, quantityChanges, child) {
                           final modifiedValue = quantityChanges[index] ?? 0.0;
-                          final newQuantity = currentQty + modifiedValue;
+
+                          // Debug print
+                          print(
+                              "👉 Item[$index] BaseQty=$currentQty | ModifiedValue=$modifiedValue | NewQty=${currentQty + modifiedValue}");
+
+                          final originalQty = currentQty;
+                          final newQuantity = originalQty + modifiedValue;
+
                           final newAmount =
                               salesOrder.price[index] * newQuantity;
                           final modificationColor = modifiedValue > 0
@@ -943,15 +967,26 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                                       Map<int, double>.from(quantityChanges);
                                   final currentModifiedValue =
                                       newChanges[index] ?? 0.0;
-                                  final newQuantity =
-                                      currentQty + currentModifiedValue - 1.0;
-                                  if (newQuantity >= 0) {
-                                    // Prevent quantity from going below 0
-                                    newChanges[index] =
-                                        currentModifiedValue - 1.0;
+                                  final newDelta = currentModifiedValue - 1.0;
+
+                                  print(
+                                      "🔴 MINUS pressed for Item[$index]: Base=$originalQty, CurrentDelta=$currentModifiedValue → NewDelta=$newDelta");
+
+                                  if (originalQty + newDelta >= 0) {
+                                    newChanges[index] = newDelta;
                                     quantityChangesNotifier.value = newChanges;
+
+                                    print(
+                                        "✅ Updated Delta for Item[$index]: ${quantityChangesNotifier.value}");
+
                                     customerProvider.updateItemInOrder(
-                                        _createItemMap(), -1.0, index);
+                                      _createItemMap(),
+                                      -1.0,
+                                      index,
+                                    );
+                                  } else {
+                                    print(
+                                        "⚠️ Cannot go below zero for Item[$index]");
                                   }
                                 },
                                 child: Container(
@@ -987,11 +1022,24 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                                 onTap: () {
                                   final newChanges =
                                       Map<int, double>.from(quantityChanges);
-                                  newChanges[index] =
-                                      (newChanges[index] ?? 0.0) + 1.0;
+                                  final currentModifiedValue =
+                                      newChanges[index] ?? 0.0;
+                                  final newDelta = currentModifiedValue + 1.0;
+
+                                  print(
+                                      "🟢 PLUS pressed for Item[$index]: Base=$originalQty, CurrentDelta=$currentModifiedValue → NewDelta=$newDelta");
+
+                                  newChanges[index] = newDelta;
                                   quantityChangesNotifier.value = newChanges;
+
+                                  print(
+                                      "✅ Updated Delta for Item[$index]: ${quantityChangesNotifier.value}");
+
                                   customerProvider.updateItemInOrder(
-                                      _createItemMap(), 1.0, index);
+                                    _createItemMap(),
+                                    1.0,
+                                    index,
+                                  );
                                 },
                                 child: Container(
                                   padding: EdgeInsets.all(6),
@@ -1043,6 +1091,9 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                               ? Colors.green
                               : (modifiedValue < 0 ? Colors.red : Colors.black);
 
+                          print(
+                              "💰 Amount Update Item[$index]: Base=$currentQty, Delta=$modifiedValue, NewQty=$newQuantity, NewAmt=$newAmount");
+
                           return Text(
                             newQuantity != currentQty
                                 ? '₹${newAmount.toStringAsFixed(2)}'
@@ -1066,7 +1117,6 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
       ],
     );
   }
-
 // Helper widgets for table cells
 
   Widget _buildOrderItemsList(
@@ -1365,151 +1415,194 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
     );
   }
 
-  Future<void> _showWeightCalculator(
-    BuildContext context,
-    Map<String, dynamic> item,
-  ) async {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return NumericCalculator(
-          onValueSelected: (double newWeight) {
-            Provider.of<EditCustomerScreenProvider>(
-              context,
-              listen: false,
-            ).updateWeight(item, newWeight);
-          },
-        );
-      },
-    );
-  }
-
-  //   // Future<void> _showWeightEditDialog(BuildContext context, Map<String, dynamic> item) async {
-  //   // double? newWeight = await showDialog<double>(
-  //   //   context: context,
-  //   //   builder: (context) {
-  //   //     return NumericCalculator(
-  //   //       onValueSelected: (double selectedWeight) {
-  //   //         Navigator.pop(context, selectedWeight); // Return the selected weight
-  //   //       },
-  //   //     );
-  //   //   },
-  //   // );
-
-  //   if (newWeight != null && newWeight > 0) {
-  //     setState(() {
-  //       item['weight'] = newWeight; // Update the weight
-  //     });
-  //   }
-  // }
-
   Widget _buildOrderSummary(
     SalesOrderDisplay salesOrder,
     EditCustomerScreenProvider customerprovider,
   ) {
-    double totalAdvanceAmount = salesOrder.advanceAmount!.fold(
-      0.0,
-      (sum, value) => sum + value,
-    );
+    // Safe total advance
+    double totalAdvanceAmount = (salesOrder.advanceAmount ?? [])
+        .fold(0.0, (sum, value) => (value ?? 0.0).toDouble() + sum);
 
+    // Safe modified total
     double modifiedTotal = customerprovider.isModifyMode.value
         ? customerprovider.calculateModifiedTotal(salesOrder)
-        : salesOrder.totalAmount;
+        : (salesOrder.totalAmount ?? 0.0).toDouble();
+
+    // Safe custom charge and total amounts
+    double customCharge = (salesOrder.customCharge ?? 0.0).toDouble();
+    double totalAmount2 =
+        (salesOrder.totalAmount2 ?? salesOrder.totalAmount ?? 0.0).toDouble();
+    double discount = (salesOrder.discount ?? 0.0).toDouble();
+    double discountAmount = (salesOrder.discountAmount ?? 0.0).toDouble();
+    double finalPrice = (salesOrder.finalPrice ?? totalAmount2).toDouble();
+
+    List<double> advanceAmounts = (salesOrder.advanceAmount ?? [])
+        .map((e) => (e ?? 0.0).toDouble())
+        .toList();
+    List<String> advanceDates = salesOrder.advanceDateTime ?? [];
+    int advanceLength = advanceAmounts.length < advanceDates.length
+        ? advanceAmounts.length
+        : advanceDates.length;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          if (salesOrder.discount > 0)
+      padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 8.0),
+      child: SingleChildScrollView(
+        child: Column(
+          children: [
+            // Total Amount
             Text(
-              'Discount: ${salesOrder.discountAmount.toStringAsFixed(0)}%',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-            ),
-          if (salesOrder.customCharge > 0)
-            Text(
-              'Custom Charge: ₹${salesOrder.customCharge.toStringAsFixed(0)}',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-            ),
-          if (customerprovider.isModifyMode.value &&
-              (customerprovider.increasedItems.isNotEmpty ||
-                  customerprovider.decreasedItems.isNotEmpty))
-            Text(
-              'Original Total: ₹${salesOrder.totalAmount.toStringAsFixed(2)}',
-              style: TextStyle(
-                fontSize: 11,
+              'Total: ₹${(salesOrder.totalAmount ?? 0.0).toDouble().toStringAsFixed(0)}',
+              style: const TextStyle(
+                fontSize: 12,
                 fontWeight: FontWeight.bold,
-                decoration: TextDecoration.lineThrough,
-                color: Colors.grey,
+                color: Colors.black,
               ),
             ),
-          if (customerprovider.isModifyMode.value &&
-              customerprovider.increasedItems.isNotEmpty)
-            Text(
-              'Added Items: +₹${customerprovider.increasedItems.fold(0.0, (sum, item) => sum + (item['"amount"'] ?? 0.0)).toStringAsFixed(2)}',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: Colors.green,
+
+            // Custom Charge
+            if (customCharge > 0)
+              Text(
+                'Custom Charge: ₹${customCharge.toStringAsFixed(0)}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange,
+                ),
               ),
-            ),
-          if (customerprovider.isModifyMode.value &&
-              customerprovider.decreasedItems.isNotEmpty)
-            Text(
-              'Removed Items: -₹${customerprovider.decreasedItems.fold(0.0, (sum, item) => sum + (item['"amount"'] ?? 0.0)).toStringAsFixed(2)}',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: Colors.red,
+
+            if (customCharge > 0)
+              Text(
+                'Total Amount: ₹${totalAmount2.toStringAsFixed(0)}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
               ),
-            ),
-          Text(
-            'Total Amount: ₹${modifiedTotal.toStringAsFixed(2)}',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: customerprovider.isModifyMode.value
-                  ? Colors.blue
-                  : Colors.black,
-            ),
-          ),
-          ...List.generate(salesOrder.advanceAmount!.length, (index) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    DateFormat(
-                      'dd-MM-yyyy',
-                    ).format(DateTime.parse(salesOrder.advanceDateTime[index])),
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue,
-                    ),
+
+            // Discount
+            if (discount > 0)
+              Text(
+                'Discount: ${discount.toStringAsFixed(0)}%(-): ₹${discountAmount.toStringAsFixed(0)}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.red,
+                ),
+              ),
+
+            if (discount > 0)
+              Text(
+                'Order Amount: ₹${finalPrice.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
+              ),
+
+            // Modify Mode: Added/Removed Items
+            if (customerprovider.isModifyMode.value &&
+                (customerprovider.increasedItems.isNotEmpty ||
+                    customerprovider.decreasedItems.isNotEmpty))
+              Text(
+                'Original Total: ₹${(salesOrder.totalAmount ?? 0.0).toDouble().toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  decoration: TextDecoration.lineThrough,
+                  color: Colors.grey,
+                ),
+              ),
+
+            if (customerprovider.isModifyMode.value &&
+                customerprovider.increasedItems.isNotEmpty)
+              Text(
+                'Added Items: +₹${customerprovider.increasedItems.fold<double>(0.0, (sum, item) => sum + ((item['amount'] ?? 0.0) as num).toDouble()).toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green,
+                ),
+              ),
+
+            if (customerprovider.isModifyMode.value &&
+                customerprovider.decreasedItems.isNotEmpty)
+              Text(
+                'Removed Items: -₹${customerprovider.decreasedItems.fold<double>(0.0, (sum, item) => sum + ((item['amount'] ?? 0.0) as num).toDouble()).toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.red,
+                ),
+              ),
+
+            if (customerprovider.isModifyMode.value &&
+                (customerprovider.increasedItems.isNotEmpty ||
+                    customerprovider.decreasedItems.isNotEmpty))
+              Text(
+                'Modified Total: ₹${modifiedTotal.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue,
+                ),
+              ),
+
+            const SizedBox(height: 8),
+
+            // Advance Amounts
+            if (advanceLength > 0)
+              ...List.generate(advanceLength, (index) {
+                String formattedDate;
+                try {
+                  formattedDate = DateFormat('dd-MM-yyyy')
+                      .format(DateTime.parse(advanceDates[index]));
+                } catch (_) {
+                  formattedDate = advanceDates[index] ?? 'Invalid Date';
+                }
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          formattedDate,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue,
+                          ),
+                        ),
+                      ),
+                      Flexible(
+                        child: Text(
+                          'Amount : ₹${advanceAmounts[index].toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.green,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  Text(
-                    'Amount : ₹${salesOrder.advanceAmount![index].toStringAsFixed(2)}',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.green,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+                );
+              }),
+
+            // Balance
+            Text(
+              'Balance: ₹${(modifiedTotal - totalAdvanceAmount).toStringAsFixed(2)}',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue,
               ),
-            );
-          }),
-          Text(
-            'Balance: ₹${(modifiedTotal - totalAdvanceAmount).toStringAsFixed(2)}',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: Colors.blue,
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1525,6 +1618,7 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
       0.0,
       (sum, value) => sum + value,
     );
+
     final total = salesOrder.totalAmount - totalAdvanceAmount;
     double modifiedTotal = customerscreenprovider.isModifyMode.value
         ? customerscreenprovider.calculateModifiedTotal(salesOrder)
@@ -1552,8 +1646,8 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                             customerscreenprovider.recordedFilePath.isNotEmpty
                                 ? customerscreenprovider.recordedFilePath
                                 : null,
-                            _pickedImage1,
-                            _pickedImage1,
+                            customerscreenprovider.pickedImage1,
+                            customerscreenprovider.pickedImage2,
                             modifiedTotal,
                             total,
                             totalAdvanceAmount,
@@ -1571,19 +1665,28 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                       CustomButton(
                         text: 'Save Changes',
                         onPressed: () async {
-                          customerscreenprovider.showAdvancePaymentPopup(
-                              context,
-                              salesOrder,
-                              customerscreenprovider.increasedItems,
-                              customerscreenprovider.decreasedItems,
+                          final audioPath =
                               customerscreenprovider.recordedFilePath.isNotEmpty
                                   ? customerscreenprovider.recordedFilePath
-                                  : null,
-                              apiService,
-                              _pickedImage1,
-                              _pickedImage2,
-                              modifiedTotal,
-                              isModifyMode);
+                                  : null;
+                          print("audioPath $audioPath");
+                          print(
+                              "_pickedImage1 ${customerscreenprovider.pickedImage1}");
+                          print(
+                              "_pickedImage2 ${customerscreenprovider.pickedImage2}");
+                          // Show advance payment popup safely
+                          customerscreenprovider.showAdvancePaymentPopup(
+                            context,
+                            salesOrder,
+                            customerscreenprovider.increasedItems,
+                            customerscreenprovider.decreasedItems,
+                            audioPath,
+                            apiService,
+                            customerscreenprovider.pickedImage1,
+                            customerscreenprovider.pickedImage2,
+                            modifiedTotal,
+                            isModifyMode,
+                          );
                         },
                         backgroundColor: Colors.green,
                         textColor: CustomColors.whiteColor,
@@ -1594,15 +1697,16 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                         !isModifyMode)
                       Row(
                         children: [
-                          CustomButton(
-                            text: 'Add Advance',
-                            onPressed: () =>
-                                _showAdvancePaymentDialog(context, salesOrder),
-                            backgroundColor: CustomColors.blueColor,
-                            textColor: CustomColors.whiteColor,
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 25, vertical: 11),
-                          ),
+                          if (salesOrder.status == 'Confirm Order')
+                            CustomButton(
+                              text: 'Add Advance',
+                              onPressed: () => _showAdvancePaymentDialog(
+                                  context, salesOrder),
+                              backgroundColor: CustomColors.blueColor,
+                              textColor: CustomColors.whiteColor,
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 25, vertical: 11),
+                            ),
                           SizedBox(width: 20),
                           if (salesOrder.status == 'Confirm Order')
                             CustomButton(
@@ -1674,115 +1778,6 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                 salesOrder: salesOrder,
               ),
             ),
-          );
-        },
-      );
-    }
-  }
-
-  void _showQuantityUpdateDialog(
-    SalesOrderDisplay salesOrder,
-    int index,
-    EditCustomerScreenProvider customerProvider,
-  ) {
-    TextEditingController quantityController = TextEditingController();
-    bool isKgUnit = salesOrder.uom[index].toLowerCase() == 'kg' ||
-        salesOrder.uom[index].toLowerCase() == 'kgs';
-
-    // Initial value for the quantity
-    double currentQty = salesOrder.qty[index].toDouble();
-    quantityController.text = currentQty.toString();
-    debugPrint('current QTY ${currentQty.toString()}');
-    if (isKgUnit) {
-      // Show numeric calculator for kg/kgs units
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return NumericCalculator(
-            onValueSelected: (double value) {
-              customerProvider.updateQuantityWithWeight(
-                salesOrder,
-                index,
-                value,
-              );
-            },
-          );
-        },
-      );
-    } else {
-      // Show regular quantity update dialog for non-kg units
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: Text('Update Quantity'),
-            backgroundColor: Colors.white,
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(salesOrder.varianceName[index]),
-                SizedBox(height: 10),
-                Row(
-                  children: [
-                    IconButton(
-                      icon: Icon(Icons.remove),
-                      color: Colors.blue,
-                      onPressed: () {
-                        currentQty = (currentQty - 1).clamp(
-                          0.0,
-                          double.infinity,
-                        );
-                        quantityController.text = currentQty.toString();
-                      },
-                    ),
-                    Expanded(
-                      child: TextField(
-                        controller: quantityController,
-                        keyboardType: TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        decoration: InputDecoration(
-                          labelText: 'New Quantity',
-                          hintText: 'Current: ${salesOrder.qty[index]}',
-                          border: OutlineInputBorder(),
-                        ),
-                        style: TextStyle(fontSize: 20),
-                        onChanged: (value) {
-                          double? newQty = double.tryParse(value);
-                          if (newQty != null) {
-                            currentQty = newQty;
-                          }
-                        },
-                      ),
-                    ),
-                    IconButton(
-                      icon: Icon(Icons.add),
-                      color: Colors.blue,
-                      onPressed: () {
-                        currentQty += 1;
-                        quantityController.text = currentQty.toString();
-                      },
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () {
-                  double? newQty = double.tryParse(quantityController.text);
-                  if (newQty != null) {
-                    customerProvider.updateQuantity(salesOrder, index, newQty);
-                  }
-                  Navigator.pop(context);
-                },
-                child: Text('Update'),
-              ),
-            ],
           );
         },
       );

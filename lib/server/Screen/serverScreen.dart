@@ -12,7 +12,9 @@ import 'package:provider/provider.dart';
 import 'package:udp/udp.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:yenposapp/KotApp/screens/table_screen.dart';
 import 'package:yenposapp/screens/choose_mode/choose_mode_screen.dart';
+import 'package:yenposapp/screens/loginPage/login_page.dart';
 import 'package:yenposapp/server/Screen/login_provider_kot.dart';
 import '../../KotApp/handlers/FullCancelOrder_Handler.dart';
 import '../../KotApp/handlers/ItemWiseCancel.dart';
@@ -56,7 +58,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Set<WebSocketChannel> clients = {};
   List<Map<String, dynamic>> orders = [];
   final SyncServiceKot _syncService1 = SyncServiceKot();
-
+  Set<String> sentPatchOrders = {};
   final SyncService _syncService = SyncService();
   Timer? _syncTimer;
   Timer? _patchCheckTimer;
@@ -68,6 +70,8 @@ class _LoginScreenState extends State<LoginScreen> {
   //saleorders
 
   late Box saleOrderBox;
+  late Box saleOrderNumber;
+
   late Box invoiceBox;
 
   late Box holdOrderBox;
@@ -133,8 +137,11 @@ class _LoginScreenState extends State<LoginScreen> {
     invoiceBox = await Hive.openBox('invoices');
     Hive.openBox('salesOrders');
     saleOrderBox = await Hive.openBox('saleOrderBox');
+    saleOrderNumber = await Hive.openBox("salesOrderNumberBox");
     holdOrderBox = await Hive.openBox('holdOrders');
+    await Hive.openBox('salesOrderNumberBox');
     await Hive.openBox('holdOrders');
+
     Hive.openBox('salesApprovalOrder');
     Hive.openBox('saleOrderModifyOrders');
 
@@ -148,23 +155,63 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<String?> fetchNextSalesOrderNumberFromHive(String prefix) async {
-    // Open the Hive box for sales orders
-    final salesOrderBox = await Hive.openBox('salesOrders');
+    print("🧠 [fetchNextSalesOrderNumberFromHive] Called with prefix: $prefix");
 
-    // Get the current count for the prefix or initialize it to 250000
-    final currentCount = salesOrderBox.get(prefix) ?? 0000;
+    // Open Hive box
+    final saleOrderNumberBox = await Hive.openBox('salesOrderNumberBox');
+    print("📦 [fetchNextSalesOrderNumberFromHive] Opened salesOrderNumberBox");
 
-    // Increment to get the next count
-    final nextCount = currentCount + 1;
+    // Get all stored numbers
+    final List<String> allNumbers = saleOrderNumberBox.values
+        .expand((e) => e is List ? e.map((x) => x.toString()) : [e.toString()])
+        .toList();
 
-    // Save the updated count back to Hive
-    await salesOrderBox.put(prefix, nextCount);
+    print(
+        "📋 [fetchNextSalesOrderNumberFromHive] Existing numbers: $allNumbers");
 
-    // Format the numeric part with leading zeros to ensure it is always six digits
-    final formattedNumber = nextCount.toString().padLeft(4, '0');
+    // If no existing numbers, start fresh
+    if (allNumbers.isEmpty) {
+      final newNumber = '${prefix}0001';
+      await saleOrderNumberBox.add(newNumber);
+      print(
+          "🆕 [fetchNextSalesOrderNumberFromHive] Created first order number: $newNumber");
+      return newNumber;
+    }
 
-    // Return the new sales order number in the format "prefix + formattedNumber"
-    return '$prefix$formattedNumber';
+    // Get the last stored number
+    final String lastOrderNumber = allNumbers.last;
+    print(
+        "🔢 [fetchNextSalesOrderNumberFromHive] Last stored number: $lastOrderNumber");
+
+    // Extract numeric part correctly (ignore extra prefix inside number)
+    String numericPart = '';
+    if (lastOrderNumber.startsWith(prefix)) {
+      numericPart = lastOrderNumber.substring(prefix.length);
+    } else {
+      // fallback: extract last numeric sequence
+      final match = RegExp(r'(\d+)$').firstMatch(lastOrderNumber);
+      numericPart = match?.group(1) ?? '0';
+    }
+
+    print(
+        "🔍 [fetchNextSalesOrderNumberFromHive] Extracted numeric part: $numericPart");
+
+    // Convert to int and increment
+    final int lastCount = int.tryParse(numericPart) ?? 0;
+    final int nextCount = lastCount + 1;
+
+    // Pad to 4 digits
+    final String formattedNumber = nextCount.toString().padLeft(4, '0');
+
+    // ✅ Correct format: prefix + 4-digit count
+    final String newOrderNumber = '$prefix$formattedNumber';
+
+    // Save in Hive
+    await saleOrderNumberBox.add(newOrderNumber);
+    print(
+        "💾 [fetchNextSalesOrderNumberFromHive] Saved new order number: $newOrderNumber");
+
+    return newOrderNumber;
   }
 
   Future<String?> fetchNextInvoiceOrderNumberFromHive(String prefix) async {
@@ -188,78 +235,56 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   int sendDataToClientsCallCount = 0;
-  Future<void> handlePatchSaleOrder(Map<String, dynamic> data) async {
-    final String soNo = data['saleOrderNo'];
-    final Map<String, dynamic> patchData =
-        Map<String, dynamic>.from(data['data'] ?? {});
-    final String? deviceName = data['deviceName'];
-    final String type = data['type'] ?? 'patchSaleOrder';
-    final String sync = data['sync'] ?? 'No';
-    final String edit = data['edit'] ?? 'No';
-    final String waitingForApprovalResult =
-        data['waitingForApprovalResult'] ?? 'Yes';
 
-    // Find target key in Hive
+  Future<void> handlePatchSaleOrder(Map<String, dynamic> data) async {
+    final String soNo = data['saleOrderNo'] ?? '';
+
+    // Open Hive Box
+    var saleOrderBox = await Hive.openBox('saleOrderBox');
+
+    // Find matching entry in Hive
     String? targetKey;
+    Map<String, dynamic>? existingData;
     for (final entry in saleOrderBox.toMap().entries) {
-      if (entry.value['data']?['saleOrderNo'] == soNo) {
+      final orderData = entry.value['data'];
+      if (orderData is Map && orderData['saleOrderNo'] == soNo) {
         targetKey = entry.key.toString();
+        existingData = Map<String, dynamic>.from(entry.value);
         break;
       }
     }
 
-    if (targetKey == null) {
-      print("❌ No matching SaleOrder found in Hive for $soNo");
+    if (targetKey == null || existingData == null) {
       return;
     }
 
-    // Update existing order
-    final existingOrder =
-        Map<String, dynamic>.from(saleOrderBox.get(targetKey));
-    existingOrder['data'] = {
-      ...?existingOrder['data'],
-      ...patchData, // Merge patchData
-    };
-    existingOrder.addAll({
-      'deviceName': deviceName,
-      'type': type,
-      'sync': sync,
-      'edit': edit,
-      'waitingForApprovalResult': waitingForApprovalResult,
-      'saleOrderNo': soNo,
-    });
+    // Merge patchData into existingData
+    final Map<String, dynamic> patchData =
+        Map<String, dynamic>.from(data['data'] ?? {});
+    final Map<String, dynamic> existingOrderData =
+        Map<String, dynamic>.from(existingData['data'] ?? {});
 
-    await saleOrderBox.put(targetKey, existingOrder);
-    print("✅ Updated Hive order for key=$targetKey");
+    existingOrderData.addAll(patchData);
+    existingData['data'] = existingOrderData;
 
-    // Notify clients
+    await saleOrderBox.put(targetKey, existingData);
+
     sendDataToClients({
       'action': 'patchsaleorderGenerated',
       'saleOrderNo': soNo,
-      'patchSaleOrder': data,
+      'patchSaleOrder': existingData,
     }, clients);
 
-    // Sync with server
+    sendDataToClientsCallCount++;
+
     try {
-      bool success = await _syncService.patchSalesOrder(soNo, {
-        'data': patchData,
-        'deviceName': deviceName,
-        'type': type,
-        'sync': sync,
-        'edit': edit,
-        'waitingForApprovalResult': waitingForApprovalResult,
-      });
+      bool success = await _syncService.patchSalesOrder(soNo, existingData);
 
       if (success) {
-        existingOrder['sync'] = true;
-        await saleOrderBox.put(targetKey, existingOrder);
-        print("✅ Hive updated with sync=true for $soNo");
-      } else {
-        print("⚠️ Patch failed, will retry later for $soNo");
-      }
-    } catch (e) {
-      print("🔥 Error syncing patch for $soNo: $e");
-    }
+        existingData['sync'] = "Yes";
+        await saleOrderBox.put(targetKey, existingData);
+      } else {}
+    } catch (e) {}
   }
 
   Future<void> handlePatchHoldOrder(Map<String, dynamic> data) async {
@@ -415,38 +440,26 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> handleOpenSaleOrder(Map<String, dynamic> data) async {
-    debugPrint("➡️ Starting handleSaleOrder with input: $data");
-
     // Extract the sales order data (nested or top-level)
     final salesOrder = data['data'] ?? data;
-    debugPrint("📦 Extracted salesOrder: $salesOrder");
 
     // Determine the prefix for the sales order number
     String prefix = salesOrder['saleOrderNo']?.toString().trim() ??
         salesOrder['branchAlias']?.toString().trim() ??
         "SOSB";
-    debugPrint("🔤 Determined prefix for sales order number: $prefix");
 
     // Get new sales order number from API/Hive
     final newSalesOrderNo = await fetchNextSalesOrderNumberFromHive(prefix);
     if (newSalesOrderNo == null) {
-      debugPrint(
-        "❌ Failed to fetch a new sales order number for prefix: $prefix",
-      );
       return;
     }
-    debugPrint(
-      "✅ Fetched new sales order number from Hive/API: $newSalesOrderNo",
-    );
 
     // Clean and update the sales order number
     final cleanSalesOrderNo = newSalesOrderNo.replaceAll('"', '');
     salesOrder['saleOrderNo'] = cleanSalesOrderNo;
-    debugPrint("🧽 Cleaned and updated saleOrderNo: $cleanSalesOrderNo");
 
     // Save the order locally
     await savePosSaleOrderToHive(data, saleOrderBox);
-    debugPrint("💾 Saved updated sales order locally: ${data}");
 
     // Notify clients with updated order number
     sendDataToClients({
@@ -454,68 +467,78 @@ class _LoginScreenState extends State<LoginScreen> {
       'opSalesOrder': data, // now includes updated saleOrderNo
     }, clients);
     _sendDataToClientsCount++;
-    debugPrint(
-      "📡 Notified clients ($_sendDataToClientsCount times) with updated salesOrderNo: $cleanSalesOrderNo",
-    );
 
     // Post to API
-    debugPrint(
-      "📤 Posting sales order to API: ${{
-        "data": [salesOrder],
-      }}",
-    );
+
     bool success = await _syncService.postSalesOrder({
       "data": [salesOrder],
     });
 
     if (success) {
-      debugPrint("✅ Sales order posted successfully to server.");
-    } else {
-      debugPrint("❌ Failed to post sales order to server.");
-    }
-
-    debugPrint(
-      "🏁 handleSaleOrder completed for saleOrderNo: $cleanSalesOrderNo",
-    );
+    } else {}
   }
 
   Future<void> handleSaleOrder(Map<String, dynamic> data) async {
+    print("🚀 [handleSaleOrder] Called with data: $data");
+
     // Extract the sales order data (nested or top-level)
     final salesOrder = data['data'] ?? data;
+    print("📦 [handleSaleOrder] Extracted salesOrder: $salesOrder");
 
     // Determine the prefix for the sales order number
     String prefix = salesOrder['saleOrderNo']?.toString().trim() ??
-        salesOrder['branchAlias']?.toString().trim() ??
+        salesOrder['aliasName']?.toString().trim() ??
         "SOSB";
+    print("🔠 [handleSaleOrder] Using prefix: $prefix");
 
     // Get new sales order number from API/Hive
     final newSalesOrderNo = await fetchNextSalesOrderNumberFromHive(prefix);
+    print(
+        "🔢 [handleSaleOrder] New sales order number from Hive: $newSalesOrderNo");
+
     if (newSalesOrderNo == null) {
+      print("❌ [handleSaleOrder] Failed to get new sales order number.");
       return;
     }
 
     // Clean and update the sales order number
     final cleanSalesOrderNo = newSalesOrderNo.replaceAll('"', '');
     salesOrder['saleOrderNo'] = cleanSalesOrderNo;
+    print("✅ [handleSaleOrder] Updated saleOrderNo: $cleanSalesOrderNo");
 
-    // Save the order locally
+    // Save the order locally (initial save as unsynced)
+    print("💾 [handleSaleOrder] Saving order to Hive (unsynced)...");
     await savePosSaleOrderToHive(data, saleOrderBox);
+    print("💾 [handleSaleOrder] Order saved locally to Hive.");
 
     // Notify clients with updated order number
+    print("📡 [handleSaleOrder] Sending updated sales order to clients...");
     sendDataToClients({
       'action': 'salesOrderGenerated',
       'salesOrder': data, // now includes updated saleOrderNo
     }, clients);
     _sendDataToClientsCount++;
+    print(
+        "📨 [handleSaleOrder] Data sent to clients. Total count: $_sendDataToClientsCount");
 
     // Post to API
-
+    print("🌐 [handleSaleOrder] Posting sales order to API...");
     bool success = await _syncService.postSalesOrder({
       "data": [salesOrder]
     });
 
     if (success) {
-    } else {}
+      print("✅ [handleSaleOrder] Sales order successfully synced to API.");
+
+      // ✅ Mark this order as synced in Hive
+      data["sync"] = "Yes"; // add sync flag
+      await saleOrderBox.put(cleanSalesOrderNo, data);
+      print("💾 [handleSaleOrder] Order marked as synced and updated in Hive.");
+    } else {
+      print("⚠️ [handleSaleOrder] Failed to sync sales order to API.");
+    }
+
+    print("🏁 [handleSaleOrder] Completed for order: $cleanSalesOrderNo\n");
   }
 
   Future<void> handleInvoiceOrder(Map<String, dynamic> data) async {
@@ -619,7 +642,7 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // ── Check for duplicates ───────────────────────────
+    // ── Check for duplicates ──
     final exists = customerBox.values.any((customer) {
       final existing = Map<String, dynamic>.from(customer);
       return existing['mobile'] == mobile;
@@ -629,22 +652,15 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // ── Save new customer ──────────────────────────────
-
+    // ── Save new customer ──
     await customerBox.add(customerData);
   }
 
   void handleSalesOrderAddCustomer(Map<String, dynamic> data) async {
-    // ── broadcast to clients ──────────────────────────
-    sendDataToClients({
-      'action': 'salesOrderAddCustomerGenerated',
-      'salesOrderAddCustomer': data,
-    }, clients);
-
-    // ── Save locally (with duplicate check) ────────────
+    // ── Save locally (with duplicate check)
     await saveSalesOrderAddCustomerToHive(data);
 
-    // ── Extract fields for API sync ────────────────────
+    // ── Extract fields for API sync
     final String? name = data['name'] as String?;
     final String? mobile = data['mobile'] as String?;
     final String? branch = data['branchId'] as String?;
@@ -652,6 +668,12 @@ class _LoginScreenState extends State<LoginScreen> {
     if (name == null || mobile == null) {
       return;
     }
+
+    // ── broadcast to clients
+    sendDataToClients({
+      'action': 'salesOrderAddCustomerGenerated',
+      'salesOrderAddCustomer': data,
+    }, clients);
 
     final success = await _syncService.postAddNewCustomerOrder(
       name: name,
@@ -777,30 +799,6 @@ class _LoginScreenState extends State<LoginScreen> {
     _syncTimer?.cancel();
 
     super.dispose();
-  }
-
-  Future<void> _loadInvoices() async {
-    var invoiceBox = await Hive.openBox('invoices');
-    final List<Map<String, dynamic>> invoices = [];
-    for (int i = 0; i < invoiceBox.length; i++) {
-      var invoice = invoiceBox.getAt(i);
-
-      if (invoice is String) {
-        try {
-          invoice = jsonDecode(invoice);
-        } catch (e) {
-          continue;
-        }
-      }
-
-      if (invoice is Map<String, dynamic>) {
-        invoices.add(invoice);
-      }
-    }
-
-    setState(() {
-      _invoiceData = invoices;
-    });
   }
 
   void startServer(Set<WebSocketChannel> clients,
@@ -1003,18 +1001,15 @@ class _LoginScreenState extends State<LoginScreen> {
         handleInvoice(data, clients);
       },
       'opSalesOrder': (data) async {
-        print("sent data to server");
         handleOpenSaleOrder(data);
       },
       'posInvoice': (data) async {
-        print("starting pos invoice handling");
         handleInvoice(data, clients);
       },
       'salesOrder': (data) async {
         handleSaleOrder(data);
       },
       'patchSaleOrder': (data) async {
-        print("patch the saleorder");
         handlePatchSaleOrder(data);
       },
       'patchHoldOrder': (data) async {
@@ -1431,38 +1426,6 @@ class _LoginScreenState extends State<LoginScreen> {
     } else {
       await discoverServerAndHandle();
     }
-
-    // Provider.of<OrderProvider>(context, listen: false).requestDataFromServer();
-    // Navigator.pushAndRemoveUntil(
-    //   context,
-    //   MaterialPageRoute(builder: (context) => const DashboardScreen()),
-    //   (Route<dynamic> route) => false, // Removes all previous routes
-    // );
-    // if (loginProvider.userNameError == null &&
-    //     loginProvider.passwordError == null) {
-    //   bool isValid =
-    //       await loginProvider.validateCredentials(userName, password);
-
-    //   if (isValid) {
-    //     var box = await Hive.openBox('deviceData');
-    //     String deviceCode = box.get('deviceCode') ?? '';
-
-    //     Provider.of<WebSocketService>(context, listen: false)
-    //         .sendDeviceCodeToServer(deviceCode);
-    //     Provider.of<OrderProvider>(context, listen: false)
-    //         .requestDataFromServer();
-
-    //     // ignore: use_build_context_synchronously
-    //     Navigator.pushAndRemoveUntil(
-    //       context,
-    //       MaterialPageRoute(builder: (context) => const TableScreen()),
-    //       (Route<dynamic> route) => false, // Removes all previous routes
-    //     );
-    //   } else {
-    //     loginProvider.setUserNameError('Invalid username or password');
-    //     loginProvider.setPasswordError('Invalid username or password');
-    //   }
-    // }
   }
 
   void proceedToDashboard() {
@@ -1471,7 +1434,7 @@ class _LoginScreenState extends State<LoginScreen> {
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(
-          builder: (context) => ChooseModePage(
+          builder: (context) => LogInScreen(
                 keyboardKey: keyboardKey,
               )),
       (Route<dynamic> route) => false,
@@ -1483,7 +1446,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     udp.send(
       utf8.encode('WHO_IS_SERVER'),
-      Endpoint.broadcast(port: const Port(45678)),
+      Endpoint.broadcast(port: const Port(33441)),
     );
 
     final serverBox = await Hive.openBox('serverBox');

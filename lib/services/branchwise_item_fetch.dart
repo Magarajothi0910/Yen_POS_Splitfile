@@ -18,11 +18,52 @@ class ItemProvider with ChangeNotifier {
 
   // Getter for birthdayCakeItems
   List<Map<String, dynamic>> get birthdayCakeItems => _birthdayCakeItems;
+  ItemProvider() {
+    fetchAndSaveSalesOrders();
+  }
+  Future<void> fetchAndSaveSalesOrders() async {
+    const String apiUrl =
+        'https://yenerp.com/fastapi/salesorders/withoutpagination/';
+    try {
+      final response = await http.get(Uri.parse(apiUrl));
+
+      if (response.statusCode == 200) {
+        final List<dynamic> salesOrders = json.decode(response.body);
+
+        // Open Hive box to store sales orders
+        var box = await Hive.openBox('salesOrderNumberBox');
+
+        // Extract and save only saleOrderNo values
+        List<String> saleOrderNos = [];
+        for (var order in salesOrders) {
+          if (order is Map && order.containsKey('saleOrderNo')) {
+            saleOrderNos.add(order['saleOrderNo'].toString());
+          }
+        }
+
+        // Save to Hive
+        await box.put('saleOrderNos', saleOrderNos);
+
+        // Optional: keep in GlobalDataManager
+        GlobalDataManager().salesorders = saleOrderNos;
+
+        notifyListeners();
+      } else {
+        print("❌ Failed to fetch sales orders. Status: ${response.statusCode}");
+      }
+    } catch (e) {
+      print("⚠️ Error fetching sales orders: $e");
+    }
+  }
 
   Future<void> fetchDataIfNeeded({String? branchAlias}) async {
+    print('🚀 fetchDataIfNeeded called with branchAlias: $branchAlias');
 
     var connectivityResult = await _connectivity.checkConnectivity();
-    if (connectivityResult == ConnectivityResult.none) return;
+    if (connectivityResult == ConnectivityResult.none) {
+      print('⚠️ No internet connection. Exiting fetchDataIfNeeded.');
+      return;
+    }
 
     var lazyBox = await Hive.openLazyBox('items');
     var client = http.Client();
@@ -32,22 +73,31 @@ class ItemProvider with ChangeNotifier {
       if (branchAlias != null &&
           (globals.appType == 'server' || globals.appType == '') &&
           !await lazyBox.containsKey('branchwiseItems_$branchAlias')) {
-        try {
-          var response = await client.get(Uri.parse(
-              'https://yenerp.com/fastapi/branchwiseitems/?branch_alias=$branchAlias'));
+        print('🌐 Fetching branchwise items from API for branch: $branchAlias');
 
+        try {
+          var url =
+              'https://yenerp.com/fastapi/branchwiseitems/?branch_alias=$branchAlias';
+          print('➡️ Requesting: $url');
+
+          var response = await client.get(Uri.parse(url));
+
+          print('📡 Response status: ${response.statusCode}');
           if (response.statusCode == 200) {
             var jsonData = json.decode(response.body);
+            print('✅ Data received for branch: $branchAlias');
             await lazyBox.put('branchwiseItems_$branchAlias', jsonData);
+            print('💾 Saved branchwiseItems_$branchAlias to Hive');
+
             GlobalDataManager().branchwiseItems = jsonData;
 
             _extractVarianceNames(jsonData);
             _filteredVarianceNames = _varianceNames;
 
-
             // ✅ Update local stock
             final branchwiseItems = jsonData['data'] as Map<String, dynamic>;
             var localStockBox = await Hive.openBox('localStockBox');
+            print('📦 Opened localStockBox, starting stock sync...');
 
             for (var itemEntry in branchwiseItems.entries) {
               final itemName = itemEntry.key;
@@ -66,15 +116,14 @@ class ItemProvider with ChangeNotifier {
                       (varianceData['branchwise'] as Map?)?[branchAlias];
 
                   if (itemCode != null && branchData != null) {
-                    final localStockKey = 'localStock_${branchAlias}_$itemCode';
+                    final localStockKey =
+                        'systemStock_${branchAlias}_$itemCode';
                     final localHiveStock =
-                        branchData['localHiveStock_$branchAlias'];
+                        branchData['systemStock_$branchAlias'];
 
                     if (localHiveStock != null) {
                       // ✅ Update localStockBox
                       await localStockBox.put(localStockKey, localHiveStock);
-                      // print(
-                      //     '🔁 Updated localStockBox for $itemCode: $localHiveStock');
 
                       // ✅ Update inside branchwiseItems Hive too
                       final currentGlobalData =
@@ -98,7 +147,7 @@ class ItemProvider with ChangeNotifier {
                               final updatedBranchData =
                                   Map<String, dynamic>.from(
                                       branchwiseMap[branchAlias]);
-                              updatedBranchData['localHiveStock_$branchAlias'] =
+                              updatedBranchData['systemStock_$branchAlias'] =
                                   localHiveStock;
                               branchwiseMap[branchAlias] = updatedBranchData;
                               varianceDataMap['branchwise'] = branchwiseMap;
@@ -110,13 +159,13 @@ class ItemProvider with ChangeNotifier {
                               await lazyBox.put(
                                   'branchwiseItems_$branchAlias', dataMap);
                               GlobalDataManager().branchwiseItems = dataMap;
-
-                              // print(
-                              //     '✅ Synced localHiveStock_$branchAlias for $itemCode in Hive');
                             }
                           }
                         }
                       }
+                    } else {
+                      print(
+                          '⚠️ No localHiveStock found for itemCode: $itemCode');
                     }
                   }
                 }
@@ -124,13 +173,18 @@ class ItemProvider with ChangeNotifier {
             }
 
             final result = checkVarianceItemCode("FG011");
+            print('🔍 checkVarianceItemCode result: $result');
             notifyListeners();
           } else {
+            print(
+                '❌ Failed to fetch branchwise items. Status: ${response.statusCode}');
           }
         } catch (e) {
+          print('🔥 Error fetching branchwise items: $e');
         }
       } else {
         // ✅ Load from Hive if already present
+        print('📂 Loading branchwiseItems_$branchAlias from Hive');
         GlobalDataManager().branchwiseItems =
             await lazyBox.get('branchwiseItems_$branchAlias');
         _extractVarianceNames(GlobalDataManager().branchwiseItems);
@@ -139,38 +193,44 @@ class ItemProvider with ChangeNotifier {
 
       // ✅ Fetch branch list if missing
       if (!await lazyBox.containsKey('branches')) {
+        print('🌐 Branch list not found in Hive. Fetching from API...');
         try {
           var response = await client
-              .get(Uri.parse('https://yenerp.com/masterapi/branches/'));
-
+              .get(Uri.parse('https://yenerp.com/fastapi/branches/'));
+          print('📡 Branch API response: ${response.statusCode}');
           if (response.statusCode == 200) {
             var jsonData = json.decode(response.body);
             await lazyBox.put('branches', jsonData);
+            print('💾 Saved branches to Hive');
             GlobalDataManager().branches = jsonData;
             printBranchNames(jsonData);
             notifyListeners();
           } else {
+            print('❌ Failed to fetch branches. Status: ${response.statusCode}');
           }
         } catch (e) {
+          print('🔥 Error fetching branches: $e');
         }
       } else {
+        print('📂 Loading branches from Hive');
         GlobalDataManager().branches = await lazyBox.get('branches');
       }
     } finally {
       client.close();
+      print('🧹 HTTP client closed.');
     }
   }
 
   Future<int?> getLocalStock(String branchAlias, String itemCode) async {
     final box = await Hive.openBox('localStockBox');
-    final key = 'localStock_${branchAlias}_$itemCode';
+    final key = 'systemStock_${branchAlias}_$itemCode';
     return box.get(key);
   }
 
   Future<void> updateLocalStock(
       String branchAlias, String itemCode, int newStock) async {
     final box = await Hive.openBox('localStockBox');
-    final key = 'localStock_${branchAlias}_$itemCode';
+    final key = 'systemStock_${branchAlias}_$itemCode';
     await box.put(key, newStock);
     notifyListeners();
   }
@@ -218,10 +278,8 @@ class ItemProvider with ChangeNotifier {
         // Print the stored data from Hive to verify
         // final storedData = box.get('employees');
         // print("Stored Employee Data: $storedData");
-      } else {
-      }
-    } catch (e) {
-    }
+      } else {}
+    } catch (e) {}
   }
 
   void _extractVarianceNames(dynamic data) {
@@ -263,10 +321,8 @@ class ItemProvider with ChangeNotifier {
         GlobalDataManager().mixboxData =
             jsonData; // Store globally in GlobalDataManager
         notifyListeners(); // Notify listeners to update the UI
-      } else {
-      }
-    } catch (e) {
-    }
+      } else {}
+    } catch (e) {}
   }
 
   List<String> getBranchNames() {
@@ -302,27 +358,23 @@ class ItemProvider with ChangeNotifier {
   }
 
   void printCategories(List<String> categories) {
-    for (var category in categories) {
-    }
+    for (var category in categories) {}
   }
 
   void printData(dynamic data,
       {required String dataType, required bool isNewData}) {
     if (isNewData) {
-    } else {
-    }
+    } else {}
   }
 
   void CategoriesFromData(dynamic data) {
     if (data is Map && data.containsKey('categories')) {
-      List<String> categories = List<String>.from(data['categories']??"");
+      List<String> categories = List<String>.from(data['categories'] ?? "");
       printCategories(categories);
-    } else {
-    }
+    } else {}
   }
 
   void printVarianceNames() {
-
     final branchwiseItems = GlobalDataManager().branchwiseItems['data'] as Map?;
     if (branchwiseItems == null) {
       return;
@@ -349,7 +401,6 @@ class ItemProvider with ChangeNotifier {
   }
 
   List<Map<String, dynamic>> checkVarianceItemCode(String varianceItemCode) {
-
     final branchwiseItems = GlobalDataManager().branchwiseItems['data'] as Map?;
     if (branchwiseItems == null) {
       return [];
@@ -381,29 +432,3 @@ class ItemProvider with ChangeNotifier {
     return [];
   }
 }
-
-
-
-
-
-
-// use networkManager
-
-
-
-// // Example: Managing Network Connections
-// class NetworkManager {
-//   late HttpClient _httpClient;
-
-// NetworkManager() {
-//     _httpClient = HttpClient();
-//   }
-//   void dispose() {
-//     _httpClient.close();
-//   }
-//   Future<void> fetchData(String url) async {
-//     var request = await _httpClient.getUrl(Uri.parse(url));
-//     var response = await request.close();
-//     // Handle response
-//   }
-// }

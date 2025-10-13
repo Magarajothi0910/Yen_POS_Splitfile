@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:hive/hive.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -9,56 +10,77 @@ import '../../services/branchwise_item_fetch.dart';
 import '../../services/stockupdateService.dart';
 
 class SyncService {
-  final String apiUrl = 'http://192.168.1.130:8888/orders/';
+  // ====== API URLs ======
+  final String apiUrl = 'https://yenerp.com/orders/';
   final String invoiceApiUrl = 'https://yenerp.com/fastapi/invoices/';
-  final String modifyApiUrl = 'http://192.168.1.130:8888/fastapi/modify/';
-  final String holdOrderApi = "http://192.168.1.130:8888/fastapi/salesorders/";
-  final String salesApprovalOrders =
-      "http://192.168.1.130:8888/fastapi/approvals/";
-  static const String salesOrderApi =
-      "http://192.168.1.130:8888/fastapi/salesorders/";
+  final String modifyApiUrl = 'https://yenerp.com/fastapi/modify/';
+  final String holdOrderApi = "https://yenerp.com/fastapi/salesorders/";
+  final String salesApprovalOrders = "https://yenerp.com/fastapi/approvals/";
+  static const String salesOrderApi = "https://yenerp.com/fastapi/salesorders/";
 
   // ====== Hive Box Names ======
   static const String salesOrdersBoxName =
       'saleOrderBox'; // (sales orders only)
-  bool _isSyncing = false;
-  bool isOnline = false;
-  List<Function> syncQueue = [];
   static const _offlineBoxName = 'pendingInvoices';
 
+  bool _isSyncing = false;
+  bool isOnline = false;
+
+  List<Function> syncQueue = [];
+
+  SyncService() {
+    _monitorConnectivity();
+
+    Timer.periodic(const Duration(minutes: 10), (timer) {
+      if (isOnline) {
+        syncUnsyncedOrders();
+        syncUnsyncedSaleOrders();
+        syncUnsyncedInvoices(ItemProvider());
+      } else {
+        debugPrint("⚠️ Device is offline → skipping scheduled sync");
+      }
+    });
+  }
+
+  /// Process all queued sync tasks when online
   Future<void> processSyncQueue() async {
     while (syncQueue.isNotEmpty && isOnline) {
       var task = syncQueue.removeAt(0);
-      await task();
+      try {
+        await task();
+      } catch (e, stack) {
+        debugPrint("❌ Task failed with error: $e");
+        debugPrint("🪲 Stack trace: $stack");
+      }
     }
+    debugPrint("📭 Queue processing finished.");
   }
 
+  /// Add a task to the queue
   void queueSync(Function syncTask) {
     syncQueue.add(syncTask);
 
     if (isOnline) {
       processSyncQueue();
+    } else {
+      debugPrint("⚠️ Offline → Task queued, will run when back online.");
     }
   }
 
-  SyncService() {
-    _monitorConnectivity();
-    Timer.periodic(const Duration(minutes: 10), (timer) {
-      if (isOnline) {
-        syncUnsyncedOrders();
-        syncUnsyncedInvoices(ItemProvider());
-      }
-    });
-  }
+  /// Monitor network connectivity
   void _monitorConnectivity() {
     Connectivity()
         .onConnectivityChanged
         .listen((List<ConnectivityResult> results) {
       final ConnectivityResult result =
           results.isNotEmpty ? results.first : ConnectivityResult.none;
+
       isOnline = result != ConnectivityResult.none;
+
       if (isOnline) {
         processSyncQueue();
+      } else {
+        debugPrint("🔌 Offline detected → Queue will wait.");
       }
     });
   }
@@ -113,6 +135,24 @@ class SyncService {
     }
     _isSyncing = false;
     await patchEditedOrders();
+  }
+
+  Future<void> syncUnsyncedSaleOrders() async {
+    if (_isSyncing) return;
+    _isSyncing = true;
+
+    var orderBox = await Hive.openBox('saleOrderBox');
+    for (int i = 0; i < orderBox.length; i++) {
+      var orderData = orderBox.getAt(i);
+      if (orderData is String) {
+        orderData = jsonDecode(orderData) as Map<String, dynamic>;
+      }
+
+      if (orderData is Map<String, dynamic> && orderData['sync'] == 'No') {
+        queueSync(() => postSalesOrder(orderData));
+      }
+    }
+    _isSyncing = false;
   }
 
   Future<void> patchEditedOrders() async {
@@ -183,9 +223,20 @@ class SyncService {
     }
   }
 
+  Future<void> savePosSaleorderToHive(Map<String, dynamic> invoice) async {
+    var invoiceBox = await Hive.openBox('saleOrderBox');
+
+    invoice['sync'] = 'No';
+    invoice['edit'] = 'No'; // Initialize edit field
+
+    await invoiceBox.add(invoice);
+
+    // Check connectivity and try to sync after saving locally
+    await syncUnsyncedSaleOrders();
+  }
+
   Future<bool> postSalesOrder(Map<String, dynamic> salesOrder) async {
-    const String salesOrderApi =
-        "http://192.168.1.130:8888/fastapi/salesorders/";
+    const String salesOrderApi = "https://yenerp.com/fastapi/salesorders/";
     // Print the payload and URL for debugging
 
     try {
@@ -243,7 +294,7 @@ class SyncService {
   }
 
   Future<bool> postModifyOrder(Map<String, dynamic> salesOrder) async {
-    final String salesOrderApi = "http://192.168.1.130:8888/fastapi/modify/";
+    final String salesOrderApi = "https://yenerp.com/fastapi/modify/";
     // Print the payload and URL for debugging
 
     try {
@@ -276,7 +327,7 @@ class SyncService {
     required String mobile,
     String? branchId,
   }) async {
-    const String endpoint = 'http://192.168.1.130:8888/fastapi/customers/';
+    const String endpoint = 'https://yenerp.com/fastapi/customers/';
 
     final body = {
       'customerName': name,
@@ -448,7 +499,7 @@ class SyncService {
   }
 
   Future<bool> postToApproveOrder(Map<String, dynamic> salesOrder) async {
-    final String salesOrderApi = "http://192.168.1.130:8888/fastapi/toapprove/";
+    final String salesOrderApi = "https://yenerp.com/fastapi/toapprove/";
     // Print the payload and URL for debugging
 
     try {
@@ -478,8 +529,7 @@ class SyncService {
   }
 
   Future<bool> postDiscountOrder(Map<String, dynamic> salesOrder) async {
-    final String salesOrderApi =
-        "http://192.168.1.130:8888/fastapi/heldorders/";
+    final String salesOrderApi = "https://yenerp.com/fastapi/heldorders/";
     // Print the payload and URL for debugging
 
     try {
@@ -518,7 +568,7 @@ class SyncService {
       try {
         final response = await http.patch(
           Uri.parse(
-              "http://192.168.1.130:8888/fastapi/salesorders/${patch['salesOrderId']}/"),
+              "https://yenerp.com/fastapi/salesorders/${patch['salesOrderId']}/"),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode(patch['data']),
         );
@@ -629,37 +679,35 @@ class SyncService {
   }
 
   Future<bool> patchSalesOrder(
-    String saleOrderNo,
-    Map<String, dynamic> patchData,
-  ) async {
-    print("\n🔹 [SYNC PATCH START] saleOrderNo: $saleOrderNo");
-
-    // 🔹 Extract only data part
+      String saleOrderNo, Map<String, dynamic> fullOrderData) async {
     final Map<String, dynamic> finalPayload =
-        Map<String, dynamic>.from(patchData['data'] ?? {});
+        Map<String, dynamic>.from(fullOrderData['data'] ?? {});
 
-    // ✅ Keep as List<List<String>>
+    // Fix advancePaymentType
     if (finalPayload['advancePaymentType'] != null) {
       finalPayload['advancePaymentType'] =
           (finalPayload['advancePaymentType'] as List)
-              .map((e) => List<String>.from(e))
+              .map((x) => (x as List).map((y) => y.toString()).toList())
               .toList();
     }
 
-// ✅ Keep as List<List<double>>
+    // Fix modeWiseAmount
     if (finalPayload['modeWiseAmount'] != null) {
       finalPayload['modeWiseAmount'] = (finalPayload['modeWiseAmount'] as List)
-          .map((e) => List<double>.from(e))
+          .map((x) => (x as List).map((y) => (y as num).toDouble()).toList())
           .toList();
     }
 
-    final url = Uri.parse(
-        'http://192.168.1.130:8888/fastapi/salesorders/by-saleorderno/$saleOrderNo');
+    // Fix advanceAmount
+    if (finalPayload['advanceAmount'] != null) {
+      finalPayload['advanceAmount'] = (finalPayload['advanceAmount'] as List)
+          .map((e) => (e as num).toDouble())
+          .toList();
+    }
 
-    print("🌐 Base URL: $url");
-    print("➡️ PATCH Endpoint: $url");
-    print("📦 Payload being sent: $finalPayload");
-    print("📝 Headers: {'Content-Type': 'application/json'}");
+    // Patch request
+    final url = Uri.parse(
+        'https://yenerp.com/fastapi/salesorders/by-saleorderno/$saleOrderNo');
 
     try {
       final response = await http.patch(
@@ -668,26 +716,10 @@ class SyncService {
         body: jsonEncode(finalPayload),
       );
 
-      print("📥 Response Status Code: ${response.statusCode}");
-      print("📥 Response Data: ${response.body}");
-
-      if (response.statusCode == 200) {
-        print("✅ Patch success for saleOrderNo: $saleOrderNo");
-        return true;
-      } else {
-        print("❌ Patch failed for saleOrderNo: $saleOrderNo");
-        print("❌ Status Code: ${response.statusCode}");
-        print("❌ Response Body: ${response.body}");
-        return false;
-      }
-    } catch (e, stackTrace) {
-      print("🔥 Exception while patching saleOrderNo: $saleOrderNo");
-      print("🔥 Exception Details: $e");
-      print("🔥 Stack Trace: $stackTrace");
+      return response.statusCode == 200;
+    } catch (e, st) {
       return false;
-    } finally {
-      print("🔹 [SYNC PATCH END] saleOrderNo: $saleOrderNo\n");
-    }
+    } finally {}
   }
 
   Future fetchSalesOrderFromApi(saleOrderNo) async {}

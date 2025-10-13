@@ -16,7 +16,7 @@ class SalesReturnBill {
     required List<Map<String, dynamic>> returnItems,
   }) async {
     // Static data setup
-    String employeeNumber = 'EMP123456';
+    String employeeNumber = 'EMP334416';
     String customerNumber = 'CUST78910';
     String formattedDate = DateFormat('dd-MM-yyyy').format(DateTime.now());
     String formattedTime = DateFormat('hh:mm a').format(DateTime.now());
@@ -243,8 +243,7 @@ class SalesReturnBill {
       } finally {
         printer.disconnect(); // Ensure to disconnect after the job is done
       }
-    } else {
-    }
+    } else {}
   }
 
   List<String> splitAddress(String address) {

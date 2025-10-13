@@ -16,7 +16,7 @@ import '../../sales_order_providers/detailsProvider.dart';
 import '../../sales_order_providers/editcustomerscreenProvider.dart';
 import '../all_orders_page/all_orders.dart';
 import '../all_orders_page/edit_customerr_dropdown.dart';
-import '../model/sales_order_model.dart';
+import '../model/sales_order_display_model.dart';
 import 'editsalesperson_dropdown.dart';
 import 'employee_selection.dart';
 
@@ -84,24 +84,18 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
       customerScreenProvider.dateController.text = deliveryDate;
 
       String formattedEventDate = widget.selectedOrder!.eventDate ?? '';
-
-      if (widget.selectedOrder?.eventDate != null &&
-          widget.selectedOrder!.eventDate!.isNotEmpty &&
-          widget.orderType != "CurrentOrder") {
-        try {
-          final DateTime parsedEventDate =
-              DateTime.parse(widget.selectedOrder!.eventDate!);
-          formattedEventDate = DateFormat('dd-MM-yyyy').format(parsedEventDate);
-        } catch (e) {
-          formattedEventDate = "";
-        }
-      } else {}
+      print(
+          "widget.selectedOrder!.eventDate ${widget.selectedOrder!.eventDate}");
+      print("formattedEventDate:$formattedEventDate");
 
       customerScreenProvider.birthdaydateController.text = formattedEventDate;
-
+      print("formattedEventDate $formattedEventDate");
+      print(
+          "customerScreenProvider.birthdaydateController.text ${customerScreenProvider.birthdaydateController.text}");
       customerScreenProvider.timeController.text =
           widget.selectedOrder!.deliveryTime ?? '';
-
+      customerScreenProvider.selectedOrderType =
+          widget.selectedOrder!.orderType ?? '';
       customerScreenProvider
           .setSelectedEvent(widget.selectedOrder!.event ?? '');
 

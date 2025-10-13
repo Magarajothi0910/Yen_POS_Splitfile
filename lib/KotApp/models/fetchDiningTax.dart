@@ -14,10 +14,8 @@ Future<void> fetchAndStoreTaxDetails() async {
       // Store in Hive
       var box = Hive.box('settings');
       box.put('diningTax', diningTax);
-    } else {
-    }
-  } catch (e) {
-  }
+    } else {}
+  } catch (e) {}
 }
 
 double getTaxPercentage() {

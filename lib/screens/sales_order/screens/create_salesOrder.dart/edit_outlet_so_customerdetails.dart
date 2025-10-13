@@ -16,7 +16,7 @@ import '../../sales_order_providers/detailsProvider.dart';
 import '../../sales_order_providers/editcustomerscreenProvider.dart';
 import '../all_orders_page/all_orders.dart';
 import '../all_orders_page/edit_customerr_dropdown.dart';
-import '../model/sales_order_model.dart';
+import '../model/sales_order_display_model.dart';
 import 'editsalesperson_dropdown.dart';
 import 'employee_selection.dart';
 

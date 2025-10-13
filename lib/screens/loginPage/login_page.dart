@@ -258,11 +258,8 @@ class _LogInScreenState extends State<LogInScreen> {
         // Open Hive box and store employee data
         var box = await Hive.openBox('employeeBox');
         await box.put('employees', employeeData);
-
-      } else {
-      }
-    } catch (e) {
-    }
+      } else {}
+    } catch (e) {}
   }
 
   // Function to fetch suggestions from FastAPI
@@ -571,7 +568,7 @@ class _LogInScreenState extends State<LogInScreen> {
           context,
           MaterialPageRoute(
               builder: (context) => OpenShift(
-                    keyboardKey: widget.keyboardKey,
+                    key: widget.keyboardKey,
                   )),
         );
       }
@@ -611,36 +608,38 @@ class _LogInScreenState extends State<LogInScreen> {
     });
   }
 
-// Function to check if there's an open shift for today with the matching branch
   Future<bool> _checkShiftStatusAndNavigate() async {
     final branchName = globals.branchName;
     final todayDate = DateFormat('dd-MM-yyyy').format(DateTime.now());
 
-    final url = Uri.parse('https://yenerp.com/fastapi/shifts/');
+    final url = Uri.parse(
+        'https://yenerp.com/fastapi/shifts/check-open-shift?branch_name=$branchName');
     final response = await http.get(url);
 
     if (response.statusCode == 200) {
-      final List shifts = jsonDecode(response.body);
+      final data = jsonDecode(response.body);
 
-      final openShift = shifts.firstWhere(
-        (shift) =>
-            shift['shiftOpeningDate'] == todayDate &&
-            shift['branchName'] == branchName &&
-            shift['dayEndStatus'] == 'open' &&
-            shift['status'] == 'open',
-        orElse: () => null,
-      );
-
-      if (openShift != null) {
-        // Open shift found; navigate directly to ChooseModePage
+      // Example response: { "shiftId": "0", "shiftNumber": 0 }
+      // If shiftId is not "0", that means an open shift exists.
+      if (data != null && data['shiftId'] != null && data['shiftId'] != '0') {
+        // Open shift found — navigate
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-              builder: (context) => ChooseModePage(
-                    keyboardKey: widget.keyboardKey,
-                  )),
+            builder: (context) => ChooseModePage(
+              keyboardKey: widget.keyboardKey,
+            ),
+          ),
         );
-        return true; // Indicate that an open shift exists
+        return true;
+      } else {
+        // No open shift
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No open shift found for today.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
       }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -650,7 +649,8 @@ class _LogInScreenState extends State<LogInScreen> {
         ),
       );
     }
-    return false; // No open shift found
+
+    return false;
   }
 }
 

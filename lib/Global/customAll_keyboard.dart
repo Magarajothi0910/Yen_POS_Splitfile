@@ -1,49 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
 import '../screens/sales_order/globals.dart';
 
+/// PROVIDER: Handles active keyboard state
+/// PROVIDER: Handles active keyboard state & controller mapping
 class KeyboardProvider with ChangeNotifier {
   bool isNumeric = ActiveField.isNumeric.value;
   bool isUpperCase = true;
   String? pressedKey;
 
-  int _activeIndex = -1; // currently focused index
+  int _activeIndex = -1;
   final List<TextEditingController> controllers = [];
-  final List<String> inputTypes = []; // e.g., 'numeric', 'text', 'alphanumeric'
 
-  int get activeIndex => _activeIndex;
-
-  void registerController(TextEditingController controller,
-      {String inputType = 'text'}) {
-    if (!controllers.contains(controller)) {
-      controllers.add(controller);
-      inputTypes.add(inputType);
-    }
-  }
-
-  void focusController(TextEditingController controller) {
-    final index = controllers.indexOf(controller);
-    if (index != -1) {
-      _activeIndex = index;
+  KeyboardProvider() {
+    // 👇 Sync whenever ActiveField changes
+    ActiveField.isNumeric.addListener(() {
+      isNumeric = ActiveField.isNumeric.value;
       notifyListeners();
-    }
+    });
   }
 
   void setIndex(int index) {
-    if (index < 0 || index >= controllers.length) return;
     _activeIndex = index;
     notifyListeners();
   }
 
-  TextEditingController? get activeController {
-    if (_activeIndex == -1) return null;
-    return controllers[_activeIndex];
-  }
+  TextEditingController? get activeController =>
+      _activeIndex >= 0 && _activeIndex < controllers.length
+          ? controllers[_activeIndex]
+          : null;
 
-  String get activeInputType {
-    if (_activeIndex == -1) return 'text';
-    return inputTypes[_activeIndex];
+  void registerController(TextEditingController controller) {
+    if (!controllers.contains(controller)) {
+      controllers.add(controller);
+    }
   }
 
   void toggleCase() {
@@ -63,51 +53,27 @@ class KeyboardProvider with ChangeNotifier {
   }
 }
 
+/// MAIN CUSTOM KEYBOARD WIDGET
 class CustomKeyboardWidgetAll2 extends StatelessWidget {
   const CustomKeyboardWidgetAll2({
     super.key,
     required this.controller,
     this.onClose,
-    this.isDiscount = false, // ✅ default false
   });
 
   final TextEditingController controller;
   final VoidCallback? onClose;
-  final bool isDiscount; // ✅ discount mode flag
+
+  /// Insert text into the controller
   void _insert(BuildContext context, String txt) {
     final newText = controller.text + txt;
-
-    // ✅ Discount validation
-    if (ActiveField.isDiscount.value) {
-      final value = double.tryParse(newText);
-      if (value != null && (value > 100 || value <= 0)) {
-     
-        controller.clear();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Discount must be between 1 and 100"),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-    }
-
-    // ✅ Custom charge validation
-    // ✅ Custom charge validation (max 5 digits)
-    if (ActiveField.isCustomCharge.value) {
-      if (newText.length > 5) {
-       
-        return; // ❌ block input beyond 5 digits
-      }
-    }
-
     controller.value = TextEditingValue(
       text: newText,
       selection: TextSelection.collapsed(offset: newText.length),
     );
   }
 
+  /// Remove last character
   void _backspace() {
     if (controller.text.isEmpty) return;
     final newText = controller.text.substring(0, controller.text.length - 1);
@@ -117,13 +83,9 @@ class CustomKeyboardWidgetAll2 extends StatelessWidget {
     );
   }
 
+  /// Handle key tap logic
   void _handleKey(BuildContext context, String k) {
     final provider = context.read<KeyboardProvider>();
-
-    // 🚫 block switching if numeric is locked (like custom charge)
-    if (ActiveField.isNumeric.value) {
-      if (k == 'ABC' || k == '⇧') return;
-    }
 
     switch (k) {
       case '⌫':
@@ -149,23 +111,16 @@ class CustomKeyboardWidgetAll2 extends StatelessWidget {
     }
   }
 
-  /// normal numeric keyboard
-  List<List<String>> get _numeric => [
+  /// Numeric Keyboard Layout
+  List<List<String>> get _numericLayout => [
         ['1', '2', '3'],
         ['4', '5', '6'],
         ['7', '8', '9'],
-        ['.', '0', '⌫'],
+        ['ABC', '0', '⌫'],
       ];
 
-  /// 🚫 locked numeric (used for custom charge)
-  List<List<String>> get _numericLocked => [
-        ['1', '2', '3'],
-        ['4', '5', '6'],
-        ['7', '8', '9'],
-        ['0', '⌫'],
-      ];
-
-  List<List<String>> _alpha(bool upper) {
+  /// Alphabetic Keyboard Layout
+  List<List<String>> _alphaLayout(bool upper) {
     const base = [
       ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
       ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
@@ -181,74 +136,122 @@ class CustomKeyboardWidgetAll2 extends StatelessWidget {
         .toList();
   }
 
+  /// UI: Build single key
+  Widget _buildKeyContainer(
+      BuildContext context, String keyLabel, bool isPressed) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 100),
+      margin: const EdgeInsets.all(4),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        gradient: isPressed
+            ? LinearGradient(
+                colors: [Colors.amber.shade300, Colors.orange.shade400],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : LinearGradient(
+                colors: [Colors.grey.shade200, Colors.grey.shade100],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            offset: const Offset(2, 2),
+            blurRadius: 3,
+          ),
+          BoxShadow(
+            color: Colors.white.withOpacity(0.7),
+            offset: const Offset(-2, -2),
+            blurRadius: 3,
+          ),
+        ],
+      ),
+      child: _buildLabel(keyLabel),
+    );
+  }
+
+  /// UI: Label or icon for key
+  Widget _buildLabel(String k) {
+    switch (k) {
+      case '⌫':
+        return const Icon(Icons.backspace, color: Colors.black87, size: 24);
+      case '✖':
+        return const Icon(Icons.close, color: Colors.black87, size: 24);
+      case 'SPACE':
+        return const Icon(Icons.space_bar, color: Colors.black87, size: 24);
+      case '⇧':
+        return const Icon(Icons.arrow_upward, color: Colors.black87, size: 24);
+      default:
+        return Text(
+          k,
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<KeyboardProvider>(
       builder: (context, provider, _) {
-        // 👉 if locked numeric (custom charge), force _numericLocked
-        final layout = ActiveField.isNumeric.value
-            ? _numericLocked
-            : provider.isNumeric
-                ? _numeric
-                : _alpha(provider.isUpperCase);
+        final layout = provider.isNumeric
+            ? _numericLayout
+            : _alphaLayout(provider.isUpperCase);
 
-        return Column(
-          children: [
-            for (final row in layout)
-              Expanded(
-                child: Row(
-                  children: [
-                    for (final key in row)
-                      Expanded(
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () {
-                            provider.setPressedKey(key);
-                            _handleKey(context, key);
-                            Future.delayed(const Duration(milliseconds: 80),
-                                () {
-                              provider.setPressedKey(null);
-                            });
-                          },
-                          onLongPress:
-                              key == '⌫' ? () => controller.clear() : null,
-                          child: Container(
-                            margin: const EdgeInsets.all(4),
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: provider.pressedKey == key
-                                  ? Colors.blue[100]
-                                  : Colors.grey[200],
-                              borderRadius: BorderRadius.circular(5),
-                            ),
-                            child: _buildLabel(key),
+        return Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.grey.shade100, Colors.grey.shade200],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              for (final row in layout)
+                Expanded(
+                  child: Row(
+                    children: [
+                      for (final key in row)
+                        Expanded(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {
+                              provider.setPressedKey(key);
+                              _handleKey(context, key);
+                              Future.delayed(const Duration(milliseconds: 80),
+                                  () {
+                                provider.setPressedKey(null);
+                              });
+                            },
+                            onLongPress:
+                                key == '⌫' ? () => controller.clear() : null,
+                            child: _buildKeyContainer(
+                                context, key, provider.pressedKey == key),
                           ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-          ],
+            ],
+          ),
         );
       },
     );
-  }
-
-  Widget _buildLabel(String k) {
-    switch (k) {
-      case '⌫':
-        return const Icon(Icons.backspace);
-      case '✖':
-        return const Icon(Icons.close);
-      case 'SPACE':
-        return const Icon(Icons.space_bar);
-      case '⇧':
-        return const Icon(Icons.arrow_upward);
-      default:
-        return Text(
-          k,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        );
-    }
   }
 }

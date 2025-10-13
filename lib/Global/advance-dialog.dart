@@ -76,14 +76,17 @@ class _AdvanceAmountDialogState extends State<AdvanceAmountDialog> {
     'Cheque',
     'Others'
   ];
-
   @override
   void initState() {
     super.initState();
     _amountController =
         TextEditingController(text: widget.advanceAmount.toString());
-    _returnAmountController.text = '0.0'; // default
-    chequeAmountController.text = widget.advanceAmount.toString(); // default
+
+    // show advanceAmount in return amount field by default
+    _returnAmountController.text = widget.advanceAmount.toString();
+
+    // For cheque also keep same by default
+    chequeAmountController.text = widget.advanceAmount.toString();
   }
 
   @override
@@ -392,29 +395,56 @@ class _AdvanceAmountDialogState extends State<AdvanceAmountDialog> {
                       ),
                       ElevatedButton(
                         onPressed: () {
+                          print("🟦 Submit button pressed");
+
+                          // Step 1: Validate remarks
                           if (_remarksController.text.isEmpty) {
+                            print("⚠️ Remarks field is empty");
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
+                              const SnackBar(
                                   content: Text('Please fill the Remarks')),
                             );
                             return;
+                          } else {
+                            print(
+                                "✅ Remarks filled: ${_remarksController.text}");
                           }
 
+                          // Step 2: Build approval details
                           final approvalDetails = {
                             "approvalType": "Cancel Order",
                             "summary": "no",
                           };
+                          print("📋 Approval Details: $approvalDetails");
+
                           Map<String, dynamic> payload = {
                             "status": "Waiting for approval",
                             "cancelOrderRemark": _remarksController.text,
-                            "canceledPersonName": _salesPersonController.text,
-                            "returnAmount": _returnAmountController.text,
-                            "canceledPaymentType": selectedPaymentMethod,
+                            "canceledPersonName":
+                                customerScreenProvider.searchController.text ??
+                                    "",
+                            "saleOrderNo": widget.saleOrderNo,
+                            "returnAmount": _returnAmountController.text ?? "0",
+                            "canceledPaymentType":
+                                selectedPaymentMethod ?? "Cash",
                             "cancelOrderDate": DateTime.now().toIso8601String(),
                             "approvalDetails": [approvalDetails]
                           };
+
+                          print("🛠️ Payload created:");
+                          payload.forEach((key, value) {
+                            print("   ➡️ $key : $value");
+                          });
+
+                          // Step 4: Call Provider method
+                          print(
+                              "📡 Calling cancelOrder with SaleOrderNo: ${widget.saleOrderNo}");
                           customerScreenProvider.cancelOrder(
                               widget.saleOrderNo, payload);
+
+                          // Step 5: Navigate back
+                          print(
+                              "🔙 Closing dialog and returning to previous screen");
                           Navigator.of(context).pop();
                         },
                         style: ElevatedButton.styleFrom(
@@ -442,7 +472,7 @@ class _AdvanceAmountDialogState extends State<AdvanceAmountDialog> {
                             ),
                           ],
                         ),
-                      ),
+                      )
                     ],
                   )
                 ],

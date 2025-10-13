@@ -74,7 +74,6 @@ class _ServerScreenState extends State<ServerScreen> {
   Future<void> _initializeServer() async {
     final ip = await getLocalIp();
     if (ip != null) {
-
       // Store in Hive
       final serverBox = await Hive.openBox('serverBox');
       await serverBox.put('serverIp', ip);
@@ -87,8 +86,7 @@ class _ServerScreenState extends State<ServerScreen> {
       await startUdpResponder(
           ip, globals.udpPort); // Respond to client discovery
       startServer(clients, onDataReceived); // Start WebSocket server
-    } else {
-    }
+    } else {}
   }
 
   void dispose() {
@@ -105,7 +103,7 @@ class _ServerScreenState extends State<ServerScreen> {
     // Send WHO_IS_SERVER to broadcast
     udp.send(
       utf8.encode('WHO_IS_SERVER'),
-      Endpoint.broadcast(port: const Port(45678)),
+      Endpoint.broadcast(port: const Port(33441)),
     );
 
     final serverBox = await Hive.openBox('serverBox');
@@ -195,7 +193,7 @@ class _ServerScreenState extends State<ServerScreen> {
   }
 
   Future<void> startUdpResponder(String ip, int udpPort) async {
-    final udp = await UDP.bind(Endpoint.any(port: const Port(45678)));
+    final udp = await UDP.bind(Endpoint.any(port: const Port(33441)));
 
     udp.asStream().listen((datagram) {
       if (datagram == null) return;
@@ -224,8 +222,7 @@ class _ServerScreenState extends State<ServerScreen> {
       server.transform(WebSocketTransformer()).listen((WebSocket socket) {
         handleWebSocket(socket, clients, onDataReceived);
       });
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   Map<String, String> seathiveOrderIds = {};
@@ -300,7 +297,6 @@ class _ServerScreenState extends State<ServerScreen> {
           String fixedMessage = message.replaceAll("'", '"');
           var data = jsonDecode(fixedMessage);
 
-
           if (data['action'] == 'hello') {
             channel.sink.add(jsonEncode({
               'action': 'response',
@@ -358,8 +354,7 @@ class _ServerScreenState extends State<ServerScreen> {
                 'items': updatedItems,
                 'orderSource': printer['orderSource'],
               });
-            } else {
-            }
+            } else {}
 
             // Save the updated printer details to Hive
             // await savePrinterDetailsToHive({
@@ -391,8 +386,7 @@ class _ServerScreenState extends State<ServerScreen> {
           }
           onDataReceived(data);
         }
-      } catch (e) {
-      }
+      } catch (e) {}
     }, onDone: () {
       clients.remove(channel);
     }, onError: (error) {
@@ -569,8 +563,7 @@ class _ServerScreenState extends State<ServerScreen> {
           //   'fieldsEdited': "true",
           //   'edit': "Yes",
           // }, clients);
-        } else {
-        }
+        } else {}
       } else if (data['action'] == 'patchOrderStatusBySeathiveOrderId') {
         final seathiveOrderId = data['seathiveOrderId']?.toString() ?? '';
         final newStatus = data['status']?.toString() ?? '';
@@ -589,7 +582,6 @@ class _ServerScreenState extends State<ServerScreen> {
         handlePatchCancelOrderStatusBySeathiveOrderId(
             hiveOrderId, newStatus, orderRemark);
       } else if (data['action'] == 'updateConfigDetails') {
-
         final seathiveOrderId = data['seathiveOrderId'];
         final updatedConfig = data['config'];
         final updatedQuantities = (data['quantities'] as List<dynamic>?)
@@ -665,9 +657,7 @@ class _ServerScreenState extends State<ServerScreen> {
           //   'status': status,
           //   'edit': "Yes",
           // }, clients);
-
-        } else {
-        }
+        } else {}
       }
 
       setState(() {
@@ -685,8 +675,7 @@ class _ServerScreenState extends State<ServerScreen> {
       if (data['action'] == 'removePrinter') {
         // handleRemovePrinter(data, clients);
       }
-    } else {
-    }
+    } else {}
   }
 
   Future<void> handleSeatTransfer(Map<String, dynamic> data) async {
@@ -762,8 +751,7 @@ class _ServerScreenState extends State<ServerScreen> {
       // } else {
       //   print("Failed to patch seat transfer on server for $seathiveOrderId");
       // }
-    } else {
-    }
+    } else {}
   }
 
   void handlePatchOrderStatusBySeathiveOrderId(String seathiveOrderId,
@@ -821,8 +809,7 @@ class _ServerScreenState extends State<ServerScreen> {
       //   'edit': "Yes",
       // }, clients);
       // await _syncService.patchEditedOrders();
-    } else {
-    }
+    } else {}
   }
 
   void handlePatchCancelOrderStatusBySeathiveOrderId(
@@ -876,8 +863,7 @@ class _ServerScreenState extends State<ServerScreen> {
       //   'edit': "Yes",
       // }, clients);
       // await _syncService.patchEditedOrders();
-    } else {
-    }
+    } else {}
   }
 
   Future<void> loginUser() async {
@@ -943,7 +929,7 @@ class _ServerScreenState extends State<ServerScreen> {
 
     udp.send(
       utf8.encode('WHO_IS_SERVER'),
-      Endpoint.broadcast(port: const Port(45678)),
+      Endpoint.broadcast(port: const Port(33441)),
     );
 
     final serverBox = await Hive.openBox('serverBox');

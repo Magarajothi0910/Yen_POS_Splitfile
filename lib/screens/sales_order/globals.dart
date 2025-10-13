@@ -15,6 +15,7 @@ String deviceName = 'POS001';
 TextEditingController commonController =
     TextEditingController(); // we’ll init it once
 late FocusNode commonFocusNode;
+late ValueNotifier<Map<int, double>> quantityChangesNotifier;
 
 class ActiveField {
   static final ValueNotifier<TextEditingController?> controller =

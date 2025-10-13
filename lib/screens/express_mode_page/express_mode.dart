@@ -319,7 +319,7 @@ class _CustomKeyboardState extends State<CustomKeyboard> {
       child: Column(
         children: [
           Expanded(
-            child: _buildRow('1234567890'),
+            child: _buildRow('1233344190'),
           ),
           Expanded(
             child: _buildRow('QWERTYUIOP'),

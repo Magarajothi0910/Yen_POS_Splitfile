@@ -4,22 +4,6 @@ import 'dart:math';
 import 'package:hive/hive.dart';
 import 'package:intl/intl.dart';
 
-// Save Invoice to Hive
-// Future<void> saveInvoiceToHive(Map<String, dynamic> jsonData) async {
-//   try {
-//     var invoiceBox = await Hive.openBox('invoicesBox');
-//     await invoiceBox.add(jsonData);
-//     print('Invoice saved to Hive: $jsonData');
-
-//     // Print the contents of the box to verify
-//     for (int i = 0; i < invoiceBox.length; i++) {
-//       print('Saved invoice at $i: ${invoiceBox.getAt(i)}');
-//     }
-//   } catch (e) {
-//     print('Error saving invoice to Hive: $e');
-//   }
-// }
-
 void saveOrderToHive(Map<String, dynamic> order) async {
   try {
     var orderBox = await Hive.openBox(
@@ -114,18 +98,6 @@ Future<void> deleteOrderFromHive(String hiveOrderId) async {
   }
 }
 
-// Save invoice using the 'invoices' box
-Future<void> saveInvoiceToHive(Map<String, dynamic> invoice) async {
-  var invoiceBox = Hive.box('invoices');
-  await invoiceBox.add(invoice);
-}
-
-/// Save POS invoice using the 'posInvoiceBox'
-Future<void> savePosInvoiceToHive(Map<String, dynamic> posInvoice) async {
-  var posInvoiceBox = Hive.box('invoices');
-  await posInvoiceBox.add(posInvoice);
-}
-
 /// Save POS sale order using the 'saleOrderBox'
 Future<void> savePosSaleOrderToHive(
     Map<String, dynamic> saleOrder, Box saleOrderBox) async {
@@ -143,17 +115,6 @@ Future<void> savePosInvoiceOrderToHive(
   await invoiceBox.put(shortId, saleOrder);
 }
 
-Future<Map<String, dynamic>?> _getSaleOrderFromHive(String saleOrderNo) async {
-  final saleOrderBox = await Hive.openBox('saleOrderBox');
-  for (var key in saleOrderBox.keys) {
-    final order = saleOrderBox.get(key) as Map<String, dynamic>?;
-    if (order?['saleOrderNo'] == saleOrderNo) {
-      return order;
-    }
-  }
-  return null;
-}
-
 String generateShortHiveInvoiceId() {
   final random = Random();
   final timestamp = DateTime.now()
@@ -161,7 +122,7 @@ String generateShortHiveInvoiceId() {
       .toString()
       .substring(6); // Shortened timestamp
   const characters =
-      'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'; // Alphanumeric characters
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123334419'; // Alphanumeric characters
   final randomId =
       List<int>.generate(6, (_) => random.nextInt(characters.length))
           .map((index) => characters[index])

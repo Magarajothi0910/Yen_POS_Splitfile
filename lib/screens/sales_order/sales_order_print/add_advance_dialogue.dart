@@ -13,7 +13,7 @@ import 'package:yenposapp/screens/sales_order/globals.dart';
 import 'package:yenposapp/screens/sales_order/sales_order_print/currentOrderPrint_widgets.dart/cheque_details.dart';
 import '../../../Global/allorderprint.dart';
 import '../../../Global/salesorder_websocket_service.dart';
-import '../screens/model/sales_order_model.dart';
+import '../screens/model/sales_order_display_model.dart';
 
 class AddAdvancePayment extends StatefulWidget {
   final SalesOrderDisplay salesOrder;
@@ -96,7 +96,7 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
 
   Future<void> sendInvoiceDataToServer(Map<String, dynamic> invoiceData) async {
     _sendInvoiceCallCount++;
-
+    print("_sendInvoiceCallCount++: ${_sendInvoiceCallCount++}");
     try {
       final jsonData = jsonEncode(invoiceData);
       _channel.sink.add(jsonData);
@@ -627,27 +627,28 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                                         cash + card + upi + cheque;
                                     print("📊 Total Entered: $totalEntered");
 
+                                    // 2️⃣ Existing paid amount
                                     final alreadyPaid = widget
                                             .salesOrder.advanceAmount
                                             ?.fold(0.0, (sum, e) => sum + e) ??
                                         0;
-                                    print("✅ Already Paid: $alreadyPaid");
 
-                                    final remainingBalance =
+                                    // 3️⃣ Remaining balance before this transaction
+                                    final remainingBalanceBefore =
                                         widget.salesOrder.totalAmount -
                                             alreadyPaid;
                                     print(
-                                        "🧮 Remaining Balance: $remainingBalance");
+                                        "🧮 Remaining Balance Before: $remainingBalanceBefore");
 
-                                    // 2️⃣ Check if total exceeds balance
-                                    if (totalEntered > remainingBalance) {
+                                    // 4️⃣ Validate entered amount
+                                    if (totalEntered > remainingBalanceBefore) {
                                       print(
                                           "❌ ERROR: Entered amount exceeds remaining balance!");
                                       ScaffoldMessenger.of(context)
                                           .showSnackBar(
                                         SnackBar(
                                           content: Text(
-                                            "Entered amount exceeds remaining balance (₹${remainingBalance.toStringAsFixed(0)})!",
+                                            "Entered amount exceeds remaining balance (₹${remainingBalanceBefore.toStringAsFixed(0)})!",
                                             style: const TextStyle(
                                                 color: Colors.white),
                                           ),
@@ -658,7 +659,7 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                                       return; // exit early
                                     }
 
-                                    // 3️⃣ Build split payment lists
+                                    // 5️⃣ Build payment types and amounts
                                     List<String> paymentTypes = [];
                                     List<double> modeAmounts = [];
 
@@ -683,7 +684,7 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                                         "💳 Payment Types Selected: $paymentTypes");
                                     print("📌 Mode Wise Amounts: $modeAmounts");
 
-                                    // 🔥 Merge with existing values
+                                    // 6️⃣ Merge with existing values
                                     List<double> existingAdvanceAmount =
                                         widget.salesOrder.advanceAmount ?? [];
                                     List<List<String>> existingPaymentType =
@@ -712,12 +713,22 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                                       DateTime.now().toIso8601String()
                                     ];
 
-                                    // 4️⃣ Build API payload
+                                    // 7️⃣ Recalculate updated remaining balance
+                                    final updatedAlreadyPaid =
+                                        alreadyPaid + totalEntered;
+                                    final updatedRemainingBalance =
+                                        widget.salesOrder.totalAmount -
+                                            updatedAlreadyPaid;
+                                    print(
+                                        "💰 Updated Remaining Balance: $updatedRemainingBalance");
+
+                                    // 8️⃣ Build API payload
                                     Map<String, dynamic> requestBody = {
                                       "advanceAmount": existingAdvanceAmount,
                                       "advanceDateTime": existingDateTime,
                                       "advancePaymentType": existingPaymentType,
                                       "modeWiseAmount": existingModeWiseAmount,
+                                      "balanceAmount": updatedRemainingBalance,
                                     };
 
                                     print(
@@ -735,17 +746,18 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                                     print(
                                         "📤 Final Payload Ready to Send → $patchPayload");
 
-                                    // 5️⃣ Send via WebSocket
+                                    // 9️⃣ Send via WebSocket
                                     await sendInvoiceDataToServer(patchPayload);
+                                    Navigator.of(context).pop();
                                     print(
                                         "✅ Payload sent successfully via WebSocket");
 
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
                                         content: Text(
-                                            'Advance payment updated successfully!',
-                                            style:
-                                                TextStyle(color: Colors.white)),
+                                          'Advance payment updated successfully!',
+                                          style: TextStyle(color: Colors.white),
+                                        ),
                                         backgroundColor: Colors.green,
                                         duration: Duration(seconds: 2),
                                       ),
@@ -753,7 +765,6 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
 
                                     print(
                                         "🎉 Success: Advance Payment Updated");
-                                    Navigator.pop(context);
                                   } catch (e, stack) {
                                     print("🔥 ERROR occurred: $e");
                                     print("📌 Stack Trace: $stack");
@@ -770,9 +781,10 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                           child: Text(
                             isSubmitting ? "Processing..." : "Print Receipt",
                             style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black,
+                            ),
                           ),
                         ),
                       )

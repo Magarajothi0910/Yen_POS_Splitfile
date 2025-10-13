@@ -46,14 +46,11 @@ class _CustomerDetailsState extends State<CustomerDetails> {
   bool _isFormValid = false;
 
   List<OrderData> heldOrders = [];
-  String recordedFilePath = '';
-  File? _pickedImage1;
-  File? _pickedImage2;
+
   String _customerType = 'Normal';
   int? _selectedRadioValue = 0; // The selected radio button value
   // String? audioPlayerId;
-  String? audioPlayer;
-  String? photoScreen;
+
   String? holdId;
   List<Map<String, String>> suggestions = [];
   bool isSuggestionsVisible = false;
@@ -63,8 +60,12 @@ class _CustomerDetailsState extends State<CustomerDetails> {
     String? imagePath1 = box.get('image1');
     String? imagePath2 = box.get('image2');
     setState(() {
-      _pickedImage1 = imagePath1 != null ? File(imagePath1) : null;
-      _pickedImage2 = imagePath2 != null ? File(imagePath2) : null;
+      final customerScreenProvider =
+          Provider.of<CustomerScreenProvider>(context, listen: false);
+      customerScreenProvider.pickedImage1 =
+          imagePath1 != null ? File(imagePath1) : null;
+      customerScreenProvider.pickedImage2 =
+          imagePath2 != null ? File(imagePath2) : null;
     });
   }
 
@@ -195,7 +196,9 @@ class _CustomerDetailsState extends State<CustomerDetails> {
 
   void handleRecordingComplete(String path) {
     setState(() {
-      recordedFilePath = path;
+      final customerScreenProvider =
+          Provider.of<CustomerScreenProvider>(context, listen: false);
+      customerScreenProvider.recordedFilePath = path;
     });
   }
 
@@ -399,8 +402,10 @@ class _CustomerDetailsState extends State<CustomerDetails> {
 
                                           customerScreenProvider
                                               .clearControllers();
-                                          audioPlayer = null;
-                                          photoScreen = null;
+                                          customerScreenProvider.audioPlayer =
+                                              null;
+                                          customerScreenProvider.photoScreen =
+                                              null;
                                           Navigator.of(context).pop();
                                         },
                                         style: ElevatedButton.styleFrom(
@@ -1260,11 +1265,12 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            if (audioPlayer == null ||
+                            if (customerScreenProvider.audioPlayer == null ||
                                 audioprovider.state.error != null ||
-                                photoScreen != null)
+                                customerScreenProvider.photoScreen != null)
                               customerScreenProvider.showAudioandImage ||
-                                      audioPlayer == null ||
+                                      customerScreenProvider.audioPlayer ==
+                                          null ||
                                       audioprovider.state.error != null
                                   ? SizedBox(
                                       width: 220,
@@ -1273,23 +1279,25 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                               handleRecordingComplete),
                                     )
                                   : AudioPlayerWidget(
-                                      filePath: recordedFilePath),
+                                      filePath: customerScreenProvider
+                                          .recordedFilePath),
                             SizedBox(
                               width: 8,
                             ),
                             // 🔹 Photo Widget
-                            if (photoScreen != null)
+                            if (customerScreenProvider.photoScreen != null)
                               PhotosScreen(
                                 imagePaths: [
-                                  _pickedImage1!.path,
-                                  _pickedImage2!.path,
+                                  customerScreenProvider.pickedImage1!.path,
+                                  customerScreenProvider.pickedImage2!.path,
                                 ],
                               ),
 
-                            // 🔹 Image Picker if no photo
-                            if (photoScreen == null)
+                            if (customerScreenProvider.photoScreen == null)
                               ImagePickerWidget(
-                                  onImagesSelected: _onImagesSelected),
+                                onImagesSelected:
+                                    customerScreenProvider.onImagesSelected,
+                              ),
 
                             Container(
                               height: 50,
@@ -1305,9 +1313,13 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                           final filePaths =
                                               await FileStorageManager
                                                   .saveFiles(
-                                            recordedFilePath: recordedFilePath,
-                                            pickedImage1: _pickedImage1,
-                                            pickedImage2: _pickedImage2,
+                                            recordedFilePath:
+                                                customerScreenProvider
+                                                    .recordedFilePath,
+                                            pickedImage1: customerScreenProvider
+                                                .pickedImage1,
+                                            pickedImage2: customerScreenProvider
+                                                .pickedImage2,
                                           );
 
                                           if (_requiresApproval()) {
@@ -1316,10 +1328,13 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                               context,
                                               cartSelectionProvider,
                                               cartProvider,
-                                              recordedFilePath,
+                                              customerScreenProvider
+                                                  .recordedFilePath,
                                               apiSalesprovider,
-                                              _pickedImage1,
-                                              _pickedImage2,
+                                              customerScreenProvider
+                                                  .pickedImage1,
+                                              customerScreenProvider
+                                                  .pickedImage2,
                                               _customerType,
                                             );
                                           } else {
@@ -1339,7 +1354,8 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                                       filePaths['imagePath2']!)
                                                   : null,
                                               _customerType,
-                                              audioPlayer,
+                                              customerScreenProvider
+                                                  .audioPlayer,
                                               holdId,
                                             );
                                             customerScreenProvider
@@ -1374,10 +1390,13 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                               .validate()) {
                                             customerScreenProvider.holdOrers(
                                               cartProvider,
-                                              recordedFilePath,
+                                              customerScreenProvider
+                                                  .recordedFilePath,
                                               apiSalesprovider,
-                                              _pickedImage1,
-                                              _pickedImage2,
+                                              customerScreenProvider
+                                                  .pickedImage1,
+                                              customerScreenProvider
+                                                  .pickedImage2,
                                             );
                                             ScaffoldMessenger.of(context)
                                                 .showSnackBar(
@@ -1781,17 +1800,5 @@ class _CustomerDetailsState extends State<CustomerDetails> {
         ),
       ],
     );
-  }
-
-  void _onImagesSelected(File? image1, File? image2) async {
-    if (image1 != null && image2 != null) {
-      final box = Hive.box('imagesBox');
-      await box.put('image1', image1.path);
-      await box.put('image2', image2.path);
-      setState(() {
-        _pickedImage1 = image1;
-        _pickedImage2 = image2;
-      });
-    }
   }
 }

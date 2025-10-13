@@ -17,8 +17,8 @@ class CartItem {
   final String itemCode;
   final int pricePerKg;
   double? finalPrice;
-  double? itemWiseDiscount;
-  double? itemWiseDiscountAmount;
+  double itemWiseDiscount;
+  double itemWiseDiscountAmount;
   double? discount;
   String? isBoxItem;
   final int tax;
@@ -34,6 +34,8 @@ class CartItem {
     this.finalPrice,
     this.discount,
     required this.pricePerKg,
+    required this.itemWiseDiscountAmount,
+    required this.itemWiseDiscount,
     required this.tax,
     required this.itemCode,
     required this.uom, // Initialize uom
@@ -97,14 +99,12 @@ class CartProvider extends ChangeNotifier {
 
   // Main Cart Methods
   void updateQuantity(int index, int quantity) {
-
     if (globals.cartItems.isNotEmpty &&
         index >= 0 &&
         index < globals.cartItems.length) {
       globals.cartItems[index].quantity = quantity;
       notifyListeners();
-    } else {
-    }
+    } else {}
   }
 
   void addItemToCart(CartItem newItem) {
@@ -146,7 +146,6 @@ class CartProvider extends ChangeNotifier {
   }
 
   void clearCart() async {
-
     globals.cartItems.clear();
 
     // Clear Hive storage
@@ -226,11 +225,9 @@ class CartProvider extends ChangeNotifier {
   double getTotalAmount() {
     double totalAmount = 0;
 
-
     for (var i = 0; i < globals.cartItems.length; i++) {
       var item = globals.cartItems[i];
       double itemTotal = 0;
-
 
       if (item.finalPrice != null) {
         itemTotal = item.finalPrice!;
@@ -249,7 +246,7 @@ class CartProvider extends ChangeNotifier {
 
     // Adding custom charge
     final customCharge = double.tryParse(customChargeController.text) ?? 0;
-
+print("custom charge: $customCharge");
     totalAmount += customCharge;
 
     notifyListeners();
@@ -431,11 +428,12 @@ class CartProvider extends ChangeNotifier {
                                 return;
                               }
                               if (newQuantity != null && newQuantity >= 0) {
-                                if (uom == 'Pcs' || uom == 'Pkt') {
-                                  updateQuantity(index, newQuantity.toInt());
-                                } else {
-                                  updateWeight(index, newQuantity);
-                                }
+                                updateQuantity(index, newQuantity.toInt());
+                                // if (uom == 'Pcs' || uom == 'Pkt') {
+                                //   updateQuantity(index, newQuantity.toInt());
+                                // } else {
+                                //   updateWeight(index, newQuantity);
+                                // }
                                 Navigator.of(context).pop();
                               }
                             },

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../model/sales_order_model.dart';
+import '../../model/sales_order_display_model.dart';
 
 class OrderItemTile extends StatelessWidget {
   final SalesOrderDisplay salesOrder;

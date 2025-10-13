@@ -3,7 +3,7 @@ import '../../../../../Global/custom_button_reuse.dart';
 import '../../../../../Global/custom_colors.dart';
 import '../../../../../Global/custom_sized_box.dart';
 import '../../../sales_order_print/currentOrderPrint.dart';
-import '../../model/sales_order_model.dart';
+import '../../model/sales_order_display_model.dart';
 
 class OrderActions extends StatelessWidget {
   final SalesOrderDisplay salesOrder;

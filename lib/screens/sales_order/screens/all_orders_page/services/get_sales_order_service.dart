@@ -5,6 +5,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:yenposapp/Global/allorderprint.dart';
+import 'package:yenposapp/data/global_data_manager.dart';
 import 'package:yenposapp/screens/transactionPage/transaction_model.dart';
 import 'package:yenposapp/screens/transactionPage/transaction_page.dart';
 import 'package:yenposapp/server/Service/hive%20boxes.dart';
@@ -12,15 +13,13 @@ import 'package:yenposapp/services/hive_manager.dart';
 
 import '../../../../../services/websocketService.dart';
 import '../../create_salesOrder.dart/models/held_order_model.dart';
-import '../../model/sales_order_model.dart';
+import '../../model/sales_order_display_model.dart';
 // import '../../model/sales_order_model.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 
 class ApiServiceSalesOrderProvider extends ChangeNotifier {
   ApiServiceSalesOrderProvider({required this.webSocketService}) {
-    print("🚀 ApiServiceSalesOrderProvider: Constructor initialized");
-
     fetchOrdersFromHive();
 
     setupHiveListener();
@@ -33,38 +32,29 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
 
   List<Map<String, dynamic>> _hivefilteredOrders = [];
   List<Map<String, dynamic>> get hivefilteredOrders => _hivefilteredOrders;
+  List<Map<String, dynamic>> _hivefilteredAllOrders = [];
+  List<Map<String, dynamic>> get hivefilteredAllOrders =>
+      _hivefilteredAllOrders;
 
   /// ✅ Fetch Invoices
 
   /// ✅ Fetch Orders
   Future<void> fetchOrdersFromHive() async {
-    print("📥 [fetchOrdersFromHive] STARTED");
     try {
       List<Map<String, dynamic>> hiveOrders =
           await webSocketService.getSavedSalesOrders();
 
-      print("✅ [fetchOrdersFromHive] Retrieved ${hiveOrders.length} orders");
-      for (var order in hiveOrders) {
-        print("   🔹 Order: $order");
-      }
+      for (var order in hiveOrders) {}
 
       _rawOrders = hiveOrders;
       _hivefilteredOrders = List.from(_rawOrders);
-
-      print(
-          "📦 [fetchOrdersFromHive] _hivefilteredOrders updated → ${_hivefilteredOrders.length} items");
-
+      _hivefilteredAllOrders = List.from(_rawOrders);
       notifyListeners();
-      print("🔔 [fetchOrdersFromHive] notifyListeners CALLED");
-    } catch (e) {
-      print("❌ [fetchOrdersFromHive] Error: $e");
-    }
+    } catch (e) {}
   }
 
   /// ✅ Filter Orders By Date
   void filterOrdersByDate(DateTime selectedDate) {
-    print(
-        "📅 [filterOrdersByDate] Filtering orders for date → ${DateFormat('yyyy-MM-dd').format(selectedDate)}");
     _hivefilteredOrders = _rawOrders.where((order) {
       if (order.containsKey('data') &&
           order['data'].containsKey('deliveryDate')) {
@@ -75,64 +65,49 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
           bool match = DateFormat('yyyy-MM-dd').format(orderDate) ==
               DateFormat('yyyy-MM-dd').format(selectedDate);
 
-          print("   🔹 Order deliveryDate=$rawDate → MATCH=${match}");
           return match;
         } catch (e) {
-          print("   ⚠️ Error parsing date for order: $order → $e");
           return false;
         }
       }
-      print("   ⚠️ Order missing 'data.deliveryDate': $order");
       return false;
     }).toList();
 
-    print(
-        "📦 [filterOrdersByDate] Filtered list size → ${_hivefilteredOrders.length}");
     notifyListeners();
-    print("🔔 [filterOrdersByDate] notifyListeners CALLED");
   }
 
   /// ✅ Setup Hive Listener
   Future<void> setupHiveListener() async {
-    print("🛠️ [setupHiveListener] STARTED");
     final saleOrderBox = await Hive.openBox('saleOrderBox');
     saleOrderBox.watch().listen((event) {
-      print("📦 [setupHiveListener] Hive saleOrderBox CHANGED → Event: $event");
       refreshOrders();
     });
-    print("🏁 [setupHiveListener] COMPLETED");
   }
 
   /// ✅ Refresh Orders
   Future<void> refreshOrders() async {
-    print("🔄 [refreshOrders] Refreshing sales orders...");
     await fetchOrdersFromHive();
-    print("✅ [refreshOrders] Completed");
   }
 
-  /// ✅ Refresh Invoice Orders
-
-  /// Filter orders by status. If [selectedFilter] is "All Order", then no filtering is applied.
-  /// Otherwise, the orders are filtered where the order's "status" matches the selected filter.
-  /// 🔽 Provider Method
   void filterOrdersByStatus(String selectedFilter) {
     if (selectedFilter == "All Order") {
-      _hivefilteredOrders = List.from(_rawOrders);
+      _hivefilteredAllOrders = List.from(_rawOrders);
     } else {
       String targetStatus = selectedFilter;
 
-      // Handle special mapping for "Cancel"
+      // Handle special mapping
       if (selectedFilter == "Cancel") {
         targetStatus = "Cancel Order";
+      } else if (selectedFilter == "Confirm") {
+        targetStatus = "Confirm Order"; // Map "Confirm" to actual status
+      } else if (selectedFilter == "Pending") {
+        targetStatus = "Waiting for approval"; // Map "Confirm" to actual status
       }
 
-      _hivefilteredOrders = _rawOrders.where((order) {
+      _hivefilteredAllOrders = _rawOrders.where((order) {
         if (order.containsKey("data") && order["data"].containsKey("status")) {
           String orderStatus = order["data"]["status"].toString();
-
-          bool match = orderStatus.toLowerCase() == targetStatus.toLowerCase();
-
-          return match;
+          return orderStatus.toLowerCase() == targetStatus.toLowerCase();
         } else {
           return false;
         }
@@ -144,40 +119,30 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
   }
 
   void fetchFilteredOrders({DateTime? startDate, DateTime? endDate}) {
-    if (startDate == null && endDate == null) {
-      // No filtering if both dates are null.
-      _hivefilteredOrders = List.from(_rawOrders);
-    } else {
-      _hivefilteredOrders = _rawOrders.where((order) {
-        if (order.containsKey('data') &&
-            order['data'].containsKey('deliveryDate')) {
-          try {
-            String rawDate = order['data']['deliveryDate'];
-            DateTime deliveryDate = DateFormat('dd-MM-yyyy').parse(rawDate);
+    _hivefilteredAllOrders = _rawOrders.where((order) {
+      if (order.containsKey('data') &&
+          order['data'].containsKey('deliveryDate')) {
+        try {
+          String rawDate = order['data']['deliveryDate'];
+          DateTime deliveryDate = DateFormat('dd-MM-yyyy').parse(rawDate);
 
-            bool matches = true;
-
-            if (startDate != null) {
-              matches = matches &&
-                  (deliveryDate.isAtSameMomentAs(startDate) ||
-                      deliveryDate.isAfter(startDate));
-            }
-
-            if (endDate != null) {
-              matches = matches &&
-                  (deliveryDate.isAtSameMomentAs(endDate) ||
-                      deliveryDate.isBefore(endDate));
-            }
-
-            return matches;
-          } catch (e) {
-            return false;
+          // Only filter if user has selected dates
+          if (startDate != null && endDate != null) {
+            return (deliveryDate.isAtSameMomentAs(startDate) ||
+                    deliveryDate.isAfter(startDate)) &&
+                (deliveryDate.isAtSameMomentAs(endDate) ||
+                    deliveryDate.isBefore(endDate));
           }
-        } else {
+
+          // If no dates selected, include all
+          return true;
+        } catch (e) {
           return false;
         }
-      }).toList();
-    }
+      } else {
+        return false;
+      }
+    }).toList();
 
     notifyListeners();
   }
@@ -451,9 +416,9 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
     for (var i = 0; i < _rawOrders.length; i++) {}
 
     if (trimmedQuery.isEmpty) {
-      _hivefilteredOrders = List.from(_rawOrders);
+      _hivefilteredAllOrders = List.from(_rawOrders);
     } else {
-      _hivefilteredOrders = _rawOrders.where((order) {
+      _hivefilteredAllOrders = _rawOrders.where((order) {
         if (order is Map) {
           // Convert to Map<String, dynamic> safely
           final data = order['data'] != null
@@ -480,7 +445,7 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
     }
 
     // Print filtered orders after filtering
-    for (var i = 0; i < _hivefilteredOrders.length; i++) {}
+    for (var i = 0; i < _hivefilteredAllOrders.length; i++) {}
 
     notifyListeners();
   }

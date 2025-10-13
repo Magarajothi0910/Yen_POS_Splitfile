@@ -390,7 +390,7 @@ class CurrentSaleProvider with ChangeNotifier {
 
     // Post the bill data to the FastAPI endpoint
     // try {
-    //   final url = Uri.parse('http://192.168.1.130:8888/fastapi/holds/');
+    //   final url = Uri.parse('https://yenerp.com/fastapi/holds/');
     //   final response = await http.post(
     //     url,
     //     headers: {'Content-Type': 'application/json'},
@@ -558,7 +558,7 @@ class CurrentSaleProvider with ChangeNotifier {
 
       // ✅ Post Data to API
       // try {
-      //   final url = Uri.parse('http://192.168.1.130:8888/fastapi/holds/');
+      //   final url = Uri.parse('https://yenerp.com/fastapi/holds/');
       //   final response = await http.post(
       //     url,
       //     headers: {'Content-Type': 'application/json'},
@@ -692,7 +692,7 @@ class CurrentSaleProvider with ChangeNotifier {
 
   //   // Post the bill data to the FastAPI endpoint
   //   try {
-  //     final url = Uri.parse('http://192.168.1.130:8888/fastapi/holds/');
+  //     final url = Uri.parse('https://yenerp.com/fastapi/holds/');
   //     final response = await http.post(
   //       url,
   //       headers: {'Content-Type': 'application/json'},

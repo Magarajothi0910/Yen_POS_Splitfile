@@ -10,7 +10,7 @@ import 'package:yenposapp/screens/sales_order/globals.dart';
 import 'package:yenposapp/screens/sales_order/sales_order_print/currentOrderPrint_widgets.dart/cheque_details.dart';
 import '../../../Global/allorderprint.dart';
 import '../../../Global/salesorder_websocket_service.dart';
-import '../screens/model/sales_order_model.dart';
+import '../screens/model/sales_order_display_model.dart';
 
 class OrderManagementPayandPrint extends StatefulWidget {
   final double totalAmount;
@@ -670,30 +670,26 @@ class _OrderManagementPayandPrintState
   }
 
   void markOrderAsCompleted(String salesOrderId) async {
-    print("🟢 markOrderAsCompleted called with salesOrderId: $salesOrderId");
+    final invoiceDate = DateFormat('dd-MM-yyyy').format(DateTime.now());
+    final now = DateTime.now();
 
-    final invoiceDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    print("📅 Generated invoiceDate: $invoiceDate");
-
+    final invoiceTime = DateFormat('hh:mm a').format(now); // e.g., 01:07 PM
     final so = widget.salesOrder;
-    print(
-        "📦 Sales Order Loaded -> ID: ${so.salesOrderId}, No: ${so.saleOrderNo}");
 
     // Calculate total advance amount
     final totalAdvanceAmount = widget.salesOrder.advanceAmount!.fold<double>(
       0.0,
       (sum, value) => sum + value,
     );
-    print("💰 Calculated Total Advance Amount: $totalAdvanceAmount");
 
     try {
-      // Prepare patch body
+      // Patch body
       final patchBody = {
         "salesOrderId": so.salesOrderId,
         "status": "Sales Completed",
         "invoiceDate": invoiceDate,
+        "invoiceTime": invoiceTime, // <-- added
       };
-      print("📝 Patch Body: $patchBody");
 
       // Wrap patch into JSON
       final patchJson = jsonEncode({
@@ -703,20 +699,44 @@ class _OrderManagementPayandPrintState
         "sync": "No",
         "edit": "No",
       });
-      print("📤 Sending Patch JSON: $patchJson");
 
       await _salesorder_webSocketService.sendData(jsonDecode(patchJson));
-      print("✅ Patch Data Sent Successfully");
 
       // Prepare full invoice body
+      // ✅ 3️⃣ Prepare the full invoice body (all fields included)
       final fullInvoiceBody = {
-        ...so.toJson(),
+        "itemName": so.itemName,
+        "varianceName": so.varianceName,
+        "varianceitemCode": so.itemCode,
+        "price": so.price,
+        "weight": so.weight,
+        "qty": so.qty,
+        "amount": so.amount,
+        "tax": so.tax,
+        "uom": so.uom,
+        "totalAmount": so.totalAmount,
         "advanceAmount": totalAdvanceAmount,
-        "invoiceDate": invoiceDate,
+        "advanceDate": invoiceDate,
+        "advanceTime": invoiceTime,
         "status": "Sales Completed",
+        "salesType": "Sales Order",
+        "customerPhoneNumber": so.customerNumber,
+        "salesPerson": so.employeeName,
+        "branchId": so.branchId,
+        "branchName": so.branchName,
+        "aliasName": so.aliasName,
+        "cash": so.cash ?? 0,
+        "card": so.card ?? 0,
+        "upi": so.upi ?? 0,
+        "invoiceDate": invoiceDate,
+        "invoiceTime": invoiceTime,
+        "shiftId": so.shiftId,
+        "customCharge": so.customCharge,
+        "discountAmount": so.discountAmount,
+        "discountPercentage": so.discount,
+        "salesOrderId": so.salesOrderId,
+        "advanceDateTime": so.advanceDateTime,
       };
-      print("🧾 Full Invoice Body: $fullInvoiceBody");
-
       // Wrap invoice into JSON
       final invoiceJson = jsonEncode({
         "salesOrderId": fullInvoiceBody,
@@ -724,16 +744,10 @@ class _OrderManagementPayandPrintState
         "sync": "No",
         "edit": "No",
       });
-      print("📤 Sending Invoice JSON: $invoiceJson");
 
       await _salesorder_webSocketService.sendData(jsonDecode(invoiceJson));
-      print("✅ Invoice Data Sent Successfully");
-    } catch (e, stack) {
-      print("❌ Error in markOrderAsCompleted: $e");
-      print("📌 StackTrace: $stack");
-    }
+    } catch (e, stack) {}
 
-    print("🔙 Closing Page Navigator");
     Navigator.pop(context);
   }
 }

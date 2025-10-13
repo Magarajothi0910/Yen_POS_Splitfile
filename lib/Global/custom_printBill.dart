@@ -53,8 +53,6 @@ class ReceiptPrinterWidget extends StatelessWidget {
   }
 
   Future<void> salesprintReceiptDetails() async {
-
-
     if (selectedPaymentOption == 'Cash: Custom' &&
         (customAmountController?.text.isNotEmpty ?? false)) {
 // Ensuring single currency symbol
@@ -62,7 +60,6 @@ class ReceiptPrinterWidget extends StatelessWidget {
     } else {}
 
     var cartProvider = Provider.of<CurrentSaleProvider>(context, listen: false);
-
 
     final profile = await CapabilityProfile.load();
     final printer = NetworkPrinter(PaperSize.mm80, profile);
@@ -114,9 +111,7 @@ class ReceiptPrinterWidget extends StatelessWidget {
       printer.cut();
 
       printer.disconnect();
-    } else {
-    
-    }
+    } else {}
 
     Navigator.of(context).pop();
     cartProvider.clearItems();

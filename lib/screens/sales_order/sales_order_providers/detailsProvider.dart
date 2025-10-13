@@ -49,7 +49,8 @@ class DetailsProvider extends ChangeNotifier {
 
   // List<String> filteredItems = [];
   Future<void> fetchVariances() async {
-    final url = 'http://$ipAddress/fastapi/branchwiseitems/';
+    final url = 'https://yenerp.com/fastapi/branchwiseitems/';
+    print("Fetching variances from $url");
     try {
       final response = await http.get(Uri.parse(url));
 
@@ -151,7 +152,6 @@ class DetailsProvider extends ChangeNotifier {
   List<String> get filteredEmployeeFirstNames => _filteredEmployeeFirstNames;
   bool get isLoading => _isLoading;
 
-  
   Future<void> fetchEmployeeNames() async {
     _isLoading = true;
     notifyListeners();

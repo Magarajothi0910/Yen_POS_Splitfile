@@ -8,13 +8,6 @@ class ChooseModePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // List<ConnectivityResult> status =
-    //     Provider.of<ConnectivityProvider>(context).connectionStatus;
-
-    // // Determine connection status message
-    // String connectionMessage =
-    //     status.contains(ConnectivityResult.none) ? "Offline" : "Online";
-    // print(connectionMessage); // Print to console
     return Scaffold(
       backgroundColor: Colors.white,
       body: Container(

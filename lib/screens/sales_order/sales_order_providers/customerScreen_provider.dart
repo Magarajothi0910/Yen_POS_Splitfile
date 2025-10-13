@@ -4,10 +4,13 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hive/hive.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:yenposapp/Global/Audio%20Player/audio_provider.dart';
 import 'package:yenposapp/Global/allorderprint.dart';
+import 'package:yenposapp/Global/globals_data.dart' as globalsData;
 import 'package:yenposapp/screens/sales_order/sales_order_print/so_placeorder_payment_print.dart';
 import 'package:yenposapp/screens/sales_order/sales_order_providers/cart_selection_provider.dart';
 import 'package:yenposapp/screens/sales_order/screens/create_salesOrder.dart/create_sales_order_widgets/storetype_selection_dialogue.dart';
@@ -24,7 +27,7 @@ import '../screens/all_orders_page/services/get_sales_order_service.dart';
 import '../screens/create_salesOrder.dart/models/approval_order_model.dart';
 import '../screens/create_salesOrder.dart/models/held_order_model.dart';
 import '../screens/create_salesOrder.dart/models/sale_order_model.dart';
-import '../screens/model/sales_order_model.dart';
+import '../screens/model/sales_order_display_model.dart';
 import 'cartProvider.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:http_parser/http_parser.dart';
@@ -70,7 +73,10 @@ class CustomerScreenProvider with ChangeNotifier {
       saleOrderNo: '',
       discountAmountController: 0.0,
       selectedPaymentOptionAmount: [],
-      deductedAmount: 0.0,
+
+      advanceDateTime: [], totalAmount2: 0.0, finalPrice: 0.0,
+      discountAmount: 0.0,
+      // currentPatchId: '',
     );
 
     invoiceReceiptPrinter = salesInvoiceReceiptPrinter(
@@ -120,6 +126,18 @@ class CustomerScreenProvider with ChangeNotifier {
     );
   }
 
+  void onImagesSelected(File? image1, File? image2) async {
+    if (image1 != null && image2 != null) {
+      final box = Hive.box('imagesBox');
+      await box.put('image1', image1.path);
+      await box.put('image2', image2.path);
+
+      pickedImage1 = image1;
+      pickedImage2 = image2;
+      notifyListeners();
+    }
+  }
+
   String _selectedStoreType = 'Warehouse';
   bool _isStoreTypeSelected = false;
 
@@ -130,11 +148,18 @@ class CustomerScreenProvider with ChangeNotifier {
   List<Map<String, dynamic>> get hiveholdSalesOrders => _hiveholdSalesOrders;
   List<Map<String, dynamic>> _rawOrders = [];
   List<Map<String, dynamic>> get rawOrders => _rawOrders;
-
+  String recordedFilePath = '';
+  File? pickedImage1;
+  File? pickedImage2;
   String salesOrderId = '';
 // Cheque FocusNodes
   bool isSubmitting = false;
-
+  String? audioPlayerId;
+  String? photoScreenId;
+  String? previousAudioId;
+  String? previousImageId;
+  String? audioPlayer;
+  String? photoScreen;
   Future<void> saveStoreType(String type) async {
     final prefs = await SharedPreferences.getInstance();
     final currentTimestamp = DateTime.now().millisecondsSinceEpoch;
@@ -170,7 +195,7 @@ class CustomerScreenProvider with ChangeNotifier {
       "type": "newCustomer",
       "mobile": mobile,
       "name": name,
-      "branchId": storedBranch?.branchId, // optional – remove if not needed
+      "branchId": storedBranch?.branchId, // optional
       "timestamp": DateTime.now().toIso8601String(),
     };
 
@@ -289,114 +314,71 @@ class CustomerScreenProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Keep existing updateReceiptData for sales orders
-  void updateReceiptData(Map<String, dynamic> orderData) {
-    final data = orderData;
+  void updatePatchReceiptData(Map<String, dynamic> orderData) {
+    // 🔹 Extract inner data map if present
+    final data = orderData['data'] is Map<String, dynamic>
+        ? Map<String, dynamic>.from(orderData['data'])
+        : orderData;
 
-    print("===== Updating Receipt Data =====");
-    print("Raw orderData: $data");
-
+    // --- BASIC DETAILS ---
     receiptPrinter.employeeNameController.text = data['employeeName'] ?? '';
-    print(
-        "employeeNameController.text: ${receiptPrinter.employeeNameController.text} "
-        "(${receiptPrinter.employeeNameController.text.runtimeType})");
 
     receiptPrinter.customerNumberController.text = data['customerNumber'] ?? '';
-    print(
-        "customerNumberController.text: ${receiptPrinter.customerNumberController.text} "
-        "(${receiptPrinter.customerNumberController.text.runtimeType})");
 
     receiptPrinter.discountController = (data['discount'] ?? 0.0).toDouble();
-    print("discountController: ${receiptPrinter.discountController} "
-        "(${receiptPrinter.discountController.runtimeType})");
 
     receiptPrinter.discountAmountController =
         (data['discountAmount'] ?? 0.0).toDouble();
-    print(
-        "discountAmountController: ${receiptPrinter.discountAmountController} "
-        "(${receiptPrinter.discountAmountController.runtimeType})");
 
     receiptPrinter.customChargeController =
         (data['customCharge'] ?? 0.0).toDouble();
-    print("customChargeController: ${receiptPrinter.customChargeController} "
-        "(${receiptPrinter.customChargeController.runtimeType})");
 
     receiptPrinter.selectedPaymentOptionValue = data['paymentOption'] ?? '';
-    print(
-        "selectedPaymentOptionValue: ${receiptPrinter.selectedPaymentOptionValue} "
-        "(${receiptPrinter.selectedPaymentOptionValue.runtimeType})");
 
-    receiptPrinter.totalAmount = (data['finalPrice'] ?? 0.0).toDouble();
-    print("finalPrice: ${receiptPrinter.totalAmount} "
-        "(${receiptPrinter.totalAmount.runtimeType})");
-    receiptPrinter.deductedAmount = (data['totalAmount'] ?? 0.0).toDouble();
-    print("finalPrice: ${receiptPrinter.deductedAmount} "
-        "(${receiptPrinter.deductedAmount.runtimeType})");
-    // receiptPrinter.advanceAmount =
-    //     (data['advanceAmount'] is List && data['advanceAmount'].isNotEmpty)
-    //         ? (data['advanceAmount'][0] ?? 0.0).toDouble()
-    //         : 0.0;
-    // print("advanceAmount: ${receiptPrinter.advanceAmount} "
-    //     "(${receiptPrinter.advanceAmount.runtimeType})");
+    receiptPrinter.totalAmount = (data['totalAmount'] ?? 0.0).toDouble();
+    receiptPrinter.totalAmount2 = (data['totalAmount2'] ?? 0.0).toDouble();
+
+    receiptPrinter.discountAmount = (data['discountAmount'] ?? 0.0).toDouble();
+    receiptPrinter.finalPrice = (data['finalPrice'] ?? 0.0).toDouble();
 
     receiptPrinter.balanceAmount = (data['balanceAmount'] ?? 0.0).toDouble();
-    print("balanceAmount: ${receiptPrinter.balanceAmount} "
-        "(${receiptPrinter.balanceAmount.runtimeType})");
 
     receiptPrinter.customerType = data['customerType'] ?? '';
-    print("customerType: ${receiptPrinter.customerType} "
-        "(${receiptPrinter.customerType.runtimeType})");
 
     receiptPrinter.deliveryDateprint = data['deliveryDate'] ?? '';
-    print("deliveryDateprint: ${receiptPrinter.deliveryDateprint} "
-        "(${receiptPrinter.deliveryDateprint.runtimeType})");
+    receiptPrinter.deliveryTimeprint = data['deliveryTime'] ?? '';
 
     receiptPrinter.saleOrderNo = data['saleOrderNo'] ?? '';
-    print("saleOrderNo: ${receiptPrinter.saleOrderNo} "
-        "(${receiptPrinter.saleOrderNo.runtimeType})");
-    receiptPrinter.advanceAmount = List<double>.from(
-      data['advanceAmount']?.map((x) => (x as num).toDouble()) ?? [],
-    );
+
+    // --- ADVANCE AMOUNTS ---
+    receiptPrinter.advanceAmount = data['advanceAmount'] != null
+        ? List<double>.from(
+            (data['advanceAmount'] as List).map((x) => (x as num).toDouble()))
+        : <double>[];
+
+    receiptPrinter.advanceDateTime =
+        List<String>.from(data['advanceDateTime'] ?? []);
 
     receiptPrinter.selectedPaymentOption = data['advancePaymentType'] != null
         ? List<List<String>>.from(
-            data['advancePaymentType'].map(
-              (x) => List<String>.from(x.map((y) => y.toString())),
+            (data['advancePaymentType'] as List).map(
+              (x) => List<String>.from((x as List).map((y) => y.toString())),
             ),
           )
-        : null;
+        : [];
+
     receiptPrinter.selectedPaymentOptionAmount = data['modeWiseAmount'] != null
         ? List<List<String>>.from(
-            data['modeWiseAmount'].map(
-              (x) => List<String>.from(x.map((y) => y.toString())),
+            (data['modeWiseAmount'] as List).map(
+              (x) => List<String>.from((x as List).map((y) => y.toString())),
             ),
           )
-        : null;
-    receiptPrinter.deliveryTimeprint = data['deliveryTime'] ?? '';
-    print("deliveryTimeprint: ${receiptPrinter.deliveryTimeprint} "
-        "(${receiptPrinter.deliveryTimeprint.runtimeType})");
+        : [];
 
     receiptPrinter.customAmountController.text =
         data['customAmount']?.toString() ?? '';
-    print(
-        "customAmountController.text: ${receiptPrinter.customAmountController.text} "
-        "(${receiptPrinter.customAmountController.text.runtimeType})");
 
-    // receiptPrinter.selectedPaymentOption =
-    //     (data['advancePaymentType'] is List &&
-    //             data['advancePaymentType'].isNotEmpty)
-    //         ? data['advancePaymentType'][0] ?? ''
-    //         : '';
-    // print("selectedPaymentOption: ${receiptPrinter.selectedPaymentOption} "
-    //     "(${receiptPrinter.selectedPaymentOption.runtimeType})");
-
-    String advanceDateTime =
-        (data['advanceDateTime'] is List && data['advanceDateTime'].isNotEmpty)
-            ? data['advanceDateTime'][0].toString()
-            : '';
-    print("advanceDateTime: $advanceDateTime (${advanceDateTime.runtimeType})");
-
-    // Update cart items
+    // --- CART ITEMS ---
     globals.cartItems = [];
     if (data.containsKey('varianceName') && data['varianceName'] is List) {
       for (int i = 0; i < data['varianceName'].length; i++) {
@@ -410,23 +392,129 @@ class CustomerScreenProvider with ChangeNotifier {
           pricePerKg: (data['price'].length > i ? data['price'][i] : 0).toInt(),
           weight:
               (data['weight'].length > i ? data['weight'][i] : 0.0).toDouble(),
+          itemWiseDiscount: (data['itemWiseDiscount'] != null &&
+                  data['itemWiseDiscount'].length > i)
+              ? (data['itemWiseDiscount'][i] as num).toDouble()
+              : 0.0,
+          itemWiseDiscountAmount: (data['itemWiseDiscountAmount'] != null &&
+                  data['itemWiseDiscountAmount'].length > i)
+              ? (data['itemWiseDiscountAmount'][i] as num).toDouble()
+              : 0.0,
         );
 
         globals.cartItems.add(item);
-        print("CartItem[$i]: "
-            "itemName=${item.itemName}, "
-            "varianceName=${item.varianceName}, "
-            "itemCode=${item.itemCode}, "
-            "qty=${item.quantity}, "
-            "tax=${item.tax}, "
-            "uom=${item.uom}, "
-            "pricePerKg=${item.pricePerKg}, "
-            "weight=${item.weight}");
       }
-    }
+    } else {}
 
-    print("Total Cart Items: ${globals.cartItems.length}");
+    // --- PRINT RECEIPT ---
+    printPatchReceipt();
 
+    notifyListeners();
+  }
+
+// Print sales order receipt
+  Future<void> printPatchReceipt() async {
+    try {
+      await receiptPrinter.patchprintReceiptDetails();
+    } catch (e) {}
+  }
+
+  // Keep existing updateReceiptData for sales orders
+  void updateReceiptData(Map<String, dynamic> orderData) {
+    // 🔹 Extract inner data map if present
+    final data = orderData['data'] is Map<String, dynamic>
+        ? Map<String, dynamic>.from(orderData['data'])
+        : orderData;
+
+    // --- BASIC DETAILS ---
+    receiptPrinter.employeeNameController.text = data['employeeName'] ?? '';
+
+    receiptPrinter.customerNumberController.text = data['customerNumber'] ?? '';
+
+    receiptPrinter.discountController = (data['discount'] ?? 0.0).toDouble();
+
+    receiptPrinter.discountAmountController =
+        (data['discountAmount'] ?? 0.0).toDouble();
+
+    receiptPrinter.customChargeController =
+        (data['customCharge'] ?? 0.0).toDouble();
+
+    receiptPrinter.selectedPaymentOptionValue = data['paymentOption'] ?? '';
+
+    receiptPrinter.totalAmount = (data['totalAmount'] ?? 0.0).toDouble();
+
+    receiptPrinter.totalAmount2 = (data['totalAmount2'] ?? 0.0).toDouble();
+
+    receiptPrinter.discountAmount = (data['discountAmount'] ?? 0.0).toDouble();
+
+    receiptPrinter.finalPrice = (data['finalPrice'] ?? 0.0).toDouble();
+
+    receiptPrinter.balanceAmount = (data['balanceAmount'] ?? 0.0).toDouble();
+
+    receiptPrinter.customerType = data['customerType'] ?? '';
+
+    receiptPrinter.deliveryDateprint = data['deliveryDate'] ?? '';
+    receiptPrinter.deliveryTimeprint = data['deliveryTime'] ?? '';
+
+    receiptPrinter.saleOrderNo = data['saleOrderNo'] ?? '';
+
+    // --- ADVANCE AMOUNTS ---
+    receiptPrinter.advanceAmount = data['advanceAmount'] != null
+        ? List<double>.from(
+            (data['advanceAmount'] as List).map((x) => (x as num).toDouble()))
+        : <double>[];
+
+    receiptPrinter.advanceDateTime =
+        List<String>.from(data['advanceDateTime'] ?? []);
+
+    receiptPrinter.selectedPaymentOption = data['advancePaymentType'] != null
+        ? List<List<String>>.from(
+            (data['advancePaymentType'] as List).map(
+              (x) => List<String>.from((x as List).map((y) => y.toString())),
+            ),
+          )
+        : [];
+
+    receiptPrinter.selectedPaymentOptionAmount = data['modeWiseAmount'] != null
+        ? List<List<String>>.from(
+            (data['modeWiseAmount'] as List).map(
+              (x) => List<String>.from((x as List).map((y) => y.toString())),
+            ),
+          )
+        : [];
+
+    receiptPrinter.customAmountController.text =
+        data['customAmount']?.toString() ?? '';
+
+    // --- CART ITEMS ---
+    globals.cartItems = [];
+    if (data.containsKey('varianceName') && data['varianceName'] is List) {
+      for (int i = 0; i < data['varianceName'].length; i++) {
+        CartItem item = CartItem(
+          itemName: (data['itemName'].length > i ? data['itemName'][i] : ''),
+          varianceName: data['varianceName'][i] ?? '',
+          itemCode: (data['itemCode'].length > i ? data['itemCode'][i] : ''),
+          quantity: (data['qty'].length > i ? data['qty'][i] : 0).toInt(),
+          tax: (data['tax'].length > i ? data['tax'][i] : 0).toInt(),
+          uom: (data['uom'].length > i ? data['uom'][i] : ''),
+          pricePerKg: (data['price'].length > i ? data['price'][i] : 0).toInt(),
+          weight:
+              (data['weight'].length > i ? data['weight'][i] : 0.0).toDouble(),
+          itemWiseDiscount: (data['itemWiseDiscount'] != null &&
+                  data['itemWiseDiscount'].length > i)
+              ? (data['itemWiseDiscount'][i] as num).toDouble()
+              : 0.0,
+          itemWiseDiscountAmount: (data['itemWiseDiscountAmount'] != null &&
+                  data['itemWiseDiscountAmount'].length > i)
+              ? (data['itemWiseDiscountAmount'][i] as num).toDouble()
+              : 0.0,
+        );
+
+        globals.cartItems.add(item);
+      }
+    } else {}
+
+    // --- PRINT RECEIPT ---
     printReceipt();
     notifyListeners();
   }
@@ -434,12 +522,8 @@ class CustomerScreenProvider with ChangeNotifier {
 // Print sales order receipt
   Future<void> printReceipt() async {
     try {
-      print("===== Printing Receipt =====");
       await receiptPrinter.printReceiptDetails();
-      print("===== Receipt Print Success =====");
-    } catch (e) {
-      print("Error while printing receipt: $e");
-    }
+    } catch (e) {}
   }
 
   // Print invoice receipt
@@ -537,7 +621,7 @@ class CustomerScreenProvider with ChangeNotifier {
   String selectedOrderOption = 'Inhouse';
 
   void onSuggestionSelected(Map<String, String> suggestion) {
-    mobileNoController.text = suggestion['mobileNo']!;
+    mobileNoController.text = suggestion['mobile']!;
     customerNameController.text = suggestion['name']!;
     suggestions = []; // Clear suggestions after selection
     notifyListeners();
@@ -546,17 +630,24 @@ class CustomerScreenProvider with ChangeNotifier {
   Future<void> cancelOrder(
       String salesOrderId, Map<String, dynamic> payload) async {
     try {
-      // Add the salesOrderId to the payload if needed
+      // Step 1: Prepare cancel order data
       final cancelOrderData = {
-        'type': 'cancelOrder', // Add an action identifier for the server
-        'salesOrderId': salesOrderId,
+        'type': 'cancelOrder', // Action identifier for server
+        'saleOrderNo': salesOrderId,
         'data': payload,
       };
 
+      // Step 2: Increase invoice call counter
+      _sendInvoiceCallCount++;
+
+      // Step 3: Encode to JSON
       final jsonData = jsonEncode(cancelOrderData);
+
+      // Step 4: Send to WebSocket
       _channel.sink.add(jsonData);
-    } catch (e) {
-      // You might want to show an error to the user here
+    } catch (e, stackTrace) {
+      // Step 5: Error handling
+      // Optional: show user error message here
     }
   }
 
@@ -594,7 +685,7 @@ class CustomerScreenProvider with ChangeNotifier {
                 .toString()
                 .startsWith(query)) // Filter by mobile number prefix
             .map((customer) => {
-                  'mobileNo': customer['customerPhoneNumber'].toString(),
+                  'mobile': customer['customerPhoneNumber'].toString(),
                   'name': customer['customerName'].toString(),
                 })
             .toList();
@@ -618,7 +709,7 @@ class CustomerScreenProvider with ChangeNotifier {
   Future<bool> addCompany(String name, String address, String gst) async {
     try {
       final response = await http.post(
-        Uri.parse('http://192.168.1.130:8888/fastapi/companies/'),
+        Uri.parse('https://yenerp.com/fastapi/companies/'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'companyName': name,
@@ -644,7 +735,7 @@ class CustomerScreenProvider with ChangeNotifier {
       return;
     }
 
-    final url = Uri.parse('http://192.168.1.130:8888/companies/');
+    final url = Uri.parse('https://yenerp.com/companies/');
     try {
       final response = await http.get(url);
       if (response.statusCode == 200) {
@@ -1524,52 +1615,6 @@ class CustomerScreenProvider with ChangeNotifier {
 
       await Future.delayed(Duration(milliseconds: 500)); // small delay
 
-      // initializeReceiptPrinter(
-      //   deliveryTime: timeController.text,
-      //   deliverydateprint: dateController.text,
-      //   employeeNameController: searchController,
-      //   customerNumberController: mobileNoController,
-      //   discountController: deductedAmount,
-      //   customChargeController: customCharge,
-      //   selectedPaymentOptionValue: selectedPaymentMethod,
-      //   totalAmount: totalAmount,
-      //   advanceAmount: totalAdvance,
-      //   balanceAmount: balanceAmount,
-      //   customerType: 'SalesOrder',
-      //   customAmountController: mobileNoController,
-      //   selectedPaymentOption: selectedPaymentMethod,
-      // );
-
-      // final patchData = jsonEncode({
-      //   "status": "Confirm Order",
-      //   "advanceAmount": [totalAdvance], // Must be a list
-      //   "balanceAmount": balanceAmount,
-      //   "advancePaymentType": [selectedPaymentMethod], // Must be a list
-      //   "advanceDateTime": [DateTime.now().toIso8601String()], // Must be a list
-      //   "remark": remark,
-      //   "customCharge": customCharge,
-      //   "totalAmount": totalAmount,
-      //   'saleOrderNo': saleOrderNo
-      // });
-      // print("patchBody: $patchData");
-      // print("saleOrders.salesOrderId:${saleOrders.salesOrderId}");
-      // final url = Uri.parse(
-      //     'http://192.168.1.130:8888/fastapi/salesorders/${saleOrders.salesOrderId}');
-
-      // final response = await http.patch(
-      //   url,
-      //   headers: {"Content-Type": "application/json"},
-      //   body: patchData,
-      // );
-
-      // print("Response Status: ${response.statusCode}");
-      // print("Response Body: ${response.body}");
-      // if (response.statusCode == 200) {
-      //   print("PATCH successful: ${response.body}");
-      // } else {
-      //   print("PATCH failed: ${response.statusCode} - ${response.body}");
-      //   throw Exception('Failed to patch sales order.');
-      // }
       if (context.mounted) Navigator.pop(context);
     } catch (e) {
     } finally {
@@ -1783,7 +1828,7 @@ class CustomerScreenProvider with ChangeNotifier {
 
       final patchData = jsonEncode(orderData); // Use the single orderData map
       final url = Uri.parse(
-          'http://192.168.1.130:8888fastapi/salesorders/${saleOrders.salesOrderId}');
+          'http://192.168.1.130:8888/fastapi/salesorders/${saleOrders.salesOrderId}');
 
       final response = await http.patch(
         url,
@@ -1838,6 +1883,8 @@ class CustomerScreenProvider with ChangeNotifier {
   TextEditingController companyNameController = TextEditingController();
   TextEditingController companyAddressController = TextEditingController();
   TextEditingController companygstNumberController = TextEditingController();
+  TextEditingController customerCombinedController = TextEditingController();
+
   String? _selectedEvent;
   String? get selectedEvent => _selectedEvent;
   String? _selectedHoldOrderId;
@@ -1877,7 +1924,7 @@ class CustomerScreenProvider with ChangeNotifier {
     final String newCustomId = CustomId; // New custom ID
 
     final url = Uri.parse(
-        'http://192.168.1.130:8888/fastapi/audios/media/$currentCustomId/audio');
+        'https://yenerp.com/fastapi/audios/media/$currentCustomId/audio');
 
     final response = await http.patch(
       url,
@@ -1891,8 +1938,8 @@ class CustomerScreenProvider with ChangeNotifier {
   }
 
   Future<void> updateImageId(String currentCustomId, String newCustomId) async {
-    final url = Uri.parse(
-        "http://192.168.1.130:8888/fastapi/imageOrder/media/batch_update");
+    final url =
+        Uri.parse("https://yenerp.com/fastapi/imageOrder/media/batch_update");
 
     try {
       // Prepare the request body
@@ -1933,7 +1980,7 @@ class CustomerScreenProvider with ChangeNotifier {
     combinedController.clear();
     _selectedEvent = null;
     selectedDeliveryType = null;
-
+    customerCombinedController.clear();
     notifyListeners(); // Optional, if you're using ChangeNotifier
   }
 
@@ -1953,7 +2000,7 @@ class CustomerScreenProvider with ChangeNotifier {
   Future<bool> addCustomer(String mobile, String name) async {
     try {
       final response = await http.post(
-        Uri.parse('http://192.168.1.130:8888/fastapi/customers/'),
+        Uri.parse('https://yenerp.com/fastapi/customers/'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'customerPhoneNumber': mobile,
@@ -1974,8 +2021,8 @@ class CustomerScreenProvider with ChangeNotifier {
   Future<List<Map<String, String>>> fetchCustomerList() async {
     try {
       final response = await http.get(
-        // Uri.parse('http://192.168.1.103:8888/fastapi/customer/'),
-        Uri.parse('http://192.168.1.130:8888/fastapi/customers/'),
+        // Uri.parse('https://yenerp.com/fastapi/customer/'),
+        Uri.parse('https://yenerp.com/fastapi/customers/'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -2214,11 +2261,6 @@ class CustomerScreenProvider with ChangeNotifier {
     return 'SO$aliasName$currentYear';
   }
 
-  // 🔹 Helper function for typed prints
-  void debugPrintWithType(String label, dynamic value) {
-    print("🔎 $label => $value  (Type: ${value.runtimeType})");
-  }
-
   Future<void> saveOrder(
     CartProvider cartProvider,
     CartSelectionProvider cartSelectionProvider,
@@ -2238,17 +2280,7 @@ class CustomerScreenProvider with ChangeNotifier {
     BuildContext context,
     Map<String, double> payments,
   ) async {
-    print("🟢 saveOrder() started...");
-
-    debugPrintWithType("orderAmount", orderAmount);
-    debugPrintWithType("discount", discount);
-    debugPrintWithType("deductedAmount", deductedAmount);
-    debugPrintWithType("totalAmount", totalAmount);
-    debugPrintWithType("remark", remark);
-    debugPrintWithType("path", path);
-    debugPrintWithType("selectedOrderOption", selectedOrderOption);
-    debugPrintWithType("holdOrderId", holdOrderId);
-    debugPrintWithType("payments", payments);
+    print("🚀 [saveOrder] Function called at ${DateTime.now()}");
 
     final List<double> advanceAmount = [];
     final List<List<String>> advancePaymentType = [];
@@ -2256,40 +2288,38 @@ class CustomerScreenProvider with ChangeNotifier {
     final List<String> advanceDateTime = [];
 
     void addAdvancePayment(Map<String, double> payMap) {
-      debugPrintWithType("Incoming payment map", payMap);
+      print("💰 [Advance Payment] Incoming payment map: $payMap");
       final filtered = Map.fromEntries(
         payMap.entries.where((e) => e.value > 0),
       );
       if (filtered.isEmpty) {
-        print("⚠️ Skipping empty payment map");
+        print("⚠️ No valid payment entries found, skipping.");
         return;
       }
 
       final total = filtered.values.fold<double>(0, (a, b) => a + b);
+      print(
+          "✅ [Advance Payment] Total: $total, Modes: ${filtered.keys.toList()}");
+
       advanceAmount.add(total);
       advancePaymentType.add(filtered.keys.toList(growable: false));
       modeWiseAmount.add(filtered.values.toList(growable: false));
-      final now = DateTime.now().toIso8601String();
-      advanceDateTime.add(now); // where now is a String
-
-      debugPrintWithType("Advance total", total);
-      debugPrintWithType("Advance paymentTypes", filtered.keys.toList());
-      debugPrintWithType("Advance amounts", filtered.values.toList());
-      debugPrintWithType("Advance timestamp", now);
+      advanceDateTime.add(DateTime.now().toIso8601String());
     }
 
     if (payments.isNotEmpty) {
+      print("💳 [Payments] Found ${payments.length} payment methods");
       addAdvancePayment(payments);
+    } else {
+      print("⚠️ [Payments] No payments provided");
     }
 
     final double computedTotalAdvance =
         advanceAmount.fold<double>(0, (a, b) => a + b);
-    final double balanceAmount = (totalAmount - computedTotalAdvance);
-
-    debugPrintWithType("computedTotalAdvance", computedTotalAdvance);
-    debugPrintWithType("balanceAmount", balanceAmount);
+    print("💵 [Advance Total] Computed total advance: $computedTotalAdvance");
 
     // 🔹 Cart Items
+    print("🛒 [Cart] Extracting items from globals.cartItems...");
     final List<String> itemNames =
         globals.cartItems.map((e) => e.itemName).toList();
     final List<String> varianceNames =
@@ -2313,46 +2343,85 @@ class CustomerScreenProvider with ChangeNotifier {
     final List<double> itemWiseDiscountAmounts =
         globals.cartItems.map((e) => e.itemWiseDiscountAmount ?? 0.0).toList();
 
-    debugPrintWithType("itemNames", itemNames);
-    debugPrintWithType("varianceNames", varianceNames);
-    debugPrintWithType("quantities", quantities);
-    debugPrintWithType("itemCodes", itemCodes);
-    debugPrintWithType("uoms", uoms);
-    debugPrintWithType("taxs", taxs);
-    debugPrintWithType("weights", weights);
-    debugPrintWithType("prices", prices);
-    debugPrintWithType("boxQuantities", boxQuantities);
-    debugPrintWithType("isBoxItem", isBoxItem);
-    debugPrintWithType("itemWiseDiscounts", itemWiseDiscounts);
-    debugPrintWithType("itemWiseDiscountAmounts", itemWiseDiscountAmounts);
+    print("📦 [Cart Summary]");
+    for (int i = 0; i < globals.cartItems.length; i++) {
+      final item = globals.cartItems[i];
+      print(
+          "  🧾 Item ${i + 1}: ${item.itemName} (${item.varianceName}), Code: ${item.itemCode}, Qty: ${item.quantity}, UOM: ${item.uom}, Price: ${item.pricePerKg}, Tax: ${item.tax}");
+    }
 
     final double customCharge =
         double.tryParse(cartProvider.customChargeController.text) ?? 0;
-
-    debugPrintWithType("customCharge", customCharge);
+    print("⚙️ [Custom Charge] Applied: $customCharge");
 
     final List<double> amounts = globals.cartItems.map((item) {
       final base = (item.uom == 'Pcs' || item.uom == 'Pkt')
           ? (item.pricePerKg * item.quantity).toDouble()
           : (item.weight * item.quantity * item.pricePerKg);
       final disc = (item.itemWiseDiscountAmount ?? 0.0);
-      return base - disc;
+      final result = base - disc;
+      print(
+          "💰 [Item Calc] ${item.itemName} (${item.uom}): Base=$base, Discount=$disc, Final=$result");
+      return result;
     }).toList();
 
-    debugPrintWithType("amounts", amounts);
+    // 🔹 Totals
+    final double itemTotal = amounts.fold<double>(0, (a, b) => a + b);
+    final double totalAmount2 = itemTotal + customCharge;
+    final double finalPrice = itemTotal + customCharge - deductedAmount;
+    final double balanceAmount = finalPrice - computedTotalAdvance;
 
+    print("📊 [Totals]");
+    print("   ➕ Item Total: $itemTotal");
+    print("   ➕ Custom Charge: $customCharge");
+    print("   ➖ Discount Amount: $deductedAmount");
+    print("   💵 Final Price: $finalPrice");
+    print("   💸 Balance After Advance: $balanceAmount");
+
+    // 🔹 Generate identifiers
     final String saleOrderNo = generateSaleOrderNo();
     final String formattedTime = DateFormat('hh:mm a').format(DateTime.now());
     const String deviceName = "POS1";
 
-    debugPrintWithType("saleOrderNo", saleOrderNo);
-    debugPrintWithType("formattedTime", formattedTime);
-    debugPrintWithType("deviceName", deviceName);
+    print("🧾 [Order Info]");
+    print("   🆔 SaleOrderNo: $saleOrderNo");
+    print("   ⏰ Time: $formattedTime");
+    print("   💻 Device: $deviceName");
 
     Directory? orderDir = await createOrderDir(saleOrderNo);
-    debugPrintWithType("orderDir", orderDir?.path);
+    final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
 
-    // 🔹 Build final order
+    // 🔹 SAVE FILES
+    String? savedAudioPath;
+    String? savedImg1Path;
+    String? savedImg2Path;
+
+    if (path != null && orderDir != null) {
+      print("🎙️ [File Save] Saving audio file...");
+      savedAudioPath = await saveFile(
+          File(path), orderDir, '${saleOrderNo}_${timestamp}_audio');
+      print("✅ Audio Saved: $savedAudioPath");
+    }
+
+    if (img1 != null && orderDir != null) {
+      print("🖼️ [File Save] Saving Image 1...");
+      savedImg1Path =
+          await saveFile(img1, orderDir, '${saleOrderNo}_${timestamp}_img1');
+      print("✅ Image 1 Saved: $savedImg1Path");
+    }
+
+    if (img2 != null && orderDir != null) {
+      print("🖼️ [File Save] Saving Image 2...");
+      savedImg2Path =
+          await saveFile(img2, orderDir, '${saleOrderNo}_${timestamp}_img2');
+      print("✅ Image 2 Saved: $savedImg2Path");
+    }
+
+    storedBranch = branchProvider.getStoredBranch(globalbranch.branchName);
+    print(
+        "🏬 [Branch] BranchName: ${storedBranch?.branchName}, Alias: ${storedBranch?.aliasName}");
+
+    // 🔹 Build SalesOrder Object
     final salesOrder = SalesOrder(
       itemName: itemNames,
       varianceName: varianceNames,
@@ -2362,10 +2431,11 @@ class CustomerScreenProvider with ChangeNotifier {
       weight: weights,
       amount: amounts,
       boxQty: boxQuantities,
-      totalAmount2: totalAmount,
+      totalAmount2: totalAmount2,
       branchId: storedBranch?.branchId ?? "",
       branchName: storedBranch?.branchName ?? "",
-      totalAmount: totalAmount,
+      aliasName: storedBranch?.aliasName ?? "",
+      totalAmount: itemTotal,
       itemCode: itemCodes,
       tax: taxs,
       price: prices,
@@ -2380,24 +2450,19 @@ class CustomerScreenProvider with ChangeNotifier {
       discount: discount,
       discountAmount: deductedAmount,
       remark: remark,
+      shiftId: globalsData.shiftId.value,
       customCharge: customCharge,
       advanceAmount: advanceAmount,
       advancePaymentType: advancePaymentType,
       modeWiseAmount: modeWiseAmount,
-      finalPrice: orderAmount,
+      finalPrice: finalPrice,
       balanceAmount: balanceAmount,
       saleOrderNo: saleOrderNo,
       orderDate: DateTime.now().toIso8601String(),
       orderTime: formattedTime,
-      imagePath1: (img1 != null && orderDir != null)
-          ? await saveFile(img1, orderDir, '${saleOrderNo}_img1')
-          : null,
-      imagePath2: (img2 != null && orderDir != null)
-          ? await saveFile(img2, orderDir, '${saleOrderNo}_img2')
-          : null,
-      audioPath: (path != null && orderDir != null)
-          ? await saveFile(File(path), orderDir, '${saleOrderNo}_audio')
-          : null,
+      audioPath: savedAudioPath,
+      imagePath1: savedImg1Path,
+      imagePath2: savedImg2Path,
       employeeName: searchController.text,
       status: 'Confirm Order',
       advanceDateTime: advanceDateTime,
@@ -2412,12 +2477,13 @@ class CustomerScreenProvider with ChangeNotifier {
       approvalOrderId: approvalOrderId,
     );
 
-    debugPrintWithType("Final SalesOrder JSON", salesOrder.toJson());
+    print("🧩 [SalesOrder] Object ready: ${jsonEncode(salesOrder.toJson())}");
 
     try {
+      print("💾 [Hive] Saving order to local Hive...");
       final salesOrderBox = HiveManager.salesOrderBox;
       await salesOrderBox.put(saleOrderNo, salesOrder.toJson());
-      debugPrintWithType("Order saved to Hive", saleOrderNo);
+      print("✅ [Hive] Saved order successfully with key: $saleOrderNo");
 
       final postData = {
         "data": salesOrder.toJson(),
@@ -2427,10 +2493,14 @@ class CustomerScreenProvider with ChangeNotifier {
         "WaitingForDiscountApproval": "No",
         "edit": "No",
       };
-      debugPrintWithType("PostData", postData);
-      await sendSalesOrderDataToServer(postData);
 
+      print("🌐 [API] Sending sales order to server...");
+      await sendSalesOrderDataToServer(postData);
+      print("✅ [API] Sales order sent successfully.");
+
+      // 🔹 Handle Hold Orders
       if ((selectedHoldOrderId ?? "").isNotEmpty) {
+        print("🕐 [Hold Order] Converting hold order: $selectedHoldOrderId");
         final patchData = {
           "data": {"status": "Hold Order Converted"},
           "type": "patchHoldOrder",
@@ -2438,19 +2508,18 @@ class CustomerScreenProvider with ChangeNotifier {
           "edit": "No",
           "holdOrderId": selectedHoldOrderId,
         };
-        debugPrintWithType("PatchData", patchData);
+
         await sendSalesOrderDataToServer(patchData);
+        print("✅ [Hold Order] Successfully patched hold order.");
       }
-    } catch (e, st) {
-      debugPrintWithType("❌ saveOrder error", e);
-      debugPrintWithType("StackTrace", st);
+    } catch (e) {
+      print("🔥 [Error] Exception during saveOrder: $e");
       rethrow;
     } finally {
-      print("🧹 Cleaning up UI + memory...");
+      print("🧹 [Cleanup] Clearing controllers and resetting state...");
       clearControllers();
-      cartProvider.clearCart();
+      globals.cartItems.clear();
       cartSelectionProvider.clearSelections();
-
       advanceDateTime.clear();
       advancePaymentType.clear();
       modeWiseAmount.clear();
@@ -2458,15 +2527,18 @@ class CustomerScreenProvider with ChangeNotifier {
 
       isSubmitting = false;
       showAudioandImage = false;
+      pickedImage1 = null;
+      pickedImage2 = null;
+      recordedFilePath = '';
+      audioPlayer = null;
+      photoScreen = null;
 
-      if (path != null) clearFile(path);
-      if (img1 != null) clearFile(img1.path);
-      if (img2 != null) clearFile(img2.path);
-      if (audioOrderId != null) clearFile(audioOrderId);
-
+      print("✅ [Cleanup] State cleared successfully.");
       notifyListeners();
-      print("✅ saveOrder finished");
     }
+
+    print(
+        "🎉 [saveOrder] Completed successfully for SaleOrderNo: $saleOrderNo");
   }
 
   int _approvalOrderCounter = 0;
@@ -2541,6 +2613,7 @@ class CustomerScreenProvider with ChangeNotifier {
         customerName: customerNameController.text,
         deliveryType: selectedDeliveryType.toString(),
         address: addressController.text,
+        shiftId: globalsData.shiftId.toString(),
         landmark: landmarkController.text,
         discount: 0.0,
         discountAmount: 0.0,
@@ -2725,7 +2798,7 @@ class CustomerScreenProvider with ChangeNotifier {
       remark: remark,
       customCharge: customCharge,
       advanceAmount: advanceAmountList,
-
+      shiftId: globalsData.shiftId.toString(),
       finalPrice: orderAmount,
       balanceAmount: balanceAmount,
       saleOrderNo: saleOrderNo,
@@ -2851,6 +2924,7 @@ class CustomerScreenProvider with ChangeNotifier {
         advanceAmount: totalAdvance,
         // advancePaymentType: selectedPaymentMethod,
         finalPrice: 0,
+        shiftId: globalsData.shiftId.toString(),
         balanceAmount: 0,
         saleOrderNo: saleorderdisplay.saleOrderNo,
         orderDate: formattedDate,
@@ -2868,9 +2942,9 @@ class CustomerScreenProvider with ChangeNotifier {
     try {
       // Check if it reaches here
       // final response = await http.post(
-      //   Uri.parse('http://192.168.1.130:8888/salesOrders/'),
+      //   Uri.parse('https://yenerp.com/salesOrders/'),
       final response = await http.post(
-        // Uri.parse("http://192.168.1.130:8888/fastapi/salesorders/"),
+        // Uri.parse("https://yenerp.com/fastapi/salesorders/"),
         Uri.parse("https://yenerp.com/fastapi/salesorders/"),
         headers: {
           'Content-Type': 'application/json',
@@ -2890,6 +2964,7 @@ class CustomerScreenProvider with ChangeNotifier {
     } catch (e) {
       // Catches any errors during the request
     } finally {
+      clearControllers();
       // clearControllers();
       // cartProvider.clearCart();
       // isSubmitting = false;
@@ -2924,7 +2999,7 @@ class CustomerScreenProvider with ChangeNotifier {
       String salesOrderId, File? pickedImage1, File? pickedImage2) async {
     try {
       var uri = Uri.parse(
-          "http://192.168.1.130:8888/fastapi/imageOrder/upload_photo"); // Change to your FastAPI endpoint
+          "https://yenerp.com/fastapi/imageOrder/upload_photo"); // Change to your FastAPI endpoint
       var request = http.MultipartRequest('POST', uri);
 
       // Attach the salesOrderId to the request
@@ -3018,7 +3093,7 @@ class CustomerScreenProvider with ChangeNotifier {
 
       final response = await http.patch(
         Uri.parse(
-            "http://192.168.1.130:8888/fastapi/heldorders/$holdOrderId"), // Use holdOrderId in the URL
+            "https://yenerp.com/fastapi/heldorders/$holdOrderId"), // Use holdOrderId in the URL
         headers: {
           'Content-Type': 'application/json',
         },
@@ -3032,8 +3107,7 @@ class CustomerScreenProvider with ChangeNotifier {
 
   Future<void> _postAudioFile(String customId, String filePath) async {
     // final uri = Uri.parse('https://yenerp.com/fastapi/audios/upload_audio');
-    final uri =
-        Uri.parse('http://192.168.1.130:8888/fastapi/audios/upload_audio');
+    final uri = Uri.parse('https://yenerp.com/fastapi/audios/upload_audio');
 
     try {
       // Determine the content type based on the file extension (simplified example)
@@ -3099,6 +3173,10 @@ class CustomerScreenProvider with ChangeNotifier {
         globals.cartItems.map((item) => item.weight).toList();
     List<int> prices =
         globals.cartItems.map((item) => item.pricePerKg).toList();
+    final List<double> itemWiseDiscounts =
+        globals.cartItems.map((e) => e.itemWiseDiscount ?? 0.0).toList();
+    final List<double> itemWiseDiscountAmounts =
+        globals.cartItems.map((e) => e.itemWiseDiscountAmount ?? 0.0).toList();
 
     // Calculate amounts
     List<double> amounts = globals.cartItems.map((item) {
@@ -3145,6 +3223,8 @@ class CustomerScreenProvider with ChangeNotifier {
       holdOrderId: holdOrderId,
       eventDate: birthdaydateController.text,
       remarks: remarkController.text,
+      itemWiseDiscount: itemWiseDiscounts,
+      itemWiseDiscountAmount: itemWiseDiscountAmounts,
     );
 
     // Prepare JSON
@@ -3322,7 +3402,7 @@ class CustomerScreenProvider with ChangeNotifier {
     try {
       // Send GET request to the server to fetch data
       final response = await http.get(
-        Uri.parse("http://192.168.1.130:8888/fastapi/creditbills/"),
+        Uri.parse("https://yenerp.com/fastapi/creditbills/"),
         headers: {
           'Content-Type': 'application/json',
         },
@@ -3683,7 +3763,7 @@ class CustomerScreenProvider with ChangeNotifier {
                 if (suggestions.isNotEmpty && index < suggestions.length) {
                   final suggestion = suggestions[index];
                   return ListTile(
-                    title: Text(suggestion['mobileNo'] ?? 'Unknown Mobile'),
+                    title: Text(suggestion['mobile'] ?? 'Unknown Mobile'),
                     subtitle: Text(suggestion['name'] ?? 'Unknown Name'),
                     onTap: () {
                       onSuggestionSelected(suggestion);
@@ -4020,7 +4100,7 @@ class CustomerScreenProvider with ChangeNotifier {
                 if (suggestions.isNotEmpty) {
                   final suggestion = suggestions[index];
                   return ListTile(
-                    title: Text(suggestion['mobileNo'] ?? 'Unknown Mobile'),
+                    title: Text(suggestion['mobile'] ?? 'Unknown Mobile'),
                     subtitle: Text(suggestion['name'] ?? 'Unknown Name'),
                     onTap: () {
                       onSuggestionSelected(suggestion);

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../../Global/smartsearchtextfield.dart';
 import '../../all_orders_page/services/get_sales_order_service.dart';
-import '../../model/sales_order_model.dart';
+import '../../model/sales_order_display_model.dart';
 
 class OrderList extends StatelessWidget {
   final List<SalesOrderDisplay> orders;

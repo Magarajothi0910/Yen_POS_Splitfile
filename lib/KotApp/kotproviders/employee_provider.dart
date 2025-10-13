@@ -27,7 +27,7 @@ class EmployeeProvider with ChangeNotifier {
   }
 
   Future<void> fetchAndStoreEmployees() async {
-    const url = 'https://yenerp.com/masterapi/employees/';
+    const url = 'https://yenerp.com/fastapi/employees/';
     try {
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
@@ -53,12 +53,8 @@ class EmployeeProvider with ChangeNotifier {
         }
 
         notifyListeners();
-      } else {
-
-      }
-    } catch (e) {
-      
-    }
+      } else {}
+    } catch (e) {}
   }
 
   void loadEmployeesFromHive() {

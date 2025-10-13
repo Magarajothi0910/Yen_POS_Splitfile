@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:yenposapp/Global/advance-dialog.dart';
 import 'package:yenposapp/Global/advance_amount_payment_keybaord.dart';
 import 'package:yenposapp/Global/customAll_keyboard.dart';
 import 'package:yenposapp/Global/custom_qty_keyboard.dart';
@@ -27,7 +28,7 @@ import 'KotApp/kotproviders/printer_provider.dart';
 import 'KotApp/kotproviders/product_provider.dart';
 import 'KotApp/kotproviders/search_provider.dart';
 import 'KotApp/kotproviders/submissionProvider.dart';
-import 'KotApp/kotproviders/transactionProvider.dart';
+import 'screens/transactionPage/transactionProvider.dart';
 import 'KotApp/kotservices/kotwebsocketService.dart';
 import 'KotApp/models/fetchBranch.dart';
 import 'KotApp/screens/Unprinted receipt/provider/unprinted_orders_provider.dart';
@@ -74,6 +75,8 @@ void main() async {
   await Hive.openBox('invoices');
   await Hive.openBox('imagesBox');
   await Hive.openBox('salesOrders');
+  await Hive.openBox('salesOrderNumberBox');
+
   await Hive.openBox('openOrderBox');
   await Hive.openBox('opensaleOrders');
   await Hive.openBox('userBox');
@@ -112,6 +115,7 @@ void main() async {
     Hive.openBox('salesOrders'),
     Hive.openBox('invoices'),
     Hive.openBox('imagesBox'),
+    Hive.openBox("salesOrderNumberBox"),
     Hive.openBox('salesOrders'),
     Hive.openBox('openOrderBox'),
     Hive.openBox('opensaleOrders'),
@@ -140,7 +144,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final boxUrls = {
-      'customerBox': 'http://192.168.1.130:8888/fastapi/customers/',
+      'customerBox': 'https://yenerp.com/fastapi/customers/',
       'banksBox': 'https://yenerp.com/masterapi/bankmasters/',
     };
     return MultiProvider(
@@ -265,6 +269,8 @@ class MyApp extends StatelessWidget {
               .fetchAndSaveEmployees();
           Provider.of<ItemProvider>(context, listen: false)
               .fetchDataIfNeeded(branchAlias: 'AR');
+          Provider.of<ItemProvider>(context, listen: false)
+              .fetchAndSaveSalesOrders();
         });
 
         return GetMaterialApp(

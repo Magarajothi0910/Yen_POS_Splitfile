@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:provider/provider.dart';
 import '../models/fetchDiningTax.dart';
-import '../kotproviders/transactionProvider.dart';
+import '../../screens/transactionPage/transactionProvider.dart';
 import '../widgets/capitalizeWord.dart';
 
 class TransactionScreen extends StatelessWidget {

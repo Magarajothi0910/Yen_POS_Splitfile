@@ -7,7 +7,7 @@ import 'package:esc_pos_utils/esc_pos_utils.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:yenposapp/Global/customposcolumn.dart';
-import 'package:yenposapp/screens/sales_order/screens/model/sales_order_model.dart';
+import 'package:yenposapp/screens/sales_order/screens/model/sales_order_display_model.dart';
 // import 'package:yenposapp/Global/customposcolumn.dart' show createPosColumn, createPosStyles;
 import '../../../Global/scaffold_global.dart';
 import '../../printer_screen/provider/printer_config_provider.dart';
@@ -108,6 +108,7 @@ class PrintUtility {
           orderDate.day == today.day;
     }).toList();
   }
+
   static Future<void> printReceiptDetails(
     BuildContext context,
     List<SalesOrderDisplay>
@@ -159,9 +160,7 @@ class PrintUtility {
               bold: true,
             )),
       ]);
-      bytes += generator.feed(1);
-      bytes += generator.feed(1);
-      bytes += generator.feed(1);
+      bytes += generator.feed(2);
 
       // Print Branch and Date
       bytes += generator.row([
@@ -179,7 +178,6 @@ class PrintUtility {
 
       bytes += generator.feed(1);
 
-  
       for (int i = 0; i < salesOrder.length; i++) {
         SalesOrderDisplay orderItem =
             salesOrder[i]; // Access each object in the list
@@ -205,77 +203,78 @@ class PrintUtility {
               width: 3,
               text: 'S.NO ',
               styles: createPosStyles(
-                  align: PosAlign.left, codeTable: 'CP1255', bold: false)),
+                  align: PosAlign.left, codeTable: 'CP1255', bold: true)),
           createPosColumn(
               width: 3,
               text: 'ITEM',
               styles: createPosStyles(
-                  align: PosAlign.left, codeTable: 'CP1255', bold: false)),
+                  align: PosAlign.left, codeTable: 'CP1255', bold: true)),
           createPosColumn(
               width: 6,
               text: '                 AMOUNT',
               styles: createPosStyles(
-                  align: PosAlign.left, codeTable: 'CP1255', bold: false)),
+                  align: PosAlign.left, codeTable: 'CP1255', bold: true)),
         ]);
+        bytes += generator.text('--------------------------------------------');
         bytes += generator.feed(1);
+
         for (int j = 0; j < orderItem.varianceName.length; j++) {
-          String varianceName = orderItem.varianceName[j]; // Get item name
-          int quantity = orderItem.qty[j]; // Get quantity
-          double price = orderItem.price[j]; // Get price per unit
-          String uom = orderItem.uom[j]; // Get unit of measure
-          double taxRate = orderItem.tax[j]; // Get tax rate
+          String varianceName = orderItem.varianceName[j]; // Item Name
+          int quantity = orderItem.qty[j]; // Quantity
+          double pricePerKg = orderItem.price[j]; // Price (per unit or per kg)
+          String uom = orderItem.uom[j]; // UOM
+          double taxRate = orderItem.tax[j]; // Tax
+          double weight =
+              orderItem.weight?[j] ?? 0; // Ensure weight available for Kg items
           double amount = orderItem.amount[j];
-          // double  totalAmount=orderItem.totalAmount[j];
+          double discountedAmount =
+              amount - (orderItem.itemWiseDiscountAmount?[j] ?? 0);
 
-          bytes += generator.feed(1);
+          // --- Format Price Description ---
+          String priceDescription = '';
+          if (uom.toLowerCase() == 'kg' || uom.toLowerCase() == 'kgs') {
+            if (weight >= 1) {
+              priceDescription =
+                  '$quantity $uom (${weight.toStringAsFixed(2)} kg) × Rs.${pricePerKg.toStringAsFixed(0)}/kg';
+            } else {
+              // Convert to grams if < 1 kg
+              priceDescription =
+                  '$quantity × (${(weight * 1000).toStringAsFixed(0)} g) × Rs.${pricePerKg.toStringAsFixed(0)}/kg';
+            }
+          } else {
+            // Pcs / Pkt / Others
+            priceDescription =
+                '${quantity.toStringAsFixed(0)} $uom × Rs.${pricePerKg.toStringAsFixed(0)}';
+          }
 
+          // --- Print Item Row ---
           bytes += generator.row([
             createPosColumn(
-                width: 2,
-                text: (j + 1).toString(), // Serial Number
-                styles: createPosStyles(
-                    align: PosAlign.left, codeTable: 'CP1252', bold: false)),
+                width: 1,
+                text: (j + 1).toString(), // Serial No
+                styles: createPosStyles(align: PosAlign.left)),
             createPosColumn(
-                width: 6,
+                width: 7,
                 text: varianceName, // Item Name
-                styles: createPosStyles(
-                    align: PosAlign.left, codeTable: 'CP1252', bold: false)),
+                styles: createPosStyles(align: PosAlign.left)),
             createPosColumn(
                 width: 4,
                 text: ' ${amount.toStringAsFixed(2)}', // Amount
-                styles: createPosStyles(
-                    align: PosAlign.right, codeTable: 'CP1252', bold: false)),
+                styles: createPosStyles(align: PosAlign.right)),
           ]);
-          String formatPrice(double value) {
-            return value % 1 == 0
-                ? value.toInt().toString()
-                : value.toStringAsFixed(2);
-          }
 
+          // --- Print Description (Qty/UOM/Price/Tax) ---
           bytes += generator.row([
             createPosColumn(
-                width: 8,
-                text: '($quantity $uom x $price tax $taxRate%)',
-                styles: createPosStyles(
-                    align: PosAlign.left, codeTable: 'CP1252', bold: false)),
-
-            // Print UOM, Quantity, and Tax
-
-            createPosColumn(
-                width: 2,
-                text: '',
-                styles: createPosStyles(
-                    align: PosAlign.left, codeTable: 'CP1252', bold: false)),
-
-            createPosColumn(
-                width: 2,
-                text: '',
-                styles: createPosStyles(
-                    align: PosAlign.right, codeTable: 'CP1252', bold: false)),
+                width: 10,
+                text: '($priceDescription, Tax $taxRate%)',
+                styles: createPosStyles(align: PosAlign.left)),
+            createPosColumn(width: 2, text: ''),
           ]);
 
           bytes += generator.feed(1);
-        }
+        } // ===== Total =====
+
         bytes += generator.row([
           createPosColumn(
               width: 12,
@@ -284,24 +283,28 @@ class PrintUtility {
               styles: createPosStyles(
                 align: PosAlign.center,
                 codeTable: 'CP1252',
-                height: PosTextSize.size2,
-                width: PosTextSize.size1,
+                width: PosTextSize.size1, // Bigger font
+                height: PosTextSize.size2, // Bigger font
                 bold: true,
               )),
         ]);
 
+        // Add star divider to separate orders
         bytes += generator.feed(1);
-      }
-
-// Divider
-      bytes += generator.row([
-        createPosColumn(
+        bytes += generator.row([
+          createPosColumn(
             width: 12,
-            text: '----------------------------------------------',
+            text: '*****  *****',
             styles: createPosStyles(
-                align: PosAlign.center, codeTable: 'CP1252', bold: false)),
-      ]);
-
+              align: PosAlign.center,
+              codeTable: 'CP1252',
+              width: PosTextSize.size1,
+              bold: true,
+            ),
+          ),
+        ]);
+        bytes += generator.feed(2); // extra spacing before next order
+      }
 
       printer
           .rawBytes(Uint8List.fromList(bytes)); // Send the bytes to the printer
@@ -379,7 +382,6 @@ Future<void> printReceiptDetails(List<SalesOrderDisplay> salesOrders) async {
     printer.text('Item           Qty   Price   Total',
         styles: PosStyles(bold: true));
     double orderTotal = 0;
-
 
     grandTotal += orderTotal;
     printer.hr();

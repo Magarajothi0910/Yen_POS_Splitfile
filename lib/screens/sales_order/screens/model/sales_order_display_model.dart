@@ -170,6 +170,8 @@ class SalesOrderDisplay {
   final String orderInvoiceNo;
   final String branchId;
   final String branchName;
+  final String aliasName;
+
   final String invoiceDate;
   final double cash;
   final double card;
@@ -236,6 +238,7 @@ class SalesOrderDisplay {
       required this.orderInvoiceNo,
       required this.branchId,
       required this.branchName,
+      required this.aliasName,
       required this.invoiceDate,
       required this.cash,
       required this.card,
@@ -314,6 +317,7 @@ class SalesOrderDisplay {
       'orderInvoiceNo': orderInvoiceNo,
       'branchId': branchId,
       'branchName': branchName,
+      'aliasName': aliasName,
       'invoiceDate': invoiceDate,
       'cash': cash,
       'card': card,
@@ -401,6 +405,7 @@ class SalesOrderDisplay {
       orderInvoiceNo: json['orderInvoiceNo'] ?? '',
       branchId: json['branchId'] ?? '',
       branchName: json['branchName'] ?? '',
+      aliasName: json['aliasName'] ?? '',
       invoiceDate: json['invoiceDate'] ?? '',
       cash: (json['cash'] as num?)?.toDouble() ?? 0.0,
       card: (json['card'] as num?)?.toDouble() ?? 0.0,
@@ -533,6 +538,7 @@ class SalesOrderDisplay {
       orderInvoiceNo: orderMap['orderInvoiceNo'] ?? '',
       branchId: orderMap['branchId'] ?? '',
       branchName: orderMap['branchName'] ?? '',
+      aliasName: orderMap['aliasName'] ?? '',
       invoiceDate: orderMap['invoiceDate'] ?? '',
       cash: (orderMap['cash']?.toDouble() ?? 0.0),
       card: (orderMap['card']?.toDouble() ?? 0.0),
@@ -624,6 +630,7 @@ class SalesOrderDisplay {
       orderInvoiceNo: orderInvoiceNo,
       branchId: branchId,
       branchName: branchName,
+      aliasName: aliasName,
       invoiceDate: invoiceDate,
       cash: cash,
       card: card,
@@ -692,6 +699,7 @@ class SalesOrderDisplay {
       orderInvoiceNo: orderInvoiceNo,
       branchId: branchId,
       branchName: branchName,
+      aliasName: aliasName,
       invoiceDate: invoiceDate,
       cash: cash,
       card: card,

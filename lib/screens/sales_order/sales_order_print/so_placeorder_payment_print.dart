@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:yenposapp/Global/paymentDetail_keybaord.dart';
 import 'package:yenposapp/screens/sales_order/globals.dart';
+import 'package:yenposapp/screens/sales_order/globals.dart' as globals;
 import 'package:yenposapp/screens/sales_order/sales_order_print/currentOrderPrint_widgets.dart/cheque_details.dart';
 import 'package:yenposapp/screens/sales_order/sales_order_providers/cartProvider.dart';
 import 'package:yenposapp/screens/sales_order/sales_order_providers/cart_selection_provider.dart';
@@ -114,6 +115,7 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
   final TextEditingController _upiController = TextEditingController();
   final TextEditingController _cardController = TextEditingController();
   // discount vars
+  bool _isDiscountDisabled = false;
   double discount = 0;
   double deductedAmount = 0;
   double customCharge = 0;
@@ -145,7 +147,11 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
       chequeBankController,
       chequeDateController,
     ];
-
+    // ✅ Disable discount field if item-wise discount applied
+    final hasItemWiseDiscount = widget.cartProvider.cartItems.any(
+      (item) => item.itemWiseDiscount != null && item.itemWiseDiscount! > 0,
+    );
+    _isDiscountDisabled = hasItemWiseDiscount;
     // 🔹 Cash validation
     _cashController.addListener(() {
       _cashAmount = int.tryParse(_cashController.text) ?? 0;
@@ -223,7 +229,10 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
     final cash = double.tryParse(_cashController.text) ?? 0;
     final upi = double.tryParse(_upiController.text) ?? 0;
     final card = double.tryParse(_cardController.text) ?? 0;
-    final remaining = widget.totalAmount - (cash + upi + card);
+    final cheque = double.tryParse(chequeAmountController.text) ?? 0;
+
+    // ✅ Use discounted totalAmount, not widget.totalAmount
+    final remaining = totalAmount - (cash + upi + card + cheque);
 
     if (method == "Cash" && _cashController.text.isEmpty) {
       return remaining > 0 ? remaining.toStringAsFixed(0) : "0";
@@ -232,6 +241,9 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
       return remaining > 0 ? remaining.toStringAsFixed(0) : "0";
     }
     if (method == "Card" && _cardController.text.isEmpty) {
+      return remaining > 0 ? remaining.toStringAsFixed(0) : "0";
+    }
+    if (method == "Cheque" && chequeAmountController.text.isEmpty) {
       return remaining > 0 ? remaining.toStringAsFixed(0) : "0";
     }
 
@@ -402,44 +414,47 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
   // ✅ Apply discount calculation
   void _applyDiscount(String value) {
     setState(() {
-      // Parse discount value
+      // 🔹 Step 1: Check if any cart item has item-wise discount
+      final hasItemWiseDiscount = widget.cartProvider.cartItems.any(
+        (item) => item.itemWiseDiscount != null && item.itemWiseDiscount! > 0,
+      );
+
+      if (hasItemWiseDiscount) {
+        _discountController.text = ""; // clear entered discount
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Item-wise discount already applied. Overall discount cannot be applied.',
+            ),
+            backgroundColor: Colors.redAccent,
+            duration: Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating, // 🔹 like alert toast
+          ),
+        );
+      }
+
+      // 🔹 Step 2: Continue with normal discount logic
       discount = double.tryParse(value) ?? 0;
 
-      // Calculate deducted amount
       deductedAmount = (discount / 100) * _originalAmount;
 
-      // Calculate total amount
       totalAmount = _originalAmount + customCharge - deductedAmount;
 
-      // Check approval condition
       if (discount > globaldiscount.globalDiscountPercentage) {
         _discountController.text = "";
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          showDialog(
-            context: context,
-            builder: (_) => AlertDialog(
-              title: Row(
-                children: const [
-                  Icon(Icons.warning_amber_rounded, color: Colors.orange),
-                  SizedBox(width: 10),
-                  Text('Approval Required'),
-                ],
-              ),
-              content: const Text(
-                'Discount exceeds allowed limit. Please send for approval.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('OK'),
-                ),
-              ],
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Discount exceeds allowed limit. Please send for approval.',
             ),
-          );
-        });
-      } else {}
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
 
-      // Balance update
       _updateBalance();
     });
   }
@@ -507,43 +522,55 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
                             ),
                           ),
                           Expanded(
-                            flex: 3,
-                            child: TextFormField(
-                              controller: _discountController,
-                              readOnly: true,
-                              showCursor: true,
-                              decoration: InputDecoration(
-                                prefixIcon: const Icon(
-                                  Icons.percent,
-                                  color: Colors.black,
+                              flex: 3,
+                              child: Expanded(
+                                flex: 3,
+                                child: TextFormField(
+                                  controller: _discountController,
+                                  readOnly:
+                                      true, // ✅ Always true (custom keyboard only)
+                                  enabled:
+                                      !_isDiscountDisabled, // ✅ Disable only if item-wise discount exists
+                                  showCursor: !_isDiscountDisabled,
+                                  decoration: InputDecoration(
+                                    prefixIcon: const Icon(Icons.percent,
+                                        color: Colors.black),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 8),
+                                    filled: true,
+                                    fillColor: _isDiscountDisabled
+                                        ? Colors.grey[200]
+                                        : Colors
+                                            .grey[50], // greyed out if disabled
+                                    hintText: _isDiscountDisabled
+                                        ? 'Item-wise discount applied'
+                                        : 'Enter Discount',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                  ),
+                                  onTap: () {
+                                    if (!_isDiscountDisabled) {
+                                      ActiveField.activate(
+                                        ctrl: _discountController,
+                                        node: FocusNode(),
+                                        numeric: true,
+                                      );
+                                    }
+                                  },
+                                  onChanged: (value) {
+                                    if (!_isDiscountDisabled) {
+                                      _applyDiscount(value);
+                                    }
+                                  },
                                 ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 8),
-                                filled: true,
-                                fillColor: Colors.grey[50],
-                                hintText: 'Enter Discount',
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide.none,
-                                ),
-                              ),
-                              onTap: () {
-                                ActiveField.activate(
-                                  ctrl: _discountController,
-                                  node: FocusNode(),
-                                  numeric: true,
-                                );
-                              },
-                              onChanged: (value) {
-                                _applyDiscount(value);
-                              },
-                            ),
-                          ),
+                              )),
                           const SizedBox(width: 10),
                           // 🔹 Show Deducted Amount
                           Text(
                             deductedAmount > 0
-                                ? "- ₹${deductedAmount.toStringAsFixed(0)}"
+                                ? "- ₹${deductedAmount.round().toStringAsFixed(0)}"
                                 : "",
                             style: const TextStyle(
                               fontSize: 14,
@@ -827,9 +854,8 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
                                       context,
                                       payments, // 👈 pass payments map
                                     );
+
                                     Navigator.pop(context); // Close dialog
-                                    cartProvider.clearCart();
-                                    customerScreenProvider.clearControllers();
                                   },
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.blueAccent,

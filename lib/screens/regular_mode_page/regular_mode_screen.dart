@@ -272,7 +272,6 @@ class _RegularModeScreenState extends State<RegularModeScreen> {
   }
 
   void _handleInput(String value) async {
-
     // Check conditions that would prevent processing the input
     if (_isProcessing || !_isQrMode || value.isEmpty) {
       return;
@@ -671,7 +670,7 @@ class _CustomKeyboardState extends State<CustomKeyboard> {
       child: Column(
         children: [
           Expanded(
-            child: _buildRow('1234567890'),
+            child: _buildRow('1233344190'),
           ),
           Expanded(
             child: _buildRow('QWERTYUIOP'),

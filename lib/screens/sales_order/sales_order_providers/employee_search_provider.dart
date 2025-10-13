@@ -13,7 +13,6 @@ class EmployeeSearchProvider extends ChangeNotifier {
   EmployeeSearchProvider(this.hiveProvider, {required this.boxName});
 
   Future<void> fetchSuggestions(String query) async {
-
     // Early exit if query is empty
     if (query.isEmpty) {
       suggestions = [];

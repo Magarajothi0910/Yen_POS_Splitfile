@@ -31,7 +31,7 @@ class SyncServiceKot {
     }
   }
 
-  SyncService() {
+  SyncServiceKot() {
     _monitorConnectivity();
     Timer.periodic(const Duration(minutes: 10), (timer) {
       if (isOnline) {
@@ -307,7 +307,6 @@ class SyncServiceKot {
   Future<void> syncUnsyncedInvoices() async {
     print("🚀 [syncUnsyncedInvoices] Called");
 
-    // Step 1: Prevent parallel syncing
     if (_isSyncing) {
       print("⚠️ [syncUnsyncedInvoices] Sync already in progress. Skipping...");
       return;
@@ -315,11 +314,9 @@ class SyncServiceKot {
     _isSyncing = true;
 
     try {
-      // Step 2: Open Hive box
       var invoiceBox = await Hive.openBox('invoices');
       print("📂 [syncUnsyncedInvoices] Opened Hive box: invoices");
 
-      // Step 3: Iterate invoices
       for (int i = 0; i < invoiceBox.length; i++) {
         var invoiceData = invoiceBox.getAt(i);
         print(
@@ -327,17 +324,22 @@ class SyncServiceKot {
 
         // Decode if string
         if (invoiceData is String) {
-          invoiceData = jsonDecode(invoiceData) as Map<String, dynamic>;
+          invoiceData = jsonDecode(invoiceData);
           print("📦 [syncUnsyncedInvoices] Decoded string invoice into Map.");
         }
 
-        // Step 4: Process only unsynced invoices
         if (invoiceData is Map<String, dynamic> &&
             invoiceData['sync'] == 'No') {
-          print(
-              "📡 [syncUnsyncedInvoices] Found unsynced invoice: $invoiceData");
+          print("📡 [syncUnsyncedInvoices] Found unsynced invoice.");
 
-          // Try posting
+          // 🩹 FIX: If the actual data is inside 'salesOrderId', extract it
+          if (invoiceData.containsKey('salesOrderId') &&
+              invoiceData['salesOrderId'] is Map<String, dynamic>) {
+            print(
+                "🧩 [syncUnsyncedInvoices] Extracting nested salesOrderId map...");
+            invoiceData = invoiceData['salesOrderId'];
+          }
+
           bool success = await postInvoice(invoiceData);
           if (success) {
             print("✅ [syncUnsyncedInvoices] Invoice synced successfully.");
@@ -349,7 +351,7 @@ class SyncServiceKot {
           } else {
             print(
                 "❌ [syncUnsyncedInvoices] Failed to sync invoice. Stopping loop.");
-            break; // Stop sync loop if failure
+            break;
           }
         } else {
           print("ℹ️ [syncUnsyncedInvoices] Invoice already synced or invalid.");

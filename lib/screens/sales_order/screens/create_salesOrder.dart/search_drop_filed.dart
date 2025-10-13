@@ -51,7 +51,6 @@ class _SearchDropdownState extends State<SearchDropdown> {
   void _updateOverlay() {
     final provider = Provider.of<RegularModeProvider>(context, listen: false);
 
-
     provider.filterVarianceNamesBySearchQuery(_controller.text.trim());
 
     if (_controller.text.isEmpty) {
@@ -70,10 +69,9 @@ class _SearchDropdownState extends State<SearchDropdown> {
 
   void _showOverlay() {
     if (_overlayEntry == null) {
-          _overlayEntry = _createOverlayEntry();
+      _overlayEntry = _createOverlayEntry();
       Overlay.of(context).insert(_overlayEntry!);
-    } else {
-    }
+    } else {}
   }
 
   void _removeOverlay() {
@@ -174,8 +172,7 @@ class _SearchDropdownState extends State<SearchDropdown> {
                                               _removeOverlay(); // Close overlay on selection
                                             });
                                             // _removeOverlay(); // Close overlay on selection
-                                          } else {
-                                          }
+                                          } else {}
                                         }
                                       });
                                     },
@@ -204,14 +201,40 @@ class _SearchDropdownState extends State<SearchDropdown> {
   }
 
   void _handleItemSelection(
-      Map<String, dynamic> selectedItem, variancedata, varianceUOM) {
+    Map<String, dynamic> selectedItem,
+    Map<String, dynamic> variancedata,
+    String? varianceUOM,
+  ) {
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
 
-    String varianceName = selectedItem['varianceName'] ?? '';
-    String itemName = variancedata['itemName'] ?? '';
+    // Extract data safely
+    String varianceName = selectedItem['varianceName']?.toString() ?? '';
+    String itemCode = selectedItem['varianceItemCode']?.toString() ??
+        variancedata['varianceItemCode']?.toString() ??
+        variancedata['varianceitemCode']?.toString() ??
+        '';
+    String itemName = variancedata['itemName']?.toString() ?? '';
     varianceUOM = varianceUOM ?? '';
 
+    print("🧾 Selected Variance: $varianceName");
+    print("📦 Selected Item Code: $itemCode");
+    print("📄 Item Name: $itemName");
+    print("⚖️ UOM: $varianceUOM");
 
+    // Determine price safely
+    double price = 0.0;
+    final rawPrice = selectedItem['varianceDefaultPrice'] ??
+        variancedata['variance_Defaultprice'];
+    if (rawPrice is num) {
+      price = rawPrice.toDouble();
+    } else if (rawPrice is String && rawPrice.trim().isNotEmpty) {
+      price = double.tryParse(rawPrice) ?? 0.0;
+    }
+
+    // Determine tax (optional fallback)
+    final tax = variancedata['variancetax'] ?? 0;
+
+    // Handle UOM types
     if (varianceUOM == 'Kgs' || varianceUOM == 'Kg') {
       showDialog(
         context: context,
@@ -221,50 +244,39 @@ class _SearchDropdownState extends State<SearchDropdown> {
             onValueSelected: (weight) {
               cartProvider.addItemToCart(CartItem(
                 varianceName: varianceName,
-                pricePerKg:
-                    (variancedata['varianceDefaultPrice'] ?? 0.0).toInt(),
+                pricePerKg: price.toInt(),
                 itemName: itemName,
-                uom: varianceUOM,
+                uom: varianceUOM!,
                 weight: weight,
                 quantity: 1,
                 isBoxItem: 'no',
-                tax: variancedata['variancetax'] ?? 0,
-                itemCode: variancedata['varianceItemCode'] ?? '',
+                tax: tax,
+                itemCode: itemCode, // ✅ Correct varianceitemCode stored
+                itemWiseDiscountAmount: 0.0,
+                itemWiseDiscount: 0.0,
               ));
             },
           );
         },
       );
-    } else if (varianceUOM == 'Pcs' || varianceUOM == 'Pkt') {
-      cartProvider.addItemToCart(CartItem(
-        varianceName: varianceName,
-        pricePerKg: (variancedata['varianceDefaultPrice'] ?? 0.0).toInt(),
-        itemName: itemName,
-        uom: varianceUOM,
-        weight: 0,
-        quantity: 1,
-        isBoxItem: 'no',
-        tax: variancedata['variancetax'] ?? 0,
-        itemCode: variancedata['varianceItemCode'] ?? '',
-      ));
     } else {
+      // For Pcs, Pkt, etc.
       cartProvider.addItemToCart(CartItem(
         varianceName: varianceName,
-        pricePerKg: (variancedata['varianceDefaultPrice'] ?? 0.0).toInt(),
+        pricePerKg: price.toInt(),
         itemName: itemName,
         uom: varianceUOM,
         weight: 0,
         quantity: 1,
         isBoxItem: 'no',
-        tax: variancedata['variancetax'] ?? 0,
-        itemCode: variancedata['varianceItemCode'] ?? '',
+        tax: tax,
+        itemCode: itemCode, // ✅ Correct varianceitemCode stored
+        itemWiseDiscountAmount: 0.0,
+        itemWiseDiscount: 0.0,
       ));
     }
 
-    setState(() {
-      // Update any state variables if needed
-    });
-
+    setState(() {}); // if any UI update needed
     _clearSelection();
   }
 
@@ -436,9 +448,9 @@ class _SearchDropdownState extends State<SearchDropdown> {
                         }
                       },
                       onTap: () => ActiveField.activate(
-                        ctrl: _controller,
-                        node: _searchFocus,
-                      ),
+                          ctrl: _controller,
+                          node: _searchFocus,
+                          numeric: false),
                     ),
                   ),
                 ),

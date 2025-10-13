@@ -9,7 +9,7 @@ import '../models/globals.dart';
 import 'Token_service.dart';
 
 Future<void> startUdpResponder(String ip, int udpPort) async {
-  final udp = await UDP.bind(Endpoint.any(port: const Port(45678)));
+  final udp = await UDP.bind(Endpoint.any(port: const Port(33441)));
 
   udp.asStream().listen((datagram) {
     if (datagram == null) return;

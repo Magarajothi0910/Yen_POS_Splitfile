@@ -8,7 +8,7 @@ class ServerElectionManager {
   int _myRank = 0;
   final String _myDeviceId = const Uuid().v4(); // Unique device ID
   bool _shouldBecomeServer = true;
-  final int electionPort = 45678;
+  final int electionPort = 33441;
   final Duration electionTimeout = const Duration(seconds: 3);
 
   DateTime appStartTime = DateTime.now(); // For uptime
@@ -28,8 +28,7 @@ class ServerElectionManager {
 
     if (_shouldBecomeServer) {
       await onBecomeServer(); // <-- This will trigger your server start
-    } else {
-    }
+    } else {}
 
     _udp.close();
   }

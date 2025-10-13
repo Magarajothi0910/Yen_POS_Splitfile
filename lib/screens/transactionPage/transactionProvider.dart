@@ -1,8 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
-import 'package:yenposapp/screens/transactionPage/transaction_model.dart';
-import 'package:provider/provider.dart';
+
 import 'package:yenposapp/services/hive_manager.dart';
 
 class TransactionProvider with ChangeNotifier {
@@ -25,20 +24,41 @@ class TransactionProvider with ChangeNotifier {
     print("📥 [getInvoicesFromHive] STARTED");
     try {
       final invoiceBox = await HiveManager.invoiceBox;
+
+      // Extract invoices safely
       List<Map<String, dynamic>> hiveInvoices = invoiceBox.values
           .where((entry) => entry is Map)
           .map((entry) => Map<String, dynamic>.from(entry as Map))
+          .map((invoice) =>
+              Map<String, dynamic>.from(invoice['salesOrderId'] ?? {}))
           .toList();
 
       print(
-          "✅ [getInvoicesFromHive] Retrieved ${hiveInvoices.length} invoices");
+          "✅ [getInvoicesFromHive] Retrieved ${hiveInvoices.length} invoices (raw)");
+
+      // ✅ Filter duplicates based on orderInvoiceNo
+      final Set<String> seen = {};
+      final uniqueInvoices = <Map<String, dynamic>>[];
+
       for (var invoice in hiveInvoices) {
-        print("   🔹 Invoice: $invoice");
+        final orderInvoiceNo = invoice['orderInvoiceNo']?.toString();
+        if (orderInvoiceNo != null && orderInvoiceNo.isNotEmpty) {
+          if (!seen.contains(orderInvoiceNo)) {
+            seen.add(orderInvoiceNo);
+            uniqueInvoices.add(invoice);
+          } else {
+            print("⚠️ Skipped duplicate invoice: $orderInvoiceNo");
+          }
+        }
       }
 
-      _rawInvoiceOrders = hiveInvoices;
+      print(
+          "📦 [getInvoicesFromHive] Unique invoices → ${uniqueInvoices.length}");
+
+      _rawInvoiceOrders = uniqueInvoices;
       _invoiceList = List.from(_rawInvoiceOrders);
 
+      print("_invoiceList:$_invoiceList");
       print(
           "📦 [getInvoicesFromHive] _invoiceList updated → ${_invoiceList.length} items");
 

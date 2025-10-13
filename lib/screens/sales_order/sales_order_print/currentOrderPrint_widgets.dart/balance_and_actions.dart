@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../Global/custom_textWidgets.dart';
-import '../../screens/model/sales_order_model.dart';
+import '../../screens/model/sales_order_display_model.dart';
 
 class BalanceAndActions extends StatelessWidget {
   final double balanceAmount;

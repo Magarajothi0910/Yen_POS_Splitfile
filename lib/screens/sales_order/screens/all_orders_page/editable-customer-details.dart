@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 
-import '../model/sales_order_model.dart';
+import '../model/sales_order_display_model.dart';
 
 class EditableCustomerDetails extends StatefulWidget {
   final SalesOrderDisplay salesOrder;

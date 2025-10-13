@@ -83,11 +83,11 @@ class _MorePageState extends State<MorePage> {
   }
 
   final String shiftGet =
-      "http://192.168.1.130:8888/fastapi/shifts/?shift_opening_date=${formatDate(DateTime.now())}&branch_name=$branchName&device_number=$deviceNumber";
+      "https://yenerp.com/fastapi/shifts/?shift_opening_date=${formatDate(DateTime.now())}&branch_name=$branchName&device_number=$deviceNumber";
   final String invoiceTotalSales =
-      'http://192.168.1.130:8888/fastapi/invoices/?start_date=${formatDate(DateTime.now())}&shift_number=1&branch_name=$branchName&device_number=$deviceNumber&show_totals=true';
+      'https://yenerp.com/fastapi/invoices/?start_date=${formatDate(DateTime.now())}&shift_number=1&branch_name=$branchName&device_number=$deviceNumber&show_totals=true';
   final String systemtotalscash =
-      'http://192.168.1.130:8888/fastapi/totals/systemtotalscash?date=${formatDate(DateTime.now())}';
+      'https://yenerp.com/fastapi/totals/systemtotalscash?date=${formatDate(DateTime.now())}';
 
   final cashSalesController = Get.put(CashSalesController());
   final Map<int, TextEditingController> controllers = {
@@ -115,7 +115,7 @@ class _MorePageState extends State<MorePage> {
   };
 
   Future<List<Map<String, String>>> fetchShiftDetails() async {
-    final String apiUrl = "http://192.168.1.130:8888/fastapi/shifts/";
+    final String apiUrl = "https://yenerp.com/fastapi/shifts/";
 
     try {
       final response = await http.get(Uri.parse(apiUrl));
@@ -205,7 +205,7 @@ class _MorePageState extends State<MorePage> {
 
   Future<void> fetchDayEndData() async {
     final String apiUrl =
-        "http://192.168.1.130:8888/fastapi/shifts/?shift_opening_date=${formatDate(DateTime.now())}&branch_name=$branchName&device_number=$deviceNumber";
+        "https://yenerp.com/fastapi/shifts/?shift_opening_date=${formatDate(DateTime.now())}&branch_name=$branchName&device_number=$deviceNumber";
 
     setState(() {
       isDayEndLoading = true; // Show loading indicator
@@ -273,7 +273,7 @@ class _MorePageState extends State<MorePage> {
   }
 
   // Future<void> fetchCreditBills() async {
-  //   const String apiUrl = 'http://192.168.1.130:8888/fastapi/creditbills/';
+  //   const String apiUrl = 'https://yenerp.com/fastapi/creditbills/';
   //   try {
   //     final response = await http.get(Uri.parse(apiUrl));
 
@@ -1624,7 +1624,7 @@ class _MorePageState extends State<MorePage> {
 
   Future<void> patchShiftClosingData(String shiftId) async {
     // URL with the specific shift ID
-    final String patchUrl = 'http://192.168.1.130:8888/fastapi/shifts/$shiftId';
+    final String patchUrl = 'https://yenerp.com/fastapi/shifts/$shiftId';
     // Prepare the data payload
     final Map<String, dynamic> payload = {
       "shiftClosingDate": formatDate(DateTime.now()), // Closing date
@@ -1719,7 +1719,7 @@ class _MorePageState extends State<MorePage> {
   }
 
   Future<void> patchDayEndStatus(String shiftId) async {
-    final String patchUrl = "http://192.168.1.130:8888/fastapi/shifts/$shiftId";
+    final String patchUrl = "https://yenerp.com/fastapi/shifts/$shiftId";
 
     final Map<String, dynamic> payload = {
       "dayEndStatus": "closed",
@@ -1947,7 +1947,7 @@ class _MorePageState extends State<MorePage> {
   }
 
   Future<void> postDayEndData(Map<String, dynamic> dayEndData) async {
-    final String url = 'http://192.168.1.130:8888/fastapi/dayends/';
+    final String url = 'https://yenerp.com/fastapi/dayends/';
     try {
       final response = await http.post(
         Uri.parse(url),
@@ -2015,7 +2015,7 @@ Future<void> _postCustomerData(
     return;
   }
 
-  final String url = 'http://192.168.1.130:8888/fastapi/customers/';
+  final String url = 'https://yenerp.com/fastapi/customers/';
   final response = await http.post(
     Uri.parse(url),
     headers: {

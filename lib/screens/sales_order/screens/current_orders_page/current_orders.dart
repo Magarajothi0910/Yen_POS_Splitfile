@@ -13,7 +13,7 @@ import '../../sales_order_providers/editcustomerscreenProvider.dart';
 import '../all_orders_page/services/get_sales_order_service.dart';
 import '../create_salesOrder.dart/create_sales_order.dart';
 import '../create_salesOrder.dart/editcustomerdetails.dart';
-import '../model/sales_order_model.dart';
+import '../model/sales_order_display_model.dart';
 
 class CurrentOrdersPage extends StatefulWidget {
   final GlobalKey keyboardKey;
@@ -40,7 +40,7 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
   @override
   Widget build(BuildContext context) {
     final apiService = context.watch<ApiServiceSalesOrderProvider>();
-
+    apiService.filterOrdersByDate(apiService.selectedDate!);
 // Print the raw hivefilteredOrders
     debugPrint(
         "🔹 hivefilteredOrders length => ${apiService.hivefilteredOrders.length} (Type: ${apiService.hivefilteredOrders.runtimeType})");
@@ -399,27 +399,42 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
   }
 
   Widget _buildOrderHeader(SalesOrderDisplay salesOrder) {
+    // Flatten the nested list and join as comma-separated string
+    String paymentTypes = '';
+    if (salesOrder.advancePaymentType != null) {
+      paymentTypes = salesOrder.advancePaymentType!
+          .expand((innerList) =>
+              innerList) // flatten List<List<String>> → List<String>
+          .join(', ');
+    }
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
+        // Payment Type Column
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Payment Type',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-            Text(salesOrder.paymentType, style: TextStyle(fontSize: 11)),
+            Text(
+              'Payment Type',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            ),
+            Text(
+              paymentTypes,
+              style: TextStyle(fontSize: 11),
+            ),
           ],
         ),
+        // Order Number Column
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Order ID',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
             Text(
-              salesOrder.salesOrderId.length > 5
-                  ? salesOrder.salesOrderId
-                      .substring(salesOrder.salesOrderId.length - 5)
-                  : salesOrder.salesOrderId,
+              'Order No',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            ),
+            Text(
+              salesOrder.saleOrderNo, // show full sale order number
               style: TextStyle(fontSize: 11),
             ),
           ],
@@ -591,7 +606,27 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
 
   Widget _buildOrderItemTile(SalesOrderDisplay salesOrder, int index,
       {bool showAsBoxItem = false}) {
-    // Debugging output to verify values
+    final uom = salesOrder.uom[index];
+    final quantity = salesOrder.qty[index].toDouble();
+    final weight = salesOrder.weight[index].toDouble();
+    final pricePerKg = salesOrder.price[index];
+
+    String priceDescription = '';
+
+    if (uom.toLowerCase() == 'kg' || uom.toLowerCase() == 'kgs') {
+      if (weight >= 1) {
+        priceDescription =
+            '$quantity $uom (${weight.toStringAsFixed(2)} kg) × Rs.${pricePerKg.toStringAsFixed(0)}/kg';
+      } else {
+        // Convert to grams if < 1 kg
+        priceDescription =
+            '$quantity × (${(weight * 1000).toStringAsFixed(0)} g) × Rs.${pricePerKg.toStringAsFixed(0)}/kg';
+      }
+    } else {
+      // Pcs / Pkt / Others
+      priceDescription =
+          '${quantity.toStringAsFixed(0)} $uom × Rs.${pricePerKg.toStringAsFixed(0)}';
+    }
 
     return ListTile(
       contentPadding: EdgeInsets.zero,
@@ -599,60 +634,145 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
         salesOrder.varianceName[index],
         style: TextStyle(
           fontSize: 12,
-          color: showAsBoxItem ? Colors.blue.shade800 : Colors.grey,
+          color: showAsBoxItem ? Colors.blue.shade800 : Colors.grey.shade800,
         ),
       ),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            salesOrder.uom[index] != 'Kgs'
-                ? '${salesOrder.qty[index]} ${salesOrder.uom[index]} x ${salesOrder.price[index]}'
-                : '${salesOrder.weight[index]} ${salesOrder.uom[index]} x ${salesOrder.price[index]}',
-            style: TextStyle(fontSize: 10),
-          ),
-        ],
+      subtitle: Text(
+        priceDescription,
+        style: const TextStyle(fontSize: 10),
       ),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            '₹${salesOrder.amount[index].toStringAsFixed(2)}',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: showAsBoxItem ? Colors.blue.shade800 : Colors.black,
-            ),
-          ),
-        ],
+      trailing: Text(
+        '₹${salesOrder.amount[index].toStringAsFixed(2)}',
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: showAsBoxItem ? Colors.blue.shade800 : Colors.black,
+        ),
       ),
     );
   }
 
   Widget _buildOrderSummary(SalesOrderDisplay salesOrder) {
+    final dateFormatter = DateFormat('dd-MM-yyyy');
+    final timeFormatter = DateFormat('hh:mm a'); // 12-hour format
+
     return Align(
-      alignment: Alignment.centerRight, // Align summary to the right
+      alignment: Alignment.centerRight,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end, // Align text to the right
-        mainAxisSize: MainAxisSize.min, // Minimize height to fit content
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          if (salesOrder.discount > 0)
-            Text(
-              'Discount: ${salesOrder.discountAmount}%',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+          // Total Amount
+          Text(
+            'Total: ₹${salesOrder.totalAmount.toStringAsFixed(0)}',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
             ),
+          ),
+          // Custom Charge
           if (salesOrder.customCharge > 0)
             Text(
               'Custom Charge: ₹${salesOrder.customCharge.toStringAsFixed(0)}',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.orange, // yellowish/orange for custom charge
+              ),
             ),
+          // Total Amount 2
           Text(
-            'Total Amount: ₹${salesOrder.totalAmount.toStringAsFixed(0)}',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            'Total Amount: ₹${salesOrder.totalAmount2!.toStringAsFixed(0)}',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
           ),
+          // Discount
+          if (salesOrder.discount > 0)
+            Text(
+              'Discount: ${salesOrder.discount}%(-): ₹${salesOrder.discountAmount.toStringAsFixed(0)}',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.red,
+              ),
+            ),
+          // Order Amount
           Text(
-            'Advance Amount: ₹${salesOrder.totalAmount.toStringAsFixed(0)}',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            'Order Amount: ₹${salesOrder.finalPrice}',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+          // Advance Amount with Date & Time
+          if ((salesOrder.advanceAmount ?? []).isNotEmpty &&
+              (salesOrder.advanceDateTime ?? []).isNotEmpty)
+            Column(
+              children: List.generate(
+                salesOrder.advanceAmount!.length,
+                (index) {
+                  DateTime? dt;
+                  final dateStr = salesOrder.advanceDateTime![index];
+
+                  // Safely parse string to DateTime
+                  try {
+                    dt = DateTime.parse(dateStr);
+                  } catch (e) {
+                    dt = null;
+                  }
+
+                  final formattedDate =
+                      dt != null ? dateFormatter.format(dt) : dateStr;
+                  final formattedTime =
+                      dt != null ? timeFormatter.format(dt) : '';
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Date & Time Column
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Paid on : $formattedDate - $formattedTime',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green, // advance in green
+                              ),
+                            ),
+                          ],
+                        ),
+                        // Advance Amount on the right
+                        Text(
+                          'Advance: ₹${salesOrder.advanceAmount![index].toStringAsFixed(0)}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          // Balance Amount at the end
+          Text(
+            'Balance Amount: ₹${salesOrder.balanceAmount.toStringAsFixed(0)}',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Colors.blue, // balance in blue
+            ),
           ),
         ],
       ),
@@ -661,6 +781,11 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
 
   Widget _buildOrderActions(
       BuildContext context, SalesOrderDisplay salesOrder) {
+    // Only show the button if order is not completed
+    if (salesOrder.status == "Sales Completed") {
+      return SizedBox.shrink(); // Empty widget, button won't be shown
+    }
+
     return Column(
       children: [
         SizedBox(height: 20),
@@ -669,12 +794,8 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
           children: [
             CustomButton(
               text: 'Pay ₹ ${salesOrder.balanceAmount}',
-              onPressed: salesOrder.status != "SalesOrder Completed"
-                  ? () => _showPaymentDialog(context, salesOrder)
-                  : () {},
-              backgroundColor: salesOrder.status != "SalesOrder Completed"
-                  ? CustomColors.primaryColor
-                  : Colors.grey,
+              onPressed: () => _showPaymentDialog(context, salesOrder),
+              backgroundColor: CustomColors.primaryColor,
               textColor: CustomColors.whiteColor,
               padding: EdgeInsets.symmetric(horizontal: 100, vertical: 22),
             ),

@@ -8,6 +8,8 @@ class GlobalDataManager {
   GlobalDataManager._internal();
 
   dynamic _branchwiseItems;
+  dynamic _salesorders;
+
   dynamic _branches;
   dynamic _billReceiptSettings;
   dynamic _mixboxData; // Add this field for mixbox data
@@ -17,6 +19,13 @@ class GlobalDataManager {
 
   set branchwiseItems(dynamic value) {
     _branchwiseItems = value;
+  }
+
+  // Getter and setter for branchwiseItems
+  dynamic get salesorders => _salesorders;
+
+  set salesorders(dynamic value) {
+    _salesorders = value;
   }
 
   // Getter and setter for branches

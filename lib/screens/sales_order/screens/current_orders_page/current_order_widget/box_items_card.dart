@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../model/sales_order_model.dart';
+import '../../model/sales_order_display_model.dart';
 import 'order_item_tile.dart';
 
 class BoxItemsCard extends StatelessWidget {

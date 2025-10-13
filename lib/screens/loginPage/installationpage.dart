@@ -116,7 +116,7 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
   }
 
   Future<void> fetchDeviceData(String deviceCode) async {
-    const url = 'http://192.168.1.130:8888/fastapi/devicecodes';
+    const url = 'https://yenerp.com/fastapi/devicecodes';
 
     try {
       final response = await http.get(Uri.parse(url));

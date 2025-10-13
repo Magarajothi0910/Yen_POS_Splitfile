@@ -1,27 +1,4 @@
-// import 'package:flutter/material.dart';
 
-// class CartSelectionProvider extends ChangeNotifier {
-//   final Map<String, bool> _itemSelectionState = {};
-//   bool _showCheckBoxes = false;
-
-//   Map<String, bool> get itemSelectionState => _itemSelectionState;
-//   bool get showCheckBoxes => _showCheckBoxes;
-
-//   void toggleItemSelection(String key, bool value) {
-//     _itemSelectionState[key] = value;
-//     notifyListeners();
-//   }
-
-//   void toggleCheckBoxVisibility() {
-//     _showCheckBoxes = !_showCheckBoxes;
-//     notifyListeners();
-//   }
-
-//   void clearSelections() {
-//     _itemSelectionState.clear();
-//     notifyListeners();
-//   }
-// }
 
 import 'package:flutter/material.dart';
 
@@ -47,13 +24,6 @@ class CartSelectionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // // Toggle checkbox visibility (optional, if needed separately)
-  // void toggleCheckBoxVisibility() {
-  //   _showCheckBoxes = !_showCheckBoxes;
-  //   notifyListeners();
-  // }
-
-// Call this whenever cart items change
 
   void toggleCheckBoxVisibility() {
     if (_showCheckBoxes) {

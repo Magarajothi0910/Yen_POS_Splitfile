@@ -83,7 +83,6 @@ class PaymentDetailCustomKeyboardWidgetAll2 extends StatelessWidget {
     if (ActiveField.isDiscount.value) {
       final value = double.tryParse(newText);
       if (value != null && (value > 100 || value <= 0)) {
-    
         controller.clear();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -99,8 +98,6 @@ class PaymentDetailCustomKeyboardWidgetAll2 extends StatelessWidget {
     // ✅ Custom charge validation (max 5 digits)
     if (ActiveField.isCustomCharge.value) {
       if (newText.length > 5) {
-        
-
         return; // ❌ block input beyond 5 digits
       }
     }

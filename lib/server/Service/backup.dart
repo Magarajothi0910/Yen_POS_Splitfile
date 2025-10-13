@@ -4,7 +4,7 @@
 // import 'package:hive/hive.dart';
 
 // class SyncService {
-//   final String apiUrl = 'http://192.168.1.130:8888/orders/';
+//   final String apiUrl = 'https://yenerp.com/orders/';
 //   final String invoiceApiUrl = 'https://yenerp.com/fastapi/invoices/';
 
 //   bool _isSyncing = false;

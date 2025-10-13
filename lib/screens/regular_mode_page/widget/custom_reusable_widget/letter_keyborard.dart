@@ -42,7 +42,7 @@
 //       child: Column(
 //         children: [
 //           Expanded(
-//             child: _buildRow('1234567890'),
+//             child: _buildRow('1233344190'),
 //           ),
 //           Expanded(
 //             child: _buildRow('QWERTYUIOP'),
@@ -396,7 +396,7 @@ class _CustomKeyboardState extends State<CustomKeyboard> {
   }
 
   Widget _buildNumberKeyboard() {
-    final row1 = '1234567890';
+    final row1 = '1233344190';
     final row2 = '-/:;()&@"\$';
 
     return Column(

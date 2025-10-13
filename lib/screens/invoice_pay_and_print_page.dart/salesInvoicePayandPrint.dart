@@ -1197,7 +1197,7 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
     //     //               {
     //     //                 "type": "text",
     //     //                 "text":
-    //     //                     "http://192.168.1.130:8888/fastapi/yourbill/677a1f2baeb682e114daf064"
+    //     //                     "https://yenerp.com/fastapi/yourbill/677a1f2baeb682e114daf064"
     //     //               }
     //     //             ]
     //     //           }
@@ -1252,7 +1252,7 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
     //               {
     //                 "type": "text",
     //                 "text":
-    //                     "http://192.168.1.130:8888/fastapi/yourbill/677a1f2baeb682e114daf064"
+    //                     "https://yenerp.com/fastapi/yourbill/677a1f2baeb682e114daf064"
     //               }
     //             ]
     //           }

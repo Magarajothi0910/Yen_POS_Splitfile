@@ -131,9 +131,47 @@ class Transaction {
       customerPhoneNumber: orderMap['customerPhoneNumber']?.toString() ?? '',
       salesType: orderMap['salesType']?.toString() ?? '',
       invoiceTime: orderMap['invoiceTime']?.toString() ?? '',
-      invoiceNo: orderMap['invoiceNo']?.toString() ?? '',
+      invoiceNo: orderMap['orderInvoiceNo']?.toString() ?? '',
       sync: orderMap['sync']?.toString() ?? '',
       uniqueIdentifier: orderMap['uniqueIdentifier']?.toString() ?? '',
     );
   }
+
+  /// 🔥 Convert Transaction to Map
+  Map<String, dynamic> toMap() {
+    return {
+      'holdId': holdId,
+      'date': date,
+      'total': total,
+      'status': status,
+      'hiveInvoiceId': hiveInvoiceId,
+      'itemName': itemName,
+      'varianceName': varianceName,
+      'price': price,
+      'weight': weight,
+      'qty': qty,
+      'amount': amount,
+      'tax': tax,
+      'uom': uom,
+      'employeeName': employeeName,
+      'customerPhoneNumber': customerPhoneNumber,
+      'discountPercentage': discountPercentage,
+      'customCharge': customCharge,
+      'totalAmount': totalAmount,
+      'totalAmount2': totalAmount2,
+      'invoiceDate': invoiceDate,
+      'branchId': branchId,
+      'salesType': salesType,
+      'branchName': branchName,
+      'paymentType': paymentType,
+      'invoiceTime': invoiceTime,
+      'invoiceNo': invoiceNo,
+      'sync': sync,
+      'uniqueIdentifier': uniqueIdentifier,
+    };
+  }
+
+  /// 🔥 Pretty print when using `print(transaction)`
+  @override
+  String toString() => jsonEncode(toMap());
 }

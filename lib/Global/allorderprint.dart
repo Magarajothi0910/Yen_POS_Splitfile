@@ -1,4 +1,3 @@
-
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:esc_pos_printer/esc_pos_printer.dart';
@@ -46,7 +45,6 @@ class salesInvoiceReceiptPrinter {
   Future<void> printReceiptDetails() async {
     // var cartProvider = Provider.of<CartProvider>(context, listen: false);
     var cartItems = globals.invoiceItems ?? [];
-   
 
     // String employeeName = employeeNameController.text ?? '';
     // String customerNumber = customerNumberController.text ?? '';
@@ -70,7 +68,7 @@ class salesInvoiceReceiptPrinter {
 
     String printerIp = '192.168.1.87';
     // printerProvider.getOverallPrinterIp().toString()
-   
+
     final profile = await CapabilityProfile.load();
     final printer = NetworkPrinter(PaperSize.mm80, profile);
 
@@ -183,7 +181,7 @@ class salesInvoiceReceiptPrinter {
       ]);
 
       bytes += generator.feed(1);
-      
+
       // Add headers for S.No, Item, Price, Qty, and Amount
       bytes += generator.row([
         createPosColumn(
@@ -212,7 +210,7 @@ class salesInvoiceReceiptPrinter {
           styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
         ),
       ]);
-     
+
       bytes += generator.feed(1);
       double totalSGST = 0.0;
       double totalCGST = 0.0;
@@ -238,7 +236,7 @@ class salesInvoiceReceiptPrinter {
         double amount = price * quantity;
 
         List<String> varianceNameLines = splitText(varianceName ?? '', 15);
-        
+
         // Main item name
         bytes += generator.row([
           createPosColumn(
@@ -260,7 +258,7 @@ class salesInvoiceReceiptPrinter {
             styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
           ),
         ]);
-     
+
         // If there are additional lines for the item name, print them below
         if (varianceNameLines.length > 1) {
           for (int j = 1; j < varianceNameLines.length; j++) {
@@ -287,7 +285,7 @@ class salesInvoiceReceiptPrinter {
             ]);
           }
         }
-       
+
         // Quantity and unit price (for kg, pcs, etc.)
         bytes += generator.row([
           createPosColumn(
@@ -318,7 +316,7 @@ class salesInvoiceReceiptPrinter {
           ),
         ]);
       }
-    
+
       // Adding totals and other details
       bytes += generator.row([
         createPosColumn(
@@ -476,9 +474,7 @@ class salesInvoiceReceiptPrinter {
       ); // Send the bytes to the printer
 
       printer.disconnect();
-    } else {
-    
-    }
+    } else {}
 
     // Navigator.of(context).pop();
     // cartProvider.clearCart();
@@ -529,7 +525,7 @@ class salesInvoiceReceiptPrinter {
         .toString()
         .substring(6); // Shortened timestamp
     const characters =
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'; // Alphanumeric characters
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123334419'; // Alphanumeric characters
     final randomId =
         List<int>.generate(6, (_) => random.nextInt(characters.length))
             .map((index) => characters[index])

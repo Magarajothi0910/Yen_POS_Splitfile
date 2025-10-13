@@ -42,7 +42,7 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
   double totalAmount = 0.0;
 
   Future<void> fetchCreditSalesInvoices() async {
-    const apiUrl = 'http://192.168.1.130:8888/fastapi/creditbills/';
+    const apiUrl = 'https://yenerp.com/fastapi/creditbills/';
 
     try {
       final response = await http.get(Uri.parse(apiUrl));
@@ -61,9 +61,9 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
       {String? customerNumber, DateTime? startDate, DateTime? endDate}) async {
     // Define both API URLs
     var apiUrl1 =
-        'http://192.168.1.130:8888/fastapi/salesorders/?filter-credit-customer=true';
+        'https://yenerp.com/fastapi/salesorders/?filter-credit-customer=true';
     var apiUrl2 =
-        'http://192.168.1.130:8888/fastapi/salesorders/?filter-credit-customer=false&filter-credit-customer-preinvoice=true';
+        'https://yenerp.com/fastapi/salesorders/?filter-credit-customer=false&filter-credit-customer-preinvoice=true';
 
     // Append customer number if it is not null to both API URLs
     if (customerNumber != null && customerNumber.isNotEmpty) {
@@ -999,8 +999,7 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
       try {
         // Make the PATCH request to update multiple sales orders
         final patchResponse = await http.patch(
-          Uri.parse(
-              'http://192.168.1.130:8888/fastapi/salesorders/crsopreinvoice/'),
+          Uri.parse('https://yenerp.com/fastapi/salesorders/crsopreinvoice/'),
           headers: {"Content-Type": "application/json"},
           body: jsonEncode(salesOrderIds), // Send raw list of IDs
         );
@@ -1112,8 +1111,7 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
       try {
         // Make the PATCH request to update multiple sales orders
         final patchResponse = await http.patch(
-          Uri.parse(
-              'http://192.168.1.130:8888/fastapi/salesorders/crsoinvoice/'),
+          Uri.parse('https://yenerp.com/fastapi/salesorders/crsoinvoice/'),
           headers: {"Content-Type": "application/json"},
           body: jsonEncode(salesOrderIds), // Send raw list of IDs
         );

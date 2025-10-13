@@ -5,7 +5,7 @@ class AudioState {
   final Duration duration;
   final double volume;
   final double speed;
-  final String? error;
+  String? error;
   final List<int> waveformData;
 
   AudioState({

@@ -8,9 +8,9 @@ class QtyKeyboardProvider with ChangeNotifier {
   bool isUpperCase = true;
   String? pressedKey;
 
-  int _activeIndex = -1; // currently focused index
+  int _activeIndex = -1;
   final List<TextEditingController> controllers = [];
-  final List<String> inputTypes = []; // e.g., 'numeric', 'text', 'alphanumeric'
+  final List<String> inputTypes = [];
 
   int get activeIndex => _activeIndex;
 
@@ -77,7 +77,7 @@ class QtyCustomKeyboardWidgetAll2 extends StatelessWidget {
     final provider = context.read<QtyKeyboardProvider>();
     if (provider.isNumeric) {
       final digitsOnly =
-          (controller.text + txt).replaceAll(RegExp(r'[^0-9]'), '');
+          (controller.text + txt).replaceAll(RegExp(r'[^0-9.]'), '');
       if (digitsOnly.length > 10) return;
     }
     final newText = controller.text + txt;
@@ -126,7 +126,7 @@ class QtyCustomKeyboardWidgetAll2 extends StatelessWidget {
         ['1', '2', '3'],
         ['4', '5', '6'],
         ['7', '8', '9'],
-        ['.', '0', '⌫'], // decimal optional
+        ['.', '0', '⌫'], // added ABC toggle
       ];
 
   List<List<String>> _alpha(bool upper) {
@@ -134,7 +134,7 @@ class QtyCustomKeyboardWidgetAll2 extends StatelessWidget {
       ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
       ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
       ['⇧', 'z', 'x', 'c', 'v', 'b', 'n', 'm', '⌫'],
-      ['123', 'SPACE'],
+      ['123', 'SPACE'], // numeric toggle
     ];
     return base
         .map((row) => row
@@ -145,67 +145,119 @@ class QtyCustomKeyboardWidgetAll2 extends StatelessWidget {
         .toList();
   }
 
+  Widget _buildKeyContainer(
+      BuildContext context, String keyLabel, bool isPressed) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 120),
+      margin: const EdgeInsets.all(4),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        gradient: isPressed
+            ? LinearGradient(
+                colors: [Colors.amber.shade300, Colors.orange.shade400],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : LinearGradient(
+                colors: [Colors.grey.shade300, Colors.grey.shade100],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isPressed ? 0.2 : 0.1),
+            offset: const Offset(2, 2),
+            blurRadius: 4,
+          ),
+          BoxShadow(
+            color: Colors.white.withOpacity(0.6),
+            offset: const Offset(-2, -2),
+            blurRadius: 4,
+          ),
+        ],
+      ),
+      child: _buildLabelPremium(keyLabel),
+    );
+  }
+
+  Widget _buildLabelPremium(String k) {
+    switch (k) {
+      case '⌫':
+        return const Icon(Icons.backspace, color: Colors.black87, size: 24);
+      case '✖':
+        return const Icon(Icons.close, color: Colors.black87, size: 24);
+      case 'SPACE':
+        return const Icon(Icons.space_bar, color: Colors.black87, size: 24);
+      case '⇧':
+        return const Icon(Icons.arrow_upward, color: Colors.black87, size: 24);
+      default:
+        return Text(
+          k,
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+            letterSpacing: 0.8,
+          ),
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<QtyKeyboardProvider>(
       builder: (context, provider, _) {
         final layout =
             provider.isNumeric ? _numeric : _alpha(provider.isUpperCase);
-        return Column(
-          children: [
-            for (final row in layout)
-              Expanded(
-                child: Row(
-                  children: [
-                    for (final key in row)
-                      Expanded(
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () {
-                            provider.setPressedKey(key);
-                            _handleKey(context, key);
-                            Future.delayed(const Duration(milliseconds: 80),
-                                () {
-                              provider.setPressedKey(null);
-                            });
-                          },
-                          onLongPress:
-                              key == '⌫' ? () => controller.clear() : null,
-                          child: Container(
-                            margin: const EdgeInsets.all(4),
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: provider.pressedKey == key
-                                  ? Colors.blue[100]
-                                  : Colors.grey[200],
-                              borderRadius: BorderRadius.circular(5),
-                            ),
-                            child: _buildLabel(key),
+        return Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.grey.shade100, Colors.grey.shade200],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              for (final row in layout)
+                Expanded(
+                  child: Row(
+                    children: [
+                      for (final key in row)
+                        Expanded(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {
+                              provider.setPressedKey(key);
+                              _handleKey(context, key);
+                              Future.delayed(const Duration(milliseconds: 80),
+                                  () {
+                                provider.setPressedKey(null);
+                              });
+                            },
+                            onLongPress:
+                                key == '⌫' ? () => controller.clear() : null,
+                            child: _buildKeyContainer(
+                                context, key, provider.pressedKey == key),
                           ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-          ],
+            ],
+          ),
         );
       },
     );
-  }
-
-  Widget _buildLabel(String k) {
-    switch (k) {
-      case '⌫':
-        return const Icon(Icons.backspace);
-      case '✖':
-        return const Icon(Icons.close);
-      case 'SPACE':
-        return const Icon(Icons.space_bar);
-      case '⇧':
-        return const Icon(Icons.arrow_upward);
-      default:
-        return Text(k,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold));
-    }
   }
 }

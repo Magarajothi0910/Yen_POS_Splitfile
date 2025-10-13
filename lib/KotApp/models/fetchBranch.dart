@@ -25,17 +25,12 @@ Future<void> fetchAndStoreBranchData() async {
         branchId = matchedBranch['branchId'];
         aliasname = matchedBranch['aliasName'];
 
-
         // Store the matched branch data in Hive
         var box = Hive.box('branchData');
         await box.put('matchedBranch', matchedBranch);
-
-      } else {
-      }
-    } else {
-    }
-  } catch (e) {
-  }
+      } else {}
+    } else {}
+  } catch (e) {}
 }
 
 Future<Map<String, dynamic>?> getBranchDetails() async {

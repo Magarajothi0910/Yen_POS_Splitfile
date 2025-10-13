@@ -35,14 +35,12 @@ class MyCakesGridView extends StatelessWidget {
 
   const MyCakesGridView({Key? key, required this.items}) : super(key: key);
 
-  /// This method converts the list of items into a flattened list where
-  /// each element represents a single variance.
+  /// Flatten the items → one entry per variance
   List<Map<String, dynamic>> flattenItems() {
     List<Map<String, dynamic>> flattened = [];
     for (var item in items) {
       final variances = item['variances'] as List<dynamic>? ?? [];
       for (var variance in variances) {
-        // Ensure variance is a Map<String, dynamic>
         Map<String, dynamic> varianceMap =
             (variance as Map<dynamic, dynamic>).cast<String, dynamic>();
 
@@ -63,23 +61,29 @@ class MyCakesGridView extends StatelessWidget {
       items: flattenedItems,
       itemBuilder: (context, item) => ItemCakeCard(item: item),
       onTap: (item) async {
-        // Retrieve the parent item name and variance data from the flattened map.
         final String itemName = item['itemName'] as String;
         final Map<String, dynamic> variance =
             item['variance'] as Map<String, dynamic>;
         final String varianceName = variance['varianceName'] as String? ?? '';
 
-        // Fetch the complete item data and variance data from your global data manager.
-        final globalData = GlobalDataManager().branchwiseItems['data'];
-        if (globalData == null || !globalData.containsKey(itemName)) {
+        // ✅ Null safe globalData fetch
+        final branchwiseItems = GlobalDataManager().branchwiseItems;
+        if (branchwiseItems == null || branchwiseItems['data'] == null) {
+          debugPrint("⚠️ branchwiseItems or data is null");
           return;
         }
+
+        final globalData = branchwiseItems['data'] as Map<String, dynamic>;
+        if (!globalData.containsKey(itemName)) {
+          debugPrint("⚠️ $itemName not found in globalData");
+          return;
+        }
+
         final Map<String, dynamic> itemData = globalData[itemName]['item'];
         final Map<String, dynamic> varianceData =
             globalData[itemName]['variance'][varianceName];
 
-        // Instead of directly adding the item to the cart, show a dialog
-        // to enter the product ID.
+        // ✅ Dialog with scrollable content
         showDialog(
           context: context,
           builder: (BuildContext context) {
@@ -97,33 +101,34 @@ class MyCakesGridView extends StatelessWidget {
                   fontSize: 24,
                 ),
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: productIdController,
-                    decoration: InputDecoration(
-                      labelText: "Product Code",
-                      labelStyle: TextStyle(color: Colors.blueGrey),
-                      prefixIcon: Icon(Icons.qr_code, color: Colors.blueAccent),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8.0),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: productIdController,
+                      decoration: InputDecoration(
+                        labelText: "Product Code",
+                        labelStyle: TextStyle(color: Colors.blueGrey),
+                        prefixIcon:
+                            Icon(Icons.qr_code, color: Colors.blueAccent),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8.0),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide:
+                              BorderSide(color: Colors.blueAccent, width: 2.0),
+                          borderRadius: BorderRadius.circular(8.0),
+                        ),
                       ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide:
-                            BorderSide(color: Colors.blueAccent, width: 2.0),
-                        borderRadius: BorderRadius.circular(8.0),
-                      ),
+                      keyboardType: TextInputType.text,
                     ),
-                    keyboardType: TextInputType.text,
-                  ),
-                ],
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop(); // Close the dialog.
-                  },
+                  onPressed: () => Navigator.of(context).pop(),
                   child: Text(
                     "Cancel",
                     style: TextStyle(
@@ -136,7 +141,6 @@ class MyCakesGridView extends StatelessWidget {
                   onPressed: () {
                     String productId = productIdController.text.trim();
                     if (productId.isEmpty) {
-                      // Optionally, show an error message (e.g., SnackBar).
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text("Product Code is required."),
@@ -145,23 +149,21 @@ class MyCakesGridView extends StatelessWidget {
                       );
                       return;
                     }
-                    // Create a new item to add to the cart.
+
                     Map<String, dynamic> newItem = {
-                      'itemData': itemData, // Make sure itemData is in scope.
-                      'varianceData':
-                          varianceData, // Make sure varianceData is in scope.
+                      'itemData': itemData,
+                      'varianceData': varianceData,
                       'quantity': 1,
-                      'productId': productId, // Include the entered Product ID.
+                      'productId': productId,
                       "from": "birthdaycakes",
                     };
 
-                    // Add the new item to the cart using your cart provider.
                     Provider.of<CurrentSaleProvider>(context, listen: false)
                         .addItemToCart(newItem);
                     Provider.of<CurrentSaleProvider>(context, listen: false)
                         .loadCartItems();
 
-                    Navigator.of(context).pop(); // Dismiss the dialog.
+                    Navigator.of(context).pop();
                   },
                   label: Text("Add to Cart"),
                   style: ElevatedButton.styleFrom(

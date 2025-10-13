@@ -72,7 +72,7 @@
 //   //   // Send WHO_IS_SERVER to broadcast
 //   //   udp.send(
 //   //     utf8.encode('WHO_IS_SERVER'),
-//   //     Endpoint.broadcast(port: const Port(45678)),
+//   //     Endpoint.broadcast(port: const Port(33441)),
 //   //   );
 //   //   print('Sent WHO_IS_SERVER');
 

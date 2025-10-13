@@ -1,4 +1,4 @@
-import 'sales_order_model.dart';
+import 'sales_order_display_model.dart';
 
 class GroupedSalesOrder {
   final String date;

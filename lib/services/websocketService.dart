@@ -71,7 +71,8 @@ class WebSocketService with ChangeNotifier {
   final CustomerScreenProvider receiptPrinter;
   final Set<String> _processedOrders = {};
   final Set<String> _processedinvoiceOrders = {};
-
+// Map to track how many times each sale order was received and when
+  final Map<String, List<DateTime>> patchReceiptLog = {};
   final Set<String> _processedModifyOrders = {};
   final Set<String> _processedToApproveOrders = {};
   final Set<String> _processedHoldOrders = {};
@@ -81,6 +82,8 @@ class WebSocketService with ChangeNotifier {
       SalesInvoiceReceiptPrinter printer) {
     return _instance ??= WebSocketService._internal(receiptPrinter, printer);
   }
+  // Keep track of processed sale orders to avoid duplicate prints
+  final Set<String> processedPatchOrders = {};
   // WebSocketService(this.receiptPrinter, this.saleInvoicereceiptPrinter) {
   //   _connect();
   // }
@@ -90,9 +93,18 @@ class WebSocketService with ChangeNotifier {
       this.receiptPrinter, this.saleInvoicereceiptPrinter) {
     connect();
   }
-
+  int patchSaleOrderReceivedCount = 0;
   StreamSubscription? _subscription;
+// Keep this global in client
+// 🔹 Global Counters & Trackers
+  int serverSendCount = 0;
+  int clientSendCount = 0;
+  int clientReceiveCount = 0;
 
+  final Map<String, int> serverSendTracker = {};
+  final Map<String, int> clientSendTracker = {};
+  final Map<String, int> clientReceiveTracker = {};
+  final Map<String, DateTime> patchProcessedOrders = {};
   void connect() {
     if (_isConnected || _subscription != null)
       return; // Prevent duplicate connections
@@ -134,6 +146,7 @@ class WebSocketService with ChangeNotifier {
     }
   }
 
+  Map<String, String> _printedOrders = {}; // instead of bool
   @override
   void dispose() {
     _subscription?.cancel();
@@ -162,42 +175,48 @@ class WebSocketService with ChangeNotifier {
       try {
         PatchHandler.clearExpiredMessages();
 
-        // Try fetching messageId from root or patchSaleOrder
+        // Extract messageId
         final messageId = messageData['messageId']?.toString() ??
             messageData['patchSaleOrder']?['messageId']?.toString();
 
-        // Try fetching saleOrderNo from root or patchSaleOrder
+        // Extract salesOrderNo
         final salesOrderId = messageData['saleOrderNo']?.toString() ??
             messageData['patchSaleOrder']?['saleOrderNo']?.toString() ??
             messageData['patchSaleOrder']?['data']?['saleOrderNo']?.toString();
 
-        if (messageId == null || salesOrderId == null || salesOrderId.isEmpty) {
+        if (salesOrderId == null) {
           return;
         }
 
-        if (PatchHandler.containsMessage(messageId)) {
+        if (PatchHandler.containsMessage(salesOrderId)) {
           return;
         }
 
-        final patchData =
-            messageData['patchSaleOrder']?['data'] as Map<String, dynamic>?;
-        if (patchData == null || patchData.isEmpty) {
+        // ✅ Extract patch data safely
+        final rawPatchData = messageData['patchSaleOrder']?['data'];
+        final Map<String, dynamic> patchData = rawPatchData != null
+            ? Map<String, dynamic>.from(rawPatchData as Map)
+            : {};
+
+        if (patchData.isEmpty) {
           return;
         }
 
+        // Get Hive box
         final salesOrdersBox = HiveManager.salesOrderBox;
+        final allEntries = salesOrdersBox.toMap();
 
-        final matchingEntries = salesOrdersBox.toMap().entries.where((entry) {
+        // Find matching entries
+        final matchingEntries = allEntries.entries.where((entry) {
           final entryData = entry.value['data'] ?? entry.value;
           return entryData is Map && entryData['saleOrderNo'] == salesOrderId;
         }).toList();
-
-        for (var entry in matchingEntries) {}
 
         if (matchingEntries.isEmpty) {
           return;
         }
 
+        // Handle duplicates
         if (matchingEntries.length > 1) {
           matchingEntries.sort((a, b) => (b.value['lastUpdated'] ?? '')
               .compareTo(a.value['lastUpdated'] ?? ''));
@@ -206,6 +225,7 @@ class WebSocketService with ChangeNotifier {
           }
         }
 
+        // Ensure correct key
         final targetEntry = matchingEntries.firstWhere(
           (entry) => entry.key == salesOrderId,
           orElse: () => matchingEntries.first,
@@ -220,10 +240,13 @@ class WebSocketService with ChangeNotifier {
           }
         }
 
-        PatchHandler.addProcessedMessage(messageId);
+        // Mark message processed
+        PatchHandler.addProcessedMessage(salesOrderId);
 
+        // Extract existing order
         final updatedOrder = Map<String, dynamic>.from(targetEntry.value);
         Map<String, dynamic> orderData;
+
         if (updatedOrder['data'] is Map) {
           orderData = Map<String, dynamic>.from(updatedOrder['data']);
         } else {
@@ -232,7 +255,7 @@ class WebSocketService with ChangeNotifier {
           updatedOrder['data'] = orderData;
         }
 
-        // Apply patchData
+        // ✅ Merge patch into existing data
         orderData.addAll(patchData);
         updatedOrder['data'] = orderData;
         updatedOrder['lastUpdated'] = DateTime.now().toIso8601String();
@@ -245,7 +268,7 @@ class WebSocketService with ChangeNotifier {
 
           notifyListeners();
         } catch (e) {
-          PatchHandler.removeMessage(messageId);
+          PatchHandler.removeMessage(salesOrderId);
           return;
         }
       } catch (e, stackTrace) {}
@@ -313,90 +336,88 @@ class WebSocketService with ChangeNotifier {
 
       switch (action) {
         case 'invoiceGenerated':
-          print("📩 Event: invoiceGenerated received");
-
           final invoice = jsonData['invoice'];
-          print("🔎 Extracted invoice from jsonData → $invoice");
 
           if (invoice == null) {
-            print("❌ invoice is NULL → breaking");
             break;
           }
 
           final salesOrder = invoice['salesOrderId'];
-          print("🔎 Extracted salesOrder from invoice → $salesOrder");
 
           if (salesOrder != null && salesOrder is Map<String, dynamic>) {
             // Step 2: Generate unique identifier
             String generatedUniqueId =
                 '${salesOrder['invoiceDate']}-${salesOrder['totalAmount']}-${salesOrder['orderInvoiceNo']}';
-            print("🆕 Generated uniqueIdentifier → $generatedUniqueId");
 
             // Step 3: Add fields to invoice object before saving
             invoice['uniqueIdentifier'] =
                 invoice['uniqueIdentifier'] ?? generatedUniqueId;
-            print(
-                "📦 Final invoice['uniqueIdentifier'] → ${invoice['uniqueIdentifier']}");
 
             // Step 4: Add metadata to salesOrder
             invoice['salesOrderId']['type'] = invoice['type'];
             invoice['salesOrderId']['sync'] = invoice['sync'];
             invoice['salesOrderId']['edit'] = invoice['edit'];
 
-            // Step 5: Save to Hive
-            try {
-              print("💾 Attempting to save invoice to Hive...");
-              await saveInvoiceToHive(invoice);
-              print("✅ Invoice saved successfully");
+            // ✅ Step 5: Check duplicates before saving
+            final invoiceBox = HiveManager.invoiceBox;
+            final orderInvoiceNo = salesOrder['orderInvoiceNo']?.toString();
 
-              final orders = await getInvoiceOrders();
-              print(
-                  "📦 Retrieved all invoice orders → ${orders.length} orders found");
-            } catch (e, st) {
-              print("❌ Error while saving invoice: $e");
-              print("📜 Stacktrace: $st");
-            }
-          } else {
-            // salesOrder invalid or null
-            if (salesOrder != null) {
-              print("⚠️ salesOrder exists but is not a Map<String, dynamic>");
-            } else {
-              print("❌ salesOrder is NULL inside invoice");
+            if (orderInvoiceNo != null && orderInvoiceNo.isNotEmpty) {
+              if (!invoiceBox.containsKey(orderInvoiceNo)) {
+                // Only save if not already stored
+                try {
+                  await saveInvoiceToHive(invoice);
+
+                  final orders = await getInvoiceOrders();
+                  print("orders: $orders");
+                  debugPrint("✅ Stored new invoice: $orderInvoiceNo");
+                } catch (e, st) {
+                  debugPrint("🔥 Error while saving invoice: $e");
+                }
+              } else {
+                debugPrint(
+                    "⚠️ Duplicate invoice event skipped: $orderInvoiceNo");
+              }
             }
           }
 
           // Step 6: Update receipt printer
-          print("🖨️ Updating receipt printer with salesOrder data...");
           receiptPrinter.updateInvoiceReceiptData(salesOrder);
 
           // Step 7: Notify listeners
-          print("📢 Notifying listeners about new invoice...");
           notifyListeners();
 
-          print("🏁 Finished processing invoiceGenerated event");
+          break;
+        case 'stockDecreaseUpdate':
+          print("1234 for stock update");
+          final branchAliseName = jsonData['branchAlias'];
+          print("branchAliseName: $branchAliseName");
+          final varianceCode = jsonData['varianceCode'];
+          print("varianceCode: $varianceCode");
+          final varianceName = jsonData['varianceName'];
+          print("varianceName: $varianceName");
+          final updatedStock = jsonData['updatedStock'];
+          print("updatedStock: $updatedStock");
+          // await handleStockDecreaseUpdate(decoded);
           break;
         case 'OpSalesOrderGenerated':
           final salesOrder = jsonData['opSalesOrder'];
           if (salesOrder == null || salesOrder is! Map<String, dynamic>) {
-            print("⚠️ Invalid salesOrder");
             return;
           }
 
           final orderData = salesOrder['data'] ?? {};
           if (orderData is! Map<String, dynamic>) {
-            print("⚠️ Invalid order data");
             return;
           }
 
           final saleOrderNo = orderData['saleOrderNo']?.toString();
           if (saleOrderNo == null || saleOrderNo.isEmpty) {
-            print("⚠️ saleOrderNo missing");
             return;
           }
 
           // Debounce based on saleOrderNo
           if (_debounceTimers.containsKey(saleOrderNo)) {
-            print("🔄 Debouncing duplicate message for $saleOrderNo");
             return;
           }
 
@@ -405,42 +426,31 @@ class WebSocketService with ChangeNotifier {
             _debounceTimers.remove(saleOrderNo); // Clear timer after processing
           });
 
-          print("📝 Processing sales order $saleOrderNo...");
-
           // Add metadata
           orderData['type'] = 'opSalesOrder';
 
           // Check in-memory cache
           if (_processedOrders.contains(saleOrderNo)) {
-            print("🔄 Already processed $saleOrderNo in memory");
             return;
           }
 
           // Check Hive storage
           final salesOrderBox = HiveManager.salesOrderBox;
           if (salesOrderBox.containsKey(saleOrderNo)) {
-            print("⚠️ Order $saleOrderNo already exists in Hive, skipping");
             _processedOrders.add(saleOrderNo);
             return;
           }
 
           // Save to Hive
           try {
-            print("📝 Saving order $saleOrderNo to Hive...");
             await salesOrderBox.put(saleOrderNo, orderData);
             _processedOrders.add(saleOrderNo);
-            print("✅ Saved order: $saleOrderNo");
-
-            print("📦 Sales order data: $salesOrder");
 
             // Update receipt printer
-            print("🧾 Updating receipt with: $orderData");
             final orders = await getSavedSalesOrders();
-            print("📦 All saved sales orders from patch: $orders");
 
             notifyListeners();
           } catch (e) {
-            print("❌ Error saving order $saleOrderNo: $e");
             _processedOrders.remove(saleOrderNo); // Allow retry on failure
           }
           break;
@@ -457,7 +467,9 @@ class WebSocketService with ChangeNotifier {
               salesOrder["data"]['imagePath1'] ?? '❌ No image1 path found';
           final image2Path =
               salesOrder["data"]['imagePath2'] ?? '❌ No image2 path found';
-
+          print("audioPath for client hive: $audioPath");
+          print("image1Path for client hive:$image1Path");
+          print("image2Path for client hive:$image2Path");
           final orderData = salesOrder['data'] ?? {};
           if (orderData is! Map<String, dynamic>) {
             return;
@@ -501,7 +513,6 @@ class WebSocketService with ChangeNotifier {
             _processedOrders.add(saleOrderNo);
 
             final encoder = JsonEncoder.withIndent('  ');
-            print("print reciept started");
             // Update receipt printer
             receiptPrinter.updateReceiptData(orderData);
 
@@ -577,6 +588,7 @@ class WebSocketService with ChangeNotifier {
         case 'salesOrderAddCustomerGenerated':
           await _saveAddNewCustomerToHive(jsonData['salesOrderAddCustomer']);
           final addnewCustomer = await _getAddnewCustomer();
+          print("📦 Customers in Hive after adding: $addnewCustomer");
           break;
 
         case 'saleorderPatchGenerated':
@@ -697,12 +709,32 @@ class WebSocketService with ChangeNotifier {
                 .remove(saleOrderNo); // Allow retry on failure
           }
           break;
+
         case 'patchsaleorderGenerated':
+          final soNo = jsonData['saleOrderNo'] ?? '';
+
           await handlePatchSaleOrderMessage(jsonData);
+
+          // 🔹 Check status
+          final currentStatus = _printedOrders[soNo];
+
+          // 🔹 Get saved orders
           final orders = await getSavedSalesOrders();
 
-          break;
+          if (orders.isNotEmpty) {
+            final lastOrder = orders.last;
 
+            // Mark as printed before printing
+            _printedOrders[soNo] = "printed";
+            notifyListeners();
+
+            // 🔹 Print receipt
+            receiptPrinter.updatePatchReceiptData(lastOrder);
+
+            // Mark as printed before printing
+            _printedOrders[soNo] = "";
+          } else {}
+          break;
         default:
           // print("⚠️ Unrecognized action: $action");
           // break;
@@ -712,34 +744,70 @@ class WebSocketService with ChangeNotifier {
     } catch (e) {}
   }
 
-  /// Save the full invoice (not only salesOrderId) into Hive
-  Future<void> saveInvoiceToHive(Map<String, dynamic> invoiceData) async {
-    print("🚀 [saveInvoiceToHive] Called with invoiceData: $invoiceData");
+  Future<void> handleStockDecreaseUpdate(Map<String, dynamic> data) async {
+    print("📦 [handleStockDecreaseUpdate] Received: $data");
 
     try {
-      var invoiceBox = HiveManager.invoiceBox;
-      print("📂 [saveInvoiceToHive] Hive box 'invoices' opened");
+      final branchAlias = data['branchAlias']?.toString() ?? '';
+      final varianceCodes = List<String>.from(data['varianceCode'] ?? []);
+      final varianceNames = List<String>.from(data['varianceNames'] ?? []);
+      final stockUpdates = List<int>.from(data['stockUpdates'] ?? []);
 
-      // Extract orderInvoiceNo safely
-      final salesOrder = invoiceData['salesOrderId'];
-      if (salesOrder == null || salesOrder is! Map<String, dynamic>) {
-        print("❌ [saveInvoiceToHive] Invalid salesOrderId → cannot save");
+      if (branchAlias.isEmpty ||
+          varianceCodes.isEmpty ||
+          varianceNames.isEmpty ||
+          stockUpdates.isEmpty) {
+        print("⚠️ [handleStockDecreaseUpdate] Missing required fields.");
         return;
       }
 
-      final orderInvoiceNo = salesOrder['orderInvoiceNo'];
-      if (orderInvoiceNo == null || orderInvoiceNo.toString().isEmpty) {
-        print("❌ [saveInvoiceToHive] Missing orderInvoiceNo → cannot save");
-        return;
+      // Load Hive box where stock data is stored
+      final box = await Hive.openBox('branchwiseStock');
+      final existingData = Map<String, dynamic>.from(box.get('data') ?? {});
+
+      // Update stock locally
+      for (int i = 0; i < varianceCodes.length; i++) {
+        final varCode = varianceCodes[i];
+        final varName = varianceNames[i];
+        final decreaseQty = stockUpdates[i];
+
+        existingData.forEach((itemKey, itemValue) {
+          final item = Map<String, dynamic>.from(itemValue);
+          final varianceMap = Map<String, dynamic>.from(item['variance'] ?? {});
+
+          varianceMap.forEach((vKey, vValue) {
+            final variance = Map<String, dynamic>.from(vValue);
+            if (variance['varianceitemCode'] == varCode &&
+                variance['varianceName'] == varName) {
+              final branchMap =
+                  Map<String, dynamic>.from(variance['branchwise'] ?? {});
+              final branchData =
+                  Map<String, dynamic>.from(branchMap[branchAlias] ?? {});
+
+              final stockKey = 'systemStock_$branchAlias';
+              int currentStock =
+                  int.tryParse(branchData[stockKey]?.toString() ?? '0') ?? 0;
+              int updatedStock = (currentStock - decreaseQty).clamp(0, 999999);
+
+              branchData[stockKey] = updatedStock;
+              branchMap[branchAlias] = branchData;
+              variance['branchwise'] = branchMap;
+              varianceMap[vKey] = variance;
+              item['variance'] = varianceMap;
+              existingData[itemKey] = item;
+            }
+          });
+        });
       }
 
-      // 🔑 Step: Save with orderInvoiceNo as key (will overwrite if already exists)
-      await invoiceBox.put(orderInvoiceNo, invoiceData);
+      // Save updated data back to Hive
+      await box.put('data', existingData);
+
       print(
-          "✅ [saveInvoiceToHive] Invoice saved/updated with key = $orderInvoiceNo");
+          "✅ [handleStockDecreaseUpdate] Stock updated in Hive successfully.");
     } catch (e, st) {
-      print("❌ [saveInvoiceToHive] Error: $e");
-      print("🛑 Stacktrace: $st");
+      print("❌ [handleStockDecreaseUpdate] Error: $e");
+      print(st);
     }
   }
 
@@ -781,25 +849,32 @@ class WebSocketService with ChangeNotifier {
       Map<String, dynamic> customerData) async {
     var customerBox = await Hive.openBox('customerBox');
 
-    final newMobile = customerData['mobileNo']?.toString() ?? '';
+    final newMobile = customerData['mobile']?.toString() ?? '';
+    print("➡️ Trying to save new customer with mobile: $newMobile");
 
     // 🔎 Check if mobile number already exists in Hive
     bool exists = customerBox.values.any((customer) {
-      final existingMobile = customer['mobileNo']?.toString() ?? '';
+      final existingMobile = customer['mobile']?.toString() ?? '';
       return existingMobile == newMobile;
     });
 
     if (exists) {
+      print(
+          "⚠️ Customer with mobile $newMobile already exists. Skipping save.");
     } else {
       await customerBox.add(customerData);
+      print("✅ New customer saved: $customerData");
     }
   }
 
   Future<List<Map<String, dynamic>>> _getAddnewCustomer() async {
     var customerBox = await Hive.openBox('customerBox');
-    return customerBox.values
+    final customers = customerBox.values
         .map((customer) => Map<String, dynamic>.from(customer))
         .toList();
+
+    print("📋 Retrieved customers from Hive: $customers");
+    return customers;
   }
 
   Future<void> _saveModifyOrderToHive(Map<String, dynamic> salesOrder) async {
@@ -828,7 +903,7 @@ class WebSocketService with ChangeNotifier {
 
       final allEntries = saleOrderBox.toMap();
 
-      // Strict pattern for valid sales order number: e.g., SOAR250001
+      // Strict pattern: e.g., SOAR250001
       final validPattern = RegExp(r'^SO[A-Z]{2}\d{6}$');
 
       for (var entry in allEntries.entries) {
@@ -845,9 +920,7 @@ class WebSocketService with ChangeNotifier {
 
           if (saleOrderNo != null && saleOrderNo.trim().isNotEmpty) {
             if (!validPattern.hasMatch(saleOrderNo)) {
-              // Invalid format → delete or skip
               keysToDelete.add(key);
-
               continue;
             }
 
@@ -863,66 +936,13 @@ class WebSocketService with ChangeNotifier {
 
       if (keysToDelete.isNotEmpty) {
         await saleOrderBox.deleteAll(keysToDelete);
-      } else {}
+      }
 
       return uniqueOrders;
     } catch (e) {
       rethrow;
     }
   }
-
-  // Future<List<Map<String, dynamic>>> getInvoiceOrders() async {
-  //   try {
-
-  //     final invoiceBox = HiveManager.invoiceBox;
-  //     final seenSaleOrderNos = <String>{};
-  //     final uniqueOrders = <Map<String, dynamic>>[];
-  //     final keysToDelete = <dynamic>[];
-
-  //     final allEntries = invoiceBox.toMap();
-
-  //     // Strict pattern for valid sales order number: e.g., SOAR250001
-  //     final validPattern = RegExp(r'^SO[A-Z]{2}\d{6}$');
-
-  //     for (var entry in allEntries.entries) {
-  //       final key = entry.key;
-  //       final order = entry.value;
-
-  //       if (order is Map) {
-  //         final orderMap = Map<String, dynamic>.from(order);
-  //         final dataMap = orderMap['data'] is Map
-  //             ? Map<String, dynamic>.from(orderMap['data'])
-  //             : orderMap;
-
-  //         final saleOrderNo = dataMap['saleOrderNo']?.toString();
-
-  //         if (saleOrderNo != null && saleOrderNo.trim().isNotEmpty) {
-  //           if (!validPattern.hasMatch(saleOrderNo)) {
-  //             // Invalid format → delete or skip
-  //             keysToDelete.add(key);
-
-  //             continue;
-  //           }
-
-  //           if (!seenSaleOrderNos.contains(saleOrderNo)) {
-  //             seenSaleOrderNos.add(saleOrderNo);
-  //             uniqueOrders.add(orderMap);
-  //           } else {
-  //             keysToDelete.add(key);
-  //           }
-  //         } else {}
-  //       } else {}
-  //     }
-
-  //     if (keysToDelete.isNotEmpty) {
-  //       await invoiceBox.deleteAll(keysToDelete);
-  //     } else {}
-
-  //     return uniqueOrders;
-  //   } catch (e) {
-  //     rethrow;
-  //   }
-  // }
 
   Future<List<Map<String, dynamic>>> getSavedHoldOrders() async {
     try {
@@ -963,23 +983,79 @@ class WebSocketService with ChangeNotifier {
   }
 
 // 3. Update getInvoiceOrders to work with new structure
-  Future<List<Map<String, dynamic>>> getInvoiceOrders() async {
-    print("🚀 [getInvoiceOrders] Fetching invoices from Hive...");
+  Future<void> saveInvoiceToHive(Map<String, dynamic> invoiceData) async {
+    try {
+      var invoiceBox = HiveManager.invoiceBox;
 
+      // Extract salesOrder safely
+      final salesOrder = invoiceData['salesOrderId'];
+      if (salesOrder == null || salesOrder is! Map<String, dynamic>) {
+        debugPrint("❌ [saveInvoiceToHive] salesOrder missing or invalid.");
+        return;
+      }
+
+      final orderInvoiceNo = salesOrder['orderInvoiceNo']?.toString();
+      if (orderInvoiceNo == null || orderInvoiceNo.isEmpty) {
+        debugPrint("❌ [saveInvoiceToHive] orderInvoiceNo missing/empty.");
+        return;
+      }
+
+      // ✅ Check if already exists
+      if (invoiceBox.containsKey(orderInvoiceNo)) {
+        debugPrint(
+            "⚠️ Duplicate detected: $orderInvoiceNo already exists. Skipping save.");
+        return;
+      }
+
+      // ✅ Save only once with orderInvoiceNo as key
+      await invoiceBox.put(orderInvoiceNo, invoiceData);
+      debugPrint("✅ Saved invoice with orderInvoiceNo: $orderInvoiceNo");
+    } catch (e, st) {
+      debugPrint("🔥 Error saving invoice: $e");
+      debugPrint("📌 StackTrace: $st");
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getInvoiceOrders() async {
     try {
       final invoiceBox = HiveManager.invoiceBox;
 
-      // Extract all stored invoices that are Map<String, dynamic>
-      final invoices = invoiceBox.values
+      // ✅ Collect values as Map
+      final rawInvoices = invoiceBox.keys
+          .map((key) {
+            final value = invoiceBox.get(key);
+            if (value is Map<String, dynamic>) {
+              return Map<String, dynamic>.from(value);
+            }
+            return null;
+          })
           .whereType<Map<String, dynamic>>()
-          .map((invoice) => Map<String, dynamic>.from(invoice))
           .toList();
 
-      print("📦 [getInvoiceOrders] Found ${invoices.length} invoices.");
-      return invoices;
+      // ✅ Ensure uniqueness by orderInvoiceNo
+      final Set<String> seen = {};
+      final uniqueInvoices = <Map<String, dynamic>>[];
+
+      for (var inv in rawInvoices) {
+        final orderNo = inv['salesOrderId']?['orderInvoiceNo']?.toString();
+        if (orderNo != null && orderNo.isNotEmpty) {
+          if (seen.add(orderNo)) {
+            uniqueInvoices.add(inv); // only first occurrence added
+          }
+        }
+      }
+
+      debugPrint(
+          "📦 Total unique invoices retrieved: ${uniqueInvoices.length}");
+      for (var inv in uniqueInvoices) {
+        debugPrint(
+            "   ➡️ Invoice orderInvoiceNo: ${inv['salesOrderId']?['orderInvoiceNo']}");
+      }
+
+      return uniqueInvoices;
     } catch (e, st) {
-      print("❌ [getInvoiceOrders] Error while fetching invoices: $e");
-      print("🛑 Stacktrace: $st");
+      debugPrint("🔥 Error retrieving invoices: $e");
+      debugPrint("📌 StackTrace: $st");
       return [];
     }
   }

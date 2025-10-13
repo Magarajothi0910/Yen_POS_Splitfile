@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../all_orders_page/services/get_sales_order_service.dart';
-import '../../model/sales_order_model.dart';
+import '../../model/sales_order_display_model.dart';
 import 'empty_order_state.dart';
 import 'order_actions.dart';
 import 'order_header.dart';

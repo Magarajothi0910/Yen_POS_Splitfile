@@ -55,7 +55,7 @@ Future<void> updateLocalHiveStock({
                   Map<String, dynamic> branchData =
                       Map<String, dynamic>.from(branchwiseMap[branchAlias]);
 
-                  final stockKey = 'localHiveStock_$branchAlias';
+                  final stockKey = 'systemStock_$branchAlias';
                   int currentStock = 0;
                   if (branchData.containsKey(stockKey)) {
                     currentStock =
@@ -84,8 +84,7 @@ Future<void> updateLocalHiveStock({
 
 // Broadcast update to all clients
                   sendDataToClients(stockUpdateMessage, clients);
-                } else {
-                }
+                } else {}
               }
             }
           }
@@ -93,8 +92,7 @@ Future<void> updateLocalHiveStock({
       }
     });
 
-    if (!updatedThisVariance) {
-    }
+    if (!updatedThisVariance) {}
   }
 
   if (anyUpdated) {
@@ -107,9 +105,7 @@ Future<void> updateLocalHiveStock({
     await box.put('branchwiseItems_$branchAlias', newGlobalData);
     // Update global manager too
     GlobalDataManager().branchwiseItems = newGlobalData;
-
-  } else {
-  }
+  } else {}
 }
 
 Future<void> decreaseLocalHiveStock({
@@ -119,15 +115,26 @@ Future<void> decreaseLocalHiveStock({
   required List<String> varianceNames,
   required List<int> stockUpdates,
 }) async {
-  // Validate input list lengths
+  print("🚀 [decreaseLocalHiveStock] Called for branch: $branchAlias");
+  print("🔢 varianceCodes: $varianceCodes");
+  print("🧾 varianceNames: $varianceNames");
+  print("📦 stockUpdates: $stockUpdates");
+
+  // ✅ Validate input list lengths
   if (varianceCodes.length != varianceNames.length ||
       varianceCodes.length != stockUpdates.length) {
+    print("❌ [decreaseLocalHiveStock] Input list lengths mismatch!");
+    print("  varianceCodes: ${varianceCodes.length}");
+    print("  varianceNames: ${varianceNames.length}");
+    print("  stockUpdates: ${stockUpdates.length}");
     return;
   }
 
-  // Retrieve global data from memory
+  // ✅ Retrieve global data from memory
   dynamic globalData = GlobalDataManager().branchwiseItems;
   if (globalData == null || globalData['data'] == null) {
+    print(
+        "❌ [decreaseLocalHiveStock] GlobalDataManager.branchwiseItems is null or missing 'data'");
     return;
   }
 
@@ -135,12 +142,22 @@ Future<void> decreaseLocalHiveStock({
       Map<String, dynamic>.from(globalData['data']);
   bool anyUpdated = false;
 
+  print(
+      "📂 [decreaseLocalHiveStock] Loaded branchwise data with ${branchwiseData.length} items");
+
+  // ✅ Loop through each variance to update
   for (int i = 0; i < varianceCodes.length; i++) {
     final varCode = varianceCodes[i];
     final varName = varianceNames[i];
     final decreaseAmount = stockUpdates[i];
     bool updatedThisVariance = false;
 
+    print("➡️ [decreaseLocalHiveStock] Processing variance ($i):");
+    print("   - varianceCode: $varCode");
+    print("   - varianceName: $varName");
+    print("   - decreaseAmount: $decreaseAmount");
+
+    // ✅ Loop through all items in branchwiseData
     for (final itemEntry in branchwiseData.entries) {
       final itemKey = itemEntry.key;
       final itemValue = Map<String, dynamic>.from(itemEntry.value);
@@ -150,6 +167,7 @@ Future<void> decreaseLocalHiveStock({
       Map<String, dynamic> varianceMap =
           Map<String, dynamic>.from(itemValue['variance']);
 
+      // ✅ Loop through each variance entry
       for (final varianceEntry in varianceMap.entries) {
         final varianceKey = varianceEntry.key;
         final varianceValue = Map<String, dynamic>.from(varianceEntry.value);
@@ -157,38 +175,50 @@ Future<void> decreaseLocalHiveStock({
         final storedCode = varianceValue['varianceitemCode']?.toString() ?? '';
         final storedName = varianceValue['varianceName']?.toString() ?? '';
 
+        // 🔍 Match variance by code + name
         if (storedCode == varCode && storedName == varName) {
-          if (!varianceValue.containsKey('branchwise')) continue;
+          print("🎯 Match found in item: $itemKey, variance: $varianceKey");
+
+          if (!varianceValue.containsKey('branchwise')) {
+            print("⚠️ Variance missing 'branchwise' data, skipping...");
+            continue;
+          }
 
           Map<String, dynamic> branchwiseMap =
               Map<String, dynamic>.from(varianceValue['branchwise']);
 
           if (!branchwiseMap.containsKey(branchAlias)) {
+            print(
+                "⚠️ Branch $branchAlias not found in branchwise map, skipping...");
             continue;
           }
 
           Map<String, dynamic> branchData =
               Map<String, dynamic>.from(branchwiseMap[branchAlias]);
-          final stockKey = 'localHiveStock_$branchAlias';
+          final stockKey = 'systemStock_$branchAlias';
 
           int currentStock =
               int.tryParse(branchData[stockKey]?.toString() ?? '0') ?? 0;
           int updatedStock = currentStock - decreaseAmount;
 
-          if (updatedStock < 0) {
-            updatedStock = 0;
-          }
+          if (updatedStock < 0) updatedStock = 0;
 
+          print("📉 Updating stock:");
+          print("   - Current stock: $currentStock");
+          print("   - Decrease by: $decreaseAmount");
+          print("   - Updated stock: $updatedStock");
+
+          // ✅ Update the branch data
           branchData[stockKey] = updatedStock;
 
-          // Re-assign updated maps
+          // ✅ Reassign updated data maps
           branchwiseMap[branchAlias] = branchData;
           varianceValue['branchwise'] = branchwiseMap;
           varianceMap[varianceKey] = varianceValue;
           itemValue['variance'] = varianceMap;
           branchwiseData[itemKey] = itemValue;
 
-          // Notify clients
+          // ✅ Notify connected clients
           final decreaseMessage = {
             'action': 'stockDecreaseUpdate',
             'branchAlias': branchAlias,
@@ -196,19 +226,30 @@ Future<void> decreaseLocalHiveStock({
             'varianceName': varName,
             'updatedStock': updatedStock,
           };
+          print(
+              "📡 Sending stockDecreaseUpdate to ${clients.length} client(s): $decreaseMessage");
           sendDataToClients(decreaseMessage, clients);
 
           updatedThisVariance = true;
           anyUpdated = true;
+          break; // stop looping variances for this item
         }
       }
     }
 
     if (!updatedThisVariance) {
+      print(
+          "⚠️ [decreaseLocalHiveStock] No match found for varianceCode=$varCode, varianceName=$varName");
+    } else {
+      print(
+          "✅ [decreaseLocalHiveStock] Stock updated for varianceCode=$varCode");
     }
   }
 
+  // ✅ Save updates to Hive if any change occurred
   if (anyUpdated) {
+    print(
+        "💾 [decreaseLocalHiveStock] Saving updated branchwise data to Hive...");
     final box = await Hive.openLazyBox('items');
     final newGlobalData = Map<String, dynamic>.from(globalData);
     newGlobalData['data'] = branchwiseData;
@@ -216,6 +257,12 @@ Future<void> decreaseLocalHiveStock({
     await box.put('branchwiseItems_$branchAlias', newGlobalData);
     GlobalDataManager().branchwiseItems = newGlobalData;
 
+    print(
+        "✅ [decreaseLocalHiveStock] Hive and GlobalDataManager updated successfully.");
   } else {
+    print(
+        "⚠️ [decreaseLocalHiveStock] No stock updates made, skipping Hive write.");
   }
+
+  print("🏁 [decreaseLocalHiveStock] Completed for branch: $branchAlias");
 }

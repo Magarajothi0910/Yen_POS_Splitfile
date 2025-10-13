@@ -47,7 +47,7 @@ class BranchProvider with ChangeNotifier {
     fetchAndStoreBranch();
   }
   String branchNameToCheck = global.branchName; // Branch name to check
-  final String apiUrl = 'https://yenerp.com/masterapi/branches/';
+  final String apiUrl = 'https://yenerp.com/fastapi/branches/';
   bool _isLoading = false;
   Branch? _matchedBranch;
 
@@ -81,17 +81,12 @@ class BranchProvider with ChangeNotifier {
               branchNameToCheck,
               _matchedBranch!.toMap(),
             );
-          } else {
-         
-          }
-        } else {
- 
-        }
+          } else {}
+        } else {}
       } else {
         throw Exception('Failed to fetch branches');
       }
     } catch (e) {
-      
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -108,6 +103,4 @@ class BranchProvider with ChangeNotifier {
     }
     return null; // Return null if no data is found
   }
-
-
 }

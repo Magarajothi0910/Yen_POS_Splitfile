@@ -22,7 +22,7 @@ class DeviceProvider with ChangeNotifier {
   }
 
   Future<void> fetchAndStoreDeviceData(String deviceCode) async {
-    const String url = 'http://192.168.1.130:8888//fastapi/devicecodes';
+    const String url = 'https://yenerp.com//fastapi/devicecodes';
 
     try {
       final response = await http.get(Uri.parse(url));
@@ -93,8 +93,7 @@ class DeviceProvider with ChangeNotifier {
   }
 
   Future<void> patchDeviceStatus(String deviceCodeId) async {
-    final String url =
-        'http://192.168.1.130:8888/fastapi/devicecodes/$deviceCodeId';
+    final String url = 'https://yenerp.com/fastapi/devicecodes/$deviceCodeId';
     final Map<String, dynamic> patchData = {
       'status': '0', // Set the status to 0
     };

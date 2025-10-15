@@ -6,7 +6,9 @@ import 'package:esc_pos_utils/esc_pos_utils.dart';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
+import 'package:flutter/services.dart' show rootBundle;
 
 PosColumn createPosColumn({
   required int width,
@@ -115,3 +117,5 @@ Future<img.Image> textWithStrikeImage({
 
   return background;
 }
+
+// Convert image asset to esc_pos_utils Image

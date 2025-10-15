@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:esc_pos_printer/esc_pos_printer.dart';
 import 'package:esc_pos_utils/esc_pos_utils.dart'; // Import this for PaperSize, PosStyles, etc.
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 // import '../../../data/global_data_manager.dart';
@@ -11,7 +12,7 @@ import 'package:provider/provider.dart';
 import '../Global/customposcolumn.dart';
 import '../screens/printer_screen/provider/printer_config_provider.dart';
 import '../screens/sales_order/sales_order_providers/cartProvider.dart';
-
+import 'package:image/image.dart' as img;
 import '../screens/sales_order/globals.dart' as globals;
 
 class salesOrderReceiptPrinter {
@@ -661,30 +662,64 @@ class salesOrderReceiptPrinter {
 
       for (int copy = 0; copy < 2; copy++) {
         bytes = []; // Reset bytes for each copy
-        bytes += generator.row([
-          createPosColumn(
-            width: 12,
-            text: 'BestMummy',
-            styles: createPosStyles(
-              align: PosAlign.center,
-              height: PosTextSize.size1,
-              width: PosTextSize.size1,
-              codeTable: 'CP1252',
-            ),
-          ),
-        ]);
-        bytes += generator.row([
-          createPosColumn(
-            width: 12,
-            text: 'Sweets & Cakes',
-            styles: createPosStyles(
-              align: PosAlign.center,
-              height: PosTextSize.size1,
-              width: PosTextSize.size1,
-              codeTable: 'CP1252',
-            ),
-          ),
-        ]);
+        try {
+          final ByteData data = await rootBundle.load('assets/bestmummy.png');
+          final Uint8List imageBytes = data.buffer.asUint8List();
+          final img.Image? logo = img.decodeImage(imageBytes);
+
+          if (logo != null) {
+            // 1) Ensure white background (remove alpha)
+            final img.Image whiteBg = img.Image(logo.width, logo.height);
+            img.fill(whiteBg, img.getColor(255, 255, 255));
+            img.copyInto(whiteBg, logo, blend: true);
+
+            // 2) Convert to grayscale
+            final img.Image gray = img.grayscale(whiteBg);
+
+            // 3) Manual binary threshold (works regardless of package version)
+            img.Image binaryThreshold(img.Image src, int threshold) {
+              final out = img.Image.from(src);
+              for (int y = 0; y < out.height; y++) {
+                for (int x = 0; x < out.width; x++) {
+                  final int p = out.getPixel(x, y);
+                  final int r = img.getRed(p);
+                  final int g = img.getGreen(p);
+                  final int b = img.getBlue(p);
+                  // Luminance using Rec. 601 luma coefficients (more accurate for text/logo)
+                  final int lum = ((r * 299 + g * 587 + b * 114) ~/ 1000);
+                  if (lum < threshold) {
+                    out.setPixelRgba(x, y, 0, 0, 0, 255);
+                  } else {
+                    out.setPixelRgba(x, y, 255, 255, 255, 255);
+                  }
+                }
+              }
+              return out;
+            }
+
+            final img.Image thresholded =
+                binaryThreshold(gray, 180); // tweak 150-210 as needed
+
+            // 4) Resize to printer width (250 px is okay for mm80)
+            final img.Image resized = img.copyResize(thresholded,
+                width: 250, interpolation: img.Interpolation.nearest);
+
+            // 5) Ensure height is multiple of 8 (ESC/POS alignment)
+            final int remainder = resized.height % 8;
+            img.Image aligned = resized;
+            if (remainder != 0) {
+              final int newHeight = resized.height + (8 - remainder);
+              aligned = img.Image(resized.width, newHeight);
+              img.fill(aligned, img.getColor(255, 255, 255)); // white pad
+              img.copyInto(aligned, resized, dstY: 0, blend: false);
+            }
+
+            // 6) Send to generator
+            bytes += generator.image(aligned, align: PosAlign.center);
+          }
+        } catch (e) {
+          print('🛑 Logo Print Error: $e');
+        }
         bytes += generator.feed(1);
         bytes += generator.feed(1);
         bytes += generator.row([

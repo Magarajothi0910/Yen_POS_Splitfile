@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
 import '../../../hiveGlobal/hiveProvider.dart';
 
 class CustomerSearchProvider extends ChangeNotifier {
@@ -13,6 +14,16 @@ class CustomerSearchProvider extends ChangeNotifier {
 
   void clearSuggestions() {
     suggestions.clear();
+    notifyListeners();
+  }
+
+  Future<void> refreshCustomersFromHive() async {
+    var customerBox = await Hive.openBox('customerBox');
+    List<Map<String, dynamic>> customers = customerBox.values.map((e) {
+      return Map<String, dynamic>.from(e);
+    }).toList();
+
+    suggestions = customers; // or whatever list you use internally
     notifyListeners();
   }
 

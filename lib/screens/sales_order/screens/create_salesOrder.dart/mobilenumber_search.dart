@@ -40,6 +40,8 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
         Provider.of<CustomerSearchProvider>(context, listen: false);
     customerSearchProvider
         .fetchSuggestions(customerProvider.customerCombinedController.text);
+
+    customerSearchProvider.refreshCustomersFromHive();
   }
 
   /// Listener wrapper
@@ -63,7 +65,7 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
 
   void _onMobileNumberChanged(String value) async {
     if (_isAddingCustomer) return;
-
+    print("value:$value");
     final customerProvider =
         Provider.of<CustomerScreenProvider>(context, listen: false);
     final mobile = value.split(' - ').first.replaceAll(RegExp(r'[^0-9]'), '');
@@ -171,23 +173,35 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
     Map<String, dynamic> suggestion,
     CustomerScreenProvider customerProvider,
   ) {
+    print("🔹 Suggestion selected: $suggestion");
     _removeSuggestionsOverlay();
 
     final searchProvider = context.read<CustomerSearchProvider>();
     searchProvider.clearSuggestions();
 
+    // Temporarily remove listener to prevent unwanted triggers
     customerProvider.customerCombinedController
         .removeListener(_combinedControllerListener);
 
-    customerProvider.mobileNoController.text = suggestion['mobile'] ?? '';
-    customerProvider.customerNameController.text = suggestion['name'] ?? '';
-    _updateCombinedController(customerProvider);
+    // Update fields
+    final mobile = suggestion['mobile'] ?? '';
+    final name = suggestion['name'] ?? '';
 
+    customerProvider.mobileNoController.text = mobile;
+    customerProvider.customerNameController.text = name;
+
+    // ✅ Correctly update combined controller text to include both mobile + name
+    customerProvider.customerCombinedController.text =
+        name.isNotEmpty ? '$mobile - $name' : mobile;
+
+    // Re-attach listener
     customerProvider.customerCombinedController
         .addListener(_combinedControllerListener);
 
     FocusScope.of(context).unfocus();
     setState(() {});
+    print(
+        "✅ Updated combined controller: ${customerProvider.customerCombinedController.text}");
   }
 
   Future<bool> _checkCustomerExists(
@@ -328,6 +342,10 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
                   );
 
                   Navigator.pop(context);
+                  final customerSearchProvider =
+                      Provider.of<CustomerSearchProvider>(context,
+                          listen: false);
+                  await customerSearchProvider.refreshCustomersFromHive();
                   _isAddingCustomer = false;
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -372,42 +390,43 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
           CompositedTransformTarget(
             link: _layerLink,
             child: TextField(
-              readOnly: true,
-              showCursor: true,
-              controller: customerProvider.customerCombinedController,
-              focusNode: _mobileFocusNode,
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(
-                    RegExp(r'^[0-9\s\-a-zA-Z]*$')),
-                LengthLimitingTextInputFormatter(50),
-              ],
-              keyboardType: TextInputType.text,
-              decoration: InputDecoration(
-                border: const OutlineInputBorder(),
-                labelText: 'Customer Mobile & Name',
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () {
-                    customerProvider.mobileNoController.clear();
-                    customerProvider.customerNameController.clear();
-                    customerProvider.customerCombinedController.clear();
-                    _removeSuggestionsOverlay();
-                    FocusScope.of(context).unfocus();
-                  },
+                readOnly: true,
+                showCursor: true,
+                controller: customerProvider.customerCombinedController,
+                focusNode: _mobileFocusNode,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(
+                      RegExp(r'^[0-9\s\-a-zA-Z]*$')),
+                  LengthLimitingTextInputFormatter(50),
+                ],
+                keyboardType: TextInputType.text,
+                decoration: InputDecoration(
+                  border: const OutlineInputBorder(),
+                  labelText: 'Customer Mobile & Name',
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () {
+                      customerProvider.mobileNoController.clear();
+                      customerProvider.customerNameController.clear();
+                      customerProvider.customerCombinedController.clear();
+                      _removeSuggestionsOverlay();
+                      FocusScope.of(context).unfocus();
+                    },
+                  ),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 ),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              ),
-              style: const TextStyle(fontSize: 14),
-              onChanged: _onMobileNumberChanged,
-              onTap: () {
-                ActiveField.activate(
-                  ctrl: customerProvider.customerCombinedController,
-                  node: _mobileFocusNode,
-                  numeric: true,
-                );
-              },
-            ),
+                style: const TextStyle(fontSize: 14),
+                onChanged: _onMobileNumberChanged,
+                onTap: () {
+                  print("🔹 TextField tapped");
+                  ActiveField.activate(
+                    ctrl: customerProvider.customerCombinedController,
+                    node: _mobileFocusNode,
+                    numeric: true,
+                    fieldType: "customer number",
+                  );
+                }),
           ),
         ],
       ),

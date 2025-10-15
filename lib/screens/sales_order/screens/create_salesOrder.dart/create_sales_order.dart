@@ -1383,12 +1383,12 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
               ),
             ),
             onTap: () {
-              // ✅ Activate only numeric custom keyboard
               ActiveField.activate(
                 ctrl: cartProvider.customChargeController,
                 node: customChargeFocus,
-                numeric: true, // 👈 lock numeric
-                customCharge: true, // ✅ special flag for custom charge
+                numeric: true,
+                customCharge: true,
+                fieldType: "custom charge", // ✅ important
               );
             },
             // onChanged: (value) {

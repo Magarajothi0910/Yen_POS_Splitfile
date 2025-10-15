@@ -69,17 +69,17 @@ class PaymentDetailCustomKeyboardWidgetAll2 extends StatelessWidget {
     required this.controller,
     this.onClose,
     this.onChanged,
-    this.isDiscount = false, // ✅ default false
+    this.isDiscount = false,
   });
 
   final TextEditingController controller;
   final VoidCallback? onClose;
-  final bool isDiscount; // ✅ discount mode flag
-  final VoidCallback? onChanged; // 👈 add callback
+  final bool isDiscount;
+  final VoidCallback? onChanged;
+
   void _insert(BuildContext context, String txt) {
     final newText = controller.text + txt;
 
-    // ✅ Discount validation
     if (ActiveField.isDiscount.value) {
       final value = double.tryParse(newText);
       if (value != null && (value > 100 || value <= 0)) {
@@ -94,12 +94,8 @@ class PaymentDetailCustomKeyboardWidgetAll2 extends StatelessWidget {
       }
     }
 
-    // ✅ Custom charge validation
-    // ✅ Custom charge validation (max 5 digits)
     if (ActiveField.isCustomCharge.value) {
-      if (newText.length > 5) {
-        return; // ❌ block input beyond 5 digits
-      }
+      if (newText.length > 5) return;
     }
 
     controller.value = TextEditingValue(
@@ -119,11 +115,7 @@ class PaymentDetailCustomKeyboardWidgetAll2 extends StatelessWidget {
 
   void _handleKey(BuildContext context, String k) {
     final provider = context.read<PaymentDetailKeyboardProvider>();
-
-    // 🚫 block switching if numeric is locked (like custom charge)
-    if (ActiveField.isNumeric.value) {
-      if (k == 'ABC' || k == '⇧') return;
-    }
+    if (ActiveField.isNumeric.value && (k == 'ABC' || k == '⇧')) return;
 
     switch (k) {
       case '⌫':
@@ -149,7 +141,6 @@ class PaymentDetailCustomKeyboardWidgetAll2 extends StatelessWidget {
     }
   }
 
-  /// normal numeric keyboard
   List<List<String>> get _numeric => [
         ['1', '2', '3'],
         ['4', '5', '6'],
@@ -157,7 +148,6 @@ class PaymentDetailCustomKeyboardWidgetAll2 extends StatelessWidget {
         ['.', '0', '⌫'],
       ];
 
-  /// 🚫 locked numeric (used for custom charge)
   List<List<String>> get _numericLocked => [
         ['1', '2', '3'],
         ['4', '5', '6'],
@@ -185,12 +175,9 @@ class PaymentDetailCustomKeyboardWidgetAll2 extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<PaymentDetailKeyboardProvider>(
       builder: (context, provider, _) {
-        // 👉 if locked numeric (custom charge), force _numericLocked
         final layout = ActiveField.isNumeric.value
             ? _numericLocked
-            : provider.isNumeric
-                ? _numeric
-                : _alpha(provider.isUpperCase);
+            : _alpha(provider.isUpperCase);
 
         return Column(
           children: [
@@ -205,21 +192,39 @@ class PaymentDetailCustomKeyboardWidgetAll2 extends StatelessWidget {
                           onTap: () {
                             provider.setPressedKey(key);
                             _handleKey(context, key);
-                            Future.delayed(const Duration(milliseconds: 80),
-                                () {
-                              provider.setPressedKey(null);
-                            });
+                            Future.delayed(
+                              const Duration(milliseconds: 80),
+                              () => provider.setPressedKey(null),
+                            );
                           },
                           onLongPress:
                               key == '⌫' ? () => controller.clear() : null,
-                          child: Container(
-                            margin: const EdgeInsets.all(4),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 120),
+                            margin: const EdgeInsets.all(6),
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
-                              color: provider.pressedKey == key
-                                  ? Colors.blue[100]
-                                  : Colors.grey[200],
-                              borderRadius: BorderRadius.circular(5),
+                              gradient: provider.pressedKey == key
+                                  ? LinearGradient(
+                                      colors: [
+                                        Colors.blue.shade200,
+                                        Colors.blue.shade400,
+                                      ],
+                                    )
+                                  : LinearGradient(
+                                      colors: [
+                                        Colors.grey.shade300,
+                                        Colors.grey.shade100,
+                                      ],
+                                    ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
+                                  offset: const Offset(2, 2),
+                                  blurRadius: 4,
+                                ),
+                              ],
+                              borderRadius: BorderRadius.circular(12),
                             ),
                             child: _buildLabel(key),
                           ),
@@ -237,17 +242,21 @@ class PaymentDetailCustomKeyboardWidgetAll2 extends StatelessWidget {
   Widget _buildLabel(String k) {
     switch (k) {
       case '⌫':
-        return const Icon(Icons.backspace);
+        return const Icon(Icons.backspace, color: Colors.black87, size: 22);
       case '✖':
-        return const Icon(Icons.close);
+        return const Icon(Icons.close, color: Colors.redAccent, size: 22);
       case 'SPACE':
-        return const Icon(Icons.space_bar);
+        return const Icon(Icons.space_bar, color: Colors.black54, size: 22);
       case '⇧':
-        return const Icon(Icons.arrow_upward);
+        return const Icon(Icons.arrow_upward, color: Colors.black87, size: 22);
       default:
         return Text(
           k,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
         );
     }
   }

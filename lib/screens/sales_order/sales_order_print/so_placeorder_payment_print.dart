@@ -7,6 +7,7 @@ import 'package:yenposapp/Global/paymentDetail_keybaord.dart';
 import 'package:yenposapp/screens/sales_order/globals.dart';
 import 'package:yenposapp/screens/sales_order/globals.dart' as globals;
 import 'package:yenposapp/screens/sales_order/sales_order_print/currentOrderPrint_widgets.dart/cheque_details.dart';
+import 'package:yenposapp/screens/sales_order/sales_order_print/top_message.dart';
 import 'package:yenposapp/screens/sales_order/sales_order_providers/cartProvider.dart';
 import 'package:yenposapp/screens/sales_order/sales_order_providers/cart_selection_provider.dart';
 import 'package:yenposapp/screens/sales_order/sales_order_providers/customerScreen_provider.dart';
@@ -94,6 +95,7 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
   final TextEditingController chequeDateController = TextEditingController();
   OverlayEntry? _overlayEntry;
 
+  final ScrollController _scrollController = ScrollController();
   final GlobalKey keyboardKey = GlobalKey();
 
   late final List<TextEditingController> controllers;
@@ -187,17 +189,15 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
 
     if (entered < 0) {
       controller.text = "0";
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("$paymentType amount cannot be negative")),
-      );
+      TopMessage.show(context,
+          message: "$paymentType amount cannot be negative",
+          backgroundColor: Colors.redAccent);
     } else if (entered > widget.totalAmount) {
       controller.text = widget.totalAmount.toStringAsFixed(0);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              "$paymentType amount cannot exceed total ₹${widget.totalAmount}"),
-        ),
-      );
+      TopMessage.show(context,
+          message:
+              "$paymentType amount cannot exceed total ₹${widget.totalAmount}",
+          backgroundColor: Colors.orangeAccent);
     }
 
     _updateBalance();
@@ -396,6 +396,24 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
     setState(() {});
   }
 
+  String _getItemWiseDiscountText() {
+    final itemWiseDiscounts = widget.cartProvider.cartItems
+        .where((item) =>
+            item.itemWiseDiscount != null && item.itemWiseDiscount! > 0)
+        .map((item) => item.itemWiseDiscount!)
+        .toList();
+
+    if (itemWiseDiscounts.isNotEmpty) {
+      // Calculate average discount
+      final averageDiscount =
+          itemWiseDiscounts.reduce((a, b) => a + b) / itemWiseDiscounts.length;
+      // Round to 1 decimal for neat display
+      final roundedDiscount = averageDiscount.toStringAsFixed(1);
+      return '$roundedDiscount% item-wise discount applied';
+    }
+    return 'Item-wise discount applied';
+  }
+
   List<String> _generateCashOptions(double amount) {
     final options = <String>{};
     final exactAmount = amount.ceil();
@@ -414,27 +432,29 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
   // ✅ Apply discount calculation
   void _applyDiscount(String value) {
     setState(() {
-      // 🔹 Step 1: Check if any cart item has item-wise discount
-      final hasItemWiseDiscount = widget.cartProvider.cartItems.any(
-        (item) => item.itemWiseDiscount != null && item.itemWiseDiscount! > 0,
-      );
+      // Step 1: Check if any cart item has item-wise discount
+      final itemWiseDiscounts = widget.cartProvider.cartItems
+          .where((item) =>
+              item.itemWiseDiscount != null && item.itemWiseDiscount! > 0)
+          .map((item) => item.itemWiseDiscount!)
+          .toList();
 
-      if (hasItemWiseDiscount) {
+      if (itemWiseDiscounts.isNotEmpty) {
         _discountController.text = ""; // clear entered discount
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Item-wise discount already applied. Overall discount cannot be applied.',
-            ),
-            backgroundColor: Colors.redAccent,
-            duration: Duration(seconds: 3),
-            behavior: SnackBarBehavior.floating, // 🔹 like alert toast
-          ),
+        // 🔹 Get maximum applied item-wise discount percentage
+        final maxDiscount = itemWiseDiscounts.reduce((a, b) => a > b ? a : b);
+
+        TopMessage.show(
+          context,
+          message:
+              'Item-wise discount of $maxDiscount% already applied. Overall discount cannot be applied.',
+          backgroundColor: Colors.redAccent,
         );
+        return; // stop further discount application
       }
 
-      // 🔹 Step 2: Continue with normal discount logic
+      // Step 2: Continue with normal discount logic
       discount = double.tryParse(value) ?? 0;
 
       deductedAmount = (discount / 100) * _originalAmount;
@@ -443,15 +463,10 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
 
       if (discount > globaldiscount.globalDiscountPercentage) {
         _discountController.text = "";
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Discount exceeds allowed limit. Please send for approval.',
-            ),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 3),
-            behavior: SnackBarBehavior.floating,
-          ),
+        TopMessage.show(
+          context,
+          message: 'Discount exceeds allowed limit. Please send for approval.',
+          backgroundColor: Colors.orangeAccent,
         );
       }
 
@@ -475,6 +490,7 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
             // 🔹 Scrollable Payment Section
             Expanded(
               child: SingleChildScrollView(
+                controller: _scrollController, // ✅ attach controller
                 physics: const BouncingScrollPhysics(),
                 padding: EdgeInsets.fromLTRB(padding, 16, padding, 16),
                 child: Column(
@@ -522,50 +538,47 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
                             ),
                           ),
                           Expanded(
-                              flex: 3,
-                              child: Expanded(
-                                flex: 3,
-                                child: TextFormField(
-                                  controller: _discountController,
-                                  readOnly:
-                                      true, // ✅ Always true (custom keyboard only)
-                                  enabled:
-                                      !_isDiscountDisabled, // ✅ Disable only if item-wise discount exists
-                                  showCursor: !_isDiscountDisabled,
-                                  decoration: InputDecoration(
-                                    prefixIcon: const Icon(Icons.percent,
-                                        color: Colors.black),
-                                    contentPadding: const EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 8),
-                                    filled: true,
-                                    fillColor: _isDiscountDisabled
-                                        ? Colors.grey[200]
-                                        : Colors
-                                            .grey[50], // greyed out if disabled
-                                    hintText: _isDiscountDisabled
-                                        ? 'Item-wise discount applied'
-                                        : 'Enter Discount',
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide: BorderSide.none,
-                                    ),
-                                  ),
-                                  onTap: () {
-                                    if (!_isDiscountDisabled) {
-                                      ActiveField.activate(
-                                        ctrl: _discountController,
-                                        node: FocusNode(),
-                                        numeric: true,
-                                      );
-                                    }
-                                  },
-                                  onChanged: (value) {
-                                    if (!_isDiscountDisabled) {
-                                      _applyDiscount(value);
-                                    }
-                                  },
+                            flex: 3,
+                            child: TextFormField(
+                              controller: _discountController,
+                              readOnly:
+                                  true, // Always true (custom keyboard only)
+                              enabled:
+                                  !_isDiscountDisabled, // Disable only if item-wise discount exists
+                              showCursor: !_isDiscountDisabled,
+                              decoration: InputDecoration(
+                                prefixIcon: const Icon(Icons.percent,
+                                    color: Colors.black),
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 8),
+                                filled: true,
+                                fillColor: _isDiscountDisabled
+                                    ? Colors.grey[200]
+                                    : Colors.grey[50],
+                                hintText: _isDiscountDisabled
+                                    ? _getItemWiseDiscountText() // dynamic hint text
+                                    : 'Enter Discount',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide.none,
                                 ),
-                              )),
+                              ),
+                              onTap: () {
+                                if (!_isDiscountDisabled) {
+                                  ActiveField.activate(
+                                    ctrl: _discountController,
+                                    node: FocusNode(),
+                                    numeric: true,
+                                  );
+                                }
+                              },
+                              onChanged: (value) {
+                                if (!_isDiscountDisabled) {
+                                  _applyDiscount(value);
+                                }
+                              },
+                            ),
+                          ),
                           const SizedBox(width: 10),
                           // 🔹 Show Deducted Amount
                           Text(
@@ -613,11 +626,23 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
                                 _isChequeSelected = _showChequeDetails;
 
                                 if (_isChequeSelected) {
-                                  // Clear other payment fields when cheque is selected
+                                  // Clear other payment fields
                                   _cashController.clear();
                                   _upiController.clear();
                                   _cardController.clear();
                                   _updateBalance();
+
+                                  // Auto scroll after the frame is built
+                                  WidgetsBinding.instance
+                                      .addPostFrameCallback((_) {
+                                    _scrollController.animateTo(
+                                      _scrollController
+                                          .position.maxScrollExtent,
+                                      duration:
+                                          const Duration(milliseconds: 300),
+                                      curve: Curves.easeInOut,
+                                    );
+                                  });
                                 }
                               });
                             },
@@ -686,9 +711,9 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
               ),
             ),
 
-            // 🔹 Static Footer Section (not scrollable)
+            // 🔹 Footer Section with Split Layout
             Container(
-              padding: EdgeInsets.fromLTRB(padding, 12, padding, 12),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius:
@@ -698,150 +723,124 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
                     color: Colors.grey.withOpacity(0.2),
                     blurRadius: 8,
                     offset: const Offset(0, -2),
-                  )
+                  ),
                 ],
               ),
+              height: 200, // adjust height as needed
               child: Row(
                 children: [
-                  // 🔹 Total Card
-                  Expanded(
-                    flex: 2,
-                    child: _buildMiniCard(
-                      title: "Total",
-                      value: '₹${totalAmount.toStringAsFixed(0)}',
-                      gradient: [Colors.green[100]!, Colors.green[300]!],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-
-                  // 🔹 Balance Card
-                  Expanded(
-                    flex: 2,
-                    child: _buildMiniCard(
-                      title: "Balance",
-                      value: '₹${_balanceAmount.toStringAsFixed(0)}',
-                      gradient: [Colors.orange[100]!, Colors.orange[300]!],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-
-                  // 🔹 Cancel Button
+                  // 🔹 Right Section: Keyboard
                   Expanded(
                     flex: 1,
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.black12),
                       ),
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                      child: const Text(
-                        "Cancel",
-                        style: TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w600),
+                      child: SizedBox(
+                        height: double.infinity,
+                        child: ValueListenableBuilder<TextEditingController?>(
+                          valueListenable: ActiveField.controller,
+                          builder: (_, ctrl, __) {
+                            return PaymentDetailCustomKeyboardWidgetAll2(
+                              controller: ctrl ?? TextEditingController(),
+                              onChanged: _updateBalance,
+                            );
+                          },
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-
-                  // 🔹 Complete/Approve Button
-                  // 🔹 Complete/Approve Button
+                  // 🔹 Left Section: Total/Balance/Buttons\
+                  const SizedBox(width: 12),
                   Expanded(
-                    flex: 1, // little bigger than others
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        Map<String, double> payments = {};
-                        if (_cashController.text.isNotEmpty) {
-                          payments["Cash"] =
-                              double.tryParse(_cashController.text) ?? 0.0;
-                        }
-                        if (_cardController.text.isNotEmpty) {
-                          payments["Card"] =
-                              double.tryParse(_cardController.text) ?? 0.0;
-                        }
-                        if (_upiController.text.isNotEmpty) {
-                          payments["UPI"] =
-                              double.tryParse(_upiController.text) ?? 0.0;
-                        }
-                        if (chequeAmountController.text.isNotEmpty) {
-                          payments["Cheque"] =
-                              double.tryParse(chequeAmountController.text) ??
-                                  0.0;
-                        }
-                        Navigator.pop(context);
-                        if (selectedPaymentMethod == 'Cheque') {
-                          await customerScreenProvider.sendForApproval(
-                            cartProvider,
-                            widget.totalAdvance,
-                            widget.orderAmount,
-                            discount,
-                            deductedAmount,
-                            widget.customCharge,
-                            totalAmount,
-                            widget.remark,
-                            widget.path,
-                            widget.apiprovider,
-                            widget.img1,
-                            widget.img2,
-                            widget.audioOrderId,
-                            widget.holdId,
-                            "Cheque",
-                            context,
-                            payments, // 👈 pass payments map
-                          );
-                          return;
-                        }
-
-                        showDialog(
-                          barrierDismissible: false,
-                          context: context,
-                          builder: (BuildContext context) {
-                            return AlertDialog(
-                              backgroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(15),
-                              ),
-                              title: Row(
-                                children: const [
-                                  Icon(Icons.check_circle,
-                                      color: Colors.green, size: 24),
-                                  SizedBox(width: 10),
-                                  Text(
-                                    'Confirm Order',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 18,
-                                    ),
-                                  ),
+                    flex: 1,
+                    child: Column(
+                      children: [
+                        // Total and Balance Cards
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildMiniCard(
+                                title: "Total",
+                                value: '₹${totalAmount.toStringAsFixed(0)}',
+                                gradient: [
+                                  Colors.green[100]!,
+                                  Colors.green[300]!
                                 ],
                               ),
-                              content: const Text(
-                                'Are you sure you want to complete the order?',
-                                style: TextStyle(fontSize: 14),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _buildMiniCard(
+                                title: "Balance",
+                                value: '₹${_balanceAmount.toStringAsFixed(0)}',
+                                gradient: [
+                                  Colors.orange[100]!,
+                                  Colors.orange[300]!
+                                ],
                               ),
-                              actions: [
-                                OutlinedButton(
-                                  onPressed: () {
-                                    Navigator.pop(context);
-                                  },
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: Colors.red,
-                                    side: const BorderSide(color: Colors.red),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        // Cancel & Complete Buttons
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                style: OutlinedButton.styleFrom(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
-                                  child: const Text('Cancel'),
                                 ),
-                                ElevatedButton(
-                                  onPressed: () async {
-                                    await customerScreenProvider.saveOrder(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text(
+                                  "Cancel",
+                                  style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () async {
+                                  Map<String, double> payments = {};
+                                  if (_cashController.text.isNotEmpty) {
+                                    payments["Cash"] =
+                                        double.tryParse(_cashController.text) ??
+                                            0.0;
+                                  }
+                                  if (_cardController.text.isNotEmpty) {
+                                    payments["Card"] =
+                                        double.tryParse(_cardController.text) ??
+                                            0.0;
+                                  }
+                                  if (_upiController.text.isNotEmpty) {
+                                    payments["UPI"] =
+                                        double.tryParse(_upiController.text) ??
+                                            0.0;
+                                  }
+                                  if (chequeAmountController.text.isNotEmpty) {
+                                    payments["Cheque"] = double.tryParse(
+                                            chequeAmountController.text) ??
+                                        0.0;
+                                  }
+                                  Navigator.pop(context);
+                                  if (selectedPaymentMethod == 'Cheque') {
+                                    await customerScreenProvider
+                                        .sendForApproval(
                                       cartProvider,
-                                      widget.cartSelectionProvider,
                                       widget.totalAdvance,
                                       widget.orderAmount,
                                       discount,
                                       deductedAmount,
+                                      widget.customCharge,
                                       totalAmount,
                                       widget.remark,
                                       widget.path,
@@ -850,73 +849,115 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
                                       widget.img2,
                                       widget.audioOrderId,
                                       widget.holdId,
-                                      widget.selectedStoreType,
+                                      "Cheque",
                                       context,
                                       payments, // 👈 pass payments map
                                     );
+                                    return;
+                                  }
 
-                                    Navigator.pop(context); // Close dialog
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.blueAccent,
-                                    foregroundColor: Colors.white,
+                                  showDialog(
+                                    barrierDismissible: false,
+                                    context: context,
+                                    builder: (BuildContext context) {
+                                      return AlertDialog(
+                                        backgroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(15),
+                                        ),
+                                        title: Row(
+                                          children: const [
+                                            Icon(Icons.check_circle,
+                                                color: Colors.green, size: 24),
+                                            SizedBox(width: 10),
+                                            Text(
+                                              'Confirm Order',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 18,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        content: const Text(
+                                          'Are you sure you want to complete the order?',
+                                          style: TextStyle(fontSize: 14),
+                                        ),
+                                        actions: [
+                                          OutlinedButton(
+                                            onPressed: () {
+                                              Navigator.pop(context);
+                                            },
+                                            style: OutlinedButton.styleFrom(
+                                              foregroundColor: Colors.red,
+                                              side: const BorderSide(
+                                                  color: Colors.red),
+                                            ),
+                                            child: const Text('Cancel'),
+                                          ),
+                                          ElevatedButton(
+                                            onPressed: () async {
+                                              await customerScreenProvider
+                                                  .saveOrder(
+                                                cartProvider,
+                                                widget.cartSelectionProvider,
+                                                widget.totalAdvance,
+                                                widget.orderAmount,
+                                                discount,
+                                                deductedAmount,
+                                                totalAmount,
+                                                widget.remark,
+                                                widget.path,
+                                                widget.apiprovider,
+                                                widget.img1,
+                                                widget.img2,
+                                                widget.audioOrderId,
+                                                widget.holdId,
+                                                widget.selectedStoreType,
+                                                context,
+                                                payments, // 👈 pass payments map
+                                              );
+
+                                              Navigator.pop(
+                                                  context); // Close dialog
+                                            },
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor:
+                                                  Colors.blueAccent,
+                                              foregroundColor: Colors.white,
+                                            ),
+                                            child: const Text('Confirm'),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  );
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue.shade700,
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
                                   ),
-                                  child: const Text('Confirm'),
                                 ),
-                              ],
-                            );
-                          },
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue.shade700,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                                child: Text(
+                                  selectedPaymentMethod == 'Cheque'
+                                      ? 'Send to Approval'
+                                      : 'Complete Order',
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                      child: Text(
-                        selectedPaymentMethod == 'Cheque'
-                            ? 'Send to Approval'
-                            : 'Complete Order',
-                        style: const TextStyle(color: Colors.white),
-                      ),
+                      ],
                     ),
                   ),
                 ],
               ),
-            ),
-
-            // 🔹 Always visible Custom Keyboard
-            Container(
-              height: 170, // slightly compact
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                border: const Border(
-                  top: BorderSide(color: Colors.black12, width: 1),
-                ),
-              ),
-
-              child: SizedBox(
-                height: 210,
-                child: ValueListenableBuilder<TextEditingController?>(
-                  valueListenable: ActiveField.controller,
-                  builder: (_, ctrl, __) {
-                    return Column(
-                      children: [
-                        const SizedBox(height: 8),
-                        Expanded(
-                            child: PaymentDetailCustomKeyboardWidgetAll2(
-                          controller: ctrl ?? TextEditingController(),
-                          onChanged:
-                              _updateBalance, // 👈 update balance when keys pressed
-                        )),
-                      ],
-                    );
-                  },
-                ),
-              ),
-            ),
+            )
           ],
         ),
       ),

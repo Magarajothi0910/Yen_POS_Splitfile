@@ -232,7 +232,25 @@ class _ChequeDetailsState extends State<ChequeDetails> {
             initialDate: DateTime.now(),
             firstDate: DateTime(2000),
             lastDate: DateTime(2100),
+            builder: (context, child) {
+              return Theme(
+                data: Theme.of(context).copyWith(
+                  colorScheme: const ColorScheme.light(
+                    primary: Colors.blue, // header background color
+                    onPrimary: Colors.white, // header text color
+                    onSurface: Colors.black, // body text color
+                  ),
+                  textButtonTheme: TextButtonThemeData(
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.blue, // buttons (OK/CANCEL) color
+                    ),
+                  ),
+                ),
+                child: child!,
+              );
+            },
           );
+
           if (picked != null) {
             widget.chequeDateController.text =
                 "${picked.day}/${picked.month}/${picked.year}";

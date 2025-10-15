@@ -111,7 +111,6 @@ class _OpenShiftState extends State<OpenShift> {
 
   Future<void> _postShiftData(int physicalCash) async {
     final url = "https://yenerp.com/fastapi/shifts/";
-    //final url = "http://192.168.29.8:8888/shift/";
     debugPrint('🔗 Posting to URL: $url');
 
     final openingDifferenceAmount = _calculateDifference(physicalCash);
@@ -151,8 +150,20 @@ class _OpenShiftState extends State<OpenShift> {
       debugPrint('⬅ Response body: ${response.data}');
 
       if (response.statusCode == 200 || response.statusCode == 300) {
+        // ✅ Safe extraction of shiftId
+        dynamic shiftId;
+        if (response.data is String) {
+          shiftId = response.data;
+        } else if (response.data is Map<String, dynamic>) {
+          shiftId = response.data['id'] ?? response.data['_id'];
+        }
+
+        debugPrint('✅ Shift ID returned: $shiftId');
+
+        globals.shiftId.value = shiftId?.toString() ?? '';
         systemOpeningBalance.value = physicalCash;
         isShiftOpened.value = true;
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Shift created successfully!')),

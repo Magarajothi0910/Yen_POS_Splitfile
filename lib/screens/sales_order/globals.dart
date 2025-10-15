@@ -28,16 +28,21 @@ class ActiveField {
 
   static final ValueNotifier<bool> isDiscount = ValueNotifier<bool>(false);
 
-  // ✅ NEW: custom charge flag
   static final ValueNotifier<bool> isCustomCharge = ValueNotifier<bool>(false);
+
+  // ✅ NEW: store type like "customer number"
+  static final ValueNotifier<String?> type = ValueNotifier<String?>(null);
+
+  static final Map<TextEditingController, VoidCallback> _listenerMap = {};
 
   static void activate({
     required TextEditingController ctrl,
     required FocusNode node,
     bool numeric = false,
     bool discount = false,
-    bool customCharge = false, // ✅ param
-    void Function(String)? onChanged, // ✅ Add this
+    bool customCharge = false,
+    String? fieldType, // "customer number"
+    void Function(String)? onChanged,
   }) {
     focus.value?.unfocus();
 
@@ -45,14 +50,54 @@ class ActiveField {
     focus.value = node;
     isNumeric.value = numeric;
     isDiscount.value = discount;
-    isCustomCharge.value = customCharge; // ✅ set here
+    isCustomCharge.value = customCharge;
+    type.value = fieldType; // ✅ store type for later use
 
     node.requestFocus();
-    ctrl.addListener(() {
-      if (onChanged != null) {
-        onChanged(ctrl.text); // ✅ trigger suggestions
+
+    // Remove previous listener
+    if (_listenerMap.containsKey(ctrl)) {
+      ctrl.removeListener(_listenerMap[ctrl]!);
+    }
+
+    void listener() {
+      if (type.value == "customer number") {
+        // Handle customer number logic (max 10 digits)
+        if (ctrl.text.contains('-')) return;
+
+        final digitsOnly = ctrl.text.replaceAll(RegExp(r'[^0-9]'), '');
+        if (digitsOnly.length > 10) {
+          ctrl.text = digitsOnly.substring(0, 10);
+          ctrl.selection = TextSelection.fromPosition(
+            TextPosition(offset: ctrl.text.length),
+          );
+        } else if (digitsOnly != ctrl.text) {
+          ctrl.text = digitsOnly;
+          ctrl.selection = TextSelection.fromPosition(
+            TextPosition(offset: ctrl.text.length),
+          );
+        }
+      } else if (type.value == "custom charge") {
+        // ✅ Handle custom charge: max 5 digits
+        final digitsOnly = ctrl.text.replaceAll(RegExp(r'[^0-9]'), '');
+        if (digitsOnly.length > 5) {
+          ctrl.text = digitsOnly.substring(0, 5);
+          ctrl.selection = TextSelection.fromPosition(
+            TextPosition(offset: ctrl.text.length),
+          );
+        } else if (digitsOnly != ctrl.text) {
+          ctrl.text = digitsOnly;
+          ctrl.selection = TextSelection.fromPosition(
+            TextPosition(offset: ctrl.text.length),
+          );
+        }
       }
-    });
+
+      if (onChanged != null) onChanged(ctrl.text);
+    }
+
+    ctrl.addListener(listener);
+    _listenerMap[ctrl] = listener;
   }
 
   static void clear() {
@@ -61,6 +106,7 @@ class ActiveField {
     focus.value = null;
     isNumeric.value = false;
     isDiscount.value = false;
-    isCustomCharge.value = false; // ✅ reset
+    isCustomCharge.value = false;
+    type.value = null; // ✅ reset type
   }
 }

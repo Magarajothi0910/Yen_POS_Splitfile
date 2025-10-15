@@ -614,37 +614,49 @@ class _LogInScreenState extends State<LogInScreen> {
 
     final url = Uri.parse(
         'https://yenerp.com/fastapi/shifts/check-open-shift?branch_name=$branchName');
-    final response = await http.get(url);
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
+    try {
+      final response = await http.get(url);
 
-      // Example response: { "shiftId": "0", "shiftNumber": 0 }
-      // If shiftId is not "0", that means an open shift exists.
-      if (data != null && data['shiftId'] != null && data['shiftId'] != '0') {
-        // Open shift found — navigate
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ChooseModePage(
-              keyboardKey: widget.keyboardKey,
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        // Store shiftId and shiftNumber in ValueNotifiers
+        globals.shiftId.value = data['shiftId']?.toString() ?? '0';
+        globals.shiftNumber.value = data['shiftNumber']?.toString() ?? '0';
+
+        if (globals.shiftNumber.value != '0') {
+          // Open shift found — navigate
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ChooseModePage(
+                keyboardKey: widget.keyboardKey,
+              ),
             ),
-          ),
-        );
-        return true;
+          );
+          return true;
+        } else {
+          // No open shift
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No open shift found for today.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
       } else {
-        // No open shift
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('No open shift found for today.'),
-            backgroundColor: Colors.orange,
+            content: Text('Failed to fetch shift data.'),
+            backgroundColor: Colors.red,
           ),
         );
       }
-    } else {
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to fetch shift data.'),
+        SnackBar(
+          content: Text('Error: $e'),
           backgroundColor: Colors.red,
         ),
       );

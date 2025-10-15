@@ -5,6 +5,8 @@ const String deviceId = "2";
 const String deviceNumber = "1";
 bool sentServer = false;
 final shiftId = ValueNotifier<String>("");
+final shiftNumber = ValueNotifier<String>("");
+
 final dayEndStatus = ValueNotifier<String>("");
 final status = ValueNotifier<String>("");
 

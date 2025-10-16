@@ -5,7 +5,8 @@ import 'package:yenpos/Sale_order/Models/sales_invoicemodel.dart';
 import 'package:yenpos/Sale_order/Provider/cartProvider.dart';
 import 'package:yenpos/Sale_order/Provider/modifyOrderProvider.dart';
 
-String branchName = "Aranmanai";
+// String branchName = "Aranmanai";
+String branchName = "";
 const String deviceId = "2";
 const String deviceNumber = "1";
 bool sentServer = false;
@@ -29,10 +30,10 @@ final shiftOpenStatus = ValueNotifier<String>("");
 String deviceName = "POS1";
 // String userName = "";
 String password = "";
-
+String aliasname = "";
 String branchId = "";
 int totalTables = 0;
-String aliasname = "AR";
+// String aliasname = "AR";
 String ordertype = "Dinning";
 List<Map<String, dynamic>> tables = [];
 String serverip = "";

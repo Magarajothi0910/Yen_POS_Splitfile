@@ -38,7 +38,10 @@ class DeviceProvider with ChangeNotifier {
           _deviceCodeId = device['deviceCodeId'];
           // Store device data in Hive and patch status
           await storeDeviceData(
-              device['deviceCode'], device['branchName'], _deviceCodeId);
+            device['deviceCode'],
+            device['branchName'],
+            _deviceCodeId,
+          );
         } else {
           // Handle device not found or incorrect status scenario
         }
@@ -47,7 +50,10 @@ class DeviceProvider with ChangeNotifier {
   }
 
   Future<void> storeDeviceData(
-      String deviceCode, String branchName, String deviceCodeId) async {
+    String deviceCode,
+    String branchName,
+    String deviceCodeId,
+  ) async {
     try {
       // Open the Hive box (a storage container for key-value pairs)
       var box = await Hive.openBox('deviceData');
@@ -93,7 +99,7 @@ class DeviceProvider with ChangeNotifier {
   }
 
   Future<void> patchDeviceStatus(String deviceCodeId) async {
-    final String url = 'https://yenerp.com/fastapi/devicecodes/$deviceCodeId';
+    final String url = 'https://yenerp.com/fastapi/devicecode/$deviceCodeId';
     final Map<String, dynamic> patchData = {
       'status': '0', // Set the status to 0
     };
@@ -101,9 +107,7 @@ class DeviceProvider with ChangeNotifier {
     try {
       final response = await http.patch(
         Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: {'Content-Type': 'application/json'},
         body: jsonEncode(patchData),
       );
 

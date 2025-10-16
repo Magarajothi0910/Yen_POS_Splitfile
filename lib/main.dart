@@ -39,6 +39,8 @@ import 'package:yenpos/Sale_order/Widgets/paymentDetail_keybaord.dart';
 import 'package:yenpos/Server_Client/serverScreen.dart';
 import 'package:yenpos/Server_Client/websocketService.dart';
 import 'package:yenpos/background_task/flutter_foreground_task.dart';
+import 'package:yenpos/loginPage/installationpage.dart';
+import 'package:yenpos/loginPage/provider/deviceProvider.dart';
 
 import 'package:yenpos/loginPage/provider/loginPageProvider.dart';
 import 'package:yenpos/more_page/controller/denomination_controler.dart';
@@ -234,7 +236,8 @@ class MyApp extends StatelessWidget {
           showPerformanceOverlay: false,
           scaffoldMessengerKey: GlobalScaffold.scaffoldMessengerKey,
           debugShowCheckedModeBanner: false,
-          home: LoginScreen(),
+          home: InstallPOSApp(),
+          // home: LoginScreen(),
         );
       },
     );

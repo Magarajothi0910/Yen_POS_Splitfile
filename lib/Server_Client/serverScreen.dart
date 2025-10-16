@@ -1652,131 +1652,214 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      // 1) Ask the user to allow background
-      await BackgroundPermissionGuard.askIfNeeded(context);
-
-      // 2) Start your foreground service at the very first run (if you want)
-      await ForegroundHelper.init();
-      await ForegroundHelper.startIfNotRunning();
-    });
-
-    final loginProvider = Provider.of<LoginProvider>(context);
-
     return Scaffold(
-      backgroundColor: const Color(0xFFFAF8F0),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.only(top: 20.0),
-          child: Column(
-            children: [
-              SizedBox(
-                width: double.infinity,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: <Widget>[
-                    Image.asset(
-                      'assets/bestmummy.png',
-                      height: 150,
-                      width: 150,
-                    ),
-                    Image.asset('assets/kotLogin.png', height: 280, width: 280),
-                    const SizedBox(height: 30),
-                    SizedBox(
-                      width: 280,
-                      child: TextFormField(
-                        controller: _userNameController,
-                        decoration: InputDecoration(
-                          filled: true,
-                          fillColor: const Color(0xFFE0F7FA),
-                          labelText: 'Username',
-                          errorText: loginProvider.userNameError,
-                          labelStyle: const TextStyle(
-                            fontSize: 18,
-                            color: Color(0xFF00695C),
-                          ),
-                          border: const OutlineInputBorder(
-                            borderRadius: BorderRadius.all(Radius.circular(12)),
-                            borderSide: BorderSide.none,
-                          ),
-                          prefixIcon: const Icon(
-                            Icons.account_circle,
-                            color: Color(0xFF00695C),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 20,
-                            horizontal: 20,
+      backgroundColor: Colors.white,
+      body: Center(
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 40.0,
+              vertical: 60.0,
+            ),
+            child: Row(
+              children: [
+                // Left side: Text + Card
+                Expanded(
+                  flex: 1,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 150),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // POS Name
+                        Text(
+                          'POS',
+                          style: TextStyle(
+                            fontSize: 40,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue.shade800,
                           ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: 280,
-                      child: TextFormField(
-                        controller: _passwordController,
-                        decoration: InputDecoration(
-                          filled: true,
-                          fillColor: const Color(0xFFE0F7FA),
-                          labelText: 'Password',
-                          errorText: loginProvider.passwordError,
-                          labelStyle: const TextStyle(
-                            fontSize: 18,
-                            color: Color(0xFF00695C),
-                          ),
-                          border: const OutlineInputBorder(
-                            borderRadius: BorderRadius.all(Radius.circular(12)),
-                            borderSide: BorderSide.none,
-                          ),
-                          prefixIcon: const Icon(
-                            Icons.vpn_key,
-                            color: Color(0xFF00695C),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 20,
-                            horizontal: 20,
-                          ),
-                        ),
-                        obscureText: true,
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-                    Center(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          //                      Navigator.pushAndRemoveUntil(
-                          //   context,
-                          //   MaterialPageRoute(builder: (context) => TableScreen()),
-                          //   (Route<dynamic> route) => false, // Removes all previous routes
-                          // );
-                          loginUser();
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFE0F7FA),
-                          foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 50,
-                            vertical: 15,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          'LogIn',
+                        const SizedBox(height: 8),
+                        // POS Description
+                        Text(
+                          'Fast, simple POS for billing',
                           style: TextStyle(
                             fontSize: 18,
-                            color: Color(0xFF00695C),
+                            color: Colors.grey.shade700,
+                            height: 1.4,
                           ),
                         ),
-                      ),
+                        const SizedBox(height: 50),
+
+                        // Login Card
+                        Card(
+                          elevation: 8,
+                          color: Colors.white,
+                          shadowColor: Colors.black26,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(28.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Login',
+                                  style: TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(height: 25),
+
+                                // Username
+                                TextFormField(
+                                  decoration: InputDecoration(
+                                    filled: true,
+                                    fillColor: Colors.grey.shade100,
+                                    labelText: 'Username',
+                                    labelStyle: const TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.black54,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                    prefixIcon: const Icon(
+                                      Icons.person,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 18),
+
+                                // Password
+                                TextFormField(
+                                  obscureText: true,
+                                  decoration: InputDecoration(
+                                    filled: true,
+                                    fillColor: Colors.grey.shade100,
+                                    labelText: 'Password',
+                                    labelStyle: const TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.black54,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                    prefixIcon: const Icon(
+                                      Icons.lock,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 25),
+
+                                // Login button
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton(
+                                    onPressed: () {
+                                      loginUser();
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.blue.shade800,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 18,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      elevation: 6,
+                                      shadowColor: Colors.black26,
+                                    ),
+                                    child: const Text(
+                                      'Log in',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 25),
+
+                                // Divider
+                                Divider(
+                                  color: Colors.grey.shade300,
+                                  thickness: 1,
+                                ),
+                                const SizedBox(height: 10),
+
+                                // Server & App Type Info
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    // Server Type
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.cloud_outlined,
+                                          color: Colors.blue.shade700,
+                                          size: 22,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Server: $serverip',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.grey.shade700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    // App Type
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.apps_rounded,
+                                          color: Colors.blue.shade700,
+                                          size: 22,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'App Type: $appType',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.grey.shade700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    Text("$serverip"),
-                    Text("$appType"),
-                  ],
+                  ),
                 ),
-              ),
-            ],
+
+                // Right side: Image
+                Expanded(
+                  flex: 1,
+                  child: Image.asset(
+                    'assets/posbilling.png',
+                    height: 650,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

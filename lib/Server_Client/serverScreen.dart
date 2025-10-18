@@ -33,7 +33,9 @@ import 'package:yenposapp/loginPage/provider/loginPageProvider.dart';
 import 'package:yenposapp/shift_managment_page/openshift/open_shift.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final GlobalKey keyboardKey;
+  const LoginScreen({super.key, required this.keyboardKey});
+
   @override
   // ignore: library_private_types_in_public_api
   _LoginScreenState createState() => _LoginScreenState();
@@ -41,9 +43,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final List<Map<String, dynamic>> _receivedData = [];
-  List<Map<String, dynamic>> _invoiceData = []; // List to store invoice data
-  final TextEditingController _userNameController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
+
   WebSocketChannel? channel;
   final GlobalKey keyboardKey = GlobalKey();
   Set<WebSocketChannel> clients = {};
@@ -72,14 +72,18 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _advanceController = TextEditingController();
   bool placeOrderCliked = false;
   bool showPaymentScreen = false;
-  final Set<String> _processedMessageIds = {};
+
   //saleorder
+  final http.Client _httpClient = http.Client();
+  bool _disposed = false; // 👈 Track disposal manually
+
   @override
   initState() {
     super.initState();
     // HiveManager().invoices.then((_) => _loadInvoices());
     // HiveManager().posInvoiceBox; // Just to ensure it's initialized
     // HiveManager().tableStatusBox; // Just to ensure it's initialized
+
     _openBoxes();
     _syncTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
       SyncService();
@@ -125,36 +129,23 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<String?> fetchNextSalesOrderNumberFromHive(String prefix) async {
-    print("🧠 [fetchNextSalesOrderNumberFromHive] Called with prefix: $prefix");
-
     // Open Hive box
     final saleOrderNumberBox = await Hive.openBox('salesOrderNumberBox');
-    print("📦 [fetchNextSalesOrderNumberFromHive] Opened salesOrderNumberBox");
 
     // Get all stored numbers
     final List<String> allNumbers = saleOrderNumberBox.values
         .expand((e) => e is List ? e.map((x) => x.toString()) : [e.toString()])
         .toList();
 
-    print(
-      "📋 [fetchNextSalesOrderNumberFromHive] Existing numbers: $allNumbers",
-    );
-
     // If no existing numbers, start fresh
     if (allNumbers.isEmpty) {
       final newNumber = '${prefix}0001';
       await saleOrderNumberBox.add(newNumber);
-      print(
-        "🆕 [fetchNextSalesOrderNumberFromHive] Created first order number: $newNumber",
-      );
       return newNumber;
     }
 
     // Get the last stored number
     final String lastOrderNumber = allNumbers.last;
-    print(
-      "🔢 [fetchNextSalesOrderNumberFromHive] Last stored number: $lastOrderNumber",
-    );
 
     // Extract numeric part correctly (ignore extra prefix inside number)
     String numericPart = '';
@@ -165,10 +156,6 @@ class _LoginScreenState extends State<LoginScreen> {
       final match = RegExp(r'(\d+)$').firstMatch(lastOrderNumber);
       numericPart = match?.group(1) ?? '0';
     }
-
-    print(
-      "🔍 [fetchNextSalesOrderNumberFromHive] Extracted numeric part: $numericPart",
-    );
 
     // Convert to int and increment
     final int lastCount = int.tryParse(numericPart) ?? 0;
@@ -182,9 +169,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
     // Save in Hive
     await saleOrderNumberBox.add(newOrderNumber);
-    print(
-      "💾 [fetchNextSalesOrderNumberFromHive] Saved new order number: $newOrderNumber",
-    );
 
     return newOrderNumber;
   }
@@ -457,68 +441,45 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> handleSaleOrder(Map<String, dynamic> data) async {
-    print("🚀 [handleSaleOrder] Called with data: $data");
-
     // Extract the sales order data (nested or top-level)
     final salesOrder = data['data'] ?? data;
-    print("📦 [handleSaleOrder] Extracted salesOrder: $salesOrder");
 
     // Determine the prefix for the sales order number
     String prefix = salesOrder['saleOrderNo']?.toString().trim() ??
         salesOrder['aliasName']?.toString().trim() ??
         "SOSB";
-    print("🔠 [handleSaleOrder] Using prefix: $prefix");
 
     // Get new sales order number from API/Hive
     final newSalesOrderNo = await fetchNextSalesOrderNumberFromHive(prefix);
-    print(
-      "🔢 [handleSaleOrder] New sales order number from Hive: $newSalesOrderNo",
-    );
 
     if (newSalesOrderNo == null) {
-      print("❌ [handleSaleOrder] Failed to get new sales order number.");
       return;
     }
 
     // Clean and update the sales order number
     final cleanSalesOrderNo = newSalesOrderNo.replaceAll('"', '');
     salesOrder['saleOrderNo'] = cleanSalesOrderNo;
-    print("✅ [handleSaleOrder] Updated saleOrderNo: $cleanSalesOrderNo");
 
     // Save the order locally (initial save as unsynced)
-    print("💾 [handleSaleOrder] Saving order to Hive (unsynced)...");
     await savePosSaleOrderToHive(data, saleOrderBox);
-    print("💾 [handleSaleOrder] Order saved locally to Hive.");
 
     // Notify clients with updated order number
-    print("📡 [handleSaleOrder] Sending updated sales order to clients...");
     sendDataToClients({
       'action': 'salesOrderGenerated',
       'salesOrder': data, // now includes updated saleOrderNo
     }, clients);
     _sendDataToClientsCount++;
-    print(
-      "📨 [handleSaleOrder] Data sent to clients. Total count: $_sendDataToClientsCount",
-    );
 
     // Post to API
-    print("🌐 [handleSaleOrder] Posting sales order to API...");
     bool success = await _syncService.postSalesOrder({
       "data": [salesOrder],
     });
 
     if (success) {
-      print("✅ [handleSaleOrder] Sales order successfully synced to API.");
-
       // ✅ Mark this order as synced in Hive
       data["sync"] = "Yes"; // add sync flag
       await saleOrderBox.put(cleanSalesOrderNo, data);
-      print("💾 [handleSaleOrder] Order marked as synced and updated in Hive.");
-    } else {
-      print("⚠️ [handleSaleOrder] Failed to sync sales order to API.");
-    }
-
-    print("🏁 [handleSaleOrder] Completed for order: $cleanSalesOrderNo\n");
+    } else {}
   }
 
   Future<void> handleInvoiceOrder(Map<String, dynamic> data) async {
@@ -959,6 +920,7 @@ class _LoginScreenState extends State<LoginScreen> {
         handleInvoice(data, clients);
       },
       'salesOrder': (data) async {
+        print("data send to server");
         handleSaleOrder(data);
       },
       'patchSaleOrder': (data) async {
@@ -1362,90 +1324,100 @@ class _LoginScreenState extends State<LoginScreen> {
     } else {}
   }
 
-  GlobalKey _keybaordKey = GlobalKey();
   bool employeeIdVerified = false; // To track if the employee ID is correct
 
   Future<void> proceedToDashboard() async {
-    print("🟢 proceedToDashboard() called");
+    // Step 0: Widget mount check
+    if (!mounted) {
+      return;
+    }
 
+    // Step 1: Alias name validation
     if (globals.aliasname == null || globals.aliasname!.trim().isEmpty) {
-      print("⚠️ globals.aliasname is null or empty — cannot proceed.");
       return;
     }
 
-    print("✅ Selected alias: ${globals.aliasname}");
+    // Step 2: Initialize ItemProvider
+    final itemProvider = Provider.of<ItemProvider>(context, listen: false);
 
-    // Step 1: Get branch name
-    final branchName = await Provider.of<ItemProvider>(
-      context,
-      listen: false,
-    ).getBranchNameFromAlias(globals.aliasname);
+    // Step 3: Fetch branch name from alias
+    final branchName =
+        await itemProvider.getBranchNameFromAlias(globals.aliasname);
 
+    if (!mounted) {
+      return;
+    }
+    await Provider.of<ItemProvider>(context, listen: false)
+        .fetchDataIfNeeded(branchAlias: globals.aliasname);
+    // Step 4: Validate fetched branch name
     if (branchName == null || branchName == 'Branch Not Found') {
-      print("🚫 No matching branch found — stopping flow.");
       return;
     }
 
+    // Step 5: Set global variable
     globals.branchName = branchName;
-    print("💾 globals.branchName set to: ${globals.branchName}");
 
-    // Step 2: Check shift
-    await checkShiftStatusAndNavigate();
-  }
+    // Step 6: Proceed to shift check
 
-  Future<void> checkShiftStatusAndNavigate() async {
-    final branchName = globals.branchName;
     final url = Uri.parse(
-      'https://yenerp.com/fastapi/shifts/check-open-shift?branch_name=$branchName',
+      'https://yenerp.com/fastapi/shifts/check-open-shift?branch_name=${globals.branchName}',
     );
 
+    final client = http.Client(); // 👈 fresh client
     try {
-      final response = await http.get(url);
-
-      if (!context.mounted) return; // ✅ Safely exit if widget unmounted
+      final response = await client.get(url);
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+
         globals.shiftId.value = data['shiftId']?.toString() ?? '0';
         globals.shiftNumber.value = data['shiftNumber']?.toString() ?? '0';
 
         int shiftNumberInt = int.tryParse(globals.shiftNumber.value) ?? 0;
-
         if (shiftNumberInt != 0) {
-          print("✅ Open shift found — navigating to ChooseModePage");
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ChooseModePage(keyboardKey: keyboardKey),
-            ),
-          );
+          // Use BuildContext in a safe way
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    ChooseModePage(keyboardKey: widget.keyboardKey),
+              ),
+            );
+          }
         } else {
-          print("⚠️ No open shift found — navigating to OpenShift page");
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No open shift found for today.'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => OpenShift()),
-          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('No open shift found for today.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => OpenShift()),
+            );
+          }
         }
       } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to fetch shift data.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e, stackTrace) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to fetch shift data.'),
+          SnackBar(
+            content: Text('Error: $e'),
             backgroundColor: Colors.red,
           ),
         );
       }
-    } catch (e) {
-      if (!context.mounted) return; // ✅ Prevent exception if unmounted
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-      );
     }
   }
 
@@ -1458,12 +1430,10 @@ class _LoginScreenState extends State<LoginScreen> {
     );
 
     final serverBox = await Hive.openBox('serverBox');
-
     bool found = false;
 
-    await for (final datagram in udp.asStream(
-      timeout: const Duration(seconds: 2),
-    )) {
+    await for (final datagram
+        in udp.asStream(timeout: const Duration(seconds: 2))) {
       if (datagram != null) {
         final message = utf8.decode(datagram.data);
         if (message.startsWith('SERVER:')) {
@@ -1481,8 +1451,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
           found = true;
           udp.close();
-          proceedToDashboard();
-
+          proceedToDashboard(); // ✅ safe to navigate (main screen context)
           break;
         }
       }
@@ -1490,26 +1459,25 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (!found) {
       udp.close();
-      // No server found, show dialog
-      // ignore: use_build_context_synchronously
+
+      // ✅ Use parent context safely
+      if (!mounted) return;
+
       showDialog(
         context: context,
-        builder: (_) => NoServerDialog(
+        builder: (dialogContext) => NoServerDialog(
           onMakeServer: () async {
-            Navigator.of(context).pop(); // close dialog
-
+            Navigator.pop(context);
             final ip = await getLocalIp();
             if (ip != null) {
               final box = await Hive.openBox('serverBox');
               await box.put('serverIp', ip);
               await box.put('serverPort', port);
+
               final configBox = HiveManager().configBox;
               appType = 'server';
               await configBox.put('appType', 'server');
-              Provider.of<ItemProvider>(
-                context,
-                listen: false,
-              ).fetchDataIfNeeded(branchAlias: 'AR');
+
               serverip = ip;
               setState(() {
                 serverFound = true;
@@ -1518,7 +1486,9 @@ class _LoginScreenState extends State<LoginScreen> {
               await startUdpResponder(ip, udpPort);
               startServer(clients, onDataReceived);
 
-              proceedToDashboard();
+              if (mounted) {
+                proceedToDashboard(); // ✅ navigation works now
+              }
             }
           },
         ),
@@ -1817,6 +1787,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 const SizedBox(height: 25),
 
                                 // Login button
+                                // Login Button
                                 SizedBox(
                                   width: double.infinity,
                                   child: ElevatedButton(
@@ -1824,47 +1795,40 @@ class _LoginScreenState extends State<LoginScreen> {
                                         ? null
                                         : () async {
                                             bool loginSuccess =
-                                                await loginProvider.loginUser(
-                                              context,
-                                            );
-                                            if (loginSuccess) {
-                                              print(
-                                                "Login successful, now checking server...",
-                                              );
-                                              if (serverFound) {
-                                                final isAlive =
-                                                    await isServerReachable(
-                                                  serverip,
-                                                  8383,
-                                                );
-                                                if (isAlive) {
-                                                  proceedToDashboard();
-                                                } else {
-                                                  await discoverServerAndHandle();
-                                                }
+                                                await loginProvider
+                                                    .loginUser(context);
+                                            if (!loginSuccess) return;
+
+                                            // Discover server
+                                            if (serverFound) {
+                                              final isAlive =
+                                                  await isServerReachable(
+                                                      serverip, 8383);
+                                              if (isAlive) {
+                                                await proceedToDashboard(); // ✅ safe
                                               } else {
                                                 await discoverServerAndHandle();
                                               }
+                                            } else {
+                                              await discoverServerAndHandle();
                                             }
                                           },
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.blue.shade800,
                                       padding: const EdgeInsets.symmetric(
-                                        vertical: 18,
-                                      ),
+                                          vertical: 18),
                                       shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
+                                          borderRadius:
+                                              BorderRadius.circular(12)),
                                       elevation: 6,
                                       shadowColor: Colors.black26,
                                     ),
                                     child: const Text(
                                       'Log in',
                                       style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.white,
-                                      ),
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.white),
                                     ),
                                   ),
                                 ),
@@ -1943,5 +1907,17 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+
+    // Close client safely
+    try {
+      _httpClient.close();
+    } catch (e) {}
+
+    super.dispose();
   }
 }

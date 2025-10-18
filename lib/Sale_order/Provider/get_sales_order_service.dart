@@ -39,8 +39,6 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
       List<Map<String, dynamic>> hiveOrders =
           await webSocketService.getSavedSalesOrders();
 
-      for (var order in hiveOrders) {}
-
       _rawOrders = hiveOrders;
       _hivefilteredOrders = List.from(_rawOrders);
       _hivefilteredAllOrders = List.from(_rawOrders);
@@ -57,10 +55,8 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
           String rawDate = order['data']['deliveryDate'];
           DateTime orderDate = DateFormat('dd-MM-yyyy').parse(rawDate);
 
-          bool match = DateFormat('yyyy-MM-dd').format(orderDate) ==
+          return DateFormat('yyyy-MM-dd').format(orderDate) ==
               DateFormat('yyyy-MM-dd').format(selectedDate);
-
-          return match;
         } catch (e) {
           return false;
         }
@@ -68,7 +64,8 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
       return false;
     }).toList();
 
-    notifyListeners();
+    // ✅ schedule notify after frame (no immediate rebuild)
+    Future.microtask(notifyListeners);
   }
 
   /// ✅ Setup Hive Listener

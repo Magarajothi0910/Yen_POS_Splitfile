@@ -587,27 +587,6 @@ class CustomerScreenProvider with ChangeNotifier {
   ) async {
     try {
       // Read file contents if they exist
-      if (salesOrderData['audioPath'] != null) {
-        final audioFile = File(salesOrderData['audioPath']);
-        final audioBytes = await audioFile.readAsBytes();
-        salesOrderData['audioContent'] = base64Encode(
-          audioBytes,
-        ); // Encode as base64
-        salesOrderData['audioPath'] =
-            null; // Remove the path since we're sending the content
-      }
-      if (salesOrderData['image1Path'] != null) {
-        final image1File = File(salesOrderData['image1Path']);
-        final image1Bytes = await image1File.readAsBytes();
-        salesOrderData['image1Content'] = base64Encode(image1Bytes);
-        salesOrderData['image1Path'] = null;
-      }
-      if (salesOrderData['image2Path'] != null) {
-        final image2File = File(salesOrderData['image2Path']);
-        final image2Bytes = await image2File.readAsBytes();
-        salesOrderData['image2Content'] = base64Encode(image2Bytes);
-        salesOrderData['image2Path'] = null;
-      }
 
       final jsonData = jsonEncode(salesOrderData);
       _channel.sink.add(jsonData);
@@ -1919,7 +1898,6 @@ class CustomerScreenProvider with ChangeNotifier {
   String? selectedDeliveryType = 'Pickup by Customer';
   void setSelectedEvent(String? event) {
     _selectedEvent = event;
-    notifyListeners();
   }
 
   void setSelectedHoldOrderId(String? holdOrderId) {
@@ -1929,7 +1907,6 @@ class CustomerScreenProvider with ChangeNotifier {
 
   void setSelectedDeliveryType(String? newValue) {
     selectedDeliveryType = newValue;
-    notifyListeners();
   }
 
   void selectEmployee(String employee) {
@@ -2307,7 +2284,6 @@ class CustomerScreenProvider with ChangeNotifier {
     BuildContext context,
     Map<String, double> payments,
   ) async {
-    print("🚀 [saveOrder] Function called at ${DateTime.now()}");
 
     final List<double> advanceAmount = [];
     final List<List<String>> advancePaymentType = [];
@@ -2315,19 +2291,14 @@ class CustomerScreenProvider with ChangeNotifier {
     final List<String> advanceDateTime = [];
 
     void addAdvancePayment(Map<String, double> payMap) {
-      print("💰 [Advance Payment] Incoming payment map: $payMap");
       final filtered = Map.fromEntries(
         payMap.entries.where((e) => e.value > 0),
       );
       if (filtered.isEmpty) {
-        print("⚠️ No valid payment entries found, skipping.");
         return;
       }
 
       final total = filtered.values.fold<double>(0, (a, b) => a + b);
-      print(
-        "✅ [Advance Payment] Total: $total, Modes: ${filtered.keys.toList()}",
-      );
 
       advanceAmount.add(total);
       advancePaymentType.add(filtered.keys.toList(growable: false));
@@ -2336,20 +2307,16 @@ class CustomerScreenProvider with ChangeNotifier {
     }
 
     if (payments.isNotEmpty) {
-      print("💳 [Payments] Found ${payments.length} payment methods");
       addAdvancePayment(payments);
     } else {
-      print("⚠️ [Payments] No payments provided");
     }
 
     final double computedTotalAdvance = advanceAmount.fold<double>(
       0,
       (a, b) => a + b,
     );
-    print("💵 [Advance Total] Computed total advance: $computedTotalAdvance");
 
     // 🔹 Cart Items
-    print("🛒 [Cart] Extracting items from globals.cartItems...");
     final List<String> itemNames =
         globals.cartItems.map((e) => e.itemName).toList();
     final List<String> varianceNames =
@@ -2373,17 +2340,12 @@ class CustomerScreenProvider with ChangeNotifier {
     final List<double> itemWiseDiscountAmounts =
         globals.cartItems.map((e) => e.itemWiseDiscountAmount ?? 0.0).toList();
 
-    print("📦 [Cart Summary]");
     for (int i = 0; i < globals.cartItems.length; i++) {
       final item = globals.cartItems[i];
-      print(
-        "  🧾 Item ${i + 1}: ${item.itemName} (${item.varianceName}), Code: ${item.itemCode}, Qty: ${item.quantity}, UOM: ${item.uom}, Price: ${item.pricePerKg}, Tax: ${item.tax}",
-      );
     }
 
     final double customCharge =
         double.tryParse(cartProvider.customChargeController.text) ?? 0;
-    print("⚙️ [Custom Charge] Applied: $customCharge");
 
     final List<double> amounts = globals.cartItems.map((item) {
       final base = (item.uom == 'Pcs' || item.uom == 'Pkt')
@@ -2391,9 +2353,6 @@ class CustomerScreenProvider with ChangeNotifier {
           : (item.weight * item.quantity * item.pricePerKg);
       final disc = (item.itemWiseDiscountAmount ?? 0.0);
       final result = base - disc;
-      print(
-        "💰 [Item Calc] ${item.itemName} (${item.uom}): Base=$base, Discount=$disc, Final=$result",
-      );
       return result;
     }).toList();
 
@@ -2403,22 +2362,12 @@ class CustomerScreenProvider with ChangeNotifier {
     final double finalPrice = itemTotal + customCharge - deductedAmount;
     final double balanceAmount = finalPrice - computedTotalAdvance;
 
-    print("📊 [Totals]");
-    print("   ➕ Item Total: $itemTotal");
-    print("   ➕ Custom Charge: $customCharge");
-    print("   ➖ Discount Amount: $deductedAmount");
-    print("   💵 Final Price: $finalPrice");
-    print("   💸 Balance After Advance: $balanceAmount");
 
     // 🔹 Generate identifiers
     final String saleOrderNo = generateSaleOrderNo();
     final String formattedTime = DateFormat('hh:mm a').format(DateTime.now());
     const String deviceName = "POS1";
 
-    print("🧾 [Order Info]");
-    print("   🆔 SaleOrderNo: $saleOrderNo");
-    print("   ⏰ Time: $formattedTime");
-    print("   💻 Device: $deviceName");
 
     Directory? orderDir = await createOrderDir(saleOrderNo);
     final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
@@ -2429,39 +2378,30 @@ class CustomerScreenProvider with ChangeNotifier {
     String? savedImg2Path;
 
     if (path != null && orderDir != null) {
-      print("🎙️ [File Save] Saving audio file...");
       savedAudioPath = await saveFile(
         File(path),
         orderDir,
         '${saleOrderNo}_${timestamp}_audio',
       );
-      print("✅ Audio Saved: $savedAudioPath");
     }
 
     if (img1 != null && orderDir != null) {
-      print("🖼️ [File Save] Saving Image 1...");
       savedImg1Path = await saveFile(
         img1,
         orderDir,
         '${saleOrderNo}_${timestamp}_img1',
       );
-      print("✅ Image 1 Saved: $savedImg1Path");
     }
 
     if (img2 != null && orderDir != null) {
-      print("🖼️ [File Save] Saving Image 2...");
       savedImg2Path = await saveFile(
         img2,
         orderDir,
         '${saleOrderNo}_${timestamp}_img2',
       );
-      print("✅ Image 2 Saved: $savedImg2Path");
     }
 
     storedBranch = branchProvider.getStoredBranch(globalbranch.branchName);
-    print(
-      "🏬 [Branch] BranchName: ${storedBranch?.branchName}, Alias: ${storedBranch?.aliasName}",
-    );
 
     // 🔹 Build SalesOrder Object
     final salesOrder = SalesOrder(
@@ -2505,6 +2445,7 @@ class CustomerScreenProvider with ChangeNotifier {
       audioPath: savedAudioPath,
       imagePath1: savedImg1Path,
       imagePath2: savedImg2Path,
+      createdById: globals.userName,
       employeeName: searchController.text,
       status: 'Confirm Order',
       advanceDateTime: advanceDateTime,
@@ -2519,13 +2460,10 @@ class CustomerScreenProvider with ChangeNotifier {
       approvalOrderId: approvalOrderId,
     );
 
-    print("🧩 [SalesOrder] Object ready: ${jsonEncode(salesOrder.toJson())}");
 
     try {
-      print("💾 [Hive] Saving order to local Hive...");
       final salesOrderBox = HiveManager.salesOrderBox;
       await salesOrderBox.put(saleOrderNo, salesOrder.toJson());
-      print("✅ [Hive] Saved order successfully with key: $saleOrderNo");
 
       final postData = {
         "data": salesOrder.toJson(),
@@ -2536,13 +2474,10 @@ class CustomerScreenProvider with ChangeNotifier {
         "edit": "No",
       };
 
-      print("🌐 [API] Sending sales order to server...");
       await sendSalesOrderDataToServer(postData);
-      print("✅ [API] Sales order sent successfully.");
 
       // 🔹 Handle Hold Orders
       if ((selectedHoldOrderId ?? "").isNotEmpty) {
-        print("🕐 [Hold Order] Converting hold order: $selectedHoldOrderId");
         final patchData = {
           "data": {"status": "Hold Order Converted"},
           "type": "patchHoldOrder",
@@ -2552,13 +2487,10 @@ class CustomerScreenProvider with ChangeNotifier {
         };
 
         await sendSalesOrderDataToServer(patchData);
-        print("✅ [Hold Order] Successfully patched hold order.");
       }
     } catch (e) {
-      print("🔥 [Error] Exception during saveOrder: $e");
       rethrow;
     } finally {
-      print("🧹 [Cleanup] Clearing controllers and resetting state...");
       clearControllers();
       globals.cartItems.clear();
       cartSelectionProvider.clearSelections();
@@ -2575,13 +2507,9 @@ class CustomerScreenProvider with ChangeNotifier {
       audioPlayer = null;
       photoScreen = null;
 
-      print("✅ [Cleanup] State cleared successfully.");
       notifyListeners();
     }
 
-    print(
-      "🎉 [saveOrder] Completed successfully for SaleOrderNo: $saleOrderNo",
-    );
   }
 
   int _approvalOrderCounter = 0;
@@ -3459,790 +3387,5 @@ class CustomerScreenProvider with ChangeNotifier {
       // Clear controllers after the process is done
       clearControllers();
     }
-  }
-
-  Future<void> fetchCreditBills() async {
-    try {
-      // Send GET request to the server to fetch data
-      final response = await http.get(
-        Uri.parse("https://yenerp.com/fastapi/creditbills/"),
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      // Check if the response status is OK (200)
-      if (response.statusCode == 200) {
-        var responseData = jsonDecode(response.body);
-
-        // Process the fetched data as required
-        // For example, you could map the data to a model or update UI state
-        // For now, just print the data
-      } else {}
-    } catch (e) {}
-  }
-
-  Widget buildCompanyInputFields(BuildContext context) {
-    return Column(
-      children: [
-        // Company-specific fields
-        Row(
-          children: [
-            const Padding(padding: EdgeInsets.all(5)),
-            Expanded(
-              child: TextFormField(
-                controller: companyNameController,
-                keyboardType: TextInputType.text,
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'^[a-zA-Z0-9 ]*$')),
-                  LengthLimitingTextInputFormatter(50),
-                ],
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Company Name',
-                  // prefixIcon: Icon(Icons.search),
-                  isDense: true, // Makes the field more compact
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 6,
-                  ),
-                ),
-                onChanged: (value) {
-                  fetchCompanySuggestionsDebounced(value);
-                },
-                validator: (value) {
-                  if (isFormValid && (value == null || value.isEmpty)) {
-                    return 'Company Name is required';
-                  }
-                  return null;
-                },
-              ),
-            ),
-            const Padding(padding: EdgeInsets.all(5)),
-          ],
-        ),
-
-        if (companyNameController.text.isNotEmpty &&
-            companyAddressController.text.isEmpty)
-          Container(
-            height: 100,
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.white),
-              borderRadius: BorderRadius.circular(8.0),
-            ),
-            child: ListView.builder(
-              itemCount: suggestions.isEmpty ? 1 : suggestions.length + 1,
-              itemBuilder: (context, index) {
-                // Show suggestions if available
-                if (suggestions.isNotEmpty && index < suggestions.length) {
-                  final company = suggestions[index];
-                  return ListTile(
-                    title: Text(company['name'] ?? ""),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(company['address'] ?? ""),
-                        Text('GST: ${company['gst']}'),
-                      ],
-                    ),
-                    onTap: () {
-                      companyNameController.text = company['name'] ?? "";
-                      companyAddressController.text = company['address'] ?? "";
-                      companygstNumberController.text = company['gst'] ?? "";
-                      suggestions.clear();
-                      // FocusScope.of(context).unfocus();
-                      notifyListeners();
-                    },
-                  );
-                }
-                // Show "Add Customer Details" as the last item
-                return ListTile(
-                  leading: const Icon(Icons.add, color: Colors.green),
-                  title: const Text('Add Company Details'),
-                  onTap: () async {
-                    await showDialog(
-                      context: context,
-                      builder: (BuildContext context) {
-                        final TextEditingController nameController =
-                            TextEditingController();
-                        final TextEditingController addressController =
-                            TextEditingController();
-                        final TextEditingController gstController =
-                            TextEditingController();
-
-                        return AlertDialog(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16.0),
-                          ),
-                          title: const Row(
-                            children: [
-                              Icon(Icons.business, color: Colors.blue),
-                              SizedBox(width: 8),
-                              Text(
-                                'Add Company',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                            ],
-                          ),
-                          content: SingleChildScrollView(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                TextFormField(
-                                  controller: nameController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Company Name',
-                                    border: OutlineInputBorder(),
-                                    isDense:
-                                        true, // Makes the field more compact
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 6,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                TextFormField(
-                                  controller: addressController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Company Address',
-                                    border: OutlineInputBorder(),
-                                    isDense:
-                                        true, // Makes the field more compact
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 8,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                TextFormField(
-                                  controller: gstController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Company GST',
-                                    border: OutlineInputBorder(),
-                                    isDense:
-                                        true, // Makes the field more compact
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 8,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text(
-                                'Cancel',
-                                style: TextStyle(
-                                  color: Colors.red,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            ElevatedButton(
-                              onPressed: () async {
-                                final String name = nameController.text.trim();
-                                final String address =
-                                    addressController.text.trim();
-                                final String gst = gstController.text.trim();
-
-                                if (name.isNotEmpty &&
-                                    address.isNotEmpty &&
-                                    gst.isNotEmpty) {
-                                  final response = await addCompany(
-                                    name,
-                                    address,
-                                    gst,
-                                  );
-
-                                  if (response) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Company "$name" added successfully!',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                        backgroundColor: Colors.green,
-                                      ),
-                                    );
-                                    fetchCompanySuggestionsDebounced('');
-                                    Navigator.pop(context);
-                                  } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Failed to add company. Please try again.',
-                                        ),
-                                        backgroundColor: Colors.red,
-                                      ),
-                                    );
-                                  }
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Please fill in all fields correctly.',
-                                      ),
-                                      backgroundColor: Colors.orange,
-                                    ),
-                                  );
-                                }
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              child: const Text(
-                                'Submit',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            const Padding(padding: EdgeInsets.all(5)),
-            Expanded(
-              child: TextFormField(
-                enabled: false,
-                controller: companyAddressController,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Company Address',
-                  isDense: true, // Makes the field more compact
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 6,
-                  ),
-                ),
-                validator: (value) {
-                  if (isFormValid && (value == null || value.isEmpty)) {
-                    return 'Company Address is required';
-                  }
-                  return null;
-                },
-              ),
-            ),
-            const SizedBox(width: 10), // Spacing between the two fields
-            Expanded(
-              child: TextFormField(
-                enabled: false,
-                controller: companygstNumberController,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Company GST',
-                  isDense: true, // Makes the field more compact
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 6,
-                  ),
-                ),
-                validator: (value) {
-                  if (isFormValid && (value == null || value.isEmpty)) {
-                    return 'Company GST is required';
-                  }
-                  return null;
-                },
-              ),
-            ),
-            const Padding(padding: EdgeInsets.all(5)),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget buildCustomerInputFields(BuildContext context) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            const Padding(padding: EdgeInsets.all(5)),
-            Expanded(
-              child: TextFormField(
-                controller: mobileNoController,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(10),
-                ],
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Search Mobile Number',
-                  labelStyle: TextStyle(fontSize: 10),
-
-                  isDense: true, // Makes the field more compact
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 6,
-                  ), // Same padding as above
-                ),
-                onChanged: (value) {
-                  // Clear customer name when mobile number changes
-                  customerNameController.clear();
-                  fetchSuggestions(value);
-                },
-                validator: (value) {
-                  if (isFormValid && (value == null || value.isEmpty)) {
-                    return 'Customer Mobile No is required';
-                  }
-                  return null;
-                },
-              ),
-            ),
-            const Padding(padding: EdgeInsets.all(5)),
-            Expanded(
-              child: TextFormField(
-                enabled: false,
-                controller: customerNameController,
-                inputFormatters: [
-                  LengthLimitingTextInputFormatter(24),
-                  FilteringTextInputFormatter.allow(RegExp(r'^[a-zA-Z0-9 ]*$')),
-                ],
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Customer Name',
-                  labelStyle: TextStyle(fontSize: 10),
-                  isDense: true, // Makes the field more compact
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 6,
-                  ), // Same padding as above
-                ),
-                validator: (value) {
-                  if (isFormValid && (value == null || value.isEmpty)) {
-                    return 'Customer Name is required';
-                  }
-                  return null;
-                },
-              ),
-            ),
-            const Padding(padding: EdgeInsets.all(5)),
-          ],
-        ),
-        const SizedBox(height: 8.0),
-
-        // Only show suggestions container when mobile number is not empty AND customer name is empty
-        if (mobileNoController.text.isNotEmpty &&
-            customerNameController.text.isEmpty)
-          Container(
-            height: 50,
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.white),
-              borderRadius: BorderRadius.circular(8.0),
-            ),
-            child: ListView.builder(
-              itemCount: suggestions.isEmpty ? 1 : suggestions.length + 1,
-              itemBuilder: (context, index) {
-                // Show suggestions if available
-                if (suggestions.isNotEmpty && index < suggestions.length) {
-                  final suggestion = suggestions[index];
-                  return ListTile(
-                    title: Text(suggestion['mobile'] ?? 'Unknown Mobile'),
-                    subtitle: Text(suggestion['name'] ?? 'Unknown Name'),
-                    onTap: () {
-                      onSuggestionSelected(suggestion);
-                      // Set focus to next field or clear focus
-                      FocusScope.of(context).unfocus();
-                    },
-                  );
-                }
-
-                // Show "Add Customer Details" as the last item
-                return ListTile(
-                  leading: const Icon(Icons.add, color: Colors.green),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 8.0,
-                    vertical: 4.0,
-                  ), // Reduced padding
-                  title: const Text('Add Customer Details'),
-                  onTap: () async {
-                    await showDialog(
-                      context: context,
-                      builder: (BuildContext context) {
-                        final TextEditingController mobileController =
-                            TextEditingController(
-                          text: mobileNoController.text,
-                        );
-                        final TextEditingController nameController =
-                            TextEditingController();
-                        return AlertDialog(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16.0),
-                          ),
-                          title: const Row(
-                            children: [
-                              Icon(Icons.person_add, color: Colors.blue),
-                              SizedBox(width: 8),
-                              Text(
-                                'Add Customer',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 10,
-                                ),
-                              ),
-                            ],
-                          ),
-                          content: SingleChildScrollView(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                TextFormField(
-                                  controller: mobileController,
-                                  keyboardType: TextInputType.phone,
-                                  inputFormatters: [
-                                    FilteringTextInputFormatter.digitsOnly,
-                                    LengthLimitingTextInputFormatter(10),
-                                  ],
-                                  decoration: InputDecoration(
-                                    labelText: 'Mobile Number',
-                                    prefixText: '+91 ',
-                                    prefixStyle: const TextStyle(
-                                      color: Colors.black,
-                                    ),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8.0),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                TextFormField(
-                                  controller: nameController,
-                                  inputFormatters: [
-                                    LengthLimitingTextInputFormatter(24),
-                                    FilteringTextInputFormatter.allow(
-                                      RegExp(r'^[a-zA-Z ]*$'),
-                                    ),
-                                  ],
-                                  decoration: InputDecoration(
-                                    labelText: 'Customer Name',
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8.0),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text(
-                                'Cancel',
-                                style: TextStyle(
-                                  color: Colors.red,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            ElevatedButton(
-                              onPressed: () async {
-                                final String mobile =
-                                    mobileController.text.trim();
-                                final String name = nameController.text.trim();
-
-                                if (mobile.length == 10 &&
-                                    RegExp(r'^\d+$').hasMatch(mobile) &&
-                                    name.isNotEmpty) {
-                                  final response = await addCustomer(
-                                    mobile,
-                                    name,
-                                  );
-                                  if (response) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Customer "$name" added successfully!',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                        backgroundColor: Colors.green,
-                                      ),
-                                    );
-                                    await fetchSuggestions(mobile);
-                                    Navigator.pop(context);
-                                  } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Failed to add customer. Please try again.',
-                                        ),
-                                        backgroundColor: Colors.red,
-                                      ),
-                                    );
-                                  }
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Please enter a valid mobile number and name.',
-                                      ),
-                                      backgroundColor: Colors.orange,
-                                    ),
-                                  );
-                                }
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              child: const Text(
-                                'Submit',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget buildAddCustomerDialog(BuildContext context) {
-    final TextEditingController mobileController = TextEditingController(
-      text: mobileNoController.text,
-    );
-    final TextEditingController nameController = TextEditingController();
-
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
-      title: const Row(
-        children: [
-          Icon(Icons.person_add, color: Colors.blue),
-          SizedBox(width: 8),
-          Text(
-            'Add Customer',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
-          ),
-        ],
-      ),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextFormField(
-              controller: mobileController,
-              keyboardType: TextInputType.phone,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(10),
-              ],
-              decoration: InputDecoration(
-                labelText: 'Mobile Number',
-                prefixText: '+91 ',
-                prefixStyle: const TextStyle(color: Colors.black),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8.0),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: nameController,
-              inputFormatters: [
-                LengthLimitingTextInputFormatter(24),
-                FilteringTextInputFormatter.allow(RegExp(r'^[a-zA-Z ]*$')),
-              ],
-              decoration: InputDecoration(
-                labelText: 'Customer Name',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8.0),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text(
-            'Cancel',
-            style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-          ),
-        ),
-        ElevatedButton(
-          onPressed: () async {
-            final String mobile = mobileController.text.trim();
-            final String name = nameController.text.trim();
-
-            if (mobile.length == 10 &&
-                RegExp(r'^\d+$').hasMatch(mobile) &&
-                name.isNotEmpty) {
-              final response = await addCustomer(mobile, name);
-              if (response) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Customer "$name" added successfully!',
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-                await fetchSuggestions(mobile);
-                Navigator.pop(context);
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Failed to add customer. Please try again.'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Please enter a valid mobile number and name.'),
-                  backgroundColor: Colors.orange,
-                ),
-              );
-            }
-          },
-          child: const Text('Submit'),
-        ),
-      ],
-    );
-  }
-
-  Widget buildCustomerInputFieldsforcredit(BuildContext context) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            const Padding(padding: EdgeInsets.all(5)),
-            Expanded(
-              child: TextFormField(
-                controller: mobileNoController,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(10),
-                ],
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Search Mobile Number',
-                  labelStyle: TextStyle(fontSize: 10),
-                  isDense: true, // Makes the field more compact
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 6,
-                  ), // Same padding as above
-                ),
-                onChanged: (value) {
-                  // Clear customer name when mobile number changes
-                  customerNameController.clear();
-
-                  // Fetch suggestions based on the mobile number input
-                  fetchSuggestions(value);
-                },
-                validator: (value) {
-                  if (isFormValid && (value == null || value.isEmpty)) {
-                    return 'Customer Mobile No is required';
-                  }
-                  return null;
-                },
-              ),
-            ),
-            const Padding(padding: EdgeInsets.all(5)),
-            Expanded(
-              child: TextFormField(
-                enabled: false,
-                controller: customerNameController,
-                inputFormatters: [
-                  LengthLimitingTextInputFormatter(24),
-                  FilteringTextInputFormatter.allow(RegExp(r'^[a-zA-Z0-9 ]*$')),
-                ],
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Customer Name',
-                  labelStyle: TextStyle(fontSize: 10),
-                  isDense: true, // Makes the field more compact
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 6,
-                  ), // Same padding as above
-                ),
-                validator: (value) {
-                  if (isFormValid && (value == null || value.isEmpty)) {
-                    return 'Customer Name is required';
-                  }
-                  return null;
-                },
-              ),
-            ),
-            const Padding(padding: EdgeInsets.all(5)),
-          ],
-        ),
-        const SizedBox(height: 8.0),
-
-        // Only show suggestions container when mobile number is not empty AND customer name is empty
-        if (mobileNoController.text.isNotEmpty &&
-            customerNameController.text.isEmpty)
-          Container(
-            height: 50,
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.white),
-              borderRadius: BorderRadius.circular(8.0),
-            ),
-            child: ListView.builder(
-              itemCount: suggestions.isEmpty ? 1 : suggestions.length,
-              itemBuilder: (context, index) {
-                // Show suggestions if available
-                if (suggestions.isNotEmpty) {
-                  final suggestion = suggestions[index];
-                  return ListTile(
-                    title: Text(suggestion['mobile'] ?? 'Unknown Mobile'),
-                    subtitle: Text(suggestion['name'] ?? 'Unknown Name'),
-                    onTap: () {
-                      onSuggestionSelected(suggestion);
-                      // Set focus to next field or clear focus
-                      FocusScope.of(context).unfocus();
-                    },
-                  );
-                }
-
-                // If no suggestions are found, show an error directly.
-                return const ListTile(
-                  title: Text(
-                    'No customer found for this mobile number.',
-                    style: TextStyle(color: Colors.red),
-                  ),
-                );
-              },
-            ),
-          ),
-      ],
-    );
   }
 }

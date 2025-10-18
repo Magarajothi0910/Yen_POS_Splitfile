@@ -368,10 +368,9 @@ class WebSocketService with ChangeNotifier {
                   await saveInvoiceToHive(invoice);
 
                   final orders = await getInvoiceOrders();
-                  print("orders: $orders");
-                  debugPrint("✅ Stored new invoice: $orderInvoiceNo");
+                 
                 } catch (e, st) {
-                  debugPrint("🔥 Error while saving invoice: $e");
+               
                 }
               } else {
                 debugPrint(
@@ -388,15 +387,10 @@ class WebSocketService with ChangeNotifier {
 
           break;
         case 'stockDecreaseUpdate':
-          print("1234 for stock update");
           final branchAliseName = jsonData['branchAlias'];
-          print("branchAliseName: $branchAliseName");
           final varianceCode = jsonData['varianceCode'];
-          print("varianceCode: $varianceCode");
           final varianceName = jsonData['varianceName'];
-          print("varianceName: $varianceName");
           final updatedStock = jsonData['updatedStock'];
-          print("updatedStock: $updatedStock");
           // await handleStockDecreaseUpdate(decoded);
           break;
         case 'OpSalesOrderGenerated':
@@ -466,9 +460,6 @@ class WebSocketService with ChangeNotifier {
               salesOrder["data"]['imagePath1'] ?? '❌ No image1 path found';
           final image2Path =
               salesOrder["data"]['imagePath2'] ?? '❌ No image2 path found';
-          print("audioPath for client hive: $audioPath");
-          print("image1Path for client hive:$image1Path");
-          print("image2Path for client hive:$image2Path");
           final orderData = salesOrder['data'] ?? {};
           if (orderData is! Map<String, dynamic>) {
             return;
@@ -587,7 +578,6 @@ class WebSocketService with ChangeNotifier {
         case 'salesOrderAddCustomerGenerated':
           await _saveAddNewCustomerToHive(jsonData['salesOrderAddCustomer']);
           final addnewCustomer = await _getAddnewCustomer();
-          print("📦 Customers in Hive after adding: $addnewCustomer");
           break;
 
         case 'saleorderPatchGenerated':
@@ -735,16 +725,15 @@ class WebSocketService with ChangeNotifier {
           } else {}
           break;
         default:
-          // print("⚠️ Unrecognized action: $action");
+       
           // break;
           return;
-        // print("⚠️ Unrecognized action: $action");
+       
       }
     } catch (e) {}
   }
 
   Future<void> handleStockDecreaseUpdate(Map<String, dynamic> data) async {
-    print("📦 [handleStockDecreaseUpdate] Received: $data");
 
     try {
       final branchAlias = data['branchAlias']?.toString() ?? '';
@@ -756,7 +745,6 @@ class WebSocketService with ChangeNotifier {
           varianceCodes.isEmpty ||
           varianceNames.isEmpty ||
           stockUpdates.isEmpty) {
-        print("⚠️ [handleStockDecreaseUpdate] Missing required fields.");
         return;
       }
 
@@ -802,11 +790,7 @@ class WebSocketService with ChangeNotifier {
       // Save updated data back to Hive
       await box.put('data', existingData);
 
-      print(
-          "✅ [handleStockDecreaseUpdate] Stock updated in Hive successfully.");
     } catch (e, st) {
-      print("❌ [handleStockDecreaseUpdate] Error: $e");
-      print(st);
     }
   }
 
@@ -849,7 +833,6 @@ class WebSocketService with ChangeNotifier {
     var customerBox = await Hive.openBox('customerBox');
 
     final newMobile = customerData['mobile']?.toString() ?? '';
-    print("➡️ Trying to save new customer with mobile: $newMobile");
 
     // 🔎 Check if mobile number already exists in Hive
     bool exists = customerBox.values.any((customer) {
@@ -858,11 +841,8 @@ class WebSocketService with ChangeNotifier {
     });
 
     if (exists) {
-      print(
-          "⚠️ Customer with mobile $newMobile already exists. Skipping save.");
     } else {
       await customerBox.add(customerData);
-      print("✅ New customer saved: $customerData");
     }
   }
 
@@ -872,7 +852,6 @@ class WebSocketService with ChangeNotifier {
         .map((customer) => Map<String, dynamic>.from(customer))
         .toList();
 
-    print("📋 Retrieved customers from Hive: $customers");
     return customers;
   }
 
@@ -989,13 +968,13 @@ class WebSocketService with ChangeNotifier {
       // Extract salesOrder safely
       final salesOrder = invoiceData['salesOrderId'];
       if (salesOrder == null || salesOrder is! Map<String, dynamic>) {
-        debugPrint("❌ [saveInvoiceToHive] salesOrder missing or invalid.");
+       
         return;
       }
 
       final orderInvoiceNo = salesOrder['orderInvoiceNo']?.toString();
       if (orderInvoiceNo == null || orderInvoiceNo.isEmpty) {
-        debugPrint("❌ [saveInvoiceToHive] orderInvoiceNo missing/empty.");
+       
         return;
       }
 
@@ -1008,10 +987,9 @@ class WebSocketService with ChangeNotifier {
 
       // ✅ Save only once with orderInvoiceNo as key
       await invoiceBox.put(orderInvoiceNo, invoiceData);
-      debugPrint("✅ Saved invoice with orderInvoiceNo: $orderInvoiceNo");
+     
     } catch (e, st) {
-      debugPrint("🔥 Error saving invoice: $e");
-      debugPrint("📌 StackTrace: $st");
+      
     }
   }
 
@@ -1053,8 +1031,7 @@ class WebSocketService with ChangeNotifier {
 
       return uniqueInvoices;
     } catch (e, st) {
-      debugPrint("🔥 Error retrieving invoices: $e");
-      debugPrint("📌 StackTrace: $st");
+     
       return [];
     }
   }

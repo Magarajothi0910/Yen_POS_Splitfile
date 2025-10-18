@@ -83,14 +83,8 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
       customerScreenProvider.dateController.text = deliveryDate;
 
       String formattedEventDate = widget.selectedOrder!.eventDate ?? '';
-      print(
-          "widget.selectedOrder!.eventDate ${widget.selectedOrder!.eventDate}");
-      print("formattedEventDate:$formattedEventDate");
 
       customerScreenProvider.birthdaydateController.text = formattedEventDate;
-      print("formattedEventDate $formattedEventDate");
-      print(
-          "customerScreenProvider.birthdaydateController.text ${customerScreenProvider.birthdaydateController.text}");
       customerScreenProvider.timeController.text =
           widget.selectedOrder!.deliveryTime ?? '';
       customerScreenProvider.selectedOrderType =

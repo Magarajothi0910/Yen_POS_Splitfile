@@ -49,19 +49,15 @@ class ItemProvider with ChangeNotifier {
 
         notifyListeners();
       } else {
-        print("❌ Failed to fetch sales orders. Status: ${response.statusCode}");
       }
     } catch (e) {
-      print("⚠️ Error fetching sales orders: $e");
     }
   }
 
   Future<void> fetchDataIfNeeded({String? branchAlias}) async {
-    print('🚀 fetchDataIfNeeded called with branchAlias: $branchAlias');
 
     var connectivityResult = await _connectivity.checkConnectivity();
     if (connectivityResult == ConnectivityResult.none) {
-      print('⚠️ No internet connection. Exiting fetchDataIfNeeded.');
       return;
     }
 
@@ -73,21 +69,16 @@ class ItemProvider with ChangeNotifier {
       if (branchAlias != null &&
           (globals.appType == 'server' || globals.appType == '') &&
           !await lazyBox.containsKey('branchwiseItems_$branchAlias')) {
-        print('🌐 Fetching branchwise items from API for branch: $branchAlias');
 
         try {
           var url =
               'https://yenerp.com/fastapi/branchwiseitems/?branch_alias=$branchAlias';
-          print('➡️ Requesting: $url');
 
           var response = await client.get(Uri.parse(url));
 
-          print('📡 Response status: ${response.statusCode}');
           if (response.statusCode == 200) {
             var jsonData = json.decode(response.body);
-            print('✅ Data received for branch: $branchAlias');
             await lazyBox.put('branchwiseItems_$branchAlias', jsonData);
-            print('💾 Saved branchwiseItems_$branchAlias to Hive');
 
             GlobalDataManager().branchwiseItems = jsonData;
 
@@ -97,7 +88,6 @@ class ItemProvider with ChangeNotifier {
             // ✅ Update local stock
             final branchwiseItems = jsonData['data'] as Map<String, dynamic>;
             var localStockBox = await Hive.openBox('localStockBox');
-            print('📦 Opened localStockBox, starting stock sync...');
 
             for (var itemEntry in branchwiseItems.entries) {
               final itemName = itemEntry.key;
@@ -174,9 +164,6 @@ class ItemProvider with ChangeNotifier {
                         }
                       }
                     } else {
-                      print(
-                        '⚠️ No localHiveStock found for itemCode: $itemCode',
-                      );
                     }
                   }
                 }
@@ -184,19 +171,13 @@ class ItemProvider with ChangeNotifier {
             }
 
             final result = checkVarianceItemCode("FG011");
-            print('🔍 checkVarianceItemCode result: $result');
             notifyListeners();
           } else {
-            print(
-              '❌ Failed to fetch branchwise items. Status: ${response.statusCode}',
-            );
           }
         } catch (e) {
-          print('🔥 Error fetching branchwise items: $e');
         }
       } else {
         // ✅ Load from Hive if already present
-        print('📂 Loading branchwiseItems_$branchAlias from Hive');
         GlobalDataManager().branchwiseItems = await lazyBox.get(
           'branchwiseItems_$branchAlias',
         );
@@ -206,82 +187,55 @@ class ItemProvider with ChangeNotifier {
 
       // ✅ Fetch branch list if missing
       if (!await lazyBox.containsKey('branches')) {
-        print('🌐 Branch list not found in Hive. Fetching from API...');
         try {
           var response = await client.get(
             Uri.parse('https://yenerp.com/fastapi/branches/'),
           );
-          print('📡 Branch API response: ${response.statusCode}');
           if (response.statusCode == 200) {
             var jsonData = json.decode(response.body);
             await lazyBox.put('branches', jsonData);
-            print('💾 Saved branches to Hive');
             GlobalDataManager().branches = jsonData;
             printBranchNames(jsonData);
             notifyListeners();
           } else {
-            print('❌ Failed to fetch branches. Status: ${response.statusCode}');
           }
         } catch (e) {
-          print('🔥 Error fetching branches: $e');
         }
       } else {
-        print('📂 Loading branches from Hive');
         GlobalDataManager().branches = await lazyBox.get('branches');
       }
     } finally {
       client.close();
-      print('🧹 HTTP client closed.');
     }
   }
 
   Future<void> fetchAndStoreBranches() async {
-    print("🌐 fetchAndStoreBranches() called...");
 
     var client = http.Client();
     var lazyBox = await Hive.openLazyBox('items');
-    print("📦 Hive box 'items' opened successfully.");
 
     try {
-      print("📡 Sending GET request to fetch branches...");
       var response = await client.get(
         Uri.parse('https://yenerp.com/fastapi/branches/'),
       );
-      print('📡 Branch API response status code: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         var jsonData = json.decode(response.body);
-        print(
-          "✅ Branch data fetched successfully from API: ${jsonData.length} items",
-        );
 
         await lazyBox.put('branches', jsonData);
-        print('💾 Saved branches to Hive box under key "branches"');
 
         GlobalDataManager().branches = jsonData;
-        print("🌍 GlobalDataManager().branches updated.");
-        print("🖨 Branches details:");
 
         for (var branch in GlobalDataManager().branches) {
-          print(
-            "Alias: ${branch['aliasName']}, Branch Name: ${branch['branchName']}",
-          );
         }
-        print("🖨 Printing branch names:");
         printBranchNames(jsonData);
 
         notifyListeners();
-        print("🔔 notifyListeners() called.");
       } else {
-        print(
-          '❌ Failed to fetch branches. Status code: ${response.statusCode}',
-        );
       }
     } catch (e) {
-      print("🔥 Error fetching branches: $e");
     } finally {
       client.close();
-      print("🧹 HTTP client closed.");
     }
   }
 
@@ -342,11 +296,7 @@ class ItemProvider with ChangeNotifier {
         var box = await Hive.openBox('employeeBox');
         await box.put('employees', employeeData);
 
-        // print("Employee data saved in Hive.");
-
-        // Print the stored data from Hive to verify
-        // final storedData = box.get('employees');
-        // print("Stored Employee Data: $storedData");
+      
       } else {}
     } catch (e) {}
   }
@@ -405,7 +355,6 @@ class ItemProvider with ChangeNotifier {
   }
 
   Future<String?> getAliasName(String branchName) async {
-    print("🟢 getAliasName() called for branch: $branchName");
     if (GlobalDataManager().branches is List) {
       final branches = GlobalDataManager().branches as List;
       final branch = branches.firstWhere(
@@ -413,45 +362,32 @@ class ItemProvider with ChangeNotifier {
         orElse: () => null,
       );
       final alias = branch?['aliasName'];
-      print("🔍 Alias for '$branchName': $alias");
       return alias ?? 'Alias Not Found';
     }
     return 'Alias Not Found';
   }
 
   Future<String?> getBranchNameFromAlias(String aliasName) async {
-    print("🟢 getBranchNameFromAlias() called with aliasName: '$aliasName'");
 
     // Step 1: Validate input
     if (aliasName.trim().isEmpty) {
-      print(
-        "⚠️ aliasName is empty or whitespace — returning 'Invalid alias name'.",
-      );
       return 'Invalid alias name';
     }
 
     // Step 2: Check if branches list exists
     final branchesData = GlobalDataManager().branches;
     if (branchesData == null) {
-      print("❌ GlobalDataManager().branches is null — cannot proceed.");
       return 'Branches list not available';
     }
 
     if (branchesData is! List) {
-      print(
-        "❌ GlobalDataManager().branches is not a List — found type: ${branchesData.runtimeType}",
-      );
       return 'Invalid branches format';
     }
 
     final branches = branchesData as List;
-    print("📦 Total branches found: ${branches.length}");
 
     // Step 3: Print all available aliases (for debugging visibility)
     for (int i = 0; i < branches.length; i++) {
-      print(
-        "🔹 Branch[$i]: branchName='${branches[i]['branchName']}', aliasName='${branches[i]['aliasName']}'",
-      );
     }
 
     // Step 4: Search for branch by alias name (case-insensitive match for robustness)
@@ -465,11 +401,8 @@ class ItemProvider with ChangeNotifier {
     // Step 5: Handle result
     if (branch != null) {
       final branchName = branch['branchName']?.toString() ?? 'Unknown Branch';
-      print("✅ Match found for alias '$aliasName' → branchName: '$branchName'");
       return branchName;
     } else {
-      print("🚫 No branch found for alias '$aliasName'.");
-      print("💡 Tip: Check for typos or case differences in alias name.");
       return 'Branch Not Found';
     }
   }

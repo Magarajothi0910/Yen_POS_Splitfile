@@ -35,39 +35,45 @@ class HiveProvider with ChangeNotifier {
   }
 
   Future<void> fetchData(String boxName) async {
+    // Mark loading state safely
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      isLoading[boxName] = true;
+      notifyListeners();
+    });
 
-    isLoading[boxName] = true;
-    notifyListeners();
     if (!boxes.containsKey(boxName)) {
       await _openBox(boxName);
     }
 
     final box = boxes[boxName];
     if (box == null) {
-      errorMessages[boxName] = 'Box not found';
-      isLoading[boxName] = false;
-      notifyListeners();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        errorMessages[boxName] = 'Box not found';
+        isLoading[boxName] = false;
+        notifyListeners();
+      });
       return;
     }
-
 
     final cachedData = box.get('data');
     if (cachedData != null) {
-      data[boxName] = Map<String, dynamic>.from(cachedData);
-      isLoading[boxName] = false;
-      notifyListeners();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        data[boxName] = Map<String, dynamic>.from(cachedData);
+        isLoading[boxName] = false;
+        notifyListeners();
+      });
       return;
     }
-
 
     final url = boxUrls[boxName];
     if (url == null) {
-      errorMessages[boxName] = 'URL not found';
-      isLoading[boxName] = false;
-      notifyListeners();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        errorMessages[boxName] = 'URL not found';
+        isLoading[boxName] = false;
+        notifyListeners();
+      });
       return;
     }
-
 
     try {
       final response = await http.get(Uri.parse(url));
@@ -75,19 +81,16 @@ class HiveProvider with ChangeNotifier {
       if (response.statusCode == 200) {
         final decodedResponse = json.decode(response.body);
 
-        // 🧠 Custom decoding
-        if (boxName == 'customerBox') {
-          if (decodedResponse is List) {
-            data[boxName] = {
-              'items': decodedResponse.map((item) {
-                return {
-                  'customerId': item['customerId'],
-                  'customerName': item['customerName'],
-                  'customerPhoneNumber': item['customerPhoneNumber'],
-                };
-              }).toList()
-            };
-          }
+        if (boxName == 'customerBox' && decodedResponse is List) {
+          data[boxName] = {
+            'items': decodedResponse.map((item) {
+              return {
+                'customerId': item['customerId'],
+                'customerName': item['customerName'],
+                'customerPhoneNumber': item['customerPhoneNumber'],
+              };
+            }).toList()
+          };
         } else if (boxName == 'bankBox') {
           if (decodedResponse is Map<String, dynamic>) {
             data[boxName] = {
@@ -96,9 +99,7 @@ class HiveProvider with ChangeNotifier {
               'ifscCode': decodedResponse['ifscCode'],
             };
           } else if (decodedResponse is List) {
-            data[boxName] = {
-              'items': decodedResponse,
-            };
+            data[boxName] = {'items': decodedResponse};
           }
         } else {
           data[boxName] = decodedResponse is List
@@ -108,20 +109,27 @@ class HiveProvider with ChangeNotifier {
 
         box.put('data', data[boxName]);
 
-        errorMessages[boxName] = null;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          errorMessages[boxName] = null;
+        });
       } else {
-        errorMessages[boxName] = 'Failed to load data';
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          errorMessages[boxName] = 'Failed to load data';
+        });
       }
     } catch (e) {
-      errorMessages[boxName] = e.toString();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        errorMessages[boxName] = e.toString();
+      });
     } finally {
-      isLoading[boxName] = false;
-      notifyListeners();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        isLoading[boxName] = false;
+        notifyListeners();
+      });
     }
   }
 
   Future<void> clearData(String boxName) async {
-
     final box = boxes[boxName];
     if (box == null) {
       errorMessages[boxName] = 'Box not found';
@@ -176,7 +184,6 @@ class ReusableBox extends StatelessWidget {
         if (provider.errorMessages[boxName] != null) {
           return Text('Error: ${provider.errorMessages[boxName]}');
         }
-
 
         return Card(
           margin: const EdgeInsets.all(8),

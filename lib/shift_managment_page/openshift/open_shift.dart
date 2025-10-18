@@ -85,10 +85,14 @@ class _OpenShiftState extends State<OpenShift> {
 
   // fetch current date/time from API
   Future<void> _fetchCurrentDateTime() async {
+  try {
     final url = 'https://yenerp.com/liveapi/datetime';
     final response = await _dio.get(url);
+
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.data);
+      final rawData = response.data;
+      final data = rawData is String ? jsonDecode(rawData) : rawData;
+
       currentDate.value = data["current_date"];
       currentTime.value = data["current_time"];
     } else {
@@ -98,8 +102,14 @@ class _OpenShiftState extends State<OpenShift> {
         );
       }
     }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error fetching date/time: $e')),
+      );
+    }
   }
-
+}
   // calculate total from denominations
   int _calculateGrandTotal() {
     return denominationTotals.value.values.fold(0, (a, b) => a + b);

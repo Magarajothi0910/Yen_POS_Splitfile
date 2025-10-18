@@ -116,7 +116,6 @@ void main() async {
   try {
     await fetchAndStoreBranchData();
   } catch (e) {
-    print("Error occurred while fetching or storing data: $e");
   }
 
   // final serverScreen = ServerScreen();
@@ -243,7 +242,7 @@ class MyApp extends StatelessWidget {
           scaffoldMessengerKey: GlobalScaffold.scaffoldMessengerKey,
           debugShowCheckedModeBanner: false,
           // home: ChooseModePage(keyboardKey: keybaordkey),
-          home: InstallPOSApp(),
+          home: InstallPOSApp(keyboardKey: keybaordkey),
           // home: LoginScreen(),
         );
       },

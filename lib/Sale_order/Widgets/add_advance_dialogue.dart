@@ -93,7 +93,6 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
 
   Future<void> sendInvoiceDataToServer(Map<String, dynamic> invoiceData) async {
     _sendInvoiceCallCount++;
-    print("_sendInvoiceCallCount++: ${_sendInvoiceCallCount++}");
     try {
       final jsonData = jsonEncode(invoiceData);
       _channel.sink.add(jsonData);
@@ -105,47 +104,36 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
   @override
   void initState() {
     super.initState();
-    print("initState() called");
 
     _channel = WebSocketChannel.connect(
       Uri.parse('ws://$serverip:$port'),
     );
-    print("WebSocket connected to ws://$serverip:$port");
 
     _channel.stream.listen(
       (data) {
-        print("Received WebSocket data: $data");
       },
       onError: (error) {
-        print("WebSocket error: $error");
       },
     );
 
     final initialAdvanceList = widget.salesOrder.advanceAmount ?? [];
-    print("Initial advance list: $initialAdvanceList");
 
     cashOptions.addAll(_generateCashOptions(
         initialAdvanceList.fold(0.0, (sum, e) => sum + e)));
-    print("Cash options generated: $cashOptions");
 
     totalAmount = List.from(initialAdvanceList);
-    print("Total amount list initialized: $totalAmount");
 
     double alreadyPaid = initialAdvanceList.fold(0.0, (sum, e) => sum + e);
-    print("Already paid: $alreadyPaid");
 
     _originalAmount = alreadyPaid;
     _upiAndCashAmount = alreadyPaid;
     _balanceAmount = widget.salesOrder.totalAmount - alreadyPaid;
     salesOrderId = widget.salesOrder.saleOrderNo ?? '';
-    print("Original amount: $_originalAmount, Balance: $_balanceAmount, "
-        "SalesOrderId: $salesOrderId");
 
     _employeeNumberController.addListener(_validateForm);
     _customerNumberController.addListener(_validateForm);
     _customAmountController.addListener(_validateForm);
 
-    print("Listeners added to controllers");
     _cashController.addListener(() {
       _cashAmount = int.tryParse(_cashController.text) ?? 0;
       _validateAmount(_cashController, "Cash");
@@ -259,32 +247,17 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
         widget.salesOrder.totalAmount - alreadyPaid - (cash + upi + card);
 
     // 🔎 Debug print
-    print("------ _getSuggestedAmount Debug ------");
-    print("Method: $method");
-    print("Cash Entered: $cash");
-    print("UPI Entered: $upi");
-    print("Card Entered: $card");
-    print("Already Paid (from advance): $alreadyPaid");
-    print("Total Amount: ${widget.salesOrder.totalAmount}");
-    print("Remaining Balance (after cash/upi/card): $remaining");
 
     if (method == "Cash" && _cashController.text.isEmpty) {
-      print(
-          "Cash field empty → Suggested: ${remaining > 0 ? remaining.toStringAsFixed(0) : "0"}");
       return remaining > 0 ? remaining.toStringAsFixed(0) : "0";
     }
     if (method == "UPI" && _upiController.text.isEmpty) {
-      print(
-          "UPI field empty → Suggested: ${remaining > 0 ? remaining.toStringAsFixed(0) : "0"}");
       return remaining > 0 ? remaining.toStringAsFixed(0) : "0";
     }
     if (method == "Card" && _cardController.text.isEmpty) {
-      print(
-          "Card field empty → Suggested: ${remaining > 0 ? remaining.toStringAsFixed(0) : "0"}");
       return remaining > 0 ? remaining.toStringAsFixed(0) : "0";
     }
 
-    print("No suggestion → Returning 0");
     return "0";
   }
 
@@ -335,7 +308,6 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
       _balanceAmount = remainingBalance - newPayment;
       if (_balanceAmount < 0) _balanceAmount = 0;
 
-      print("✅ Updated balance: $_balanceAmount");
     });
   }
 
@@ -366,11 +338,6 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
   Widget build(BuildContext context) {
     double padding = MediaQuery.of(context).size.width * 0.04;
 
-    print("🔄 Building Sales Order Screen");
-    print("Current Balance: $_balanceAmount");
-    print(
-        "Already Paid: ${widget.salesOrder.advanceAmount?.fold(0.0, (s, e) => s + e) ?? 0.0}");
-    print("Total Amount: ${widget.salesOrder.totalAmount}");
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
@@ -441,12 +408,8 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                                 _showChequeDetails = !_showChequeDetails;
                                 _isChequeSelected = _showChequeDetails;
 
-                                print(
-                                    "📝 Cheque Toggled → $_showChequeDetails");
 
                                 if (_isChequeSelected) {
-                                  print(
-                                      "✅ Cheque selected → Clearing Cash/UPI/Card fields");
                                   _cashController.clear();
                                   _upiController.clear();
                                   _cardController.clear();
@@ -510,7 +473,6 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                         chequeNameFocus: _chequeNameFocus,
                         chequeDateFocus: _chequeDateFocus,
                         onFocusChanged: (index) {
-                          print("✍️ Cheque field $index focused");
                         },
                         keyboardKey: keyboardKey,
                       ),
@@ -572,7 +534,6 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                             ),
                           ),
                           onPressed: () {
-                            print("❌ Cancel clicked");
                             Navigator.pop(context);
                           },
                           child: const Text(
@@ -600,8 +561,6 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                                   setState(() => isSubmitting = true);
 
                                   try {
-                                    print(
-                                        "🔍 [DEBUG] ====== Advance Payment Process Started ======");
 
                                     // 1️⃣ Parse amounts
                                     final cash =
@@ -617,12 +576,9 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                                             chequeAmountController.text) ??
                                         0;
 
-                                    print(
-                                        "💰 Entered Amounts → Cash: $cash | Card: $card | UPI: $upi | Cheque: $cheque");
 
                                     final totalEntered =
                                         cash + card + upi + cheque;
-                                    print("📊 Total Entered: $totalEntered");
 
                                     // 2️⃣ Existing paid amount
                                     final alreadyPaid = widget
@@ -634,13 +590,9 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                                     final remainingBalanceBefore =
                                         widget.salesOrder.totalAmount -
                                             alreadyPaid;
-                                    print(
-                                        "🧮 Remaining Balance Before: $remainingBalanceBefore");
 
                                     // 4️⃣ Validate entered amount
                                     if (totalEntered > remainingBalanceBefore) {
-                                      print(
-                                          "❌ ERROR: Entered amount exceeds remaining balance!");
                                       ScaffoldMessenger.of(context)
                                           .showSnackBar(
                                         SnackBar(
@@ -677,9 +629,6 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                                       modeAmounts.add(cheque);
                                     }
 
-                                    print(
-                                        "💳 Payment Types Selected: $paymentTypes");
-                                    print("📌 Mode Wise Amounts: $modeAmounts");
 
                                     // 6️⃣ Merge with existing values
                                     List<double> existingAdvanceAmount =
@@ -716,8 +665,6 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                                     final updatedRemainingBalance =
                                         widget.salesOrder.totalAmount -
                                             updatedAlreadyPaid;
-                                    print(
-                                        "💰 Updated Remaining Balance: $updatedRemainingBalance");
 
                                     // 8️⃣ Build API payload
                                     Map<String, dynamic> requestBody = {
@@ -728,8 +675,6 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                                       "balanceAmount": updatedRemainingBalance,
                                     };
 
-                                    print(
-                                        "📝 Request Body Built: $requestBody");
 
                                     Map<String, dynamic> patchPayload = {
                                       "data": requestBody,
@@ -740,14 +685,10 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                                       "edit": "No",
                                     };
 
-                                    print(
-                                        "📤 Final Payload Ready to Send → $patchPayload");
 
                                     // 9️⃣ Send via WebSocket
                                     await sendInvoiceDataToServer(patchPayload);
                                     Navigator.of(context).pop();
-                                    print(
-                                        "✅ Payload sent successfully via WebSocket");
 
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
@@ -760,19 +701,11 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                                       ),
                                     );
 
-                                    print(
-                                        "🎉 Success: Advance Payment Updated");
                                   } catch (e, stack) {
-                                    print("🔥 ERROR occurred: $e");
-                                    print("📌 Stack Trace: $stack");
                                   } finally {
                                     if (mounted) {
                                       setState(() => isSubmitting = false);
-                                      print(
-                                          "🔄 [DEBUG] Reset isSubmitting = false");
                                     }
-                                    print(
-                                        "🔍 [DEBUG] ====== Advance Payment Process Ended ======");
                                   }
                                 },
                           child: Text(
@@ -903,7 +836,6 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
               readOnly: true,
               showCursor: true,
               onTap: () {
-                print("✍️ $method field focused");
                 ActiveField.activate(
                   ctrl: controller,
                   node: focus,

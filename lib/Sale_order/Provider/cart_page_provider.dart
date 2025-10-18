@@ -295,18 +295,7 @@ class CurrentSaleProvider with ChangeNotifier {
       'total': calculateTotal(),
       'status': 'hold',
     };
-    // Map<String, dynamic> billDataforhive = {
-    //   'holdId': randomId,
-    //   'date': DateTime.now().toIso8601String(),
-    //   'items': itemsWithStatus,
-    //   'total': calculateTotal(),
-    //   'status': 'hold',
-    // };
 
-    // Print the data to console
-    // print("Bill Data for Hive: $billDataforhive");
-
-    // Transform `itemsWithStatus` into API-compatible format
     // ignore: unused_local_variable
     Map<String, dynamic> hivedatpostsapledata = {
       "holdId": randomId.toString(),
@@ -556,196 +545,13 @@ class CurrentSaleProvider with ChangeNotifier {
         "paymentType": "",
       };
 
-      // ✅ Post Data to API
-      // try {
-      //   final url = Uri.parse('https://yenerp.com/fastapi/holds/');
-      //   final response = await http.post(
-      //     url,
-      //     headers: {'Content-Type': 'application/json'},
-      //     body: jsonEncode(apiData),
-      //   );
-
-      //   if (response.statusCode == 200 || response.statusCode == 201) {
-      //     print(
-      //         "✅ API Success: Ticket $ticketName saved with Hold ID $randomId");
-      //     ScaffoldMessenger.of(context).showSnackBar(
-      //       SnackBar(
-      //         content: Text("Ticket $ticketName saved successfully."),
-      //         backgroundColor: Colors.green,
-      //       ),
-      //     );
-      //   } else {
-      //     print("❌ API Error: ${response.statusCode}");
-      //   }
-      // } catch (error) {
-      //   print("❌ Network Error: $error");
-      // }
     }
 
     // ✅ Clear current items after saving split bills
     clearItems();
   }
 
-  // double calculateTotal2(List<Map<String, dynamic>> items) {
-  //   return items.fold(
-  //       0.0,
-  //       (sum, item) =>
-  //           sum + (item['variance_Defaultprice'] * item['quantity']));
-  // }
 
-  // Future<void> saveBill(BuildContext context) async {
-  //   if (_currentSaleItems.isEmpty) {
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       SnackBar(
-  //         content: const Text(
-  //           'No items to save!',
-  //           style: TextStyle(fontWeight: FontWeight.bold),
-  //         ),
-  //         backgroundColor: Colors.red,
-  //         duration: const Duration(seconds: 2),
-  //         behavior: SnackBarBehavior.floating,
-  //         margin: const EdgeInsets.only(left: 20, bottom: 20, right: 680),
-  //         shape: RoundedRectangleBorder(
-  //           borderRadius: BorderRadius.circular(10),
-  //         ),
-  //       ),
-  //     );
-  //     return;
-  //   }
-
-  //   // Open the Hive box for invoices
-  //   var holdinvoiceBox = await Hive.openBox('cartBox');
-
-  //   // Set the status for each item to 'hold'
-  //   List<Map<String, dynamic>> itemsWithStatus =
-  //       _currentSaleItems.map((item) => {...item, 'status': 'hold'}).toList();
-  //   print("HO${itemsWithStatus}");
-  //   // Generate a unique hold bill ID
-  //   var randomId = generatetheholdrandomId();
-
-  //   // Prepare the bill data for Hive and API
-  //   Map<String, dynamic> billDataforhive = {
-  //     'holdId': randomId,
-  //     'date': DateTime.now().toIso8601String(),
-  //     'items': itemsWithStatus,
-  //     'total': calculateTotal(),
-  //     'status': 'hold',
-  //   };
-  //   Map<String, dynamic> hivedatpostsapledata = {
-  //     "itemId": ["string"],
-  //     "itemName": ["string"],
-  //     "itemCode": ["string"],
-  //     "weight": ["string"],
-  //     "price": ["string"],
-  //     "category": ["string"],
-  //     "qty": ["string"],
-  //     "amount": ["string"],
-  //     "tax": ["string"],
-  //     "uom": ["string"],
-  //     "totalAmount": 0,
-  //     "totalAmount2": 0,
-  //     "totalAmount3": 0,
-  //     "status": "string",
-  //     "branchId": 0,
-  //     "branch": "string",
-  //     "discountPercentage": 0,
-  //     "discountAmount": 0,
-  //     "employeeName": "string",
-  //     "phoneNumber": 0,
-  //     "customCharge": 0,
-  //     "netPrice": 0,
-  //     "invoiceNo": 0,
-  //     "date": DateTime.now().toIso8601String(),
-  //     "time": DateTime.now().toIso8601String(),
-  //     "paymentType": "string",
-  //     "salesType": "string",
-  //     "salesReturn": "string",
-  //     "salesReturnNumber": 0,
-  //     "type": "string",
-  //     "salesOrderNumber": "string",
-  //     "customerName": "string",
-  //     "deliveryDate": "string",
-  //     "deliveryTime": "string",
-  //     "event": "string",
-  //     "advance": "string",
-  //     "orderPreference": "string",
-  //     "deliveryPreference": "string",
-  //     "orderDate": "string",
-  //     "orderTime": "string",
-  //     "remark": "string",
-  //     "orderInvoiceNo": "string",
-  //     "invoiceDate": "string",
-  //     "cash": "string",
-  //     "upi": "string",
-  //     "card": "string",
-  //     "deliveryPartner": "string",
-  //     "otherPayment": "string",
-  //     "deliveryPartnerName": "string",
-  //     "shiftNumber": "string",
-  //     "shiftId": "string",
-  //     "deliveryLocation": "string",
-  //     "phoneNumber2": "string",
-  //     "preinvoiceId": "string"
-  //   };
-  //   // Save the bill to Hive
-  //   await holdinvoiceBox.add(billDataforhive);
-
-  //   // Post the bill data to the FastAPI endpoint
-  //   try {
-  //     final url = Uri.parse('https://yenerp.com/fastapi/holds/');
-  //     final response = await http.post(
-  //       url,
-  //       headers: {'Content-Type': 'application/json'},
-  //       body: jsonEncode(hivedatpostsapledata),
-  //     );
-
-  //     if (response.statusCode == 200 || response.statusCode == 201) {
-  //       // Show success message
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         SnackBar(
-  //           content: Text(
-  //             'Bill saved as hold (Hold ID: $randomId)',
-  //             style: TextStyle(fontWeight: FontWeight.bold),
-  //           ),
-  //           backgroundColor: Colors.green,
-  //           duration: const Duration(seconds: 2),
-  //           behavior: SnackBarBehavior.floating,
-  //           margin: const EdgeInsets.only(left: 20, bottom: 20, right: 680),
-  //           shape: RoundedRectangleBorder(
-  //             borderRadius: BorderRadius.circular(10),
-  //           ),
-  //         ),
-  //       );
-  //     } else {
-  //       // Handle server errors
-  //       print('Failed to post data to server: ${response.statusCode}');
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         SnackBar(
-  //           content: Text(
-  //             'Failed to post data to server: ${response.statusCode}',
-  //             style: TextStyle(fontWeight: FontWeight.bold),
-  //           ),
-  //           backgroundColor: Colors.red,
-  //           duration: Duration(seconds: 2),
-  //         ),
-  //       );
-  //     }
-  //   } catch (error) {
-  //     // Handle network errors
-  //     print('Network error: $error');
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       SnackBar(
-  //         content: Text(
-  //           'Network error: $error',
-  //           style: TextStyle(fontWeight: FontWeight.bold),
-  //         ),
-  //         backgroundColor: Colors.red,
-  //         duration: Duration(seconds: 2),
-  //       ),
-  //     );
-  //   }
-  //   clearItems();
-  // }
 
   int generatetheholdrandomId() {
     return 10 + (Random().nextInt(90)); // 90 ensures the range is 10 to 99

@@ -1666,11 +1666,8 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                               customerscreenprovider.recordedFilePath.isNotEmpty
                                   ? customerscreenprovider.recordedFilePath
                                   : null;
-                          print("audioPath $audioPath");
-                          print(
-                              "_pickedImage1 ${customerscreenprovider.pickedImage1}");
-                          print(
-                              "_pickedImage2 ${customerscreenprovider.pickedImage2}");
+                       
+                         
                           // Show advance payment popup safely
                           customerscreenprovider.showAdvancePaymentPopup(
                             context,

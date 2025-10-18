@@ -141,12 +141,12 @@ class _CustomerDetailsState extends State<CustomerDetails> {
     String enteredMobileNumber =
         customerScreenProvider.mobileNoController.text.trim();
 
-    if (!detailsProvider.employeeNames.contains(selectedSalesperson)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Add a valid salesperson.')),
-      );
-      return false;
-    }
+    // if (!detailsProvider.employeeNames.contains(selectedSalesperson)) {
+    //   ScaffoldMessenger.of(context).showSnackBar(
+    //     const SnackBar(content: Text('Add a valid salesperson.')),
+    //   );
+    //   return false;
+    // }
 
     if (enteredMobileNumber.isEmpty ||
         enteredMobileNumber.length != 10 ||
@@ -183,7 +183,7 @@ class _CustomerDetailsState extends State<CustomerDetails> {
         .setSelectedDeliveryType('Pickup by Customer');
     final customerScreenProvider =
         Provider.of<CustomerScreenProvider>(context, listen: false);
-    customerScreenProvider.clearControllers();
+    // customerScreenProvider.clearControllers();
     customerScreenProvider.setSelectedEvent('Birthday');
   }
 

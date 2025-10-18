@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
+import 'package:udp/udp.dart';
 
 /// A stylish “No Server Found” dialog with premium blue theme and reduced width
 class NoServerDialog extends StatelessWidget {
-  /// Called when the user taps “Make This Device Server”
   final Future<void> Function() onMakeServer;
 
   const NoServerDialog({Key? key, required this.onMakeServer})
@@ -15,9 +17,7 @@ class NoServerDialog extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
       elevation: 10,
       child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: 500, // Reduce width here
-        ),
+        constraints: const BoxConstraints(maxWidth: 500),
         child: Container(
           padding: const EdgeInsets.all(25),
           decoration: BoxDecoration(
@@ -27,7 +27,7 @@ class NoServerDialog extends StatelessWidget {
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(25),
-            boxShadow: [
+            boxShadow: const [
               BoxShadow(
                 color: Colors.black26,
                 blurRadius: 20,
@@ -44,11 +44,8 @@ class NoServerDialog extends StatelessWidget {
                   color: Colors.blue.shade800.withOpacity(0.3),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  Icons.cloud_off,
-                  size: 60,
-                  color: Colors.white,
-                ),
+                child:
+                    const Icon(Icons.cloud_off, size: 60, color: Colors.white),
               ),
               const SizedBox(height: 20),
               const Text(
@@ -65,36 +62,29 @@ class NoServerDialog extends StatelessWidget {
                 'No server was detected on the network.\n'
                 'Server is not running – make this device the server?',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 16,
-                ),
+                style: TextStyle(color: Colors.white70, fontSize: 16),
               ),
               const SizedBox(height: 25),
               Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
                       style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: Colors.white70),
+                        side: const BorderSide(color: Colors.white70),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(15)),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      child: const Text(
-                        'Cancel',
-                        style: TextStyle(color: Colors.white70),
-                      ),
+                      child: const Text('Cancel',
+                          style: TextStyle(color: Colors.white70)),
                     ),
                   ),
                   const SizedBox(width: 15),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () async {
-                        Navigator.of(context).pop();
-                        await onMakeServer();
-                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.lightBlueAccent,
                         shape: RoundedRectangleBorder(
@@ -103,6 +93,9 @@ class NoServerDialog extends StatelessWidget {
                         elevation: 8,
                         shadowColor: Colors.lightBlueAccent.withOpacity(0.5),
                       ),
+                      onPressed: () async {
+                        await onMakeServer();
+                      },
                       child: const Text(
                         'Make This Device Server',
                         style: TextStyle(

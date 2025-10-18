@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart' as http;
 
-
 class DetailsProvider extends ChangeNotifier {
   DetailsProvider() {
     fetchVariances();
@@ -49,7 +48,6 @@ class DetailsProvider extends ChangeNotifier {
   // List<String> filteredItems = [];
   Future<void> fetchVariances() async {
     final url = 'https://yenerp.com/fastapi/branchwiseitems/';
-    print("Fetching variances from $url");
     try {
       final response = await http.get(Uri.parse(url));
 
@@ -151,26 +149,30 @@ class DetailsProvider extends ChangeNotifier {
   List<String> get filteredEmployeeFirstNames => _filteredEmployeeFirstNames;
   bool get isLoading => _isLoading;
 
+  /// Fetch employee names from Hive and handle empty/missing data gracefully
   Future<void> fetchEmployeeNames() async {
     _isLoading = true;
     notifyListeners();
 
     try {
-      final box = await Hive.openBox('employeeBox'); // Open the employeeBox
-      final cachedData = box.get('employees'); // Get the cached data
-      // Check the data type
+      final box = await Hive.openBox('employeeBox'); // Open Hive box
+      final cachedData = box.get('employees'); // Get cached data
 
       if (cachedData != null && cachedData is List<dynamic>) {
         _employeeNames = cachedData
             .map((employee) => employee['firstName']?.toString() ?? 'Unknown')
             .toList();
-        _filteredEmployeeFirstNames =
-            List<String>.from(_employeeNames); // Cloning the list
       } else {
-        throw Exception('No employee names found in Hive');
+        // If no data found, initialize as empty list
+        _employeeNames = [];
       }
+
+      // Clone list for filtered names
+      _filteredEmployeeFirstNames = List<String>.from(_employeeNames);
     } catch (e) {
-      throw Exception('Error loading employee names from Hive: $e');
+      // Log error but don't throw
+      _employeeNames = [];
+      _filteredEmployeeFirstNames = [];
     } finally {
       _isLoading = false;
       notifyListeners();

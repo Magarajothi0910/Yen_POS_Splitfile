@@ -217,10 +217,6 @@ class _SearchDropdownState extends State<SearchDropdown> {
     String itemName = variancedata['itemName']?.toString() ?? '';
     varianceUOM = varianceUOM ?? '';
 
-    print("🧾 Selected Variance: $varianceName");
-    print("📦 Selected Item Code: $itemCode");
-    print("📄 Item Name: $itemName");
-    print("⚖️ UOM: $varianceUOM");
 
     // Determine price safely
     double price = 0.0;

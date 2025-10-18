@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
 import 'package:http/http.dart' as http;
@@ -12,6 +14,8 @@ import 'package:yenposapp/Server_Client/serverScreen.dart';
 import 'provider/deviceProvider.dart';
 
 class InstallPOSApp extends StatefulWidget {
+  final GlobalKey keyboardKey;
+  const InstallPOSApp({super.key, required this.keyboardKey});
   @override
   _InstallKOTAppState createState() => _InstallKOTAppState();
 }
@@ -23,35 +27,30 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
   @override
   void initState() {
     super.initState();
-    print("🟢 InstallPOSApp initialized.");
     checkForStoredDeviceCode();
   }
 
   Future<void> checkForStoredDeviceCode() async {
-    print("🔍 Checking for stored device code in Hive...");
 
     try {
       var box = await Hive.openBox('deviceData');
-      print("📦 Hive box 'deviceData' opened successfully.");
 
       final storedDeviceCode = box.get('deviceCode');
-      print("📄 Retrieved storedDeviceCode: $storedDeviceCode");
 
       if (storedDeviceCode != null && storedDeviceCode.isNotEmpty) {
-        print("✅ Device code found! Navigating to LoginScreen...");
         if (!mounted) {
-          print("⚠️ Widget not mounted, navigation skipped.");
           return;
         }
 
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => LoginScreen()),
+          MaterialPageRoute(
+              builder: (context) => LoginScreen(
+                    keyboardKey: widget.keyboardKey,
+                  )),
         );
       } else {
-        print("❌ No stored device code found. Opening device code dialog...");
         if (!mounted) {
-          print("⚠️ Widget not mounted, dialog skipped.");
           return;
         }
 
@@ -60,8 +59,6 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
         });
       }
     } catch (e, stackTrace) {
-      print("❗ Error while checking stored device code: $e");
-      print(stackTrace);
     }
   }
 
@@ -296,8 +293,6 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
   }
 
   Future<void> showConfirmationDialog(String branchName) async {
-    if (!mounted) return;
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       showGeneralDialog(
         context: context,
@@ -421,23 +416,8 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
                                 listen: false,
                               );
                               try {
-                                print(
-                                  "deviceData!['deviceCode']:${deviceData!['deviceCode']}",
-                                );
-                                print(
-                                  "deviceData!['branchName']:${deviceData!['branchName']}",
-                                );
-                                print(
-                                  "deviceData!['deviceCodeId']:${deviceData!['deviceCodeId']}",
-                                );
 
                                 globals.aliasname = deviceData!['branchName'];
-                                print(
-                                  "globals.aliasname: ${globals.aliasname}",
-                                );
-                                print(
-                                  "gloabls.branchId: ${deviceData!['branchId']}",
-                                );
                                 // Store the device data
                                 await deviceProvider.storeDeviceData(
                                   deviceData!['deviceCode'],
@@ -446,25 +426,21 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
                                 );
 
                                 // Close dialog
-                                if (mounted) Navigator.of(context).pop();
+                                Navigator.of(context).pop();
 
-                                // Show success SnackBar
-                                if (mounted) {
-                                  TopMessage.show(
-                                    context,
-                                    message: "Branch confirmed successfully!",
-                                    backgroundColor: Colors.green.shade600,
-                                  );
-                                }
+                                TopMessage.show(
+                                  context,
+                                  message: "Branch confirmed successfully!",
+                                  backgroundColor: Colors.green.shade600,
+                                );
                               } catch (e) {
                                 // Optional: handle error
-                                if (mounted) {
-                                  TopMessage.show(
-                                    context,
-                                    message: "Failed to confirm branch.",
-                                    backgroundColor: Colors.green.shade600,
-                                  );
-                                }
+
+                                TopMessage.show(
+                                  context,
+                                  message: "Failed to confirm branch.",
+                                  backgroundColor: Colors.green.shade600,
+                                );
                               }
                             },
                           ),
@@ -486,9 +462,6 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
                               ),
                             ),
                             onPressed: () {
-                              print(
-                                "❌ Branch mismatch. Returning to device code entry.",
-                              );
                               if (mounted) {
                                 Navigator.of(context).pop();
                                 showErrorDialog(
@@ -519,8 +492,6 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
   }
 
   Future<void> showExitConfirmationDialog() async {
-    if (!mounted) return;
-
     showGeneralDialog(
       context: context,
       barrierDismissible: false,
@@ -592,7 +563,6 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
                         ),
                         ElevatedButton(
                           onPressed: () {
-                            print("🚪 Exiting application...");
                             Navigator.of(context).pop();
                             if (mounted) Navigator.of(context).maybePop();
                           },
@@ -625,8 +595,6 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
   }
 
   Future<void> showErrorDialog(String message) async {
-    if (!mounted) return;
-
     await showGeneralDialog(
       context: context,
       barrierDismissible: true,
@@ -683,9 +651,6 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
                     const SizedBox(height: 24),
                     ElevatedButton(
                       onPressed: () {
-                        print(
-                          "⚠️ Error dialog closed. Reopening device code dialog.",
-                        );
                         if (mounted) {
                           Navigator.of(context).pop();
                           showDeviceCodeDialog();
@@ -726,7 +691,11 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
       },
       child: Scaffold(
         backgroundColor: const Color(0xFFFAF8F0),
-        body: Stack(children: [LoginScreen()]),
+        body: Stack(children: [
+          LoginScreen(
+            keyboardKey: widget.keyboardKey,
+          )
+        ]),
       ),
     );
   }

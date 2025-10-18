@@ -230,31 +230,16 @@ class CartProvider extends ChangeNotifier {
   double getTotalAmount() {
     double totalAmount = 0;
 
-    for (var i = 0; i < globals.cartItems.length; i++) {
-      var item = globals.cartItems[i];
-      double itemTotal = 0;
-
-      if (item.finalPrice != null) {
-        itemTotal = item.finalPrice!;
-      } else {
-        if (item.uom == 'Kgs' || item.uom == 'Kg') {
-          itemTotal = item.weight * item.quantity * item.pricePerKg;
-        } else {
-          itemTotal = item.quantity.toDouble() * item.pricePerKg;
-        }
-      }
-
+    for (var item in globals.cartItems) {
+      double itemTotal = item.finalPrice ??
+          ((item.uom == 'Kgs' || item.uom == 'Kg')
+              ? (item.weight * item.quantity * item.pricePerKg).toDouble()
+              : (item.quantity * item.pricePerKg).toDouble());
       totalAmount += itemTotal;
     }
 
-    notifyListeners();
-
-    // Adding custom charge
     final customCharge = double.tryParse(customChargeController.text) ?? 0;
-    print("custom charge: $customCharge");
     totalAmount += customCharge;
-
-    notifyListeners();
 
     return totalAmount;
   }

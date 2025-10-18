@@ -97,26 +97,16 @@ Future<void> saveKotInvoiceToHive(Map<String, dynamic> invoice) async {
 }
 
 Future<void> savePosInvoiceToHive(Map<String, dynamic> posInvoice) async {
-  print("🚀 [savePosInvoiceToHive] Called with posInvoice: $posInvoice");
 
   try {
     // Step 1: Open the Hive box
-    print("📂 [savePosInvoiceToHive] Opening Hive box: 'invoices'...");
     var posInvoiceBox = await HiveManager.invoiceBox;
-    print("✅ [savePosInvoiceToHive] Hive box 'invoices' opened successfully.");
 
     // Step 2: Save the invoice to Hive
-    print("💾 [savePosInvoiceToHive] Saving invoice into Hive box...");
     await posInvoiceBox.add(posInvoice);
-    print("🎉 [savePosInvoiceToHive] Invoice saved successfully to Hive.");
 
     // Debug: Current count of invoices
-    print(
-      "📊 [savePosInvoiceToHive] Total invoices stored in Hive: ${posInvoiceBox.length}",
-    );
   } catch (e, st) {
-    print("❌ [savePosInvoiceToHive] Error while saving invoice: $e");
-    print("🛑 Stacktrace: $st");
   }
 }
 

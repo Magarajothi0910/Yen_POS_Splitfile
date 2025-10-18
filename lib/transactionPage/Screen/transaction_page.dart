@@ -38,7 +38,6 @@ class _TransactionPageState extends State<TransactionPage> {
 
   @override
   Widget build(BuildContext context) {
-    print("🎨 [TransactionPage.build] CALLED");
 
     final transactionProvider = context.watch<TransactionProvider>();
     final apiService = context.watch<ApiServiceSalesOrderProvider>();
@@ -54,16 +53,12 @@ class _TransactionPageState extends State<TransactionPage> {
         .toList();
 
     for (var tx in salesCompletedOrders) {
-      print("🧾 Transaction => ${tx.toMap()}");
     }
     final openOrders = apiService.hivefilteredOrders
         .map((order) => SalesOrderDisplay.fromMap(order))
         .where((order) => order.status == "Open Order")
         .toList();
     setState(() {});
-    print("📦 [TransactionPage] Data Summary:");
-    print("   🔹 Completed Sales Orders = ${salesCompletedOrders.length}");
-    print("   🔹 Open Orders = ${openOrders.length}");
 
     return DefaultTabController(
       length: 2,
@@ -115,14 +110,10 @@ class _TransactionPageState extends State<TransactionPage> {
                     ],
                   ),
                   onTap: (index) {
-                    print("🖱️ [TransactionPage] Tab tapped → Index: $index");
                     setState(() {
                       _selectedIndex = index;
                       _selectedTransactionIndex = null;
                     });
-                    print(
-                      "✅ [TransactionPage] _selectedIndex updated → $_selectedIndex",
-                    );
                   },
                   indicatorSize: TabBarIndicatorSize.tab,
                   labelColor: Colors.black87,
@@ -163,9 +154,6 @@ class _TransactionPageState extends State<TransactionPage> {
                     child: SmartSearchField(
                       controller: _searchController,
                       onSearch: (query) {
-                        print(
-                          "🔎 [TransactionPage] Search query submitted → $query",
-                        );
                         apiService.searchOrders(query);
                       },
                     ),
@@ -204,11 +192,6 @@ class _TransactionPageState extends State<TransactionPage> {
     List<Transaction> orders,
     ApiServiceSalesOrderProvider apiService,
   ) {
-    print("🔎 Building Sales Completed Layout...");
-    print("📊 Total Orders: ${orders.length}");
-    print(
-      "📍 Currently Selected Transaction Index: $_selectedTransactionIndex",
-    );
 
     return [
       Expanded(
@@ -224,10 +207,6 @@ class _TransactionPageState extends State<TransactionPage> {
                         final reversedList = orders.reversed.toList();
                         final item = reversedList[index];
 
-                        print("➡️ Rendering item at reversed index: $index");
-                        print("   - Transaction Total: ₹${item.totalAmount}");
-                        print("   - Branch: ${item.branchName}");
-                        print("   - Invoice Time: ${item.invoiceTime}");
 
                         bool isSelected = _selectedTransactionIndex != null &&
                             index ==
@@ -235,7 +214,6 @@ class _TransactionPageState extends State<TransactionPage> {
                                     1 -
                                     _selectedTransactionIndex!);
 
-                        print("   - Is Selected: $isSelected");
 
                         return ListTile(
                           title: Text(
@@ -248,13 +226,6 @@ class _TransactionPageState extends State<TransactionPage> {
                             setState(() {
                               _selectedTransactionIndex =
                                   orders.length - 1 - index;
-                              print("✅ Transaction selected!");
-                              print(
-                                "   -> Selected Index: $_selectedTransactionIndex",
-                              );
-                              print(
-                                "   -> Selected Transaction Total: ₹${item.totalAmount}",
-                              );
                             });
                           },
                         );
@@ -271,13 +242,7 @@ class _TransactionPageState extends State<TransactionPage> {
             ? const Center(child: Text("Select a Transaction"))
             : Builder(
                 builder: (_) {
-                  print(
-                    "📦 Showing Transaction Detail for Index: $_selectedTransactionIndex",
-                  );
                   final selectedItem = orders[_selectedTransactionIndex!];
-                  print("   -> Branch: ${selectedItem.branchName}");
-                  print("   -> Total Amount: ₹${selectedItem.totalAmount}");
-                  print("   -> Invoice Time: ${selectedItem.invoiceTime}");
                   return _buildTransactionDetail(selectedItem);
                 },
               ),

@@ -47,7 +47,7 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
           Provider.of<CustomerScreenProvider>(context, listen: false);
       customerProvider.checkAndShowStoreTypeDialog(context);
 
-      CartProvider().clearCart();
+      // CartProvider().clearCart();
     });
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
     cartProvider.customChargeController.addListener(() {
@@ -152,7 +152,6 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
           globals.cartItems[itemIndex].itemWiseDiscountAmount = 0.0;
           globals.cartItems[itemIndex].finalPrice = null;
         }
-        Provider.of<CartProvider>(context, listen: false).notifyListeners();
       });
       return;
     }
@@ -199,13 +198,10 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
               item.itemWiseDiscountAmount = 0.0;
               item.finalPrice = null;
 
-              if (kDebugMode) {
-                print("🔄 Reset discount for item: ${item.varianceName}");
-              }
+             
             }
           }
         });
-        cartProvider.notifyListeners();
       });
       return;
     }
@@ -230,7 +226,7 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
           }
         }
       });
-      cartProvider.notifyListeners();
+
     }
   }
 
@@ -279,7 +275,7 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
             }
           }
         });
-        cartProvider.notifyListeners();
+
       });
     }
   }

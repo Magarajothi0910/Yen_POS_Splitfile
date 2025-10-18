@@ -907,20 +907,6 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
     );
   }
 
-  // void handleInvoicePrinting() {
-  //   if (selectedBills.isNotEmpty) {
-  //     for (var bill in selectedBills) {
-  //       CreditSOPreInvoicePrinter.printReceipt(
-  //         ipAddress: "192.168.1.88", // Printer IP
-  //         invoiceData: bill,
-  //         receiptType: "Pre-Invoice",
-  //       );
-  //     }
-  //   } else {
-  //     print("No bills selected for invoice generation.");
-  //   }
-  // }
-
   void handleInvoicePrinting() async {
     if (selectedBills.isNotEmpty) {
       Map<String, dynamic> consolidatedInvoiceData = {

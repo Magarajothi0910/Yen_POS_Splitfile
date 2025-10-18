@@ -293,7 +293,7 @@ class CashManagementProvider extends ChangeNotifier {
         return formattedShifts;
       }
     } catch (e, st) {
-      debugPrint("❌ fetchShiftDetails error: $e\n$st");
+    
     }
     return [];
   }
@@ -373,27 +373,20 @@ class CashManagementProvider extends ChangeNotifier {
         }).toList();
 
         dayEndData = formatted;
-        if (kDebugMode) {
-          debugPrint('Fetched ${formatted.length} day-end records.');
-        }
+       
         return formatted;
       } else {
-        if (kDebugMode) {
-          debugPrint(
-            'Unexpected response data format or status code: '
-            '${response.statusCode}',
-          );
-        }
+     
         return [];
       }
     } on DioError catch (e) {
       final errorMsg = e.response != null
           ? 'DioError: HTTP ${e.response?.statusCode}, data: ${e.response?.data}'
           : 'DioError: ${e.message}';
-      debugPrint(errorMsg);
+    
       return [];
     } catch (e, st) {
-      debugPrint('Unexpected fetchDayEndDetails error: $e\n$st');
+     
       return [];
     }
   }
@@ -404,9 +397,7 @@ class CashManagementProvider extends ChangeNotifier {
     Map<String, dynamic> dayEnd,
     List<Map<String, dynamic>> shifts,
   ) async {
-    debugPrint(
-      "🏁 Starting printOpenDayEndShifts with dayEnd: $dayEnd and ${shifts.length} shifts",
-    );
+   
 
     CapabilityProfile profile;
     NetworkPrinter printer;
@@ -417,11 +408,9 @@ class CashManagementProvider extends ChangeNotifier {
       profile = await CapabilityProfile.load();
       printer = NetworkPrinter(PaperSize.mm80, profile);
       generator = Generator(PaperSize.mm80, profile);
-      debugPrint("Loaded capability profile and initialized printer/generator");
+     
     } catch (e, st) {
-      debugPrint(
-        "❌ Error loading profile or setting up printer/generator: $e\n$st",
-      );
+    
       return;
     }
 
@@ -429,13 +418,13 @@ class CashManagementProvider extends ChangeNotifier {
     PosPrintResult res;
     try {
       res = await printer.connect("192.168.1.87", port: 9100);
-      debugPrint("Printer connect response: $res");
+   
       if (res != PosPrintResult.success) {
-        debugPrint("❌ Could not connect to printer—aborting print.");
+    
         return;
       }
     } catch (e, st) {
-      debugPrint("❌ Exception during printer.connect: $e\n$st");
+    
       return;
     }
 
@@ -760,13 +749,11 @@ class CashManagementProvider extends ChangeNotifier {
     int openShiftCount = 0;
     for (var shift in shifts) {
       if (shift['dayEndStatus'] != 'open') {
-        debugPrint(
-          "Skipping shift ${shift['shiftNumber'] ?? 'N/A'} with dayEndStatus: ${shift['dayEndStatus']}",
-        );
+     
         continue;
       }
       openShiftCount++;
-      debugPrint("Processing open shift: ${shift['shiftNumber'] ?? 'N/A'}");
+     
 
       DateTime? openDt, closeDt;
       String openDate = "N/A",
@@ -785,13 +772,9 @@ class CashManagementProvider extends ChangeNotifier {
           closeDate = dateFormat.format(closeDt);
           closeTime = timeFormat.format(closeDt);
         }
-        debugPrint(
-          "Parsed DateTime values — open: $openDt ($openDate @ $openTime), close: $closeDt ($closeDate @ $closeTime)",
-        );
+       
       } catch (e, st) {
-        debugPrint(
-          "❌ Error parsing dates for shift ${shift['shiftNumber'] ?? 'N/A'}: $e\n$st",
-        );
+       
       }
 
       // Add shift header
@@ -922,20 +905,18 @@ class CashManagementProvider extends ChangeNotifier {
           "✅ Printed day-end details and $openShiftCount open shifts in a single receipt.",
         );
       } catch (e, st) {
-        debugPrint("❌ Error during printing: $e\n$st");
+      
       }
     } else {
-      debugPrint(
-        "ℹ️ No shifts with dayEndStatus 'open' found, but printed day-end details.",
-      );
+      
     }
 
     // Disconnect printer
     try {
       printer.disconnect();
-      debugPrint("✅ Printer disconnected.");
+    
     } catch (e, st) {
-      debugPrint("❌ Error during printer disconnect: $e\n$st");
+    
     }
   }
 
@@ -959,8 +940,7 @@ class CashManagementProvider extends ChangeNotifier {
 
     final patchUrl = "https://yenerp.com/fastapi/shifts/close-shift/$shiftID";
     //final patchUrl = "http://192.168.29.8:8888/shift/close-shift/$shiftID";
-    debugPrint("Patching shift close at: $patchUrl");
-
+  
     try {
       // Convert denomination_counts keys to strings for JSON serialization
       final stringDenominationCounts = <String, int>{};
@@ -984,8 +964,6 @@ class CashManagementProvider extends ChangeNotifier {
         "closingDifferenceType": closingDifferenceType,
       };
 
-      debugPrint("➡ Sending payload: $payload");
-
       final response = await _dio.patch(patchUrl, data: payload);
 
       if (response.statusCode == 200) {
@@ -994,12 +972,12 @@ class CashManagementProvider extends ChangeNotifier {
 
         // Fetch updated shift data
         final shifts = await fetchShiftDetails();
-        debugPrint("Fetched shift details");
+       
         final currentShift = shifts.firstWhere(
           (s) => s['shiftId'] == shiftID,
           orElse: () => {},
         );
-        debugPrint("Found current shift");
+
 
         if (currentShift.isNotEmpty) {
           // Console output for debugging
@@ -1015,7 +993,7 @@ class CashManagementProvider extends ChangeNotifier {
           // Print to thermal printer
           await printShiftData(currentShift);
         }
-        debugPrint("Printed shift data");
+   
 
         // Clear all fields after successful shift close
         physicalCashSales.value = 0;
@@ -1060,9 +1038,9 @@ class CashManagementProvider extends ChangeNotifier {
       if (e is DioException && e.response != null) {
         errorMessage =
             'Failed to close shift: ${e.response?.statusCode} - ${e.response?.data.toString() ?? e.message}';
-        debugPrint("⚠️ Detailed server error: ${e.response?.data}");
+    
       } else {
-        debugPrint("⚠️ Error closing shift: $e");
+
       }
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1079,8 +1057,7 @@ class CashManagementProvider extends ChangeNotifier {
   /// Print shift report to thermal printer
 
   static Future<void> printShiftData(Map<String, dynamic> shift) async {
-    debugPrint("🏁 Starting printShiftData with shift data: $shift");
-
+    
     CapabilityProfile profile;
     NetworkPrinter printer;
     Generator generator;
@@ -1089,7 +1066,7 @@ class CashManagementProvider extends ChangeNotifier {
       profile = await CapabilityProfile.load();
       printer = NetworkPrinter(PaperSize.mm80, profile);
       generator = Generator(PaperSize.mm80, profile);
-      debugPrint("Loaded capability profile and initialized printer/generator");
+     
     } catch (e, st) {
       debugPrint(
         "❌ Error loading profile or setting up printer/generator: $e\n$st",
@@ -1100,13 +1077,13 @@ class CashManagementProvider extends ChangeNotifier {
     PosPrintResult res;
     try {
       res = await printer.connect("192.168.1.87", port: 9100);
-      debugPrint("Printer connect response: $res");
+     
       if (res != PosPrintResult.success) {
-        debugPrint("❌ Could not connect to printer—aborting print.");
+       
         return;
       }
     } catch (e, st) {
-      debugPrint("❌ Exception during printer.connect: $e\n$st");
+     
       return;
     }
 
@@ -1134,7 +1111,7 @@ class CashManagementProvider extends ChangeNotifier {
         "Parsed DateTime values — open: $openDt ($openDate @ $openTime), close: $closeDt ($closeDate @ $closeTime)",
       );
     } catch (e, st) {
-      debugPrint("❌ Error parsing dates: $e\n$st");
+   
     }
 
     List bytes = [];
@@ -1573,9 +1550,9 @@ class CashManagementProvider extends ChangeNotifier {
       printer.rawBytes(Uint8List.fromList(bytes.cast<int>()));
       //printer.cut();
       printer.disconnect();
-      debugPrint("✅ Print complete and printer disconnected.");
+   
     } catch (e, st) {
-      debugPrint("❌ Error during printing or disconnecting: $e\n$st");
+
     }
   }
 
@@ -1591,7 +1568,7 @@ class CashManagementProvider extends ChangeNotifier {
     try {
       final response = await _dio.post(url, data: json.encode(dayEndPost));
       final shifts = await CashManagementProvider.fetchShiftDetails();
-      debugPrint("entered");
+     
       final dayEndList = await CashManagementProvider().fetchDayEndDetails();
 
       final dayEnd = (dayEndList is List && dayEndList.isNotEmpty)
@@ -1620,7 +1597,7 @@ class CashManagementProvider extends ChangeNotifier {
   static Future<List<Map<String, String>>> fetchValidationDetails() async {
     String apiUrl =
         "https://yenerp.com/fastapi/dayendvalidations/Validation?branchName=$branchName";
-    debugPrint("fetching validation details from: $apiUrl");
+   
     try {
       final response = await _dio.get(apiUrl);
 
@@ -1637,7 +1614,7 @@ class CashManagementProvider extends ChangeNotifier {
           listData = [raw];
         } else {
           // unknown type
-          debugPrint("❌ Unexpected response type: ${raw.runtimeType}");
+      
           return [];
         }
 
@@ -1673,7 +1650,7 @@ class CashManagementProvider extends ChangeNotifier {
         );
       }
     } catch (e, st) {
-      debugPrint("❌ fetch Validation Details error: $e\n$st");
+      
     }
     return [];
   }
@@ -1697,13 +1674,13 @@ class CashManagementProvider extends ChangeNotifier {
         // Pick only needed fields + debug print
         return (dispatch as List<dynamic>).map<Map<String, String>>((d) {
           dispatchStatus.value = d['status']?.toString() ?? "";
-          debugPrint("✅ Dispatch Status fetched: $dispatchStatus");
+        
 
           return {"status": d['status']?.toString() ?? ""};
         }).toList();
       }
     } catch (e, st) {
-      debugPrint("❌ fetchDispatchDetails error: $e\n$st");
+     
     }
     return [];
   }
@@ -1711,7 +1688,6 @@ class CashManagementProvider extends ChangeNotifier {
   static Future<String> fetchShiftOpenCheck() async {
     String apiUrl =
         "https://yenerp.com/fastapi/dayendvalidations/status?empId=$empId&branchName=$branchName";
-    debugPrint("Fetching shift open check from: $apiUrl");
 
     try {
       final response = await _dio.get(apiUrl);
@@ -1725,17 +1701,17 @@ class CashManagementProvider extends ChangeNotifier {
         if (data is Map<String, dynamic>) {
           final status = data['shiftStatus']?.toString() ?? "";
           shiftOpenStatus.value = status;
-          debugPrint("✅ Shift Open Check Status fetched: $status");
+          
           return status;
         } else {
           // Unexpected type
-          debugPrint("❌ Unexpected data type: ${data.runtimeType}");
+          
         }
       } else {
-        debugPrint("❌ Response not OK: statusCode = ${response.statusCode}");
+     
       }
     } catch (e, st) {
-      debugPrint("❌ fetchShiftOpenCheck error: $e\n$st");
+     
     }
     return "";
   }
@@ -1745,7 +1721,7 @@ class CashManagementProvider extends ChangeNotifier {
   Future<List<Map<String, dynamic>>> patchDayEnd(String branchName) async {
     String apiUrl = "https://yenerp.com/fastapi/shifts/dayend/$branchName";
     //String apiUrl = "http://192.168.29.8:8888/shift/dayend/$branchName";s
-    debugPrint("Patching day-end at: $apiUrl");
+  
 
     try {
       final response = await _dio.patch(
@@ -1851,7 +1827,7 @@ class CashManagementProvider extends ChangeNotifier {
       await Future.delayed(const Duration(seconds: 1));
       printer.disconnect();
     } else {
-      debugPrint("Printer error: ${connectionResult.msg}");
+  
     }
   }
 

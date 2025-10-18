@@ -19,7 +19,6 @@ class OpeningCash extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    print("opening dinomination open");
     return SafeArea(
       child: Scaffold(
         appBar: AppBar(

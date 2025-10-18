@@ -455,8 +455,7 @@ class EditCustomerScreenProvider with ChangeNotifier {
                     isModifyMode,
                   );
                 } catch (e, stack) {
-                  debugPrint("❌ Error in saveModifiedOrder: $e");
-                  debugPrint("$stack");
+                
                   rootScaffoldMessengerKey.currentState?.showSnackBar(
                     SnackBar(
                       content: Text('Error occurred: $e'),
@@ -530,18 +529,16 @@ class EditCustomerScreenProvider with ChangeNotifier {
 
       // 🔹 Block duplicates
       if (serverSendTracker[soNo]! > 1) {
-        debugPrint("🚫 [Server] Duplicate send blocked for $soNo");
+  
         return;
       }
 
-      debugPrint(
-        "📤 [Server] Sending ModifyData ($soNo) → Count: ${serverSendTracker[soNo]}",
-      );
+      
       _channel.sink.add(jsonData);
       // ✅ Reset tracker after success
       serverSendTracker[soNo] = 0;
     } catch (e) {
-      debugPrint("❌ Error in sendModifyDataToServer: $e");
+      
     }
   }
 
@@ -558,7 +555,7 @@ class EditCustomerScreenProvider with ChangeNotifier {
 
       // 🔹 Block duplicates
       if (serverSendTracker[soNo]! > 1) {
-        debugPrint("🚫 [Server] Duplicate patched data blocked for $soNo");
+       
         return;
       }
 
@@ -569,7 +566,7 @@ class EditCustomerScreenProvider with ChangeNotifier {
       // ✅ Reset tracker after success
       serverSendTracker[soNo] = 0;
     } catch (e) {
-      debugPrint("❌ Error in _sendPatchedDataToServer: $e");
+    
     }
   }
 
@@ -587,8 +584,7 @@ class EditCustomerScreenProvider with ChangeNotifier {
     bool isModified,
   ) async {
     try {
-      debugPrint("🟦 [saveModifiedOrder] Started...");
-
+     
       final jsonSalesOrder = jsonEncode({
         "data": originalOrder.toJson(),
         "deviceName": globals.deviceName,
@@ -643,9 +639,7 @@ class EditCustomerScreenProvider with ChangeNotifier {
       webSocketglobals.quantityChangesNotifier.value =
           {}; // clear changes after save
     } catch (e, stackTrace) {
-      debugPrint("❌ [Error] Exception in saveModifiedOrder(): $e");
-      debugPrint("StackTrace: $stackTrace");
-
+     
       rootScaffoldMessengerKey.currentState?.showSnackBar(
         SnackBar(
           content: Text('Error occurred: $e'),

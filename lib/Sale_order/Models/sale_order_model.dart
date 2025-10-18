@@ -47,6 +47,8 @@ class SalesOrder {
   String employeeName;
   String status;
   String? shiftId;
+  String? createdById;
+
   String? companyName;
   String? companyAddress;
   String? companyGST;
@@ -85,6 +87,7 @@ class SalesOrder {
     this.boxQty,
     this.cash,
     this.card,
+    this.createdById,
     this.upi,
     required this.customerNumber,
     required this.customerName,
@@ -145,6 +148,7 @@ class SalesOrder {
       aliasName: json['aliasName']?.toString(),
       shiftId: json['shiftId']?.toString() ?? "",
       event: json['event']?.toString() ?? '',
+      createdById: json["createdById"]?.toString() ?? '',
       customerNumber: json['customerNumber']?.toString() ?? '',
       customerName: json['customerName']?.toString() ?? '',
       deliveryType: json['deliveryType']?.toString() ?? '',
@@ -213,6 +217,7 @@ class SalesOrder {
       'tax': tax,
       'uom': uom,
       'amount': amount,
+      'createdById': createdById,
       'branchId': branchId,
       'branchName': branchName,
       'price': price,

@@ -3,10 +3,9 @@ import 'dart:async';
 import 'dart:isolate';
 import 'dart:io';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
-
-import '../screens/sales_order/sales_order_print/invoicePrint.dart';
-import '../screens/sales_order/sales_order_providers/customerScreen_provider.dart';
-import '../services/websocketService.dart';
+import 'package:yenposapp/Sale_order/Print_Receipt/invoicePrint.dart';
+import 'package:yenposapp/Sale_order/Provider/customerScreen_provider.dart';
+import 'package:yenposapp/Server_Client/websocketService.dart';
 
 class ServerTaskHandler extends TaskHandler {
   HttpServer? _wsServer;

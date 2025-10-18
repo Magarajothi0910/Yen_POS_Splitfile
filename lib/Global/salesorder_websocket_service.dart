@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:web_socket_channel/web_socket_channel.dart';
-import './../screens/kot_screen/global/globals.dart' as globals;
+import 'package:yenposapp/Global/globals_data.dart' as globals;
 
 // Adjust the import based on your project structure
 class GlobalSOWebSocketService {
@@ -29,18 +29,12 @@ class GlobalSOWebSocketService {
       if (_channel != null) {
         final jsonData = jsonEncode(data);
         _channel!.sink.add(jsonData);
-       
-      } else {
-        
-      }
-    } catch (e) {
-   
-    }
+      } else {}
+    } catch (e) {}
   }
 
   void dispose() {
     _channel?.sink.close();
     _channel = null;
-
   }
 }

@@ -94,7 +94,7 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
   OverlayEntry? _overlayEntry;
 
   final ScrollController _scrollController = ScrollController();
-  final GlobalKey keyboardKey = GlobalKey();
+
 
   late final List<TextEditingController> controllers;
   final FocusNode _customCashFocusNode = FocusNode();
@@ -740,7 +740,7 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
                         chequeNameFocus: _chequeNameFocus,
                         chequeDateFocus: _chequeDateFocus,
                         onFocusChanged: (index) {},
-                        keyboardKey: keyboardKey,
+               
                       ),
                     ],
                   ],

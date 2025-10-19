@@ -6,9 +6,9 @@ import 'package:yenpos/Sale_order/Provider/bank_search_provider.dart';
 
 
 class BankSearchDropdown extends StatefulWidget {
-  final GlobalKey keyboardKey;
 
-  const BankSearchDropdown({Key? key, required this.keyboardKey})
+
+  const BankSearchDropdown({Key? key})
       : super(key: key);
 
   @override

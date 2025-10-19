@@ -14,7 +14,6 @@ import 'package:esc_pos_utils/esc_pos_utils.dart';
 import 'package:yenpos/Global/globals_data.dart';
 import 'package:yenpos/shift_managment_page/openshift/open_shift.dart';
 
-
 // External print services you already have
 import '../screen/day_end_bill.dart';
 import '../screen/dinomination_bill.dart';
@@ -1039,7 +1038,7 @@ class CashManagementProvider extends ChangeNotifier {
         if (context.mounted) {
           Navigator.of(
             context,
-          ).push(MaterialPageRoute(builder: (context) => const OpenShift()));
+          ).push(MaterialPageRoute(builder: (context) => OpenShift()));
         }
       } else {
         // Handle non-200 status codes

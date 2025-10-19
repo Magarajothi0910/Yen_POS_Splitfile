@@ -30,8 +30,7 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
   final TextEditingController _customAmountController = TextEditingController();
   final TextEditingController _employeeNumberController =
       TextEditingController();
-  // single keyboard key (removed duplicate)
-  final GlobalKey keyboardKey = GlobalKey();
+
 
   // Make channel late-initialized so we can create it in initState
   late final WebSocketChannel _channel;
@@ -64,7 +63,6 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
   OverlayEntry? _overlayEntry;
   final GlobalSOWebSocketService _salesorder_webSocketService =
       GlobalSOWebSocketService();
-  // removed duplicate keyboardKey
 
   final FocusNode _customCashFocusNode = FocusNode();
   final FocusNode _customUpiFocusNode = FocusNode();
@@ -513,7 +511,7 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                         onFocusChanged: (index) {
                           print("✍️ Cheque field $index focused");
                         },
-                        keyboardKey: keyboardKey,
+             
                       ),
                     ],
                   ],

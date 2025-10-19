@@ -9,9 +9,11 @@ import 'package:yenpos/Global/Provider/branchSelection_provider.dart';
 import 'package:yenpos/Global/Provider/branchwise_item_fetch.dart';
 import 'package:yenpos/Global/Provider/connectivity_internet.dart';
 import 'package:yenpos/Global/Provider/employee_provider.dart';
+import 'package:yenpos/Global/Provider/logo_provider.dart';
 import 'package:yenpos/Global/Widget/scaffold_global.dart';
 
 import 'package:yenpos/Hive_Manager/hiveProvider.dart';
+import 'package:yenpos/Mode_page/choose_mode_screen.dart';
 import 'package:yenpos/Sale_order/Print_Receipt/invoicePrint.dart';
 import 'package:yenpos/Sale_order/Provider/bank_search_provider.dart';
 import 'package:yenpos/Sale_order/Provider/customer_search_provider.dart';
@@ -45,6 +47,7 @@ import 'package:yenpos/loginPage/provider/deviceProvider.dart';
 import 'package:yenpos/loginPage/provider/loginPageProvider.dart';
 import 'package:yenpos/more_page/controller/denomination_controler.dart';
 import 'package:yenpos/more_page/providers/bt_provide2.dart';
+import 'package:yenpos/shift_managment_page/openshift/open_shift.dart';
 import 'package:yenpos/transactionPage/Provider/transactionProvider.dart';
 
 void main() async {
@@ -65,7 +68,7 @@ void main() async {
   await Hive.openBox('imagesBox');
   await Hive.openBox('salesOrders');
   await Hive.openBox('salesOrderNumberBox');
-
+  await Hive.openBox('cartBox');
   await Hive.openBox('openOrderBox');
   await Hive.openBox('opensaleOrders');
   await Hive.openBox('userBox');
@@ -84,6 +87,7 @@ void main() async {
   await Hive.openBox('openOrderBox');
   await Hive.openBox('opensaleOrders');
   await Hive.openBox('customerBox');
+  await Hive.openBox('logo');
   Get.put(DenominationController());
   await HiveManager.initialize();
   await HiveManager().init();
@@ -100,6 +104,7 @@ void main() async {
     Hive.openBox('tableStatus'),
     Hive.openBox('openOrderBox'),
     Hive.openBox('opensaleOrders'),
+    Hive.openBox('cartBox'),
     Hive.openBox('imagesBox'),
     Hive.openBox('salesOrders'),
     Hive.openBox('invoices'),
@@ -108,8 +113,12 @@ void main() async {
     Hive.openBox('salesOrders'),
     Hive.openBox('openOrderBox'),
     Hive.openBox('opensaleOrders'),
+
+    Hive.openBox('logo'),
     Hive.openBox('customerBox'),
   ]);
+
+  await fetchAndStoreLogo();
 
   try {
     await fetchAndStoreBranchData();
@@ -225,17 +234,22 @@ class MyApp extends StatelessWidget {
           Provider.of<ItemProvider>(
             context,
             listen: false,
-          ).fetchDataIfNeeded(branchAlias: 'AR');
+          ).fetchDataIfNeeded(branchAlias: '');
           Provider.of<ItemProvider>(
             context,
             listen: false,
           ).fetchAndSaveSalesOrders();
+          Provider.of<ItemProvider>(
+            context,
+            listen: false,
+          ).fetchAndStoreBranches();
         });
 
         return GetMaterialApp(
           showPerformanceOverlay: false,
           scaffoldMessengerKey: GlobalScaffold.scaffoldMessengerKey,
           debugShowCheckedModeBanner: false,
+          // home: ChooseModePage(),
           home: InstallPOSApp(),
           // home: LoginScreen(),
         );

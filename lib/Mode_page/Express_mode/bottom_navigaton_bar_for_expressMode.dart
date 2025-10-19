@@ -7,9 +7,9 @@ import '../../more_page/more_page.dart';
 
 
 class BottomNavigationPageExpressModeScreen extends StatefulWidget {
-  final GlobalKey keyboardKey;
+
   const BottomNavigationPageExpressModeScreen(
-      {super.key, required this.keyboardKey});
+      {super.key,});
 
   @override
   // ignore: library_private_types_in_public_api
@@ -30,13 +30,13 @@ class _BottomNavigationPageExpressModeScreenState
     // // const CurrentOrdersP
     // // const CurrentOrdersPage(),
     TakeAwayOrdersNavigator(
-      keyboardKey: widget.keyboardKey,
+
     ),
     TransactionPage(
-      keyboardKey: widget.keyboardKey,
+
     ),
     // MorePage(
-    //   keyboardKey: widget.keyboardKey,
+
     // ),
   ];
 

@@ -6,7 +6,7 @@ class NoServerDialog extends StatelessWidget {
   final Future<void> Function() onMakeServer;
 
   const NoServerDialog({Key? key, required this.onMakeServer})
-      : super(key: key);
+    : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -44,11 +44,7 @@ class NoServerDialog extends StatelessWidget {
                   color: Colors.blue.shade800.withOpacity(0.3),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  Icons.cloud_off,
-                  size: 60,
-                  color: Colors.white,
-                ),
+                child: Icon(Icons.cloud_off, size: 60, color: Colors.white),
               ),
               const SizedBox(height: 20),
               const Text(
@@ -65,10 +61,7 @@ class NoServerDialog extends StatelessWidget {
                 'No server was detected on the network.\n'
                 'Server is not running – make this device the server?',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 16,
-                ),
+                style: TextStyle(color: Colors.white70, fontSize: 16),
               ),
               const SizedBox(height: 25),
               Row(
@@ -79,7 +72,8 @@ class NoServerDialog extends StatelessWidget {
                       style: OutlinedButton.styleFrom(
                         side: BorderSide(color: Colors.white70),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15)),
+                          borderRadius: BorderRadius.circular(15),
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                       child: const Text(
@@ -92,13 +86,14 @@ class NoServerDialog extends StatelessWidget {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () async {
-                        Navigator.of(context).pop();
+                        Navigator.of(context).pop(); // close dialog
                         await onMakeServer();
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.lightBlueAccent,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15)),
+                          borderRadius: BorderRadius.circular(15),
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         elevation: 8,
                         shadowColor: Colors.lightBlueAccent.withOpacity(0.5),
@@ -113,7 +108,7 @@ class NoServerDialog extends StatelessWidget {
                     ),
                   ),
                 ],
-              )
+              ),
             ],
           ),
         ),

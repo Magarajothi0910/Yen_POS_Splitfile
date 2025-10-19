@@ -26,8 +26,8 @@ import '../../Global/Widget/custom_button_reuse.dart';
 
 
 class AllOrdersPage extends StatefulWidget {
-  final GlobalKey keyboardKey;
-  const AllOrdersPage({super.key, required this.keyboardKey});
+
+  const AllOrdersPage({super.key});
 
   @override
   _AllOrdersPageState createState() => _AllOrdersPageState();
@@ -144,7 +144,7 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                             isEditing:
                                 isModifyMode, // Pass isModifyMode to EditCustomerDetails
                             orderType: 'AllOrder',
-                            keyboardKey: widget.keyboardKey,
+                          
                           )
                         : _buildEmptyOrderState();
                   },
@@ -209,7 +209,7 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                                     salesOrderId: salesOrder.salesOrderId,
                                     advanceAmount: totalAdvanceAmount,
                                     saleOrderNo: salesOrder.saleOrderNo,
-                                    keyboardKey: widget.keyboardKey,
+                              
                                   );
                                   if (result != null) {}
                                 },
@@ -431,7 +431,7 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                     context,
                     MaterialPageRoute(
                         builder: (context) => SalesOrderScreen(
-                              keyboardKey: widget.keyboardKey,
+               
                             )),
                   );
                 },

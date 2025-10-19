@@ -19,8 +19,8 @@ import '../../Global/Widget/todat_orders_print.dart';
 
 
 class CurrentOrdersPage extends StatefulWidget {
-  final GlobalKey keyboardKey;
-  const CurrentOrdersPage({super.key, required this.keyboardKey});
+
+  const CurrentOrdersPage({super.key, });
 
   @override
   _CurrentOrdersPageState createState() => _CurrentOrdersPageState();
@@ -100,7 +100,7 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
                             filteredSalesOrders[_selectedTransactionIndex!],
                         isEditing: customerScreenProvider.isModifyMode.value,
                         orderType: 'CurrentOrder',
-                        keyboardKey: widget.keyboardKey,
+                  
                       )
                     : _buildEmptyOrderState();
               },
@@ -222,7 +222,7 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
                   context,
                   MaterialPageRoute(
                     builder: (context) => SalesOrderScreen(
-                      keyboardKey: widget.keyboardKey,
+           
                     ),
                   ),
                 );

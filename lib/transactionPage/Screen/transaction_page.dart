@@ -22,8 +22,8 @@ import 'dart:convert';
 import 'package:yenpos/transactionPage/Screen/edit_outlet_so_customerdetails.dart';
 
 class TransactionPage extends StatefulWidget {
-  final GlobalKey keyboardKey;
-  const TransactionPage({super.key, required this.keyboardKey});
+
+  const TransactionPage({super.key});
 
   @override
   _TransactionPageState createState() => _TransactionPageState();
@@ -313,7 +313,7 @@ class _TransactionPageState extends State<TransactionPage> {
                     selectedOrder: orders[_selectedTransactionIndex!],
                     isEditing: customerScreenProvider.isModifyMode.value,
                     orderType: 'CurrentOrder',
-                    keyboardKey: widget.keyboardKey,
+             
                   )
                 : const Center(child: Text("No Customer Selected"));
           },

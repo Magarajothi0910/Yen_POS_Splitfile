@@ -4,20 +4,23 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:provider/provider.dart';
 import 'package:hive/hive.dart';
+
 import 'package:yenpos/Global/globals_data.dart' as globals;
+import 'package:yenpos/Sale_order/Widgets/top_message.dart';
 import 'package:yenpos/Server_Client/serverScreen.dart';
-import 'package:yenpos/loginPage/login_page.dart';
 
 import 'provider/deviceProvider.dart';
 
 class InstallPOSApp extends StatefulWidget {
+
+  const InstallPOSApp({super.key, });
   @override
   _InstallKOTAppState createState() => _InstallKOTAppState();
 }
 
 class _InstallKOTAppState extends State<InstallPOSApp> {
   Map<String, dynamic>? deviceData;
-  final GlobalKey keyboardKey = GlobalKey();
+
   late DeviceProvider deviceProvider;
   @override
   void initState() {
@@ -45,7 +48,9 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
 
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => LoginScreen()),
+          MaterialPageRoute(
+            builder: (context) => LoginScreen(),
+          ),
         );
       } else {
         print("❌ No stored device code found. Opening device code dialog...");
@@ -429,6 +434,14 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
                                 print(
                                   "deviceData!['deviceCodeId']:${deviceData!['deviceCodeId']}",
                                 );
+
+                                globals.aliasname = deviceData!['branchName'];
+                                print(
+                                  "globals.aliasname: ${globals.aliasname}",
+                                );
+                                print(
+                                  "gloabls.branchId: ${deviceData!['branchId']}",
+                                );
                                 // Store the device data
                                 await deviceProvider.storeDeviceData(
                                   deviceData!['deviceCode'],
@@ -441,67 +454,19 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
 
                                 // Show success SnackBar
                                 if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Row(
-                                        children: const [
-                                          Icon(
-                                            Icons.check_circle,
-                                            color: Colors.white,
-                                          ),
-                                          SizedBox(width: 12),
-                                          Expanded(
-                                            child: Text(
-                                              "Branch confirmed successfully!",
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      backgroundColor: Colors.green.shade600,
-                                      behavior: SnackBarBehavior.floating,
-                                      margin: const EdgeInsets.only(
-                                        top: 16,
-                                        left: 16,
-                                        right: 16,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      duration: const Duration(seconds: 3),
-                                    ),
+                                  TopMessage.show(
+                                    context,
+                                    message: "Branch confirmed successfully!",
+                                    backgroundColor: Colors.green.shade600,
                                   );
                                 }
                               } catch (e) {
                                 // Optional: handle error
                                 if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Row(
-                                        children: const [
-                                          Icon(
-                                            Icons.error_outline,
-                                            color: Colors.white,
-                                          ),
-                                          SizedBox(width: 12),
-                                          Expanded(
-                                            child: Text(
-                                              "Failed to confirm branch.",
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      backgroundColor: Colors.redAccent,
-                                      behavior: SnackBarBehavior.floating,
-                                      margin: const EdgeInsets.only(
-                                        top: 16,
-                                        left: 16,
-                                        right: 16,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      duration: const Duration(seconds: 3),
-                                    ),
+                                  TopMessage.show(
+                                    context,
+                                    message: "Failed to confirm branch.",
+                                    backgroundColor: Colors.green.shade600,
                                   );
                                 }
                               }

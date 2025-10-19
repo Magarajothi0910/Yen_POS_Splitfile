@@ -30,7 +30,7 @@ class CustomerSearchProvider extends ChangeNotifier {
   Future<void> fetchSuggestions(String query) async {
     if (query.isEmpty) {
       suggestions = [];
-      notifyListeners();
+
       return;
     }
 

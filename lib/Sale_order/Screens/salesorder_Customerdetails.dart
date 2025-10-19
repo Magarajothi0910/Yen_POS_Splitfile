@@ -28,12 +28,8 @@ import '../../../../Global/Audio Player/audio_screen.dart';
 
 import '../../Global/Widget/custom_button_reuse.dart';
 
-
-
-
 class CustomerDetails extends StatefulWidget {
-  final GlobalKey keyboardKey;
-  const CustomerDetails({super.key, required this.keyboardKey});
+  const CustomerDetails({super.key});
 
   @override
   _CustomerDetailsState createState() => _CustomerDetailsState();
@@ -42,7 +38,6 @@ class CustomerDetails extends StatefulWidget {
 class _CustomerDetailsState extends State<CustomerDetails> {
   final _formKey = GlobalKey<FormState>();
   bool _isFormValid = false;
-
 
   String _customerType = 'Normal';
   int? _selectedRadioValue = 0; // The selected radio button value
@@ -57,12 +52,16 @@ class _CustomerDetailsState extends State<CustomerDetails> {
     String? imagePath1 = box.get('image1');
     String? imagePath2 = box.get('image2');
     setState(() {
-      final customerScreenProvider =
-          Provider.of<CustomerScreenProvider>(context, listen: false);
-      customerScreenProvider.pickedImage1 =
-          imagePath1 != null ? File(imagePath1) : null;
-      customerScreenProvider.pickedImage2 =
-          imagePath2 != null ? File(imagePath2) : null;
+      final customerScreenProvider = Provider.of<CustomerScreenProvider>(
+        context,
+        listen: false,
+      );
+      customerScreenProvider.pickedImage1 = imagePath1 != null
+          ? File(imagePath1)
+          : null;
+      customerScreenProvider.pickedImage2 = imagePath2 != null
+          ? File(imagePath2)
+          : null;
     });
   }
 
@@ -71,14 +70,16 @@ class _CustomerDetailsState extends State<CustomerDetails> {
   final _landMarkFocus = FocusNode();
   final FocusNode _otherEventFocus = FocusNode();
   void showToast(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   bool _validateFullOrderForm() {
-    final customerScreenProvider =
-        Provider.of<CustomerScreenProvider>(context, listen: false);
+    final customerScreenProvider = Provider.of<CustomerScreenProvider>(
+      context,
+      listen: false,
+    );
 
     String mobile = customerScreenProvider.mobileNoController.text.trim();
     String event = customerScreenProvider.selectedEvent ?? '';
@@ -135,39 +136,46 @@ class _CustomerDetailsState extends State<CustomerDetails> {
   }
 
   bool _validateOrderDetails() {
-    final customerScreenProvider =
-        Provider.of<CustomerScreenProvider>(context, listen: false);
-    final detailsProvider =
-        Provider.of<DetailsProvider>(context, listen: false);
+    final customerScreenProvider = Provider.of<CustomerScreenProvider>(
+      context,
+      listen: false,
+    );
+    final detailsProvider = Provider.of<DetailsProvider>(
+      context,
+      listen: false,
+    );
 
-    String selectedSalesperson =
-        customerScreenProvider.searchController.text.trim();
-    String enteredMobileNumber =
-        customerScreenProvider.mobileNoController.text.trim();
+    String selectedSalesperson = customerScreenProvider.searchController.text
+        .trim();
+    String enteredMobileNumber = customerScreenProvider.mobileNoController.text
+        .trim();
 
-    if (!detailsProvider.employeeNames.contains(selectedSalesperson)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Add a valid salesperson.')),
-      );
-      return false;
-    }
+    // if (!detailsProvider.employeeNames.contains(selectedSalesperson)) {
+    //   ScaffoldMessenger.of(context).showSnackBar(
+    //     const SnackBar(content: Text('Add a valid salesperson.')),
+    //   );
+    //   return false;
+    // }
 
     if (enteredMobileNumber.isEmpty ||
         enteredMobileNumber.length != 10 ||
         !RegExp(r'^\d{10}$').hasMatch(enteredMobileNumber)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Please enter a valid 10-digit mobile number.')),
+          content: Text('Please enter a valid 10-digit mobile number.'),
+        ),
       );
       return false;
     }
 
-    bool hasInvalidBoxItems = globals.cartItems
-        .any((item) => item.isBoxItem == 'yes' && item.quantity <= 0);
+    bool hasInvalidBoxItems = globals.cartItems.any(
+      (item) => item.isBoxItem == 'yes' && item.quantity <= 0,
+    );
     if (hasInvalidBoxItems) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Enter valid box quantity for selected items.')),
+          content: Text('Enter valid box quantity for selected items.'),
+        ),
       );
       return false;
     }
@@ -183,18 +191,24 @@ class _CustomerDetailsState extends State<CustomerDetails> {
   void initState() {
     super.initState();
     _loadStoredImages();
-    Provider.of<CustomerScreenProvider>(context, listen: false)
-        .setSelectedDeliveryType('Pickup by Customer');
-    final customerScreenProvider =
-        Provider.of<CustomerScreenProvider>(context, listen: false);
-    customerScreenProvider.clearControllers();
+    Provider.of<CustomerScreenProvider>(
+      context,
+      listen: false,
+    ).setSelectedDeliveryType('Pickup by Customer');
+    final customerScreenProvider = Provider.of<CustomerScreenProvider>(
+      context,
+      listen: false,
+    );
+    // customerScreenProvider.clearControllers();
     customerScreenProvider.setSelectedEvent('Birthday');
   }
 
   void handleRecordingComplete(String path) {
     setState(() {
-      final customerScreenProvider =
-          Provider.of<CustomerScreenProvider>(context, listen: false);
+      final customerScreenProvider = Provider.of<CustomerScreenProvider>(
+        context,
+        listen: false,
+      );
       customerScreenProvider.recordedFilePath = path;
     });
   }
@@ -205,8 +219,10 @@ class _CustomerDetailsState extends State<CustomerDetails> {
     final audioprovider = Provider.of<AudioProvider>(context, listen: false);
     final customerScreenProvider = Provider.of<CustomerScreenProvider>(context);
     final apiSalesprovider = Provider.of<ApiServiceSalesOrderProvider>(context);
-    final cartSelectionProvider =
-        Provider.of<CartSelectionProvider>(context, listen: false);
+    final cartSelectionProvider = Provider.of<CartSelectionProvider>(
+      context,
+      listen: false,
+    );
 
     return WillPopScope(
       onWillPop: () async {
@@ -220,8 +236,9 @@ class _CustomerDetailsState extends State<CustomerDetails> {
               actions: <Widget>[
                 TextButton(
                   onPressed: () {
-                    Navigator.of(context)
-                        .pop(false); // User does not want to exit
+                    Navigator.of(
+                      context,
+                    ).pop(false); // User does not want to exit
                   },
                   child: const Text('No'),
                 ),
@@ -240,11 +257,7 @@ class _CustomerDetailsState extends State<CustomerDetails> {
         if (shouldExit == true) {
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (context) => AllOrdersPage(
-                keyboardKey: widget.keyboardKey,
-              ),
-            ),
+            MaterialPageRoute(builder: (context) => AllOrdersPage()),
           );
         }
         // If the user dismisses the dialog, default behavior is not to exit
@@ -275,17 +288,19 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                       },
                     ),
                     Transform.translate(
-                      offset:
-                          const Offset(0, 0), // Move the text up by 8 pixels
+                      offset: const Offset(
+                        0,
+                        0,
+                      ), // Move the text up by 8 pixels
                       child: Text(
                         'Customer',
                         style: TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.bold),
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                    SizedBox(
-                      width: 19,
-                    ),
+                    SizedBox(width: 19),
                   ],
                 ),
                 const SizedBox(width: 10),
@@ -295,10 +310,7 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                     Transform.translate(
                       offset: const Offset(0, -8),
                       child: TextButton.icon(
-                        icon: const Icon(
-                          Icons.assignment,
-                          color: Colors.red,
-                        ),
+                        icon: const Icon(Icons.assignment, color: Colors.red),
                         label: const Text(
                           "Order Status",
                           style: TextStyle(
@@ -324,9 +336,10 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                     label: const Text(
                       "Held Orders",
                       style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.red),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.red,
+                      ),
                     ),
 
                     onPressed: () {
@@ -349,18 +362,21 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                           return Dialog(
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(
-                                  12), // Reduced border radius
+                                12,
+                              ), // Reduced border radius
                             ),
                             elevation: 10,
                             child: Container(
                               width: MediaQuery.of(context).size.width * 0.1,
-                              padding:
-                                  const EdgeInsets.all(16), // Reduced padding
+                              padding: const EdgeInsets.all(
+                                16,
+                              ), // Reduced padding
                               decoration: BoxDecoration(
                                 color: Colors
                                     .blueAccent, // Simplified gradient to a single color
                                 borderRadius: BorderRadius.circular(
-                                    12), // Reduced border radius
+                                  12,
+                                ), // Reduced border radius
                               ),
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
@@ -410,7 +426,8 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                               Colors.white, // Simplified color
                                           shape: RoundedRectangleBorder(
                                             borderRadius: BorderRadius.circular(
-                                                8), // Reduced border radius
+                                              8,
+                                            ), // Reduced border radius
                                           ),
                                         ),
                                         child: const Text("Clear"),
@@ -423,7 +440,8 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                               Colors.white, // Simplified color
                                           shape: RoundedRectangleBorder(
                                             borderRadius: BorderRadius.circular(
-                                                8), // Reduced border radius
+                                              8,
+                                            ), // Reduced border radius
                                           ),
                                         ),
                                         child: const Text("Cancel"),
@@ -456,9 +474,7 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                       children: [
                         const Padding(padding: EdgeInsets.all(5)),
                         SizedBox(width: 290, child: CustomerSearchDropdown()),
-                        SizedBox(
-                          width: 10,
-                        ),
+                        SizedBox(width: 10),
                         SizedBox(
                           height: 50,
                           width: 286,
@@ -466,10 +482,15 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                             autovalidateMode:
                                 AutovalidateMode.onUserInteraction,
                             controller: TextEditingController(
-                              text: customerScreenProvider
-                                          .dateController.text.isNotEmpty &&
+                              text:
+                                  customerScreenProvider
+                                          .dateController
+                                          .text
+                                          .isNotEmpty &&
                                       customerScreenProvider
-                                          .timeController.text.isNotEmpty
+                                          .timeController
+                                          .text
+                                          .isNotEmpty
                                   ? '${customerScreenProvider.dateController.text} | ${customerScreenProvider.timeController.text}'
                                   : '',
                             ),
@@ -500,17 +521,18 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                   return Dialog(
                                     backgroundColor: Colors.white,
                                     shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(20)),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
                                     child: StatefulBuilder(
                                       builder: (context, setState) {
                                         return SingleChildScrollView(
                                           child: ConstrainedBox(
                                             constraints: BoxConstraints(
                                               maxWidth: 600,
-                                              maxHeight: MediaQuery.of(context)
-                                                      .size
-                                                      .height *
+                                              maxHeight:
+                                                  MediaQuery.of(
+                                                    context,
+                                                  ).size.height *
                                                   0.85,
                                             ),
                                             child: Padding(
@@ -521,15 +543,18 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                                   // Title
                                                   Row(
                                                     children: [
-                                                      Icon(Icons.event,
-                                                          color: Colors.blue),
+                                                      Icon(
+                                                        Icons.event,
+                                                        color: Colors.blue,
+                                                      ),
                                                       SizedBox(width: 8),
                                                       Text(
                                                         "Select Delivery Date & Time",
                                                         style: TextStyle(
-                                                            fontWeight:
-                                                                FontWeight.bold,
-                                                            fontSize: 18),
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          fontSize: 18,
+                                                        ),
                                                       ),
                                                     ],
                                                   ),
@@ -548,39 +573,44 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                                                   .start,
                                                           children: [
                                                             Text(
-                                                                "Delivery Date",
-                                                                style: TextStyle(
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .w600)),
+                                                              "Delivery Date",
+                                                              style: TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                              ),
+                                                            ),
                                                             SizedBox(height: 8),
                                                             Container(
-                                                              decoration:
-                                                                  BoxDecoration(
+                                                              decoration: BoxDecoration(
                                                                 border: Border.all(
-                                                                    color: Colors
-                                                                        .blue
-                                                                        .shade100),
+                                                                  color: Colors
+                                                                      .blue
+                                                                      .shade100,
+                                                                ),
                                                                 borderRadius:
-                                                                    BorderRadius
-                                                                        .circular(
-                                                                            12),
+                                                                    BorderRadius.circular(
+                                                                      12,
+                                                                    ),
                                                               ),
-                                                              child:
-                                                                  CalendarDatePicker(
+                                                              child: CalendarDatePicker(
                                                                 initialDate:
                                                                     now,
                                                                 firstDate: now,
-                                                                lastDate: now.add(
-                                                                    Duration(
+                                                                lastDate: now
+                                                                    .add(
+                                                                      Duration(
                                                                         days:
-                                                                            180)),
+                                                                            180,
+                                                                      ),
+                                                                    ),
                                                                 onDateChanged:
                                                                     (date) {
-                                                                  setState(() =>
-                                                                      selectedDate =
-                                                                          date);
-                                                                },
+                                                                      setState(
+                                                                        () => selectedDate =
+                                                                            date,
+                                                                      );
+                                                                    },
                                                               ),
                                                             ),
                                                           ],
@@ -598,33 +628,33 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                                                   .start,
                                                           children: [
                                                             Text(
-                                                                "Delivery Time",
-                                                                style:
-                                                                    TextStyle(
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .bold,
-                                                                  fontSize: 16,
-                                                                )),
+                                                              "Delivery Time",
+                                                              style: TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                fontSize: 16,
+                                                              ),
+                                                            ),
                                                             SizedBox(
-                                                                height: 12),
+                                                              height: 12,
+                                                            ),
 
                                                             // — iOS-style wheel picker —
                                                             Container(
                                                               height: 150,
-                                                              decoration:
-                                                                  BoxDecoration(
+                                                              decoration: BoxDecoration(
                                                                 border: Border.all(
-                                                                    color: Colors
-                                                                        .blue
-                                                                        .shade100),
+                                                                  color: Colors
+                                                                      .blue
+                                                                      .shade100,
+                                                                ),
                                                                 borderRadius:
-                                                                    BorderRadius
-                                                                        .circular(
-                                                                            12),
+                                                                    BorderRadius.circular(
+                                                                      12,
+                                                                    ),
                                                               ),
-                                                              child:
-                                                                  CupertinoDatePicker(
+                                                              child: CupertinoDatePicker(
                                                                 mode:
                                                                     CupertinoDatePickerMode
                                                                         .time,
@@ -632,15 +662,15 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                                                     false,
                                                                 initialDateTime:
                                                                     DateTime(
-                                                                        0,
-                                                                        0,
-                                                                        0,
-                                                                        selectedHour,
-                                                                        selectedMinute),
+                                                                      0,
+                                                                      0,
+                                                                      0,
+                                                                      selectedHour,
+                                                                      selectedMinute,
+                                                                    ),
                                                                 minuteInterval:
                                                                     1,
-                                                                onDateTimeChanged:
-                                                                    (dt) {
+                                                                onDateTimeChanged: (dt) {
                                                                   setState(() {
                                                                     selectedHour =
                                                                         dt.hour;
@@ -652,25 +682,29 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                                             ),
 
                                                             SizedBox(
-                                                                height: 12),
+                                                              height: 12,
+                                                            ),
                                                             Row(
                                                               children: [
                                                                 Icon(
-                                                                    Icons
-                                                                        .access_time,
-                                                                    size: 18,
-                                                                    color: Colors
-                                                                        .blueGrey),
+                                                                  Icons
+                                                                      .access_time,
+                                                                  size: 18,
+                                                                  color: Colors
+                                                                      .blueGrey,
+                                                                ),
                                                                 SizedBox(
-                                                                    width: 6),
+                                                                  width: 6,
+                                                                ),
                                                                 Text(
                                                                   "Selected: ${TimeOfDay(hour: selectedHour, minute: selectedMinute).format(context)}",
                                                                   style: TextStyle(
-                                                                      fontSize:
-                                                                          15,
-                                                                      fontWeight:
-                                                                          FontWeight
-                                                                              .w500),
+                                                                    fontSize:
+                                                                        15,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w500,
+                                                                  ),
                                                                 ),
                                                               ],
                                                             ),
@@ -690,53 +724,59 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                                       TextButton(
                                                         onPressed: () =>
                                                             Navigator.pop(
-                                                                context),
+                                                              context,
+                                                            ),
                                                         child: Text("Cancel"),
                                                       ),
                                                       ElevatedButton.icon(
                                                         onPressed: () {
                                                           final formattedDate =
                                                               DateFormat(
-                                                                      'dd-MM-yyyy')
-                                                                  .format(
-                                                                      selectedDate);
+                                                                'dd-MM-yyyy',
+                                                              ).format(
+                                                                selectedDate,
+                                                              );
                                                           final formattedTime =
                                                               TimeOfDay(
-                                                                      hour:
-                                                                          selectedHour,
-                                                                      minute:
-                                                                          selectedMinute)
-                                                                  .format(
-                                                                      context);
+                                                                hour:
+                                                                    selectedHour,
+                                                                minute:
+                                                                    selectedMinute,
+                                                              ).format(context);
 
                                                           customerScreenProvider
                                                               .updateDate(
-                                                                  formattedDate);
+                                                                formattedDate,
+                                                              );
                                                           customerScreenProvider
                                                                   .timeController
                                                                   .text =
                                                               formattedTime;
                                                           Navigator.pop(
-                                                              context);
+                                                            context,
+                                                          );
                                                         },
                                                         icon: Icon(
                                                           Icons.check,
                                                           color: Colors.white,
                                                         ),
-                                                        label: Text("Confirm",
-                                                            style: TextStyle(
-                                                                color: Colors
-                                                                    .white)),
-                                                        style: ElevatedButton
-                                                            .styleFrom(
+                                                        label: Text(
+                                                          "Confirm",
+                                                          style: TextStyle(
+                                                            color: Colors.white,
+                                                          ),
+                                                        ),
+                                                        style: ElevatedButton.styleFrom(
                                                           backgroundColor:
-                                                              Colors.blue
+                                                              Colors
+                                                                  .blue
                                                                   .shade600,
                                                           shape: RoundedRectangleBorder(
-                                                              borderRadius:
-                                                                  BorderRadius
-                                                                      .circular(
-                                                                          10)),
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  10,
+                                                                ),
+                                                          ),
                                                         ),
                                                       ),
                                                     ],
@@ -755,9 +795,13 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                             validator: (value) {
                               if (_isFormValid &&
                                   (customerScreenProvider
-                                          .dateController.text.isEmpty ||
+                                          .dateController
+                                          .text
+                                          .isEmpty ||
                                       customerScreenProvider
-                                          .timeController.text.isEmpty)) {
+                                          .timeController
+                                          .text
+                                          .isEmpty)) {
                                 return 'Delivery Date & Time are required';
                               }
                               return null;
@@ -779,32 +823,40 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                               autovalidateMode:
                                   AutovalidateMode.onUserInteraction,
                               value: customerScreenProvider.selectedEvent,
-                              hint: const Text('Select Event',
-                                  style: TextStyle(fontSize: 14)),
-                              items: [
-                                'Birthday',
-                                'Anniversary',
-                                'Wedding',
-                                'Others'
-                              ].map((String event) {
-                                return DropdownMenuItem<String>(
-                                  value: event,
-                                  child: Text(event),
-                                );
-                              }).toList(),
+                              hint: const Text(
+                                'Select Event',
+                                style: TextStyle(fontSize: 14),
+                              ),
+                              items:
+                                  [
+                                    'Birthday',
+                                    'Anniversary',
+                                    'Wedding',
+                                    'Others',
+                                  ].map((String event) {
+                                    return DropdownMenuItem<String>(
+                                      value: event,
+                                      child: Text(event),
+                                    );
+                                  }).toList(),
                               onChanged: (String? newValue) {
-                                customerScreenProvider
-                                    .setSelectedEvent(newValue);
+                                customerScreenProvider.setSelectedEvent(
+                                  newValue,
+                                );
                               },
                               decoration: const InputDecoration(
                                 border: OutlineInputBorder(),
                                 labelText: 'Event',
                                 isDense: false,
                                 contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 14, vertical: 8),
+                                  horizontal: 14,
+                                  vertical: 8,
+                                ),
                               ),
                               style: const TextStyle(
-                                  fontSize: 14, color: Colors.black),
+                                fontSize: 14,
+                                color: Colors.black,
+                              ),
                               dropdownColor: Colors.white,
                               validator: (value) {
                                 if (_isFormValid &&
@@ -841,18 +893,19 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                       barrierLabel: "Date Picker",
                                       pageBuilder:
                                           (context, animation1, animation2) {
-                                        return Container(); // Not used
-                                      },
-                                      transitionBuilder:
-                                          (context, a1, a2, widget) {
+                                            return Container(); // Not used
+                                          },
+                                      transitionBuilder: (context, a1, a2, widget) {
                                         return ScaleTransition(
                                           scale: Tween<double>(
-                                                  begin: 0.5, end: 1.0)
-                                              .animate(a1),
+                                            begin: 0.5,
+                                            end: 1.0,
+                                          ).animate(a1),
                                           child: FadeTransition(
                                             opacity: Tween<double>(
-                                                    begin: 0.5, end: 1.0)
-                                                .animate(a1),
+                                              begin: 0.5,
+                                              end: 1.0,
+                                            ).animate(a1),
                                             child: Dialog(
                                               backgroundColor:
                                                   Colors.transparent,
@@ -860,7 +913,8 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                               child: Container(
                                                 width: double.infinity,
                                                 constraints: BoxConstraints(
-                                                    maxWidth: 350),
+                                                  maxWidth: 350,
+                                                ),
                                                 decoration: BoxDecoration(
                                                   borderRadius:
                                                       BorderRadius.circular(20),
@@ -879,19 +933,22 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                                       MainAxisSize.min,
                                                   children: [
                                                     Container(
-                                                      padding:
-                                                          EdgeInsets.all(16),
+                                                      padding: EdgeInsets.all(
+                                                        16,
+                                                      ),
                                                       decoration: BoxDecoration(
                                                         color: Colors.blue[700],
                                                         borderRadius:
                                                             BorderRadius.only(
-                                                          topLeft:
-                                                              Radius.circular(
-                                                                  20),
-                                                          topRight:
-                                                              Radius.circular(
-                                                                  20),
-                                                        ),
+                                                              topLeft:
+                                                                  Radius.circular(
+                                                                    20,
+                                                                  ),
+                                                              topRight:
+                                                                  Radius.circular(
+                                                                    20,
+                                                                  ),
+                                                            ),
                                                       ),
                                                       child: Row(
                                                         mainAxisAlignment:
@@ -921,62 +978,59 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                                       height: 300,
                                                       child: Theme(
                                                         data: ThemeData(
-                                                          colorScheme:
-                                                              ColorScheme.light(
+                                                          colorScheme: ColorScheme.light(
                                                             primary: Colors
-                                                                    .blue[
-                                                                700]!, // selected date circle color
+                                                                .blue[700]!, // selected date circle color
                                                             onPrimary: Colors
                                                                 .white, // text color inside circle
                                                             onSurface:
                                                                 Colors.black,
                                                           ),
-                                                          datePickerTheme:
-                                                              DatePickerThemeData(
+                                                          datePickerTheme: DatePickerThemeData(
                                                             todayBackgroundColor:
-                                                                MaterialStateProperty
-                                                                    .all(Colors
-                                                                            .blue[
-                                                                        700]!), // ✅ Blue circle background
+                                                                MaterialStateProperty.all(
+                                                                  Colors
+                                                                      .blue[700]!,
+                                                                ), // ✅ Blue circle background
                                                             todayForegroundColor:
-                                                                MaterialStateProperty
-                                                                    .all(Colors
-                                                                        .blue), // ✅ White text
+                                                                MaterialStateProperty.all(
+                                                                  Colors.blue,
+                                                                ), // ✅ White text
                                                             shape:
                                                                 const CircleBorder(), // ✅ Circle shape
                                                           ),
                                                         ),
-                                                        child:
-                                                            CalendarDatePicker(
-                                                          initialDate: DateTime
-                                                              .now(), // open with today selected
+                                                        child: CalendarDatePicker(
+                                                          initialDate:
+                                                              DateTime.now(), // open with today selected
                                                           firstDate:
                                                               DateTime.now(),
                                                           lastDate: now.add(
-                                                              const Duration(
-                                                                  days: 180)),
-                                                          onDateChanged:
-                                                              (date) {
+                                                            const Duration(
+                                                              days: 180,
+                                                            ),
+                                                          ),
+                                                          onDateChanged: (date) {
                                                             String
-                                                                formattedDate =
+                                                            formattedDate =
                                                                 DateFormat(
-                                                                        'dd-MM-yyyy')
-                                                                    .format(
-                                                                        date);
+                                                                  'dd-MM-yyyy',
+                                                                ).format(date);
                                                             customerScreenProvider
                                                                     .birthdaydateController
                                                                     .text =
                                                                 formattedDate;
                                                             Navigator.of(
-                                                                    context)
-                                                                .pop();
+                                                              context,
+                                                            ).pop();
                                                           },
                                                         ),
                                                       ),
                                                     ),
                                                     Container(
-                                                      padding:
-                                                          EdgeInsets.all(16),
+                                                      padding: EdgeInsets.all(
+                                                        16,
+                                                      ),
                                                       child: Row(
                                                         mainAxisAlignment:
                                                             MainAxisAlignment
@@ -985,8 +1039,8 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                                           TextButton(
                                                             onPressed: () {
                                                               Navigator.of(
-                                                                      context)
-                                                                  .pop();
+                                                                context,
+                                                              ).pop();
                                                             },
                                                             child: Text(
                                                               "Cancel",
@@ -1009,42 +1063,47 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                           ),
                                         );
                                       },
-                                      transitionDuration:
-                                          Duration(milliseconds: 300),
+                                      transitionDuration: Duration(
+                                        milliseconds: 300,
+                                      ),
                                     );
                                   }
                                 },
                                 decoration: InputDecoration(
                                   border: const OutlineInputBorder(),
-                                  labelText: customerScreenProvider
-                                              .selectedEvent ==
+                                  labelText:
+                                      customerScreenProvider.selectedEvent ==
                                           'Others'
                                       ? 'Enter Event Name'
                                       : 'Select ${customerScreenProvider.selectedEvent} Date',
                                   isDense: false,
                                   contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 8),
+                                    horizontal: 14,
+                                    vertical: 8,
+                                  ),
                                   suffixIcon:
                                       customerScreenProvider.selectedEvent !=
-                                              'Others'
-                                          ? Icon(Icons.event)
-                                          : null,
+                                          'Others'
+                                      ? Icon(Icons.event)
+                                      : null,
                                 ),
                                 style: const TextStyle(
-                                    fontSize: 14, color: Colors.black),
-                                controller: customerScreenProvider
-                                            .selectedEvent ==
+                                  fontSize: 14,
+                                  color: Colors.black,
+                                ),
+                                controller:
+                                    customerScreenProvider.selectedEvent ==
                                         'Others'
                                     ? customerScreenProvider
-                                        .otherEventController // ✅ show custom controller
+                                          .otherEventController // ✅ show custom controller
                                     : customerScreenProvider
-                                        .birthdaydateController,
+                                          .birthdaydateController,
 
                                 focusNode:
                                     customerScreenProvider.selectedEvent ==
-                                            'Others'
-                                        ? _otherEventFocus
-                                        : null,
+                                        'Others'
+                                    ? _otherEventFocus
+                                    : null,
                                 validator: (value) {
                                   if (_isFormValid &&
                                       (value == null || value.isEmpty)) {
@@ -1068,14 +1127,16 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                       children: [
                         // if (customerScreenProvider.selectedEvent == 'Birthday')
                         if (_customerType != 'Normal' ||
-                            _customerType != 'Company') ...[const SizedBox()],
+                            _customerType != 'Company') ...[
+                          const SizedBox(),
+                        ],
 
                         if (_customerType == 'Normal' ||
                             _customerType == 'Company') ...[
                           const Padding(padding: EdgeInsets.all(5)),
                         ],
                         if (_customerType == 'Credit Customer') ...[
-                          const Padding(padding: EdgeInsets.all(5))
+                          const Padding(padding: EdgeInsets.all(5)),
                         ],
 
                         // const Padding(padding: EdgeInsets.all(5)),
@@ -1088,20 +1149,22 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                   AutovalidateMode.onUserInteraction,
                               value:
                                   customerScreenProvider.selectedDeliveryType,
-                              hint: const Text('Delivery Type',
-                                  style: TextStyle(fontSize: 14)),
-                              items: [
-                                'Pickup by Customer',
-                                'Door Delivery',
-                              ].map((String type) {
-                                return DropdownMenuItem<String>(
-                                  value: type,
-                                  child: Text(type),
-                                );
-                              }).toList(),
+                              hint: const Text(
+                                'Delivery Type',
+                                style: TextStyle(fontSize: 14),
+                              ),
+                              items: ['Pickup by Customer', 'Door Delivery']
+                                  .map((String type) {
+                                    return DropdownMenuItem<String>(
+                                      value: type,
+                                      child: Text(type),
+                                    );
+                                  })
+                                  .toList(),
                               onChanged: (String? newValue) {
-                                customerScreenProvider
-                                    .setSelectedDeliveryType(newValue);
+                                customerScreenProvider.setSelectedDeliveryType(
+                                  newValue,
+                                );
                               },
                               decoration: const InputDecoration(
                                 border: OutlineInputBorder(),
@@ -1109,10 +1172,14 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                 labelStyle: TextStyle(fontSize: 14),
                                 isDense: false, // Makes the field more compact
                                 contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 14, vertical: 8),
+                                  horizontal: 14,
+                                  vertical: 8,
+                                ),
                               ),
-                              style:
-                                  TextStyle(fontSize: 14, color: Colors.black),
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.black,
+                              ),
                               dropdownColor: Colors.white,
                               validator: (value) {
                                 if (_isFormValid &&
@@ -1162,12 +1229,16 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                 labelStyle: TextStyle(fontSize: 14),
                                 isDense: false, // Makes the field more compact
                                 contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 14, vertical: 8),
+                                  horizontal: 14,
+                                  vertical: 8,
+                                ),
 
                                 hintStyle: TextStyle(color: Colors.grey),
                               ),
-                              style:
-                                  TextStyle(fontSize: 14, color: Colors.black),
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.black,
+                              ),
                               // validator: (value) {
                               //   if (_isFormValid &&
                               //       (value == null || value.isEmpty)) {
@@ -1192,8 +1263,10 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                 isDense: false, // Makes the field more compact
                                 hintStyle: TextStyle(color: Colors.grey),
                               ),
-                              style:
-                                  TextStyle(fontSize: 14, color: Colors.black),
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.black,
+                              ),
                               onTap: () {
                                 ActiveField.activate(
                                   ctrl:
@@ -1207,6 +1280,7 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                         ],
                       ),
                     ],
+
                     // if (_customerType == 'Company')
                     //   Row(children: [
                     //     // const Padding(padding: EdgeInsets.all(5)),
@@ -1225,7 +1299,6 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                     //             //     .buildCustomerInputFieldsforcredit(context),
                     //             CreditCustomerSearchDropdown())
                     //   ]),
-
                     Padding(
                       padding: const EdgeInsets.all(8.0),
                       child: SizedBox(
@@ -1243,7 +1316,9 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                             hintStyle: TextStyle(color: Colors.grey),
                           ),
                           style: const TextStyle(
-                              fontSize: 14, color: Colors.black),
+                            fontSize: 14,
+                            color: Colors.black,
+                          ),
                           onTap: () {
                             ActiveField.activate(
                               ctrl: customerScreenProvider.remarkController,
@@ -1272,15 +1347,15 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                   ? SizedBox(
                                       width: 220,
                                       child: VoiceRecorder(
-                                          onRecordingComplete:
-                                              handleRecordingComplete),
+                                        onRecordingComplete:
+                                            handleRecordingComplete,
+                                      ),
                                     )
                                   : AudioPlayerWidget(
                                       filePath: customerScreenProvider
-                                          .recordedFilePath),
-                            SizedBox(
-                              width: 8,
-                            ),
+                                          .recordedFilePath,
+                                    ),
+                            SizedBox(width: 8),
                             // 🔹 Photo Widget
                             if (customerScreenProvider.photoScreen != null)
                               PhotosScreen(
@@ -1308,53 +1383,58 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                         if (_validateOrderDetails() &&
                                             _validateFullOrderForm()) {
                                           final filePaths =
-                                              await FileStorageManager
-                                                  .saveFiles(
-                                            recordedFilePath:
-                                                customerScreenProvider
-                                                    .recordedFilePath,
-                                            pickedImage1: customerScreenProvider
-                                                .pickedImage1,
-                                            pickedImage2: customerScreenProvider
-                                                .pickedImage2,
-                                          );
+                                              await FileStorageManager.saveFiles(
+                                                recordedFilePath:
+                                                    customerScreenProvider
+                                                        .recordedFilePath,
+                                                pickedImage1:
+                                                    customerScreenProvider
+                                                        .pickedImage1,
+                                                pickedImage2:
+                                                    customerScreenProvider
+                                                        .pickedImage2,
+                                              );
 
                                           if (_requiresApproval()) {
                                             customerScreenProvider
                                                 .submitForApproval(
-                                              context,
-                                              cartSelectionProvider,
-                                              cartProvider,
-                                              customerScreenProvider
-                                                  .recordedFilePath,
-                                              apiSalesprovider,
-                                              customerScreenProvider
-                                                  .pickedImage1,
-                                              customerScreenProvider
-                                                  .pickedImage2,
-                                              _customerType,
-                                            );
+                                                  context,
+                                                  cartSelectionProvider,
+                                                  cartProvider,
+                                                  customerScreenProvider
+                                                      .recordedFilePath,
+                                                  apiSalesprovider,
+                                                  customerScreenProvider
+                                                      .pickedImage1,
+                                                  customerScreenProvider
+                                                      .pickedImage2,
+                                                  _customerType,
+                                                );
                                           } else {
                                             customerScreenProvider
                                                 .showAdvancePaymentPopup(
-                                              context,
-                                              cartSelectionProvider,
-                                              cartProvider,
-                                              filePaths['audioPath'],
-                                              apiSalesprovider,
-                                              filePaths['imagePath1'] != null
-                                                  ? File(
-                                                      filePaths['imagePath1']!)
-                                                  : null,
-                                              filePaths['imagePath2'] != null
-                                                  ? File(
-                                                      filePaths['imagePath2']!)
-                                                  : null,
-                                              _customerType,
-                                              customerScreenProvider
-                                                  .audioPlayer,
-                                              holdId,
-                                            );
+                                                  context,
+                                                  cartSelectionProvider,
+                                                  cartProvider,
+                                                  filePaths['audioPath'],
+                                                  apiSalesprovider,
+                                                  filePaths['imagePath1'] !=
+                                                          null
+                                                      ? File(
+                                                          filePaths['imagePath1']!,
+                                                        )
+                                                      : null,
+                                                  filePaths['imagePath2'] !=
+                                                          null
+                                                      ? File(
+                                                          filePaths['imagePath2']!,
+                                                        )
+                                                      : null,
+                                                  _customerType,
+                                                  customerScreenProvider
+                                                      .audioPlayer,
+                                                  holdId,
+                                                );
                                             customerScreenProvider
                                                 .clikedThePaymentButton();
                                           }
@@ -1363,12 +1443,14 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                     : () {},
                                 backgroundColor: globals.cartItems.isNotEmpty
                                     ? (_requiresApproval()
-                                        ? Colors.orange
-                                        : Colors.blue)
+                                          ? Colors.orange
+                                          : Colors.blue)
                                     : Colors.grey,
                                 textColor: Colors.white,
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 8),
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
                                 fontSize: 12.0,
                               ),
                             ),
@@ -1377,8 +1459,9 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                             if (_customerType == 'Normal')
                               Container(
                                 height: 50,
-                                margin:
-                                    const EdgeInsets.symmetric(horizontal: 6),
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                ),
                                 child: CustomButton(
                                   text: 'Hold Order',
                                   onPressed: globals.cartItems.isNotEmpty
@@ -1395,11 +1478,14 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                               customerScreenProvider
                                                   .pickedImage2,
                                             );
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
                                               const SnackBar(
-                                                  content: Text(
-                                                      'Order data saved successfully!')),
+                                                content: Text(
+                                                  'Order data saved successfully!',
+                                                ),
+                                              ),
                                             );
                                             _formKey.currentState!.reset();
                                             customerScreenProvider
@@ -1413,7 +1499,9 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                       : Colors.grey,
                                   textColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 8),
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
                                   fontSize: 12.0,
                                 ),
                               ),
@@ -1433,9 +1521,10 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                             children: [
                               const SizedBox(height: 8),
                               Expanded(
-                                  child: CustomKeyboardWidgetAll2(
-                                      controller:
-                                          ctrl ?? TextEditingController())),
+                                child: CustomKeyboardWidgetAll2(
+                                  controller: ctrl ?? TextEditingController(),
+                                ),
+                              ),
                             ],
                           );
                         },
@@ -1542,8 +1631,9 @@ class _CustomerDetailsState extends State<CustomerDetails> {
       var order = approveOrderBox.getAt(i);
 
       if (order != null && order is Map) {
-        var orderMap =
-            order.map((key, value) => MapEntry(key.toString(), value));
+        var orderMap = order.map(
+          (key, value) => MapEntry(key.toString(), value),
+        );
 
         // 📝 FULL PRINT
         orderMap.forEach((k, v) {
@@ -1692,7 +1782,6 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                   ),
                 ),
                 const SizedBox(height: 8), // reduced from 14
-
                 /// Delivery Info
                 _buildInfoRow(
                   Icons.calendar_month_rounded,
@@ -1737,13 +1826,12 @@ class _CustomerDetailsState extends State<CustomerDetails> {
 
     return Container(
       padding: const EdgeInsets.symmetric(
-          horizontal: 10, vertical: 4), // smaller chip
+        horizontal: 10,
+        vertical: 4,
+      ), // smaller chip
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            bgColor.withOpacity(0.9),
-            bgColor.withOpacity(0.7),
-          ],
+          colors: [bgColor.withOpacity(0.9), bgColor.withOpacity(0.7)],
         ),
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
@@ -1771,8 +1859,11 @@ class _CustomerDetailsState extends State<CustomerDetails> {
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String text,
-      {Color iconColor = Colors.blueGrey}) {
+  Widget _buildInfoRow(
+    IconData icon,
+    String text, {
+    Color iconColor = Colors.blueGrey,
+  }) {
     return Row(
       children: [
         Container(

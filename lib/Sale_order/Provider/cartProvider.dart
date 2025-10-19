@@ -247,14 +247,12 @@ class CartProvider extends ChangeNotifier {
       totalAmount += itemTotal;
     }
 
-    notifyListeners();
 
     // Adding custom charge
     final customCharge = double.tryParse(customChargeController.text) ?? 0;
     print("custom charge: $customCharge");
     totalAmount += customCharge;
 
-    notifyListeners();
 
     return totalAmount;
   }

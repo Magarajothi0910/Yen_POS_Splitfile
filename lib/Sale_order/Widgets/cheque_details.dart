@@ -18,7 +18,7 @@ class ChequeDetails extends StatefulWidget {
   final FocusNode chequeDateFocus;
 
   final void Function(int) onFocusChanged;
-  final GlobalKey keyboardKey;
+
 
   const ChequeDetails({
     super.key,
@@ -31,7 +31,7 @@ class ChequeDetails extends StatefulWidget {
     required this.chequeNameFocus,
     required this.chequeDateFocus,
     required this.onFocusChanged,
-    required this.keyboardKey,
+
   });
 
   @override
@@ -147,8 +147,7 @@ class _ChequeDetailsState extends State<ChequeDetails> {
                     Expanded(
                       child: SizedBox(
                         child: BankSearchDropdown(
-                          keyboardKey:
-                              widget.keyboardKey, // ✅ use widget.keyboardKey
+           
                         ),
                       ),
                     ),

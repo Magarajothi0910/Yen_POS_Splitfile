@@ -68,8 +68,6 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
       }
       return false;
     }).toList();
-
-    notifyListeners();
   }
 
   /// ✅ Setup Hive Listener
@@ -145,7 +143,6 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
 
   bool _groupByDeliveryDate = true;
   bool get groupByDeliveryDate => _groupByDeliveryDate;
-
 
   List<SalesOrderDisplay> _filteredSalesOrders = [];
   List<SalesOrderDisplay> _filteredAllSalesOrders = [];

@@ -14,10 +14,10 @@ class AdvanceAmountDialog extends StatefulWidget {
   final double advanceAmount;
   final String salesOrderId;
   final String saleOrderNo;
-  final GlobalKey keyboardKey;
+
   const AdvanceAmountDialog({
     Key? key,
-    required this.keyboardKey,
+
     required this.advanceAmount,
     required this.salesOrderId,
     required this.saleOrderNo,
@@ -29,7 +29,7 @@ class AdvanceAmountDialog extends StatefulWidget {
   static Future<Map<String, dynamic>?> show(
     BuildContext context, {
     required double advanceAmount,
-    required GlobalKey keyboardKey,
+
     required String salesOrderId,
     required String saleOrderNo,
   }) {
@@ -40,7 +40,7 @@ class AdvanceAmountDialog extends StatefulWidget {
         advanceAmount: advanceAmount,
         salesOrderId: salesOrderId,
         saleOrderNo: saleOrderNo,
-        keyboardKey: keyboardKey,
+
       ),
     );
   }
@@ -51,7 +51,7 @@ class _AdvanceAmountDialogState extends State<AdvanceAmountDialog> {
   final TextEditingController _salesPersonController = TextEditingController();
   final TextEditingController _returnAmountController = TextEditingController();
   late final TextEditingController _amountController;
-  final GlobalKey keyboardKey = GlobalKey();
+
 
   // Payment method controllers
   final TextEditingController chequeNumberController = TextEditingController();
@@ -616,7 +616,7 @@ class _AdvanceAmountDialogState extends State<AdvanceAmountDialog> {
                 ),
               ),
               const SizedBox(width: 15),
-              Expanded(child: BankSearchDropdown(keyboardKey: keyboardKey)),
+              Expanded(child: BankSearchDropdown()),
             ],
           ),
         ],

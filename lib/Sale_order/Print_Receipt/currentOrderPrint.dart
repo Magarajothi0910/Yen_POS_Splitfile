@@ -70,7 +70,7 @@ class _OrderManagementPayandPrintState
   OverlayEntry? _overlayEntry;
   final GlobalSOWebSocketService _salesorder_webSocketService =
       GlobalSOWebSocketService();
-  final GlobalKey keyboardKey = GlobalKey();
+
 
   late final List<TextEditingController> controllers;
   final FocusNode _customCashFocusNode = FocusNode();
@@ -480,7 +480,7 @@ class _OrderManagementPayandPrintState
                         chequeNameFocus: _chequeNameFocus,
                         chequeDateFocus: _chequeDateFocus,
                         onFocusChanged: (index) {},
-                        keyboardKey: keyboardKey,
+                     
                       ),
                     ],
                   ],

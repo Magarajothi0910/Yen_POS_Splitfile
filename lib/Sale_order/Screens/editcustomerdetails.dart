@@ -23,13 +23,13 @@ class EditCustomerDetails extends StatefulWidget {
   final SalesOrderDisplay? selectedOrder;
   final bool isEditing;
   final String? orderType;
-  final GlobalKey keyboardKey;
+
   const EditCustomerDetails(
       {super.key,
       this.selectedOrder,
       this.isEditing = false,
       this.orderType,
-      required this.keyboardKey});
+});
   @override
   _EditCustomerDetailsState createState() => _EditCustomerDetailsState();
 }
@@ -165,7 +165,7 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
             context,
             MaterialPageRoute(
               builder: (context) => AllOrdersPage(
-                keyboardKey: widget.keyboardKey,
+
               ),
             ),
           );

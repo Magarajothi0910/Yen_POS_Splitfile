@@ -22,8 +22,9 @@ class OpenShift extends StatefulWidget {
 class _OpenShiftState extends State<OpenShift> {
   // Constant actual opening cash
   static const int actualOpeningCash = 3000;
-  final ValueNotifier<ConnectivityResult> _connectivityResult =
-      ValueNotifier(ConnectivityResult.none);
+  final ValueNotifier<ConnectivityResult> _connectivityResult = ValueNotifier(
+    ConnectivityResult.none,
+  );
 
   // system opening cash (initially 0, will be set to physical cash after shift is saved)
   final ValueNotifier<int> systemOpeningBalance = ValueNotifier(0);
@@ -143,10 +144,7 @@ class _OpenShiftState extends State<OpenShift> {
     debugPrint('➡ Payload being sent: ${jsonEncode(payload)}');
 
     try {
-      final response = await _dio.post(
-        url,
-        data: jsonEncode(payload),
-      );
+      final response = await _dio.post(url, data: jsonEncode(payload));
 
       debugPrint('⬅ Response received — Status: ${response.statusCode}');
       debugPrint('⬅ Response body: ${response.data}');
@@ -182,9 +180,9 @@ class _OpenShiftState extends State<OpenShift> {
     } catch (e, st) {
       debugPrint('❌ Exception during POST: $e\n$st');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Exception: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Exception: $e')));
       }
     }
   }
@@ -217,28 +215,119 @@ class _OpenShiftState extends State<OpenShift> {
                             return OutlinedButton(
                               onPressed: isConnected
                                   ? () async {
-                                      await CashManagementProvider
-                                          .fetchShiftOpenCheck();
+                                      await CashManagementProvider.fetchShiftOpenCheck();
                                       if (shiftStatus == "open") {
                                         showDialog(
                                           context: context,
-                                          builder: (context) => AlertDialog(
-                                            backgroundColor: Colors.white,
-                                            title: const Text(
-                                                'Shift Already Opened'),
-                                            content: const Text(
-                                                'This employee already has a shift opened.'),
-                                            actions: [
-                                              TextButton(
-                                                onPressed: () =>
-                                                    Navigator.pop(context),
-                                                child: const Text(
-                                                  'OK',
-                                                  style: TextStyle(
-                                                      color: Colors.blue),
+                                          barrierDismissible: true,
+                                          builder: (context) => Dialog(
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(20),
+                                            ),
+                                            elevation: 10,
+                                            backgroundColor: Colors.transparent,
+                                            child: Container(
+                                              decoration: BoxDecoration(
+                                                gradient: LinearGradient(
+                                                  colors: [
+                                                    Colors.white,
+                                                    Colors.grey.shade100,
+                                                  ],
+                                                  begin: Alignment.topLeft,
+                                                  end: Alignment.bottomRight,
                                                 ),
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: Colors.black26,
+                                                    blurRadius: 15,
+                                                    offset: Offset(0, 8),
+                                                  ),
+                                                ],
                                               ),
-                                            ],
+                                              padding: EdgeInsets.all(20),
+                                              child: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  // Optional Premium Icon
+                                                  Container(
+                                                    padding: EdgeInsets.all(12),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.blueAccent
+                                                          .withOpacity(0.1),
+                                                      shape: BoxShape.circle,
+                                                    ),
+                                                    child: Icon(
+                                                      Icons
+                                                          .warning_amber_rounded,
+                                                      color: Colors.blueAccent,
+                                                      size: 40,
+                                                    ),
+                                                  ),
+                                                  SizedBox(height: 15),
+                                                  // Title
+                                                  Text(
+                                                    'Shift Already Opened',
+                                                    style: TextStyle(
+                                                      fontSize: 20,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: Colors.black87,
+                                                      letterSpacing: 0.5,
+                                                    ),
+                                                    textAlign: TextAlign.center,
+                                                  ),
+                                                  SizedBox(height: 10),
+                                                  // Content
+                                                  Text(
+                                                    'This employee already has a shift opened.',
+                                                    style: TextStyle(
+                                                      fontSize: 16,
+                                                      color: Colors.black54,
+                                                    ),
+                                                    textAlign: TextAlign.center,
+                                                  ),
+                                                  SizedBox(height: 20),
+                                                  // Action Button
+                                                  SizedBox(
+                                                    width: double.infinity,
+                                                    child: ElevatedButton(
+                                                      style: ElevatedButton.styleFrom(
+                                                        backgroundColor:
+                                                            Colors.blueAccent,
+                                                        padding:
+                                                            EdgeInsets.symmetric(
+                                                              vertical: 14,
+                                                            ),
+                                                        shape: RoundedRectangleBorder(
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                12,
+                                                              ),
+                                                        ),
+                                                        elevation: 5,
+                                                      ),
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                            context,
+                                                          ),
+                                                      child: Text(
+                                                        'OK',
+                                                        style: TextStyle(
+                                                          fontSize: 16,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          color: Colors.white,
+                                                          letterSpacing: 0.5,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
                                           ),
                                         );
                                         return;
@@ -251,21 +340,114 @@ class _OpenShiftState extends State<OpenShift> {
                                       }
                                     }
                                   : () {
-                                      // network error dialog
                                       showDialog(
                                         context: context,
-                                        builder: (context) => AlertDialog(
-                                          backgroundColor: Colors.white,
-                                          title: const Text('Network Error'),
-                                          content: const Text(
-                                              'No internet connection. Please check your network.'),
-                                          actions: [
-                                            TextButton(
-                                              onPressed: () =>
-                                                  Navigator.pop(context),
-                                              child: const Text('OK'),
+                                        barrierDismissible: true,
+                                        builder: (context) => Dialog(
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              20,
                                             ),
-                                          ],
+                                          ),
+                                          elevation: 10,
+                                          backgroundColor: Colors.transparent,
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              gradient: LinearGradient(
+                                                colors: [
+                                                  Colors.white,
+                                                  Colors.grey.shade100,
+                                                ],
+                                                begin: Alignment.topLeft,
+                                                end: Alignment.bottomRight,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(20),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black26,
+                                                  blurRadius: 15,
+                                                  offset: Offset(0, 8),
+                                                ),
+                                              ],
+                                            ),
+                                            padding: EdgeInsets.all(20),
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                // Network Icon
+                                                Container(
+                                                  padding: EdgeInsets.all(12),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.redAccent
+                                                        .withOpacity(0.1),
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  child: Icon(
+                                                    Icons.wifi_off_rounded,
+                                                    color: Colors.redAccent,
+                                                    size: 40,
+                                                  ),
+                                                ),
+                                                SizedBox(height: 15),
+                                                // Title
+                                                Text(
+                                                  'Network Error',
+                                                  style: TextStyle(
+                                                    fontSize: 20,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.black87,
+                                                    letterSpacing: 0.5,
+                                                  ),
+                                                  textAlign: TextAlign.center,
+                                                ),
+                                                SizedBox(height: 10),
+                                                // Content
+                                                Text(
+                                                  'No internet connection. Please check your network.',
+                                                  style: TextStyle(
+                                                    fontSize: 16,
+                                                    color: Colors.black54,
+                                                  ),
+                                                  textAlign: TextAlign.center,
+                                                ),
+                                                SizedBox(height: 20),
+                                                // Action Button
+                                                SizedBox(
+                                                  width: double.infinity,
+                                                  child: ElevatedButton(
+                                                    style: ElevatedButton.styleFrom(
+                                                      backgroundColor:
+                                                          Colors.redAccent,
+                                                      padding:
+                                                          EdgeInsets.symmetric(
+                                                            vertical: 14,
+                                                          ),
+                                                      shape: RoundedRectangleBorder(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              12,
+                                                            ),
+                                                      ),
+                                                      elevation: 5,
+                                                    ),
+                                                    onPressed: () =>
+                                                        Navigator.pop(context),
+                                                    child: Text(
+                                                      'OK',
+                                                      style: TextStyle(
+                                                        fontSize: 16,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        color: Colors.white,
+                                                        letterSpacing: 0.5,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
                                         ),
                                       );
                                     },
@@ -273,7 +455,9 @@ class _OpenShiftState extends State<OpenShift> {
                                 foregroundColor: Colors.black,
                                 backgroundColor: Colors.white,
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 60, vertical: 25),
+                                  horizontal: 60,
+                                  vertical: 25,
+                                ),
                                 textStyle: const TextStyle(fontSize: 16),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
@@ -331,93 +515,256 @@ class _OpenShiftState extends State<OpenShift> {
                               soDelivery.isEmpty || soDelivery == "success";
 
                           debugPrint(
-                              "Status: $status, DayEndStatus: $dayEndStatus, Connected: $isConnected, DispatchStatus: $dispatch, ItemTransfer: $itemTransfer, SoApproval: $soApproval, Store: $store, SoDelivery: $soDelivery");
+                            "Status: $status, DayEndStatus: $dayEndStatus, Connected: $isConnected, DispatchStatus: $dispatch, ItemTransfer: $itemTransfer, SoApproval: $soApproval, Store: $store, SoDelivery: $soDelivery",
+                          );
 
-                          void showSimpleDialog({
+                          void showPremiumDialog({
+                            required BuildContext context,
                             required String title,
                             required Widget content,
+                            Color accentColor =
+                                Colors.blueAccent, // default accent
+                            IconData? icon, // optional icon
                           }) {
                             showDialog(
                               context: context,
-                              builder: (context) => AlertDialog(
-                                backgroundColor: Colors.white,
-                                title: Text(title),
-                                content: content,
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    child: const Text(
-                                      'OK',
-                                      style: TextStyle(color: Colors.blue),
+                              barrierDismissible: true,
+                              builder: (context) => Dialog(
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                elevation: 10,
+                                backgroundColor: Colors.transparent,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        Colors.white,
+                                        Colors.grey.shade100,
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
                                     ),
+                                    borderRadius: BorderRadius.circular(20),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black26,
+                                        blurRadius: 15,
+                                        offset: Offset(0, 8),
+                                      ),
+                                    ],
                                   ),
-                                ],
+                                  padding: EdgeInsets.all(20),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (icon != null) ...[
+                                        Container(
+                                          padding: EdgeInsets.all(12),
+                                          decoration: BoxDecoration(
+                                            color: accentColor.withOpacity(0.1),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Icon(
+                                            icon,
+                                            color: accentColor,
+                                            size: 40,
+                                          ),
+                                        ),
+                                        SizedBox(height: 15),
+                                      ],
+                                      // Title
+                                      Text(
+                                        title,
+                                        style: TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black87,
+                                          letterSpacing: 0.5,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      SizedBox(height: 10),
+                                      // Content
+                                      content,
+                                      SizedBox(height: 20),
+                                      // Action Button
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: accentColor,
+                                            padding: EdgeInsets.symmetric(
+                                              vertical: 14,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            elevation: 5,
+                                          ),
+                                          onPressed: () =>
+                                              Navigator.pop(context),
+                                          child: Text(
+                                            'OK',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white,
+                                              letterSpacing: 0.5,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             );
                           }
 
                           if (isDayOpen) {
-                            showSimpleDialog(
+                            showPremiumDialog(
+                              context: context,
                               title: 'Warning',
-                              content: const Text('Shift is not closed yet.'),
+                              content: const Text(
+                                'Shift is not closed yet.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.black54,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              accentColor: Colors.orangeAccent,
+                              icon: Icons.warning_amber_rounded,
                             );
                             return;
                           }
+
                           if (!isConnected) {
-                            showSimpleDialog(
+                            showPremiumDialog(
+                              context: context,
                               title: 'Network Error',
                               content: const Text(
-                                  'No internet connection. Please check your network.'),
+                                'No internet connection. Please check your network.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.black54,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              accentColor: Colors.redAccent,
+                              icon: Icons.wifi_off_rounded,
                             );
                             return;
                           }
+
                           if (!isDispatchApproved && dispatch.isNotEmpty) {
-                            showSimpleDialog(
+                            showPremiumDialog(
+                              context: context,
                               title: 'Error',
                               content: const Text(
-                                  'Some dispatches are not received yet.'),
+                                'Some dispatches are not received yet.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.black54,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              accentColor: Colors.redAccent,
+                              icon: Icons.error_outline,
                             );
                             return;
                           }
+
                           if (!isItemTransferApproved &&
                               itemTransfer.isNotEmpty) {
-                            showSimpleDialog(
+                            showPremiumDialog(
+                              context: context,
                               title: 'Error',
                               content: const Text(
-                                  'Some item transfers are not recieved yet.'),
+                                'Some item transfers are not received yet.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.black54,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              accentColor: Colors.redAccent,
+                              icon: Icons.error_outline,
                             );
                             return;
                           }
+
                           if (!isSoApprovalApproved && soApproval.isNotEmpty) {
-                            showSimpleDialog(
+                            showPremiumDialog(
+                              context: context,
                               title: 'Error',
                               content: const Text(
-                                  'Some Sale Order approvals are pending.'),
+                                'Some Sale Order approvals are pending.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.black54,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              accentColor: Colors.redAccent,
+                              icon: Icons.error_outline,
                             );
                             return;
                           }
+
                           if (!isStoreApproved && store.isNotEmpty) {
-                            showSimpleDialog(
-                              title: 'Error',
-                              content:
-                                  const Text('Store Dispatch is not recieved.'),
-                            );
-                            return;
-                          }
-                          if (!isSoDeliveryApproved && soDelivery.isNotEmpty) {
-                            showSimpleDialog(
+                            showPremiumDialog(
+                              context: context,
                               title: 'Error',
                               content: const Text(
-                                  'Some Sale Orders are not Delivered or pending.'),
+                                'Store Dispatch is not received.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.black54,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              accentColor: Colors.redAccent,
+                              icon: Icons.error_outline,
                             );
                             return;
                           }
+
+                          if (!isSoDeliveryApproved && soDelivery.isNotEmpty) {
+                            showPremiumDialog(
+                              context: context,
+                              title: 'Error',
+                              content: const Text(
+                                'Some Sale Orders are not Delivered or pending.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.black54,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              accentColor: Colors.redAccent,
+                              icon: Icons.error_outline,
+                            );
+                            return;
+                          }
+
                           if (dayEndStatus.isEmpty ||
                               dayEndStatus == "closed") {
-                            showSimpleDialog(
+                            showPremiumDialog(
+                              context: context,
                               title: 'Error',
                               content: const Text(
-                                  'Cannot end day: No open shift available'),
+                                'Cannot end day: No open shift available',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.black54,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              accentColor: Colors.redAccent,
+                              icon: Icons.error_outline,
                             );
                             return;
                           }
@@ -427,10 +774,12 @@ class _OpenShiftState extends State<OpenShift> {
                             context: context,
                             builder: (context) => AlertDialog(
                               backgroundColor: Colors.white,
-                              title:
-                                  const Center(child: Text('Confirm Day End')),
+                              title: const Center(
+                                child: Text('Confirm Day End'),
+                              ),
                               content: const Text(
-                                  'Are you sure you want to end the day?'),
+                                'Are you sure you want to end the day?',
+                              ),
                               actions: [
                                 TextButton(
                                   onPressed: () => Navigator.pop(context),
@@ -442,31 +791,54 @@ class _OpenShiftState extends State<OpenShift> {
                                 TextButton(
                                   onPressed: () async {
                                     try {
-                                      CashManagementProvider
-                                          .fetchShiftDetails();
+                                      CashManagementProvider.fetchShiftDetails();
                                       final dayEndPost = {
                                         "branchName": branchName,
                                         // Add other necessary fields
                                       };
-                                      await CashManagementProvider
-                                          .postDayEndData(dayEndPost, context);
-                                      await CashManagementProvider
-                                          .fetchShiftDetails();
+                                      await CashManagementProvider.postDayEndData(
+                                        dayEndPost,
+                                        context,
+                                      );
+                                      await CashManagementProvider.fetchShiftDetails();
 
                                       if (context.mounted) {
-                                        Navigator.pop(context);
-                                        showSimpleDialog(
+                                        Navigator.pop(
+                                          context,
+                                        ); // close any loading dialogs
+
+                                        showPremiumDialog(
+                                          context: context,
                                           title: 'Success',
                                           content: const Text(
-                                              'Day End completed successfully.'),
+                                            'Day End completed successfully.',
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                              color: Colors.black54,
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                          accentColor: Colors.green,
+                                          icon: Icons.check_circle_outline,
                                         );
                                       }
                                     } catch (e) {
                                       if (context.mounted) {
                                         Navigator.pop(context);
-                                        showSimpleDialog(
+
+                                        showPremiumDialog(
+                                          context: context,
                                           title: 'Error',
-                                          content: Text('Day End failed: $e'),
+                                          content: Text(
+                                            'Day End failed: $e',
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                              color: Colors.black54,
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                          accentColor: Colors.redAccent,
+                                          icon: Icons.error_outline,
                                         );
                                       }
                                     }
@@ -484,10 +856,13 @@ class _OpenShiftState extends State<OpenShift> {
                           foregroundColor: Colors.black,
                           backgroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 60, vertical: 25),
+                            horizontal: 60,
+                            vertical: 25,
+                          ),
                           textStyle: const TextStyle(fontSize: 16),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8)),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                           disabledForegroundColor: Colors.grey,
                         ),
                         child: const Text(
@@ -538,8 +913,9 @@ class _OpenShiftState extends State<OpenShift> {
   }
 
   void _showShiftDialog(BuildContext context) {
-    final List<FocusNode> focusNodes =
-        _controllers.keys.map((_) => FocusNode()).toList();
+    final List<FocusNode> focusNodes = _controllers.keys
+        .map((_) => FocusNode())
+        .toList();
     final currentFocusIndexNotifier = ValueNotifier<int>(0);
 
     showDialog(
@@ -594,32 +970,42 @@ class _OpenShiftState extends State<OpenShift> {
                                           MainAxisAlignment.spaceEvenly,
                                       children: const [
                                         Expanded(
-                                            child: Center(
-                                                child: Text('Cash',
-                                                    style: TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.bold)))),
+                                          child: Center(
+                                            child: Text(
+                                              'Cash',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
                                         Expanded(
-                                            child: Center(
-                                                child: Text('Count',
-                                                    style: TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.bold)))),
+                                          child: Center(
+                                            child: Text(
+                                              'Count',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
                                         Expanded(
-                                            child: Center(
-                                                child: Text('Total',
-                                                    style: TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.bold)))),
+                                          child: Center(
+                                            child: Text(
+                                              'Total',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
                                       ],
                                     ),
                                     const Divider(thickness: 2),
                                     // Denomination rows
-                                    ..._controllers.keys
-                                        .toList()
-                                        .asMap()
-                                        .entries
-                                        .map((entry) {
+                                    ..._controllers.keys.toList().asMap().entries.map((
+                                      entry,
+                                    ) {
                                       final index = entry.key;
                                       final denom = entry.value;
                                       final controller = _controllers[denom]!;
@@ -627,21 +1013,28 @@ class _OpenShiftState extends State<OpenShift> {
 
                                       return Padding(
                                         padding: const EdgeInsets.symmetric(
-                                            vertical: 6),
+                                          vertical: 6,
+                                        ),
                                         child: Row(
                                           mainAxisAlignment:
                                               MainAxisAlignment.spaceEvenly,
                                           children: [
                                             Expanded(
-                                                child: Center(
-                                                    child: Text('$denom',
-                                                        style: const TextStyle(
-                                                            fontSize: 16)))),
+                                              child: Center(
+                                                child: Text(
+                                                  '$denom',
+                                                  style: const TextStyle(
+                                                    fontSize: 16,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
                                             Expanded(
                                               child: Container(
                                                 margin:
                                                     const EdgeInsets.symmetric(
-                                                        horizontal: 4),
+                                                      horizontal: 4,
+                                                    ),
                                                 child: TextField(
                                                   focusNode: focusNode,
                                                   controller: controller,
@@ -650,7 +1043,8 @@ class _OpenShiftState extends State<OpenShift> {
                                                   textAlign: TextAlign.center,
                                                   style: TextStyle(
                                                     fontSize: 16,
-                                                    color: currentFocusIndex ==
+                                                    color:
+                                                        currentFocusIndex ==
                                                             index
                                                         ? Colors.blue
                                                         : Colors.black,
@@ -658,58 +1052,59 @@ class _OpenShiftState extends State<OpenShift> {
                                                   decoration: InputDecoration(
                                                     isDense: true,
                                                     contentPadding:
-                                                        const EdgeInsets
-                                                            .symmetric(
-                                                            vertical: 7,
-                                                            horizontal: 6),
+                                                        const EdgeInsets.symmetric(
+                                                          vertical: 7,
+                                                          horizontal: 6,
+                                                        ),
                                                     border: OutlineInputBorder(
                                                       borderSide: BorderSide(
                                                         color:
                                                             currentFocusIndex ==
-                                                                    index
-                                                                ? Colors.blue
-                                                                : Colors.grey,
+                                                                index
+                                                            ? Colors.blue
+                                                            : Colors.grey,
                                                         width:
                                                             currentFocusIndex ==
-                                                                    index
-                                                                ? 2.0
-                                                                : 1.0,
+                                                                index
+                                                            ? 2.0
+                                                            : 1.0,
                                                       ),
                                                     ),
-                                                    enabledBorder:
-                                                        OutlineInputBorder(
+                                                    enabledBorder: OutlineInputBorder(
                                                       borderSide: BorderSide(
                                                         color:
                                                             currentFocusIndex ==
-                                                                    index
-                                                                ? Colors.blue
-                                                                : Colors.grey,
+                                                                index
+                                                            ? Colors.blue
+                                                            : Colors.grey,
                                                         width:
                                                             currentFocusIndex ==
-                                                                    index
-                                                                ? 2.0
-                                                                : 1.0,
+                                                                index
+                                                            ? 2.0
+                                                            : 1.0,
                                                       ),
                                                     ),
                                                     focusedBorder:
                                                         const OutlineInputBorder(
-                                                      borderSide: BorderSide(
-                                                        color: Colors.blue,
-                                                        width: 2.0,
-                                                      ),
-                                                    ),
+                                                          borderSide:
+                                                              BorderSide(
+                                                                color:
+                                                                    Colors.blue,
+                                                                width: 2.0,
+                                                              ),
+                                                        ),
                                                     fillColor:
                                                         currentFocusIndex ==
-                                                                index
-                                                            ? Colors.blue
-                                                                .withOpacity(
-                                                                    0.1)
-                                                            : Colors.white,
+                                                            index
+                                                        ? Colors.blue
+                                                              .withOpacity(0.1)
+                                                        : Colors.white,
                                                     filled: true,
                                                   ),
                                                   onTap: () {
                                                     currentFocusIndexNotifier
-                                                        .value = index;
+                                                            .value =
+                                                        index;
                                                   },
                                                 ),
                                               ),
@@ -719,9 +1114,9 @@ class _OpenShiftState extends State<OpenShift> {
                                                 child: Text(
                                                   '${totals[denom] ?? 0}',
                                                   style: const TextStyle(
-                                                      fontSize: 16,
-                                                      fontWeight:
-                                                          FontWeight.bold),
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
                                                 ),
                                               ),
                                             ),
@@ -733,7 +1128,8 @@ class _OpenShiftState extends State<OpenShift> {
                                     // Grand total
                                     Padding(
                                       padding: const EdgeInsets.symmetric(
-                                          vertical: 12),
+                                        vertical: 12,
+                                      ),
                                       child: Row(
                                         mainAxisAlignment:
                                             MainAxisAlignment.center,
@@ -741,8 +1137,9 @@ class _OpenShiftState extends State<OpenShift> {
                                           const Text(
                                             'Grand Total: ',
                                             style: TextStyle(
-                                                fontSize: 18,
-                                                fontWeight: FontWeight.bold),
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                            ),
                                           ),
                                           Text(
                                             '${_calculateGrandTotal()}',
@@ -781,36 +1178,39 @@ class _OpenShiftState extends State<OpenShift> {
                                   // ),
                                   const SizedBox(height: 10),
                                   Container(
-                                    constraints:
-                                        const BoxConstraints(maxWidth: 300),
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 300,
+                                    ),
                                     child: NumericKeyboard(
                                       focusNode: focusNodes[currentFocusIndex],
-                                      controller: _controllers[_controllers.keys
-                                          .toList()[currentFocusIndex]]!,
+                                      controller:
+                                          _controllers[_controllers.keys
+                                              .toList()[currentFocusIndex]]!,
                                       onTextInput: (text) {
-                                        final currentController = _controllers[
-                                            _controllers.keys
+                                        final currentController =
+                                            _controllers[_controllers.keys
                                                 .toList()[currentFocusIndex]]!;
                                         currentController.text =
                                             currentController.text + text;
                                         _updateTotals();
                                       },
                                       onBackspace: () {
-                                        final currentController = _controllers[
-                                            _controllers.keys
+                                        final currentController =
+                                            _controllers[_controllers.keys
                                                 .toList()[currentFocusIndex]]!;
                                         if (currentController.text.isNotEmpty) {
                                           currentController.text =
                                               currentController.text.substring(
-                                                  0,
-                                                  currentController
-                                                          .text.length -
-                                                      1);
+                                                0,
+                                                currentController.text.length -
+                                                    1,
+                                              );
                                           _updateTotals();
                                         }
                                       },
                                       onOk: moveToNextField,
-                                      isLastField: currentFocusIndex ==
+                                      isLastField:
+                                          currentFocusIndex ==
                                           _controllers.keys.length - 1,
                                     ),
                                   ),
@@ -818,7 +1218,9 @@ class _OpenShiftState extends State<OpenShift> {
                                   Text(
                                     'Current: ${_controllers.keys.toList()[currentFocusIndex]}',
                                     style: const TextStyle(
-                                        fontSize: 14, color: Colors.grey),
+                                      fontSize: 14,
+                                      color: Colors.grey,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -834,13 +1236,13 @@ class _OpenShiftState extends State<OpenShift> {
                                     onPressed: () async {
                                       final shouldCancel =
                                           await _showConfirmationDialog(
-                                        context: context,
-                                        title: 'Cancel Denomination',
-                                        content:
-                                            'Are you sure you want to cancel? Any changes will be lost.',
-                                        confirmText: 'Yes, Cancel',
-                                        cancelText: 'No, Continue',
-                                      );
+                                            context: context,
+                                            title: 'Cancel Denomination',
+                                            content:
+                                                'Are you sure you want to cancel? Any changes will be lost.',
+                                            confirmText: 'Yes, Cancel',
+                                            cancelText: 'No, Continue',
+                                          );
 
                                       if (shouldCancel == true) {
                                         if (context.mounted) {
@@ -849,79 +1251,92 @@ class _OpenShiftState extends State<OpenShift> {
                                       }
                                     },
                                     style: TextButton.styleFrom(
-                                      backgroundColor:
-                                          Colors.redAccent.withOpacity(0.1),
+                                      backgroundColor: Colors.redAccent
+                                          .withOpacity(0.1),
                                       foregroundColor: Colors.redAccent,
                                       padding: const EdgeInsets.symmetric(
-                                          horizontal: 20, vertical: 10),
+                                        horizontal: 20,
+                                        vertical: 10,
+                                      ),
                                       shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(8)),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
                                     ),
-                                    child: const Text('Cancel',
-                                        style: TextStyle(fontSize: 16)),
+                                    child: const Text(
+                                      'Cancel',
+                                      style: TextStyle(fontSize: 16),
+                                    ),
                                   ),
                                   TextButton(
                                     onPressed: () async {
                                       final shouldSave =
                                           await _showConfirmationDialog(
-                                        context: context,
-                                        title: 'Save Denomination',
-                                        content:
-                                            'Are you sure you want to save the denomination values?',
-                                        confirmText: 'Yes, Save',
-                                        cancelText: 'No, Edit',
-                                      );
+                                            context: context,
+                                            title: 'Save Denomination',
+                                            content:
+                                                'Are you sure you want to save the denomination values?',
+                                            confirmText: 'Yes, Save',
+                                            cancelText: 'No, Edit',
+                                          );
 
                                       if (shouldSave == true) {
                                         if (context.mounted) {
                                           Navigator.pop(context);
                                           _postShiftData(
-                                              _calculateGrandTotal());
+                                            _calculateGrandTotal(),
+                                          );
                                         }
                                       }
                                     },
                                     style: TextButton.styleFrom(
-                                      backgroundColor:
-                                          Colors.blueAccent.withOpacity(0.1),
+                                      backgroundColor: Colors.blueAccent
+                                          .withOpacity(0.1),
                                       foregroundColor: Colors.blueAccent,
                                       padding: const EdgeInsets.symmetric(
-                                          horizontal: 20, vertical: 10),
+                                        horizontal: 20,
+                                        vertical: 10,
+                                      ),
                                       shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(8)),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
                                     ),
-                                    child: const Text('Save',
-                                        style: TextStyle(fontSize: 16)),
+                                    child: const Text(
+                                      'Save',
+                                      style: TextStyle(fontSize: 16),
+                                    ),
                                   ),
                                   TextButton(
                                     onPressed: () async {
                                       final shouldClear =
                                           await _showConfirmationDialog(
-                                        context: context,
-                                        title: 'Clear All Denominations',
-                                        content:
-                                            'Are you sure you want to clear all denomination counts?',
-                                        confirmText: 'Yes, Clear',
-                                        cancelText: 'No, Keep',
-                                      );
+                                            context: context,
+                                            title: 'Clear All Denominations',
+                                            content:
+                                                'Are you sure you want to clear all denomination counts?',
+                                            confirmText: 'Yes, Clear',
+                                            cancelText: 'No, Keep',
+                                          );
                                       if (shouldClear == true &&
                                           context.mounted) {
                                         _clearControllers();
                                       }
                                     },
                                     style: TextButton.styleFrom(
-                                      backgroundColor:
-                                          Colors.orangeAccent.withOpacity(0.1),
+                                      backgroundColor: Colors.orangeAccent
+                                          .withOpacity(0.1),
                                       foregroundColor: Colors.orangeAccent,
                                       padding: const EdgeInsets.symmetric(
-                                          horizontal: 16, vertical: 10),
+                                        horizontal: 16,
+                                        vertical: 10,
+                                      ),
                                       shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(8)),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
                                     ),
-                                    child: const Text('All Clear',
-                                        style: TextStyle(fontSize: 16)),
+                                    child: const Text(
+                                      'All Clear',
+                                      style: TextStyle(fontSize: 16),
+                                    ),
                                   ),
                                 ],
                               ),
@@ -972,10 +1387,7 @@ class _OpenShiftState extends State<OpenShift> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(
-              cancelText,
-              style: const TextStyle(color: Colors.blue),
-            ),
+            child: Text(cancelText, style: const TextStyle(color: Colors.blue)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
@@ -990,13 +1402,12 @@ class _OpenShiftState extends State<OpenShift> {
   }
 
   void _navigateToChooseMode(BuildContext context) {
-    final GlobalKey keyboardKey = GlobalKey();
+
     Navigator.push(
       context,
       MaterialPageRoute(
-          builder: (context) => ChooseModePage(
-                keyboardKey: keyboardKey,
-              )),
+        builder: (context) => ChooseModePage(),
+      ),
     );
   }
 }

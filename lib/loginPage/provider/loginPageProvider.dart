@@ -1,102 +1,96 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:hive/hive.dart';
-import 'package:yenpos/Mode_page/choose_mode_screen.dart';
 import 'package:http/http.dart' as http;
+import 'package:hive/hive.dart';
+import 'package:yenpos/Global/globals_data.dart' as globals;
+import 'package:yenpos/Mode_page/choose_mode_screen.dart';
 
 class LoginProvider with ChangeNotifier {
-  TextEditingController emailController = TextEditingController();
-  TextEditingController passwordController = TextEditingController();
-  String _selectedBranch = '';
+  final TextEditingController userNameController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
+
+
   bool _isSigningIn = false;
-  final GlobalKey keyboardKey = GlobalKey();
-  String get selectedBranch => _selectedBranch;
-  set selectedBranch(String value) {
-    _selectedBranch = value;
-    notifyListeners();
-  }
+  String? _authToken;
+  String? _loggedInUserName;
+  String? userNameError;
+  String? passwordError;
 
   bool get isSigningIn => _isSigningIn;
+  String? get authToken => _authToken;
+  String? get loggedInUserName => _loggedInUserName;
 
-  Future<void> signIn(BuildContext context) async {
-    if (_selectedBranch.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Please select a branch before logging in."),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
+  /// 🔹 Main login method (FastAPI JWT)
+  /// 🔹 Updated login method returning bool
+  Future<bool> loginUser(BuildContext context) async {
+    setUserNameError(null);
+    setPasswordError(null);
+
+    final username = userNameController.text.trim();
+    final password = passwordController.text.trim();
+
+    if (username.isEmpty) {
+      setUserNameError('Please enter a username');
+      return false;
+    }
+    if (password.isEmpty) {
+      setPasswordError('Please enter a password');
+      return false;
     }
 
     _isSigningIn = true;
     notifyListeners();
 
-    // Simulate a network request or database call
-    await Future.delayed(const Duration(seconds: 2));
-
-    // Assuming signIn success
-    _isSigningIn = false;
-    notifyListeners();
-
-    // Navigate to the next page
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ChooseModePage(keyboardKey: keyboardKey),
-      ),
-    );
-  }
-
-  String? userNameError;
-  String? passwordError;
-  String? _loggedInUserName; // To store the logged-in username
-
-  String? get loggedInUserName => _loggedInUserName;
-
-  Future<List<Map<String, dynamic>>> fetchUsersFromApi() async {
-    const String apiUrl = 'https://yenerp.com/liveapi/logins';
+    final url = Uri.parse('https://yenerp.com/fastapi/logins/');
     try {
-      final response = await http.get(Uri.parse(apiUrl));
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({"username": username, "password": password}),
+      );
 
       if (response.statusCode == 200) {
-        List<dynamic> data = json.decode(response.body);
-        return List<Map<String, dynamic>>.from(
-          data.map((item) => Map<String, dynamic>.from(item)),
-        );
+        final responseData = jsonDecode(response.body);
+        final token = responseData['access_token'];
+
+        if (token != null) {
+          _authToken = token;
+          _loggedInUserName = username;
+
+          var box = await Hive.openBox('authBox');
+          await box.put('token', token);
+          await box.put('username', username);
+          globals.userName = username;
+          globals.password = password;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Login successful!"),
+              backgroundColor: Colors.green,
+            ),
+          );
+
+          _isSigningIn = false;
+          notifyListeners();
+          return true; // ✅ Login succeeded
+        }
+      } else if (response.statusCode == 401) {
+        _showError(context, "Invalid username or password.");
       } else {
-        return [];
+        _showError(context, "Login failed. (${response.statusCode})");
       }
     } catch (error) {
-      return [];
+      _showError(context, "Network error: $error");
     }
+
+    _isSigningIn = false;
+    notifyListeners();
+    return false; // ❌ Login failed
   }
 
-  Future<void> fetchAndStoreLoginData() async {
-    final usersFromApi = await fetchUsersFromApi();
-
-    if (usersFromApi.isNotEmpty) {
-      var loginBox = await Hive.openBox('loginBox');
-      await loginBox.clear();
-      await loginBox.put('users', usersFromApi);
-    }
-  }
-
-  Future<bool> validateCredentials(String userName, String password) async {
-    var loginBox = await Hive.openBox('loginBox');
-    List<dynamic>? users = loginBox.get('users');
-
-    if (users != null) {
-      for (var user in users) {
-        if (user['userName'] == userName && user['password'] == password) {
-          _loggedInUserName = userName; // Store the logged-in username
-
-          return true;
-        }
-      }
-    }
-    return false;
+  void _showError(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
   }
 
   void setUserNameError(String? message) {
@@ -109,9 +103,16 @@ class LoginProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> loadSavedAuth() async {
+    var box = await Hive.openBox('authBox');
+    _authToken = box.get('token');
+    _loggedInUserName = box.get('username');
+    notifyListeners();
+  }
+
   @override
   void dispose() {
-    emailController.dispose();
+    userNameController.dispose();
     passwordController.dispose();
     super.dispose();
   }

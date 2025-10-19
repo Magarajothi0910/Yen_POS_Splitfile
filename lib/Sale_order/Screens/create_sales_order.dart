@@ -17,10 +17,8 @@ import 'package:yenpos/Sale_order/Widgets/search_drop_filed.dart';
 import 'package:yenpos/Sale_order/Widgets/selected_items_dialogue.dart';
 import 'package:yenpos/Sale_order/Widgets/storetype_selection_dialogue.dart';
 
-
 class SalesOrderScreen extends StatefulWidget {
-  final GlobalKey keyboardKey;
-  const SalesOrderScreen({super.key, required this.keyboardKey});
+  const SalesOrderScreen({super.key});
 
   @override
   SalesOrderScreenState createState() => SalesOrderScreenState();
@@ -44,11 +42,13 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final customerProvider =
-          Provider.of<CustomerScreenProvider>(context, listen: false);
+      final customerProvider = Provider.of<CustomerScreenProvider>(
+        context,
+        listen: false,
+      );
       customerProvider.checkAndShowStoreTypeDialog(context);
 
-      CartProvider().clearCart();
+      // CartProvider().clearCart();
     });
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
     cartProvider.customChargeController.addListener(() {
@@ -92,9 +92,8 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
     return showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => StoreTypeSelectionDialog(
-        onStoreTypeSelected: _saveStoreType,
-      ),
+      builder: (context) =>
+          StoreTypeSelectionDialog(onStoreTypeSelected: _saveStoreType),
     );
   }
 
@@ -108,36 +107,124 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
   }
 
   void _removeItemState(String key) {
-    final selectionProvider =
-        Provider.of<CartSelectionProvider>(context, listen: false);
+    final selectionProvider = Provider.of<CartSelectionProvider>(
+      context,
+      listen: false,
+    );
     selectionProvider.toggleItemSelection(
-        key, false); // Explicitly unselect the item
+      key,
+      false,
+    ); // Explicitly unselect the item
     _boxQtyControllers.remove(key)?.dispose();
     _discountControllers.remove(key)?.dispose();
   }
 
   Future<void> _showClearCartConfirmationDialog(
-      CartProvider cartProvider) async {
+    CartProvider cartProvider,
+  ) async {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('Clear Cart'),
-        content: const Text('Are you sure you want to Clear the cart?'),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        elevation: 10,
+        backgroundColor: Colors.white,
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          constraints: const BoxConstraints(minHeight: 180, maxWidth: 350),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header Icon
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent.shade100,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.delete_forever,
+                  size: 40,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Title
+              const Text(
+                'Clear Cart',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              // Content
+              const Text(
+                'Are you sure you want to clear the cart? This action cannot be undone.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16, color: Colors.black87),
+              ),
+              const SizedBox(height: 25),
+
+              // Buttons
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  // Cancel Button
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey.shade200,
+                        foregroundColor: Colors.black87,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(fontSize: 16),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+
+                  // Clear Button
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.redAccent,
+                        foregroundColor: Colors.white,
+                        elevation: 5,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      onPressed: () {
+                        _clearCartAndResetState(cartProvider);
+                        _bulkDiscountController.clear();
+                        Navigator.of(context).pop();
+                      },
+                      child: const Text(
+                        'Clear',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () {
-              _clearCartAndResetState(cartProvider);
-              _bulkDiscountController.clear();
-              Navigator.of(context).pop();
-            },
-            child: const Text('Clear'),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -146,8 +233,9 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
     if (value.isEmpty) {
       setState(() {
         _discountControllers[key]?.text = '';
-        final itemIndex =
-            globals.cartItems.indexWhere((item) => item.varianceName == key);
+        final itemIndex = globals.cartItems.indexWhere(
+          (item) => item.varianceName == key,
+        );
         if (itemIndex != -1) {
           globals.cartItems[itemIndex].itemWiseDiscount = 0.0;
           globals.cartItems[itemIndex].itemWiseDiscountAmount = 0.0;
@@ -162,8 +250,9 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
     if (discount != null && discount >= 0) {
       setState(() {
         _discountControllers[key]?.text = value;
-        final itemIndex =
-            globals.cartItems.indexWhere((item) => item.varianceName == key);
+        final itemIndex = globals.cartItems.indexWhere(
+          (item) => item.varianceName == key,
+        );
 
         if (itemIndex != -1) {
           final item = globals.cartItems[itemIndex];
@@ -183,8 +272,10 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
   }
 
   void _applyBulkDiscount(String value) {
-    final selectionProvider =
-        Provider.of<CartSelectionProvider>(context, listen: false);
+    final selectionProvider = Provider.of<CartSelectionProvider>(
+      context,
+      listen: false,
+    );
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
 
     if (value.isEmpty) {
@@ -192,8 +283,9 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
         selectionProvider.itemSelectionState.forEach((key, isSelected) {
           if (isSelected) {
             _discountControllers[key]?.text = '';
-            final itemIndex = globals.cartItems
-                .indexWhere((item) => item.varianceName == key);
+            final itemIndex = globals.cartItems.indexWhere(
+              (item) => item.varianceName == key,
+            );
             if (itemIndex != -1) {
               var item = globals.cartItems[itemIndex];
               item.itemWiseDiscount = 0.0;
@@ -215,8 +307,9 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
     if (discountPercent != null && discountPercent >= 0) {
       selectionProvider.itemSelectionState.forEach((key, isSelected) {
         if (isSelected) {
-          final itemIndex =
-              globals.cartItems.indexWhere((item) => item.varianceName == key);
+          final itemIndex = globals.cartItems.indexWhere(
+            (item) => item.varianceName == key,
+          );
           if (itemIndex != -1) {
             var item = globals.cartItems[itemIndex];
             double quantity = item.quantity.toDouble();
@@ -238,8 +331,10 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
   void _clearCartAndResetState(CartProvider cartProvider) {
     cartProvider.clearCart();
     _allBoxQtyController.clear();
-    Provider.of<CartSelectionProvider>(context, listen: false)
-        .clearSelections();
+    Provider.of<CartSelectionProvider>(
+      context,
+      listen: false,
+    ).clearSelections();
     for (final controller in _boxQtyControllers.values) {
       controller.clear();
     }
@@ -252,8 +347,10 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
     cartProvider.clearCart();
     _allBoxQtyController.clear();
     _bulkDiscountController.clear();
-    Provider.of<CartSelectionProvider>(context, listen: false)
-        .clearSelections();
+    Provider.of<CartSelectionProvider>(
+      context,
+      listen: false,
+    ).clearSelections();
     for (final controller in _boxQtyControllers.values) {
       controller.clear();
     }
@@ -266,14 +363,17 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
     int? newQty = int.tryParse(value);
     if (newQty != null && newQty > 0) {
       setState(() {
-        final selectionProvider =
-            Provider.of<CartSelectionProvider>(context, listen: false);
+        final selectionProvider = Provider.of<CartSelectionProvider>(
+          context,
+          listen: false,
+        );
         final cartProvider = Provider.of<CartProvider>(context, listen: false);
 
         selectionProvider.itemSelectionState.forEach((key, isSelected) {
           if (isSelected) {
-            final itemIndex = globals.cartItems
-                .indexWhere((item) => item.varianceName == key);
+            final itemIndex = globals.cartItems.indexWhere(
+              (item) => item.varianceName == key,
+            );
             if (itemIndex != -1) {
               globals.cartItems[itemIndex].quantity = newQty;
               globals.cartItems[itemIndex].boxQuantity = newQty;
@@ -289,8 +389,10 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
   Widget build(BuildContext context) {
     // final cartProvider = Provider.of<CartProvider>(context);
     final selectionProvider = Provider.of<CartSelectionProvider>(context);
-    final apiService =
-        Provider.of<ApiServiceSalesOrderProvider>(context, listen: false);
+    final apiService = Provider.of<ApiServiceSalesOrderProvider>(
+      context,
+      listen: false,
+    );
     if (!isStoreTypeSelected && _isDialogShownToday == true) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!isStoreTypeDialogShowing) {
@@ -317,7 +419,10 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
               child: Consumer<CartProvider>(
                 builder: (context, cartProvider, child) {
                   return _buildLeftSideContent(
-                      context, cartProvider, selectionProvider);
+                    context,
+                    cartProvider,
+                    selectionProvider,
+                  );
                 },
               ),
             ),
@@ -326,9 +431,7 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
               flex: 2,
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: CustomerDetails(
-                  keyboardKey: widget.keyboardKey,
-                ),
+                child: CustomerDetails(),
               ),
             ),
           ],
@@ -338,19 +441,17 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
   }
 
   PreferredSizeWidget _buildAppBar(
-      BuildContext context,
-      ApiServiceSalesOrderProvider apiService,
-      CartSelectionProvider selectionProvider) {
+    BuildContext context,
+    ApiServiceSalesOrderProvider apiService,
+    CartSelectionProvider selectionProvider,
+  ) {
     return AppBar(
       automaticallyImplyLeading: false,
       backgroundColor: Colors.white,
       title: Row(
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
-          Text(
-            'Create Orders',
-            style: TextStyle(color: Colors.black),
-          ),
+          Text('Create Orders', style: TextStyle(color: Colors.black)),
         ],
       ),
       centerTitle: false,
@@ -389,14 +490,14 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
     );
   }
 
-  Widget _buildNavButton(
-      {required String label, required VoidCallback onPressed}) {
+  Widget _buildNavButton({
+    required String label,
+    required VoidCallback onPressed,
+  }) {
     return ElevatedButton(
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8.0),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         elevation: 2,
@@ -411,9 +512,7 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
         // selectionProvider.toggleCheckBoxVisibility();
       },
       style: ElevatedButton.styleFrom(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8.0),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
         backgroundColor: Colors.white,
         foregroundColor: Colors.blue,
         elevation: 2,
@@ -426,10 +525,7 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
     final customerProvider = Provider.of<CustomerScreenProvider>(context);
 
     return ToggleButtons(
-      constraints: BoxConstraints(
-        minHeight: 40.0,
-        minWidth: 80.0,
-      ),
+      constraints: BoxConstraints(minHeight: 40.0, minWidth: 80.0),
       borderRadius: BorderRadius.circular(8.0),
       borderWidth: 2,
       borderColor: Colors.blueGrey,
@@ -458,33 +554,33 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0),
       child: Text(
         label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-        ),
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
       ),
     );
   }
 
-  Widget _buildLeftSideContent(BuildContext context, CartProvider cartProvider,
-      CartSelectionProvider selectionProvider) {
+  Widget _buildLeftSideContent(
+    BuildContext context,
+    CartProvider cartProvider,
+    CartSelectionProvider selectionProvider,
+  ) {
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SearchDropdown(
-            key: widget.key,
-          ),
+          SearchDropdown(key: widget.key),
           const SizedBox(height: 16.0),
           _buildCartDetailsHeader(selectionProvider),
           const Divider(),
-          Flexible(child: Consumer<CartProvider>(
-                  builder: (context, cartProvider, child) {
-            return _buildCartItemsList(selectionProvider);
-          })
-              // _buildCartItemsList(cartProvider, selectionProvider),
-              ),
+          Flexible(
+            child: Consumer<CartProvider>(
+              builder: (context, cartProvider, child) {
+                return _buildCartItemsList(selectionProvider);
+              },
+            ),
+            // _buildCartItemsList(cartProvider, selectionProvider),
+          ),
           const SizedBox(height: 16.0),
           _buildCartFooter(cartProvider, selectionProvider),
         ],
@@ -513,10 +609,7 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
           children: [
             Text(
               'Cart Details $cartItemCount ',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
             ),
             Spacer(),
             ElevatedButton(
@@ -528,8 +621,9 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
                 if (wasShowing) {
                   // When turning OFF gifted mode (unselecting), reset unselected items
                   for (var item in globals.cartItems) {
-                    final isSelected = selectionProvider
-                            .itemSelectionState[item.varianceName] ??
+                    final isSelected =
+                        selectionProvider.itemSelectionState[item
+                            .varianceName] ??
                         false;
                     if (!isSelected) {
                       item.quantity = 1;
@@ -551,20 +645,14 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
                 selectionProvider.showCheckBoxes
                     ? 'UNSELECT ITEMS'
                     : 'GIFTED ITEMS',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                ),
+                style: TextStyle(color: Colors.white, fontSize: 16),
               ),
             ),
             if (selectionProvider.showCheckBoxes) ...[
               SizedBox(width: 10),
               Text(
                 '$selectedCount selected',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ],
             SizedBox(width: 10),
@@ -575,13 +663,15 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
                     }
                   : null,
               style: ElevatedButton.styleFrom(
-                backgroundColor:
-                    globals.cartItems.isNotEmpty ? Colors.red : Colors.red,
+                backgroundColor: globals.cartItems.isNotEmpty
+                    ? Colors.red
+                    : Colors.red,
               ),
               icon: Icon(
                 Icons.delete,
-                color:
-                    globals.cartItems.isNotEmpty ? Colors.white : Colors.grey,
+                color: globals.cartItems.isNotEmpty
+                    ? Colors.white
+                    : Colors.grey,
               ),
               tooltip: 'Clear Cart',
             ),
@@ -611,38 +701,27 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
           labelText: 'Box Qty',
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12.0),
-            borderSide: BorderSide(
-              color: Colors.blue.shade700,
-              width: 1.5,
-            ),
+            borderSide: BorderSide(color: Colors.blue.shade700, width: 1.5),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12.0),
-            borderSide: BorderSide(
-              color: Colors.blue.shade700,
-              width: 2.0,
-            ),
+            borderSide: BorderSide(color: Colors.blue.shade700, width: 2.0),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12.0),
-            borderSide: BorderSide(
-              color: Colors.blue.shade300,
-              width: 1.5,
-            ),
+            borderSide: BorderSide(color: Colors.blue.shade300, width: 1.5),
           ),
           filled: true,
           fillColor: Colors.blue.shade50,
-          contentPadding: EdgeInsets.symmetric(
-            horizontal: 12.0,
-            vertical: 8.0,
-          ),
-          labelStyle: TextStyle(
-            color: Colors.blue.shade700,
-          ),
+          contentPadding: EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+          labelStyle: TextStyle(color: Colors.blue.shade700),
         ),
         onTap: () {
           ActiveField.activate(
-              ctrl: _allBoxQtyController, node: _allBoxQtyFocus, numeric: true);
+            ctrl: _allBoxQtyController,
+            node: _allBoxQtyFocus,
+            numeric: true,
+          );
         },
         keyboardType: TextInputType.number,
         onChanged: _applyBulkBoxQtyUpdate,
@@ -667,138 +746,148 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
     return ValueListenableBuilder<int>(
       valueListenable: cartItemsNotifier,
       builder: (context, cartItemCount, child) {
-        return Builder(builder: (context) {
-          final reversedCartItems = globals.cartItems.reversed.toList();
+        return Builder(
+          builder: (context) {
+            final reversedCartItems = globals.cartItems.reversed.toList();
 
-          final selectedItems = reversedCartItems
-              .where((item) =>
-                  selectionProvider.itemSelectionState[item.varianceName] ??
-                  false)
-              .toList();
+            final selectedItems = reversedCartItems
+                .where(
+                  (item) =>
+                      selectionProvider.itemSelectionState[item.varianceName] ??
+                      false,
+                )
+                .toList();
 
-          final unselectedItems = reversedCartItems
-              .where((item) =>
-                  !(selectionProvider.itemSelectionState[item.varianceName] ??
-                      false))
-              .toList();
+            final unselectedItems = reversedCartItems
+                .where(
+                  (item) =>
+                      !(selectionProvider.itemSelectionState[item
+                              .varianceName] ??
+                          false),
+                )
+                .toList();
 
-          // Calculate base amount from selected items
-          double baseAmount = selectedItems.fold(
-            0,
-            (sum, item) =>
-                sum +
-                (item.finalPrice ??
-                    (item.quantity.toDouble() * item.pricePerKg)),
-          );
+            // Calculate base amount from selected items
+            double baseAmount = selectedItems.fold(
+              0,
+              (sum, item) =>
+                  sum +
+                  (item.finalPrice ??
+                      (item.quantity.toDouble() * item.pricePerKg)),
+            );
 
-          // Get custom charge
-          final customCharge =
-              double.tryParse(cartProvider.customChargeController.text) ?? 0;
+            // Get custom charge
+            final customCharge =
+                double.tryParse(cartProvider.customChargeController.text) ?? 0;
 
-          // Add to selected total
-          double selectedTotalAmount = baseAmount + customCharge;
+            // Add to selected total
+            double selectedTotalAmount = baseAmount + customCharge;
 
-          return ListView(
-            children: [
-              if (selectedItems.isNotEmpty)
-                Container(
-                  margin: const EdgeInsets.all(10.0),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.grey.withOpacity(0.2),
-                        spreadRadius: 2,
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
+            return ListView(
+              children: [
+                if (selectedItems.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.all(10.0),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.2),
+                          spreadRadius: 2,
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                      border: Border.all(
+                        color: Colors.blue.shade100,
+                        width: 1.5,
                       ),
-                    ],
-                    border: Border.all(color: Colors.blue.shade100, width: 1.5),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Padding(
-                        padding: EdgeInsets.only(bottom: 8.0),
-                        child: Text(
-                          "Selected Items",
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 8.0),
+                          child: Text(
+                            "Selected Items",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
                           ),
                         ),
-                      ),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Expanded(
-                            flex: selectionProvider.showCheckBoxes ? 2 : 3,
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: selectedItems.map((item) {
-                                final key = item.varianceName;
-                                _initializeItemIfNeeded(key);
-                                final originalIndex =
-                                    globals.cartItems.indexOf(item);
-                                return _buildCartItemTile(
-                                  item: item,
-                                  key: key,
-                                  originalIndex: originalIndex,
-                                  cartProvider: cartProvider,
-                                  selectionProvider: selectionProvider,
-                                );
-                              }).toList(),
-                            ),
-                          ),
-                          if (selectionProvider.showCheckBoxes)
-                            const SizedBox(width: 12),
-                          if (selectionProvider.showCheckBoxes)
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
                             Expanded(
-                              flex: 1,
+                              flex: selectionProvider.showCheckBoxes ? 2 : 3,
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  _buildAllBoxQtyField("bulk_box_qty"),
-                                  const SizedBox(height: 10),
-                                  _buildBulkDiscountField(),
-                                  const SizedBox(height: 10),
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 10.0),
-                                    child: Text(
-                                      "Total Box Amount: ₹${selectedTotalAmount.toStringAsFixed(0)}",
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.green[700],
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                                children: selectedItems.map((item) {
+                                  final key = item.varianceName;
+                                  _initializeItemIfNeeded(key);
+                                  final originalIndex = globals.cartItems
+                                      .indexOf(item);
+                                  return _buildCartItemTile(
+                                    item: item,
+                                    key: key,
+                                    originalIndex: originalIndex,
+                                    cartProvider: cartProvider,
+                                    selectionProvider: selectionProvider,
+                                  );
+                                }).toList(),
                               ),
                             ),
-                        ],
-                      ),
-                    ],
+                            if (selectionProvider.showCheckBoxes)
+                              const SizedBox(width: 12),
+                            if (selectionProvider.showCheckBoxes)
+                              Expanded(
+                                flex: 1,
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    _buildAllBoxQtyField("bulk_box_qty"),
+                                    const SizedBox(height: 10),
+                                    _buildBulkDiscountField(),
+                                    const SizedBox(height: 10),
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 10.0),
+                                      child: Text(
+                                        "Total Box Amount: ₹${selectedTotalAmount.toStringAsFixed(0)}",
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.green[700],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ...unselectedItems.map((item) {
-                final key = item.varianceName;
-                _initializeItemIfNeeded(key);
-                final originalIndex = globals.cartItems.indexOf(item);
-                return _buildCartItemTile(
-                  item: item,
-                  key: key,
-                  originalIndex: originalIndex,
-                  cartProvider: cartProvider,
-                  selectionProvider: selectionProvider,
-                );
-              }).toList(),
-            ],
-          );
-        });
+                ...unselectedItems.map((item) {
+                  final key = item.varianceName;
+                  _initializeItemIfNeeded(key);
+                  final originalIndex = globals.cartItems.indexOf(item);
+                  return _buildCartItemTile(
+                    item: item,
+                    key: key,
+                    originalIndex: originalIndex,
+                    cartProvider: cartProvider,
+                    selectionProvider: selectionProvider,
+                  );
+                }).toList(),
+              ],
+            );
+          },
+        );
       },
       child: DisposableBuilder(
         onDispose: () {
@@ -818,35 +907,20 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
           labelText: 'Discount',
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12.0),
-            borderSide: BorderSide(
-              color: Colors.blue.shade700,
-              width: 1.5,
-            ),
+            borderSide: BorderSide(color: Colors.blue.shade700, width: 1.5),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12.0),
-            borderSide: BorderSide(
-              color: Colors.blue.shade700,
-              width: 2.0,
-            ),
+            borderSide: BorderSide(color: Colors.blue.shade700, width: 2.0),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12.0),
-            borderSide: BorderSide(
-              color: Colors.blue.shade300,
-              width: 1.5,
-            ),
+            borderSide: BorderSide(color: Colors.blue.shade300, width: 1.5),
           ),
           filled: true,
           fillColor: Colors.blue.shade50,
-          contentPadding: EdgeInsets.symmetric(
-            horizontal: 12.0,
-            vertical: 8.0,
-          ),
-          labelStyle: TextStyle(
-            color: Colors.blue.shade700,
-            fontSize: 11,
-          ),
+          contentPadding: EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+          labelStyle: TextStyle(color: Colors.blue.shade700, fontSize: 11),
           suffixIcon: Icon(Icons.percent, size: 17),
         ),
         controller: _bulkDiscountController,
@@ -947,7 +1021,9 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
                     value: selectionProvider.itemSelectionState[key] ?? false,
                     onChanged: (bool? value) {
                       selectionProvider.toggleItemSelection(
-                          key, value ?? false);
+                        key,
+                        value ?? false,
+                      );
                       if (value == true) {
                         item.isBoxItem = 'yes';
                         item.itemWiseDiscount = 0.0;
@@ -969,9 +1045,7 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
                     },
                   ),
                 const SizedBox(width: 6),
-                Expanded(
-                  child: _buildItemDetails(item),
-                ),
+                Expanded(child: _buildItemDetails(item)),
                 // if (selectionProvider.itemSelectionState[key] == false &&
                 //     selectionProvider.showCheckBoxes)
                 if (!selectionProvider.showCheckBoxes &&
@@ -1009,10 +1083,7 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
         const SizedBox(height: 4),
         Text(
           _getItemPriceDescription(item),
-          style: const TextStyle(
-            fontSize: 13,
-            color: Colors.grey,
-          ),
+          style: const TextStyle(fontSize: 13, color: Colors.grey),
         ),
       ],
     );
@@ -1044,10 +1115,11 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
     required String key,
     required CartSelectionProvider selectionProvider,
   }) {
-    int originalPrice = ((item.uom == 'Kg' || item.uom == 'Kgs')
-            ? (item.quantity * item.pricePerKg * item.weight)
-            : (item.quantity * item.pricePerKg))
-        .toInt();
+    int originalPrice =
+        ((item.uom == 'Kg' || item.uom == 'Kgs')
+                ? (item.quantity * item.pricePerKg * item.weight)
+                : (item.quantity * item.pricePerKg))
+            .toInt();
     // final originalPrice = item.quantity * item.pricePerKg;
     final discountPercent = item.itemWiseDiscount ?? 0; // Handle null case
     // final discountAmount =
@@ -1091,10 +1163,7 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
             if (discountPercent > 0) ...[
               Text(
                 'Discount:  -Rs.${item.itemWiseDiscountAmount.toStringAsFixed(0)}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.red,
-                ),
+                style: const TextStyle(fontSize: 12, color: Colors.red),
               ),
               Text(
                 'Final Price: Rs.${item.finalPrice.toStringAsFixed(0)}',
@@ -1139,35 +1208,20 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
           labelText: 'Discount',
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12.0),
-            borderSide: BorderSide(
-              color: Colors.blue.shade700,
-              width: 1.5,
-            ),
+            borderSide: BorderSide(color: Colors.blue.shade700, width: 1.5),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12.0),
-            borderSide: BorderSide(
-              color: Colors.blue.shade700,
-              width: 2.0,
-            ),
+            borderSide: BorderSide(color: Colors.blue.shade700, width: 2.0),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12.0),
-            borderSide: BorderSide(
-              color: Colors.blue.shade300,
-              width: 1.5,
-            ),
+            borderSide: BorderSide(color: Colors.blue.shade300, width: 1.5),
           ),
           filled: true,
           fillColor: Colors.blue.shade50,
-          contentPadding: EdgeInsets.symmetric(
-            horizontal: 12.0,
-            vertical: 8.0,
-          ),
-          labelStyle: TextStyle(
-            color: Colors.blue.shade700,
-            fontSize: 11,
-          ),
+          contentPadding: EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+          labelStyle: TextStyle(color: Colors.blue.shade700, fontSize: 11),
           suffixIcon: Icon(Icons.percent, size: 17),
         ),
         onTap: () {
@@ -1272,7 +1326,8 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text(
-                      "Quantity can't be edited when box quantity is applied."),
+                    "Quantity can't be edited when box quantity is applied.",
+                  ),
                   duration: Duration(seconds: 2),
                 ),
               );
@@ -1344,7 +1399,9 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
   }
 
   Widget _buildCartFooter(
-      CartProvider cartProvider, CartSelectionProvider selectionProvider) {
+    CartProvider cartProvider,
+    CartSelectionProvider selectionProvider,
+  ) {
     // cartProvider.customChargeController.addListener(() {
     //   print(
     //       "Custom Charge Value Changed: ${cartProvider.customChargeController.text}");
@@ -1374,14 +1431,13 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
             decoration: InputDecoration(
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide:
-                    const BorderSide(color: Colors.blueAccent, width: 1),
+                borderSide: const BorderSide(
+                  color: Colors.blueAccent,
+                  width: 1,
+                ),
               ),
               hintText: 'Enter custom charge',
-              hintStyle: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 14,
-              ),
+              hintStyle: TextStyle(color: Colors.grey.shade600, fontSize: 14),
             ),
             onTap: () {
               ActiveField.activate(
@@ -1392,7 +1448,6 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
                 fieldType: "custom charge", // ✅ important
               );
             },
-          
           ),
         ),
         Consumer<CartProvider>(
@@ -1411,26 +1466,25 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
         SizedBox(
           width: 80,
           child: ElevatedButton(
-            onPressed: globals.cartItems.any(
-                    (item) => item.boxQuantity != null && item.boxQuantity! > 0)
+            onPressed:
+                globals.cartItems.any(
+                  (item) => item.boxQuantity != null && item.boxQuantity! > 0,
+                )
                 ? () {
                     _showSelectedItemsDialog(selectionProvider);
                   }
                 : null, // disables button if no boxQty is valid
             style: ButtonStyle(
-              backgroundColor: WidgetStateProperty.resolveWith<Color>(
-                (Set<WidgetState> states) {
-                  if (states.contains(WidgetState.disabled)) {
-                    return Colors.grey; // Disabled color
-                  }
-                  return Colors.blue; // Enabled color
-                },
-              ),
+              backgroundColor: WidgetStateProperty.resolveWith<Color>((
+                Set<WidgetState> states,
+              ) {
+                if (states.contains(WidgetState.disabled)) {
+                  return Colors.grey; // Disabled color
+                }
+                return Colors.blue; // Enabled color
+              }),
             ),
-            child: const Text(
-              "View",
-              style: TextStyle(color: Colors.white),
-            ),
+            child: const Text("View", style: TextStyle(color: Colors.white)),
           ),
         ),
       ],

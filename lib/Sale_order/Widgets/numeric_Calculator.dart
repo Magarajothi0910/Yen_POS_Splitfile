@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:yenpos/Global/Widget/scaffold_global.dart';
 
-
-
 // ignore: must_be_immutable
 class NumericCalculator extends StatefulWidget {
   String? varianceName; // Add the varianceName parameter
 
   final Function(double) onValueSelected;
 
-  NumericCalculator(
-      {super.key, this.varianceName, required this.onValueSelected});
+  NumericCalculator({
+    super.key,
+    this.varianceName,
+    required this.onValueSelected,
+  });
 
   @override
   _NumericCalculatorState createState() => _NumericCalculatorState();
@@ -21,21 +22,23 @@ class _NumericCalculatorState extends State<NumericCalculator> {
 
   void _appendToDisplay(String value) {
     setState(() {
-      if (value == '.' && !_display.contains('.')) {
-        // Allow adding decimal only if there's no existing decimal point
-        _display += value;
-      } else if (value != '.') {
-        // Allow adding digits normally
-        if (_display == '0') {
-          _display = value;
+      if (value == '.') {
+        // Allow adding decimal only if it doesn't exist yet
+        if (!_display.contains('.')) {
+          _display += value;
+        }
+      } else {
+        if (_display.contains('.')) {
+          // If there's a decimal, allow only 3 digits after it
+          int decimalIndex = _display.indexOf('.');
+          String decimalPart = _display.substring(decimalIndex + 1);
+          if (decimalPart.length < 3) {
+            _display += value;
+          }
         } else {
-          // Check if the number of digits after the decimal point is less than 3
-          if (_display.contains('.')) {
-            int decimalIndex = _display.indexOf('.');
-            String decimalPart = _display.substring(decimalIndex + 1);
-            if (decimalPart.length < 3) {
-              _display += value;
-            }
+          // If no decimal yet, append normally
+          if (_display == '0') {
+            _display = value;
           } else {
             _display += value;
           }
@@ -59,14 +62,16 @@ class _NumericCalculatorState extends State<NumericCalculator> {
     return Dialog(
       insetPadding: const EdgeInsets.all(20), // Padding to avoid overflow
       shape: RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.circular(15.0), // Rounded corners for the dialog
+        borderRadius: BorderRadius.circular(
+          15.0,
+        ), // Rounded corners for the dialog
       ),
       child: Container(
         width: 250, // Smaller width for a more compact size
         padding: const EdgeInsets.all(16), // Padding inside the dialog
         constraints: const BoxConstraints(
-            maxHeight: 500), // Set a max height to prevent overflow
+          maxHeight: 500,
+        ), // Set a max height to prevent overflow
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -76,8 +81,10 @@ class _NumericCalculatorState extends State<NumericCalculator> {
               child: Text(
                 widget.varianceName
                     .toString(), // Display the variance name here
-                style:
-                    const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -89,7 +96,8 @@ class _NumericCalculatorState extends State<NumericCalculator> {
               child: Text(
                 _display,
                 style: const TextStyle(
-                    fontSize: 28), // Slightly smaller font size for the display
+                  fontSize: 28,
+                ), // Slightly smaller font size for the display
                 textAlign: TextAlign.center, // Center the text
               ),
             ),
@@ -174,16 +182,19 @@ class _NumericCalculatorState extends State<NumericCalculator> {
                     backgroundColor:
                         Colors.blue, // Set the button color to blue
                     shape: RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(20.0), // Rounded button
+                      borderRadius: BorderRadius.circular(
+                        20.0,
+                      ), // Rounded button
                     ),
                     padding: const EdgeInsets.symmetric(
-                        vertical: 12.0,
-                        horizontal:
-                            25.0), // Adjust padding for "Add to Cart" button
+                      vertical: 12.0,
+                      horizontal: 25.0,
+                    ), // Adjust padding for "Add to Cart" button
                   ),
-                  child: const Text('Add to Cart',
-                      style: TextStyle(color: Colors.white, fontSize: 18)),
+                  child: const Text(
+                    'Add to Cart',
+                    style: TextStyle(color: Colors.white, fontSize: 18),
+                  ),
                 ),
               ),
             ),
@@ -202,8 +213,9 @@ class _NumericCalculatorState extends State<NumericCalculator> {
           borderRadius: BorderRadius.circular(12.0), // Rounded buttons
         ),
         padding: const EdgeInsets.symmetric(
-            vertical: 8.0,
-            horizontal: 16.0), // Adjust padding for smaller buttons
+          vertical: 8.0,
+          horizontal: 16.0,
+        ), // Adjust padding for smaller buttons
       ),
       child: Text(
         text,

@@ -5,8 +5,8 @@ import 'package:yenpos/Sale_order/Screens/current_orders.dart';
 
 
 class TakeAwayOrdersNavigator extends StatelessWidget {
-  final GlobalKey keyboardKey;
-  TakeAwayOrdersNavigator({super.key, required this.keyboardKey});
+
+  TakeAwayOrdersNavigator({super.key,});
 
   @override
   Widget build(BuildContext context) {
@@ -18,13 +18,13 @@ class TakeAwayOrdersNavigator extends StatelessWidget {
         switch (settings.name) {
           case '/all-orders':
             page = AllOrdersPage(
-              keyboardKey: keyboardKey,
+        
             );
             break;
           case '/current-orders':
           default:
             page = CurrentOrdersPage(
-              keyboardKey: keyboardKey,
+     
             );
             break;
         }

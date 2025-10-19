@@ -6,6 +6,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:provider/provider.dart';
@@ -13,9 +14,12 @@ import 'package:udp/udp.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:yenpos/Global/Provider/branchwise_item_fetch.dart';
+
 import 'package:yenpos/Global/global_data_manager.dart';
 import 'package:yenpos/Global/globals_data.dart';
+import 'package:yenpos/Global/globals_data.dart' as globals;
 import 'package:yenpos/Hive_Manager/hive_manager_saleOrder.dart';
+import 'package:yenpos/Mode_page/choose_mode_screen.dart';
 import 'package:yenpos/Server_Client/handlers/invoice_handler.dart';
 import 'package:yenpos/Server_Client/hive_service.dart';
 import 'package:yenpos/Server_Client/makethisdeviceas%20server_Dialog.dart';
@@ -27,10 +31,12 @@ import 'package:yenpos/Server_Client/sync_service.dart';
 import 'package:yenpos/background_task/background_permission_guard.dart';
 import 'package:yenpos/background_task/flutter_foreground_task.dart';
 
-import 'package:yenpos/loginPage/login_page.dart';
 import 'package:yenpos/loginPage/provider/loginPageProvider.dart';
+import 'package:yenpos/shift_managment_page/openshift/open_shift.dart';
 
 class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
   @override
   // ignore: library_private_types_in_public_api
   _LoginScreenState createState() => _LoginScreenState();
@@ -42,7 +48,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _userNameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   WebSocketChannel? channel;
-  final GlobalKey keyboardKey = GlobalKey();
   Set<WebSocketChannel> clients = {};
   List<Map<String, dynamic>> orders = [];
   final SyncService _syncService1 = SyncService();
@@ -84,7 +89,7 @@ class _LoginScreenState extends State<LoginScreen> {
       // _syncService.syncUnsyncedInvoices(clients: clients);
       _syncService.syncUnsyncedInvoices();
     });
-    Provider.of<LoginProvider>(context, listen: false).fetchAndStoreLoginData();
+    // Provider.of<LoginProvider>(context, listen: false).fetchAndStoreLoginData();
 
     _approvalCheckTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
       checkPendingApprovals(saleOrderBox);
@@ -97,9 +102,8 @@ class _LoginScreenState extends State<LoginScreen> {
       _syncService.syncPendingPatches();
     });
 
-    final itemProvider = Provider.of<ItemProvider>(context, listen: false);
-
     checkIfServerWasPreviouslyStored();
+    // discoverServerAndHandle();
   }
 
   Future<void> _openBoxes() async {
@@ -773,13 +777,6 @@ class _LoginScreenState extends State<LoginScreen> {
     // }
   }
 
-  void dispose() {
-    // Close all Hive boxes
-    _syncTimer?.cancel();
-
-    super.dispose();
-  }
-
   void startServer(
     Set<WebSocketChannel> clients,
     Function(Map<String, dynamic>) onDataReceived,
@@ -859,20 +856,6 @@ class _LoginScreenState extends State<LoginScreen> {
       },
       'seat_returned': (data) async {
         sendDataToClients(data, clients);
-      },
-
-      'patchOrderStatusBySeathiveOrderId': (data) async {
-        final seathiveOrderId = data['seathiveOrderId']?.toString() ?? '';
-        final newStatus = data['status']?.toString() ?? '';
-        final preinvoiceTime = data['preinvoiceTime']?.toString() ?? '';
-        final orderRemark = data['orderRemark']?.toString() ?? '';
-
-        handlePatchOrderStatusBySeathiveOrderId(
-          seathiveOrderId,
-          newStatus,
-          orderRemark,
-          preinvoiceTime,
-        );
       },
 
       'newClientConnected': (data) async {
@@ -1306,8 +1289,6 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> onDataReceived(Map<String, dynamic> data) async {
-    if (!mounted) return;
-
     if (data != null) {
       //for (var order in _receivedData) {}
       if (data['action'] == 'seat_tapped') {
@@ -1333,139 +1314,188 @@ class _LoginScreenState extends State<LoginScreen> {
     } else {}
   }
 
-  Future<void> handlePatchOrderStatusBySeathiveOrderId(
-    String seathiveOrderId,
-    String newStatus,
-    String orderRemark,
-    String preinvoiceTime,
-  ) async {
-    bool dataUpdated = false;
+  bool employeeIdVerified = false; // To track if the employee ID is correct
 
-    // First try updating in-memory _receivedData
-    for (var order in _receivedData) {
-      if (order['seathiveOrderId'] == seathiveOrderId) {
-        order['status'] = newStatus;
-        order['orderRemark'] = orderRemark;
-        order['preinvoiceTime'] = preinvoiceTime;
-        order['edit'] = "Yes";
-        order['statusEdited'] = "true";
-        dataUpdated = true;
-        break;
-      }
+  Future<void> proceedToDashboard() async {
+    print("🔹 [Dashboard] Starting proceedToDashboard...");
+
+    // Step 0: Widget mount check
+    if (!mounted) {
+      print("⚠️ [Dashboard] Widget not mounted. Exiting.");
+      return;
     }
-    if (!dataUpdated) {
-      final orderBox = await Hive.openBox('ordersBox');
 
-      for (int i = 0; i < orderBox.length; i++) {
-        var orderData = orderBox.getAt(i);
-        if (orderData['seathiveOrderId'] == seathiveOrderId) {
-          orderData['status'] = newStatus;
-          orderData['preinvoiceTime'] = preinvoiceTime;
-          orderData['edit'] = "Yes";
-          orderData['statusEdited'] = "true";
-          await orderBox.putAt(i, orderData);
+    // Step 1: Alias name validation
+    if (globals.aliasname == null || globals.aliasname!.trim().isEmpty) {
+      print("⚠️ [Dashboard] Alias name is null or empty. Exiting.");
+      return;
+    }
+    print("🔹 [Dashboard] Alias name: ${globals.aliasname}");
+
+    // Step 2: Initialize ItemProvider
+    final itemProvider = Provider.of<ItemProvider>(context, listen: false);
+    print("🔹 [Dashboard] ItemProvider initialized.");
+
+    // Step 3: Fetch branch name from alias
+    final branchName = await itemProvider.getBranchNameFromAlias(
+      globals.aliasname,
+    );
+    print("🔹 [Dashboard] Fetched branch name: $branchName");
+
+    if (!mounted) {
+      print(
+        "⚠️ [Dashboard] Widget not mounted after fetching branch name. Exiting.",
+      );
+      return;
+    }
+
+    // // Fetch additional data if needed
+    // await itemProvider.fetchDataIfNeeded(branchAlias: globals.aliasname);
+    print("🔹 [Dashboard] Data fetch completed if needed.");
+
+    // Step 4: Validate fetched branch name
+    if (branchName == null || branchName == 'Branch Not Found') {
+      print("❌ [Dashboard] Branch not found. Exiting.");
+      return;
+    }
+
+    // Step 5: Set global variable
+    globals.branchName = branchName;
+    print("🔹 [Dashboard] Branch name set globally: ${globals.branchName}");
+
+    // Step 6: Proceed to shift check
+    final url = Uri.parse(
+      'https://yenerp.com/fastapi/shifts/check-open-shift?branch_name=${globals.branchName}',
+    );
+    print("🔹 [Dashboard] Checking open shift with URL: $url");
+
+    final client = http.Client();
+
+    try {
+      final response = await client.get(url);
+      print("🔹 [Dashboard] HTTP status code: ${response.statusCode}");
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print("🔹 [Dashboard] Shift data received: $data");
+
+        globals.shiftId.value = data['shiftId']?.toString() ?? '0';
+        globals.shiftNumber.value = data['shiftNumber']?.toString() ?? '0';
+        print(
+          "🔹 [Dashboard] Shift ID: ${globals.shiftId.value}, Shift Number: ${globals.shiftNumber.value}",
+        );
+
+        int shiftNumberInt = int.tryParse(globals.shiftNumber.value) ?? 0;
+        if (shiftNumberInt != 0) {
+          print(
+            "✅ [Dashboard] Open shift found. Navigating to ChooseModePage...",
+          );
+          if (mounted) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => ChooseModePage()),
+              );
+            });
+          }
+        } else {
+          print(
+            "⚠️ [Dashboard] No open shift found. Navigating to OpenShift...",
+          );
+          if (mounted) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('No open shift found for today.'),
+                  backgroundColor: Colors.orange,
+                ),
+              );
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => OpenShift()),
+              );
+            });
+          }
+        }
+      } else {
+        print("❌ [Dashboard] Failed to fetch shift data from server.");
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to fetch shift data.'),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
       }
-    }
-
-    if (dataUpdated) {
-      sendDataToClients({
-        'action': 'updateOrderStatus',
-        'seathiveOrderId': seathiveOrderId,
-        'status': newStatus,
-        'orderRemark': orderRemark,
-        'preinvoiceTime': preinvoiceTime,
-        'statusEdited': "true",
-        'edit': "Yes",
-      }, clients);
-    } else {}
-  }
-
-  Future<void> loginUser() async {
-    final loginProvider = Provider.of<LoginProvider>(context, listen: false);
-    loginProvider.setUserNameError("");
-    loginProvider.setPasswordError("");
-
-    userName = _userNameController.text.trim();
-    final password = _passwordController.text.trim();
-
-    if (userName.isEmpty) {
-      loginProvider.setUserNameError('Please enter a username');
-    }
-    if (password.isEmpty) {
-      loginProvider.setPasswordError('Please enter a password');
-    }
-    if (serverFound) {
-      final isAlive = await isServerReachable(serverip, 8383);
-      if (isAlive) {
-        proceedToDashboard();
-      } else {
-        await discoverServerAndHandle();
+    } catch (e, stackTrace) {
+      print("❌ [Dashboard] Exception while fetching shift: $e\n$stackTrace");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
       }
-    } else {
-      await discoverServerAndHandle();
+    } finally {
+      client.close();
     }
-  }
-
-  void proceedToDashboard() {
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(
-        builder: (context) => LogInScreen(keyboardKey: keyboardKey),
-      ),
-      (Route<dynamic> route) => false,
-    );
   }
 
   Future<void> discoverServerAndHandle() async {
+    print("🔹 Starting UDP server discovery...");
     final udp = await UDP.bind(Endpoint.any());
 
     udp.send(
       utf8.encode('WHO_IS_SERVER'),
       Endpoint.broadcast(port: const Port(33441)),
     );
+    print("🔹 Broadcast message sent.");
 
     final serverBox = await Hive.openBox('serverBox');
-
     bool found = false;
 
-    await for (final datagram in udp.asStream(
-      timeout: const Duration(seconds: 2),
-    )) {
-      if (datagram != null) {
-        final message = utf8.decode(datagram.data);
-        if (message.startsWith('SERVER:')) {
-          final parts = message.split(':');
-          final ip = parts[1];
-          final port = parts[2];
+    try {
+      await for (final datagram in udp.asStream(
+        timeout: const Duration(seconds: 2),
+      )) {
+        if (datagram != null) {
+          final message = utf8.decode(datagram.data);
+          print("🔹 UDP response received: $message");
 
-          await serverBox.put('serverIp', ip);
-          await serverBox.put('serverPort', port);
-          serverip = ip;
+          if (message.startsWith('SERVER:')) {
+            final parts = message.split(':');
+            final ip = parts[1];
+            final port = parts[2];
 
-          setState(() {
-            serverFound = true;
-          });
+            await serverBox.put('serverIp', ip);
+            await serverBox.put('serverPort', port);
+            serverip = ip;
 
-          found = true;
-          udp.close();
-          proceedToDashboard();
+            setState(() {
+              serverFound = true;
+            });
 
-          break;
+            print("✅ Server discovered: $ip:$port");
+            found = true;
+            udp.close();
+
+            // Navigate safely
+            await proceedToDashboard();
+            break;
+          }
         }
       }
+    } catch (e) {
+      print("❌ UDP discovery error: $e");
     }
 
-    if (!found) {
+    if (!found && mounted) {
       udp.close();
-      // No server found, show dialog
-      // ignore: use_build_context_synchronously
+      print("⚠️ No server found. Showing NoServerDialog...");
+
       showDialog(
         context: context,
         builder: (_) => NoServerDialog(
           onMakeServer: () async {
-            Navigator.of(context).pop(); // close dialog
-
             final ip = await getLocalIp();
             if (ip != null) {
               final box = await Hive.openBox('serverBox');
@@ -1483,7 +1513,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 serverFound = true;
               });
 
-              await startUdpResponder(ip, udpPort);
+              startUdpResponder(ip, udpPort);
               startServer(clients, onDataReceived);
 
               proceedToDashboard();
@@ -1652,6 +1682,16 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // 1) Ask the user to allow background
+      await BackgroundPermissionGuard.askIfNeeded(context);
+
+      // 2) Start your foreground service at the very first run (if you want)
+      await ForegroundHelper.init();
+      await ForegroundHelper.startIfNotRunning();
+    });
+
+    final loginProvider = Provider.of<LoginProvider>(context);
     return Scaffold(
       backgroundColor: Colors.white,
       body: Center(
@@ -1671,26 +1711,41 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // POS Name
-                        Text(
-                          'POS',
-                          style: TextStyle(
-                            fontSize: 40,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue.shade800,
-                          ),
+                        // POS Title + Logo Row
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            // Bestmummy Logo
+                            Image.asset(
+                              'assets/bestmummy.png', // make sure this file exists in assets folder
+                              height: 150,
+                            ),
+                            const SizedBox(width: 16),
+                            // POS Title and Description
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'POS',
+                                  style: TextStyle(
+                                    fontSize: 40,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue.shade800,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Fast, simple POS for billing',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    color: Colors.grey.shade700,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 8),
-                        // POS Description
-                        Text(
-                          'Fast, simple POS for billing',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.grey.shade700,
-                            height: 1.4,
-                          ),
-                        ),
-                        const SizedBox(height: 50),
 
                         // Login Card
                         Card(
@@ -1717,6 +1772,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
                                 // Username
                                 TextFormField(
+                                  controller: loginProvider
+                                      .userNameController, // ← Added controller
                                   decoration: InputDecoration(
                                     filled: true,
                                     fillColor: Colors.grey.shade100,
@@ -1733,12 +1790,16 @@ class _LoginScreenState extends State<LoginScreen> {
                                       Icons.person,
                                       color: Colors.black54,
                                     ),
+                                    errorText: loginProvider
+                                        .userNameError, // ✅ show error
                                   ),
                                 ),
                                 const SizedBox(height: 18),
 
                                 // Password
                                 TextFormField(
+                                  controller: loginProvider
+                                      .passwordController, // ← Added controller
                                   obscureText: true,
                                   decoration: InputDecoration(
                                     filled: true,
@@ -1756,6 +1817,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                       Icons.lock,
                                       color: Colors.black54,
                                     ),
+                                    errorText: loginProvider
+                                        .passwordError, // ✅ show error
                                   ),
                                 ),
                                 const SizedBox(height: 25),
@@ -1764,9 +1827,53 @@ class _LoginScreenState extends State<LoginScreen> {
                                 SizedBox(
                                   width: double.infinity,
                                   child: ElevatedButton(
-                                    onPressed: () {
-                                      loginUser();
-                                    },
+                                    onPressed: loginProvider.isSigningIn
+                                        ? null
+                                        : () async {
+                                            print("🔹 Login button pressed.");
+                                            bool loginSuccess =
+                                                await loginProvider.loginUser(
+                                                  context,
+                                                );
+                                            print(
+                                              "🔹 Login result: $loginSuccess",
+                                            );
+
+                                            if (loginSuccess) {
+                                              print(
+                                                "🔹 Login successful. Checking server availability...",
+                                              );
+
+                                              if (serverFound) {
+                                                print(
+                                                  "🔹 Server was already found: $serverip. Checking if alive...",
+                                                );
+                                                bool isAlive =
+                                                    await isServerReachable(
+                                                      serverip,
+                                                      8383,
+                                                    );
+                                                print(
+                                                  "🔹 Server alive status: $isAlive",
+                                                );
+                                                if (isAlive) {
+                                                  await proceedToDashboard();
+                                                } else {
+                                                  print(
+                                                    "⚠️ Server not reachable. Discovering server...",
+                                                  );
+                                                  await discoverServerAndHandle();
+                                                }
+                                              } else {
+                                                print(
+                                                  "⚠️ Server not found previously. Discovering server...",
+                                                );
+                                                await discoverServerAndHandle();
+                                              }
+                                            } else {
+                                              print("❌ Login failed.");
+                                            }
+                                          },
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.blue.shade800,
                                       padding: const EdgeInsets.symmetric(
@@ -1788,9 +1895,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                   ),
                                 ),
+
                                 const SizedBox(height: 25),
 
-                                // Divider
                                 Divider(
                                   color: Colors.grey.shade300,
                                   thickness: 1,

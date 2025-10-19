@@ -6,7 +6,6 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:yenpos/Global/global_data_manager.dart';
 import 'package:yenpos/Global/globals_data.dart' as globals;
 
-
 class ItemProvider with ChangeNotifier {
   final Connectivity _connectivity = Connectivity();
   // List<Map<String, dynamic>> _originalMixboxItems = [];
@@ -18,8 +17,9 @@ class ItemProvider with ChangeNotifier {
 
   // Getter for birthdayCakeItems
   List<Map<String, dynamic>> get birthdayCakeItems => _birthdayCakeItems;
-             ItemProvider() {
+  ItemProvider() {
     fetchAndSaveSalesOrders();
+    fetchAndStoreBranches();
   }
   Future<void> fetchAndSaveSalesOrders() async {
     const String apiUrl =
@@ -49,19 +49,15 @@ class ItemProvider with ChangeNotifier {
 
         notifyListeners();
       } else {
-        print("❌ Failed to fetch sales orders. Status: ${response.statusCode}");
       }
     } catch (e) {
-      print("⚠️ Error fetching sales orders: $e");
     }
   }
 
   Future<void> fetchDataIfNeeded({String? branchAlias}) async {
-    print('🚀 fetchDataIfNeeded called with branchAlias: $branchAlias');
 
     var connectivityResult = await _connectivity.checkConnectivity();
     if (connectivityResult == ConnectivityResult.none) {
-      print('⚠️ No internet connection. Exiting fetchDataIfNeeded.');
       return;
     }
 
@@ -73,21 +69,16 @@ class ItemProvider with ChangeNotifier {
       if (branchAlias != null &&
           (globals.appType == 'server' || globals.appType == '') &&
           !await lazyBox.containsKey('branchwiseItems_$branchAlias')) {
-        print('🌐 Fetching branchwise items from API for branch: $branchAlias');
 
         try {
           var url =
               'https://yenerp.com/fastapi/branchwiseitems/?branch_alias=$branchAlias';
-          print('➡️ Requesting: $url');
 
           var response = await client.get(Uri.parse(url));
 
-          print('📡 Response status: ${response.statusCode}');
           if (response.statusCode == 200) {
             var jsonData = json.decode(response.body);
-            print('✅ Data received for branch: $branchAlias');
             await lazyBox.put('branchwiseItems_$branchAlias', jsonData);
-            print('💾 Saved branchwiseItems_$branchAlias to Hive');
 
             GlobalDataManager().branchwiseItems = jsonData;
 
@@ -97,7 +88,6 @@ class ItemProvider with ChangeNotifier {
             // ✅ Update local stock
             final branchwiseItems = jsonData['data'] as Map<String, dynamic>;
             var localStockBox = await Hive.openBox('localStockBox');
-            print('📦 Opened localStockBox, starting stock sync...');
 
             for (var itemEntry in branchwiseItems.entries) {
               final itemName = itemEntry.key;
@@ -126,27 +116,35 @@ class ItemProvider with ChangeNotifier {
                       await localStockBox.put(localStockKey, localHiveStock);
 
                       // ✅ Update inside branchwiseItems Hive too
-                      final currentGlobalData =
-                          await lazyBox.get('branchwiseItems_$branchAlias');
+                      final currentGlobalData = await lazyBox.get(
+                        'branchwiseItems_$branchAlias',
+                      );
                       if (currentGlobalData != null) {
-                        final dataMap =
-                            Map<String, dynamic>.from(currentGlobalData);
-                        final itemMap =
-                            Map<String, dynamic>.from(dataMap['data']);
+                        final dataMap = Map<String, dynamic>.from(
+                          currentGlobalData,
+                        );
+                        final itemMap = Map<String, dynamic>.from(
+                          dataMap['data'],
+                        );
                         if (itemMap.containsKey(itemName)) {
-                          final itemDetailsMap =
-                              Map<String, dynamic>.from(itemMap[itemName]);
+                          final itemDetailsMap = Map<String, dynamic>.from(
+                            itemMap[itemName],
+                          );
                           final varianceMap = Map<String, dynamic>.from(
-                              itemDetailsMap['variance']);
+                            itemDetailsMap['variance'],
+                          );
                           if (varianceMap.containsKey(varianceName)) {
                             final varianceDataMap = Map<String, dynamic>.from(
-                                varianceMap[varianceName]);
+                              varianceMap[varianceName],
+                            );
                             final branchwiseMap = Map<String, dynamic>.from(
-                                varianceDataMap['branchwise']);
+                              varianceDataMap['branchwise'],
+                            );
                             if (branchwiseMap.containsKey(branchAlias)) {
                               final updatedBranchData =
                                   Map<String, dynamic>.from(
-                                      branchwiseMap[branchAlias]);
+                                    branchwiseMap[branchAlias],
+                                  );
                               updatedBranchData['systemStock_$branchAlias'] =
                                   localHiveStock;
                               branchwiseMap[branchAlias] = updatedBranchData;
@@ -157,15 +155,15 @@ class ItemProvider with ChangeNotifier {
                               dataMap['data'] = itemMap;
 
                               await lazyBox.put(
-                                  'branchwiseItems_$branchAlias', dataMap);
+                                'branchwiseItems_$branchAlias',
+                                dataMap,
+                              );
                               GlobalDataManager().branchwiseItems = dataMap;
                             }
                           }
                         }
                       }
                     } else {
-                      print(
-                          '⚠️ No localHiveStock found for itemCode: $itemCode');
                     }
                   }
                 }
@@ -173,51 +171,71 @@ class ItemProvider with ChangeNotifier {
             }
 
             final result = checkVarianceItemCode("FG011");
-            print('🔍 checkVarianceItemCode result: $result');
             notifyListeners();
           } else {
-            print(
-                '❌ Failed to fetch branchwise items. Status: ${response.statusCode}');
           }
         } catch (e) {
-          print('🔥 Error fetching branchwise items: $e');
         }
       } else {
         // ✅ Load from Hive if already present
-        print('📂 Loading branchwiseItems_$branchAlias from Hive');
-        GlobalDataManager().branchwiseItems =
-            await lazyBox.get('branchwiseItems_$branchAlias');
+        GlobalDataManager().branchwiseItems = await lazyBox.get(
+          'branchwiseItems_$branchAlias',
+        );
         _extractVarianceNames(GlobalDataManager().branchwiseItems);
         _filteredVarianceNames = _varianceNames;
       }
 
       // ✅ Fetch branch list if missing
       if (!await lazyBox.containsKey('branches')) {
-        print('🌐 Branch list not found in Hive. Fetching from API...');
         try {
-          var response = await client
-              .get(Uri.parse('https://yenerp.com/fastapi/branches/'));
-          print('📡 Branch API response: ${response.statusCode}');
+          var response = await client.get(
+            Uri.parse('https://yenerp.com/fastapi/branches/'),
+          );
           if (response.statusCode == 200) {
             var jsonData = json.decode(response.body);
             await lazyBox.put('branches', jsonData);
-            print('💾 Saved branches to Hive');
             GlobalDataManager().branches = jsonData;
             printBranchNames(jsonData);
             notifyListeners();
           } else {
-            print('❌ Failed to fetch branches. Status: ${response.statusCode}');
           }
         } catch (e) {
-          print('🔥 Error fetching branches: $e');
         }
       } else {
-        print('📂 Loading branches from Hive');
         GlobalDataManager().branches = await lazyBox.get('branches');
       }
     } finally {
       client.close();
-      print('🧹 HTTP client closed.');
+    }
+  }
+
+  Future<void> fetchAndStoreBranches() async {
+
+    var client = http.Client();
+    var lazyBox = await Hive.openLazyBox('items');
+
+    try {
+      var response = await client.get(
+        Uri.parse('https://yenerp.com/fastapi/branches/'),
+      );
+
+      if (response.statusCode == 200) {
+        var jsonData = json.decode(response.body);
+
+        await lazyBox.put('branches', jsonData);
+
+        GlobalDataManager().branches = jsonData;
+
+        for (var branch in GlobalDataManager().branches) {
+        }
+        printBranchNames(jsonData);
+
+        notifyListeners();
+      } else {
+      }
+    } catch (e) {
+    } finally {
+      client.close();
     }
   }
 
@@ -228,7 +246,10 @@ class ItemProvider with ChangeNotifier {
   }
 
   Future<void> updateLocalStock(
-      String branchAlias, String itemCode, int newStock) async {
+    String branchAlias,
+    String itemCode,
+    int newStock,
+  ) async {
     final box = await Hive.openBox('localStockBox');
     final key = 'systemStock_${branchAlias}_$itemCode';
     await box.put(key, newStock);
@@ -243,13 +264,15 @@ class ItemProvider with ChangeNotifier {
   /// or null if not found.
   String? varianceCodeForName(String varianceName) {
     final data = _convertMap(
-        GlobalDataManager().branchwiseItems['data'] as Map<dynamic, dynamic>?);
+      GlobalDataManager().branchwiseItems['data'] as Map<dynamic, dynamic>?,
+    );
     if (data == null) return null;
 
     for (final item in data.values) {
       final itemMap = _convertMap(item as Map<dynamic, dynamic>?);
-      final variances =
-          _convertMap(itemMap?['variance'] as Map<dynamic, dynamic>?);
+      final variances = _convertMap(
+        itemMap?['variance'] as Map<dynamic, dynamic>?,
+      );
       if (variances == null) continue;
 
       for (final v in variances.values) {
@@ -312,8 +335,9 @@ class ItemProvider with ChangeNotifier {
     const mixboxKey = 'mixboxData';
 
     try {
-      var response =
-          await http.get(Uri.parse('https://yenerp.com/fastapi/mixbox/'));
+      var response = await http.get(
+        Uri.parse('https://yenerp.com/fastapi/mixbox/'),
+      );
 
       if (response.statusCode == 200) {
         var jsonData = json.decode(response.body);
@@ -335,16 +359,56 @@ class ItemProvider with ChangeNotifier {
   }
 
   Future<String?> getAliasName(String branchName) async {
-    // Assuming GlobalDataManager().branches contains branch data with alias names
     if (GlobalDataManager().branches is List) {
       final branches = GlobalDataManager().branches as List;
       final branch = branches.firstWhere(
-        (branch) => branch['branchName'] == branchName,
+        (b) => b['branchName'] == branchName,
         orElse: () => null,
       );
-      return branch?['aliasName'] ?? 'Alias Not Found';
+      final alias = branch?['aliasName'];
+      return alias ?? 'Alias Not Found';
     }
     return 'Alias Not Found';
+  }
+
+  Future<String?> getBranchNameFromAlias(String aliasName) async {
+
+    // Step 1: Validate input
+    if (aliasName.trim().isEmpty) {
+      return 'Invalid alias name';
+    }
+
+    // Step 2: Check if branches list exists
+    final branchesData = GlobalDataManager().branches;
+    if (branchesData == null) {
+      return 'Branches list not available';
+    }
+
+    if (branchesData is! List) {
+      return 'Invalid branches format';
+    }
+
+    final branches = branchesData as List;
+
+    // Step 3: Print all available aliases (for debugging visibility)
+    for (int i = 0; i < branches.length; i++) {
+    }
+
+    // Step 4: Search for branch by alias name (case-insensitive match for robustness)
+    final branch = branches.firstWhere(
+      (b) =>
+          (b['aliasName']?.toString().trim().toLowerCase() ?? '') ==
+          aliasName.trim().toLowerCase(),
+      orElse: () => null,
+    );
+
+    // Step 5: Handle result
+    if (branch != null) {
+      final branchName = branch['branchName']?.toString() ?? 'Unknown Branch';
+      return branchName;
+    } else {
+      return 'Branch Not Found';
+    }
   }
 
   void printBranchNames(dynamic data) {
@@ -361,8 +425,11 @@ class ItemProvider with ChangeNotifier {
     for (var category in categories) {}
   }
 
-  void printData(dynamic data,
-      {required String dataType, required bool isNewData}) {
+  void printData(
+    dynamic data, {
+    required String dataType,
+    required bool isNewData,
+  }) {
     if (isNewData) {
     } else {}
   }
@@ -422,7 +489,7 @@ class ItemProvider with ChangeNotifier {
                 "itemData": itemData,
                 "varianceData": varianceData,
                 "quantity": 1,
-              }
+              },
             ];
           }
         }

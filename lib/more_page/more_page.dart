@@ -3,8 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:yenpos/Global/Widget/custom_sized_box.dart';
 import 'package:yenpos/Global/globals_data.dart';
+import 'package:yenpos/Server_Client/serverScreen.dart';
 
-import 'package:yenpos/loginPage/login_page.dart';
 import 'package:yenpos/printer_screen/printer_config.dart';
 
 import 'configurations/weigheing_scale_configration.dart';
@@ -22,8 +22,8 @@ import 'package:network_info_plus/network_info_plus.dart';
 import 'screen/wifi_ip_list.dart';
 
 class MorePage extends StatefulWidget {
-  final GlobalKey keyboardKey;
-  const MorePage({super.key, required this.keyboardKey});
+
+  const MorePage({super.key, });
 
   @override
   _MorePageState createState() => _MorePageState();
@@ -1788,7 +1788,7 @@ class _MorePageState extends State<MorePage> {
   void _navigateToLoginScreen(BuildContext context) {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (_) => LogInScreen(keyboardKey: widget.keyboardKey),
+        builder: (_) => LoginScreen(),
       ),
     );
   }

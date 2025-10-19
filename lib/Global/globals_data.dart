@@ -29,7 +29,9 @@ final shiftOpenStatus = ValueNotifier<String>("");
 
 String deviceName = "POS1";
 // String userName = "";
+String userName = "";
 String password = "";
+
 String aliasname = "";
 String branchId = "";
 int totalTables = 0;
@@ -39,7 +41,7 @@ List<Map<String, dynamic>> tables = [];
 String serverip = "";
 int port = 8383;
 int udpPort = 8765;
-String userName = "";
+
 String enteredWeight = '';
 int count = 0;
 int count2 = 0;

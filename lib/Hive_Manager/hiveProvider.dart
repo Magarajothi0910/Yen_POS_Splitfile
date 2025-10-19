@@ -37,7 +37,7 @@ class HiveProvider with ChangeNotifier {
   Future<void> fetchData(String boxName) async {
 
     isLoading[boxName] = true;
-    notifyListeners();
+
     if (!boxes.containsKey(boxName)) {
       await _openBox(boxName);
     }

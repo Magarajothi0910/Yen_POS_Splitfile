@@ -4,6 +4,7 @@ import 'package:esc_pos_printer/esc_pos_printer.dart';
 import 'package:esc_pos_utils/esc_pos_utils.dart'; // Import this for PaperSize, PosStyles, etc.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hive/hive.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 // import '../../../data/global_data_manager.dart';
@@ -12,8 +13,8 @@ import 'package:provider/provider.dart';
 
 import 'package:image/image.dart' as img;
 import 'package:yenpos/Global/Widget/customposcolumn.dart';
+import 'package:yenpos/Global/global_data_manager.dart';
 import 'package:yenpos/Global/globals_data.dart' as globals;
-
 
 class salesOrderReceiptPrinter {
   final TextEditingController employeeNameController;
@@ -258,8 +259,8 @@ class salesOrderReceiptPrinter {
       // Process each item
       for (var item in cartItems) {
         // Assuming tax is fetched as dynamic or int, ensure it's treated as double
-        double taxRate =
-            (item.tax as num).toDouble(); // num can be both int and double
+        double taxRate = (item.tax as num)
+            .toDouble(); // num can be both int and double
         double itemTotal = calculateSubtotal();
         //     .toDouble(); // Ensure itemTotal is a double
 
@@ -329,11 +330,7 @@ class salesOrderReceiptPrinter {
         } else {
           // No discount → just print normally
           bytes += generator.row([
-            createPosColumn(
-              width: 1,
-              text: '',
-              styles: createPosStyles(),
-            ),
+            createPosColumn(width: 1, text: '', styles: createPosStyles()),
             createPosColumn(
               width: 8,
               text: "$priceDescription (Tax ${item.tax}%)",
@@ -364,9 +361,10 @@ class salesOrderReceiptPrinter {
               ),
             ),
             createPosColumn(
-                width: 3,
-                text: "Rs ${discountedAmount}",
-                styles: createPosStyles(align: PosAlign.right, bold: true)),
+              width: 3,
+              text: "Rs ${discountedAmount}",
+              styles: createPosStyles(align: PosAlign.right, bold: true),
+            ),
           ]);
         }
         print("priceDescription:  ${(item.itemWiseDiscountAmount)}");
@@ -386,10 +384,7 @@ class salesOrderReceiptPrinter {
         createPosColumn(
           width: 12,
           text: '----------------------------------------------',
-          styles: createPosStyles(
-            align: PosAlign.center,
-            codeTable: 'CP1252',
-          ),
+          styles: createPosStyles(align: PosAlign.center, codeTable: 'CP1252'),
         ),
       ]);
       print("total Amount : ${totalAmount}");
@@ -401,7 +396,7 @@ class salesOrderReceiptPrinter {
         ),
       ]);
 
-// --- CUSTOM CHARGE (if any) ---
+      // --- CUSTOM CHARGE (if any) ---
       if ((customChargeController ?? 0.0) != 0.0) {
         bytes += generator.row([
           createPosColumn(
@@ -421,7 +416,7 @@ class salesOrderReceiptPrinter {
         ]);
       }
 
-// --- DISCOUNT (if any) ---
+      // --- DISCOUNT (if any) ---
       if ((discountController ?? 0) != 0) {
         bytes += generator.row([
           createPosColumn(
@@ -440,7 +435,7 @@ class salesOrderReceiptPrinter {
           ),
         ]);
       }
-// Print Custom Charge
+      // Print Custom Charge
 
       // 🔹 Advance Amount with Date & Time (Left) and Amount (Right)
       if (advanceAmount.isNotEmpty &&
@@ -448,8 +443,9 @@ class salesOrderReceiptPrinter {
           advanceDateTime!.isNotEmpty) {
         for (int i = 0; i < advanceAmount.length; i++) {
           double advAmt = advanceAmount[i];
-          String advDateTimeStr =
-              (i < advanceDateTime!.length) ? advanceDateTime![i] : "";
+          String advDateTimeStr = (i < advanceDateTime!.length)
+              ? advanceDateTime![i]
+              : "";
 
           String advPaymentType = "";
           if (selectedPaymentOption != null &&
@@ -474,31 +470,32 @@ class salesOrderReceiptPrinter {
             createPosColumn(
               width: 6,
               text: "$formattedAdvDate - $formattedAdvTime",
-              styles:
-                  createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
+              styles: createPosStyles(
+                align: PosAlign.left,
+                codeTable: 'CP1252',
+              ),
             ),
             createPosColumn(
               width: 6,
               text: "Advance ${i + 1}: Rs.${advAmt.toStringAsFixed(0)}",
-              styles:
-                  createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
+              styles: createPosStyles(
+                align: PosAlign.right,
+                codeTable: 'CP1252',
+              ),
             ),
           ]);
         }
       }
-// 🔹 Balance Amount print
+      // 🔹 Balance Amount print
       bytes += generator.row([
         createPosColumn(
           width: 12,
           text: "Balance Amount : Rs ${balanceAmount.toStringAsFixed(0)}",
-          styles: createPosStyles(
-            align: PosAlign.right,
-            codeTable: 'CP1252',
-          ),
+          styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
         ),
       ]);
 
-// 🔹 Separator
+      // 🔹 Separator
       bytes += generator.text(
         "---------------------------",
         styles: createPosStyles(align: PosAlign.center, codeTable: 'CP1252'),
@@ -510,8 +507,9 @@ class salesOrderReceiptPrinter {
           advanceDateTime!.isNotEmpty) {
         for (int i = 0; i < advanceAmount.length; i++) {
           double advAmt = advanceAmount[i];
-          String advDateTimeStr =
-              (i < advanceDateTime!.length) ? advanceDateTime![i] : "";
+          String advDateTimeStr = (i < advanceDateTime!.length)
+              ? advanceDateTime![i]
+              : "";
 
           String advPaymentType = "";
           if (selectedPaymentOption != null &&
@@ -537,8 +535,10 @@ class salesOrderReceiptPrinter {
               createPosColumn(
                 width: 12,
                 text: "Advance Payment (${i + 1}): $advPaymentType",
-                styles:
-                    createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
+                styles: createPosStyles(
+                  align: PosAlign.left,
+                  codeTable: 'CP1252',
+                ),
               ),
             ]);
           }
@@ -568,28 +568,19 @@ class salesOrderReceiptPrinter {
         createPosColumn(
           width: 12,
           text: 'Phone : 9342978427',
-          styles: createPosStyles(
-            align: PosAlign.center,
-            codeTable: 'CP1252',
-          ),
+          styles: createPosStyles(align: PosAlign.center, codeTable: 'CP1252'),
         ),
       ]);
       bytes += generator.row([
         createPosColumn(
           width: 6,
           text: 'GST : 33AATFB12B1ZW',
-          styles: createPosStyles(
-            align: PosAlign.center,
-            codeTable: 'CP1252',
-          ),
+          styles: createPosStyles(align: PosAlign.center, codeTable: 'CP1252'),
         ),
         createPosColumn(
           width: 6,
           text: 'FSSAI : 1242000',
-          styles: createPosStyles(
-            align: PosAlign.center,
-            codeTable: 'CP1252',
-          ),
+          styles: createPosStyles(align: PosAlign.center, codeTable: 'CP1252'),
         ),
       ]);
       bytes += generator.feed(1);
@@ -598,10 +589,7 @@ class salesOrderReceiptPrinter {
         createPosColumn(
           width: 12,
           text: "Thank You! Visit Again",
-          styles: createPosStyles(
-            align: PosAlign.center,
-            codeTable: 'CP1252',
-          ),
+          styles: createPosStyles(align: PosAlign.center, codeTable: 'CP1252'),
         ),
       ]);
       bytes += generator.feed(2);
@@ -646,8 +634,27 @@ class salesOrderReceiptPrinter {
 
     // Cart items
     var cartItems = globals.cartItems ?? [];
+    // -----------------------------
+    // 1️⃣ Store the selected branch in a variable
+    // -----------------------------
+    Map<String, dynamic>? selectedBranch;
+    for (var b in GlobalDataManager().branches) {
+      if (b['branchName'] == globals.branchName) {
+        selectedBranch = b;
+        break;
+      }
+    }
 
-    // Printer connection
+    // -----------------------------
+    // 2️⃣ Use the branch info if available
+    // -----------------------------
+    String branchAddress = '';
+    String branchPhone = '';
+    if (selectedBranch != null) {
+      branchAddress = selectedBranch['address'] ?? '';
+      branchPhone = selectedBranch['phoneNumber'] ?? '';
+    }
+
     String printerIp = '192.168.1.87';
 
     final profile = await CapabilityProfile.load();
@@ -663,62 +670,62 @@ class salesOrderReceiptPrinter {
       for (int copy = 0; copy < 2; copy++) {
         bytes = []; // Reset bytes for each copy
         try {
-          final ByteData data = await rootBundle.load('assets/bestmummy.png');
-          final Uint8List imageBytes = data.buffer.asUint8List();
-          final img.Image? logo = img.decodeImage(imageBytes);
+          final box = Hive.box('logo');
+          final Uint8List? imageBytes = box.get('BMlogo_bytes');
+          final String? logoName = box.get('BMlogo_name');
 
-          if (logo != null) {
-            // 1) Ensure white background (remove alpha)
-            final img.Image whiteBg = img.Image(logo.width, logo.height);
-            img.fill(whiteBg, img.getColor(255, 255, 255));
-            img.copyInto(whiteBg, logo, blend: true);
+          if (imageBytes != null) {
+            print(
+              "✅ Loaded logo from Hive ($logoName) | Size: ${imageBytes.lengthInBytes} bytes",
+            );
+            final img.Image? logo = img.decodeImage(imageBytes);
 
-            // 2) Convert to grayscale
-            final img.Image gray = img.grayscale(whiteBg);
+            if (logo != null) {
+              print("🖼 Original Logo: ${logo.width}x${logo.height}");
+              final img.Image whiteBg = img.Image(logo.width, logo.height);
+              img.fill(whiteBg, img.getColor(255, 255, 255));
+              img.copyInto(whiteBg, logo, blend: true);
 
-            // 3) Manual binary threshold (works regardless of package version)
-            img.Image binaryThreshold(img.Image src, int threshold) {
-              final out = img.Image.from(src);
-              for (int y = 0; y < out.height; y++) {
-                for (int x = 0; x < out.width; x++) {
-                  final int p = out.getPixel(x, y);
-                  final int r = img.getRed(p);
-                  final int g = img.getGreen(p);
-                  final int b = img.getBlue(p);
-                  // Luminance using Rec. 601 luma coefficients (more accurate for text/logo)
-                  final int lum = ((r * 299 + g * 587 + b * 114) ~/ 1000);
-                  if (lum < threshold) {
-                    out.setPixelRgba(x, y, 0, 0, 0, 255);
-                  } else {
-                    out.setPixelRgba(x, y, 255, 255, 255, 255);
+              final img.Image gray = img.grayscale(whiteBg);
+              img.Image binaryThreshold(img.Image src, int threshold) {
+                final out = img.Image.from(src);
+                for (int y = 0; y < out.height; y++) {
+                  for (int x = 0; x < out.width; x++) {
+                    final int p = out.getPixel(x, y);
+                    final int r = img.getRed(p);
+                    final int g = img.getGreen(p);
+                    final int b = img.getBlue(p);
+                    final int lum = ((r * 299 + g * 587 + b * 114) ~/ 1000);
+                    if (lum < threshold) {
+                      out.setPixelRgba(x, y, 0, 0, 0, 255);
+                    } else {
+                      out.setPixelRgba(x, y, 255, 255, 255, 255);
+                    }
                   }
                 }
+                return out;
               }
-              return out;
+
+              final img.Image thresholded = binaryThreshold(gray, 180);
+              final img.Image resized = img.copyResize(thresholded, width: 250);
+              final int remainder = resized.height % 8;
+              img.Image aligned = resized;
+              if (remainder != 0) {
+                final int newHeight = resized.height + (8 - remainder);
+                aligned = img.Image(resized.width, newHeight);
+                img.fill(aligned, img.getColor(255, 255, 255));
+                img.copyInto(aligned, resized, dstY: 0);
+              }
+
+              bytes += generator.image(aligned, align: PosAlign.center);
+              print("🖨 Sent logo image to printer");
             }
-
-            final img.Image thresholded =
-                binaryThreshold(gray, 180); // tweak 150-210 as needed
-
-            // 4) Resize to printer width (250 px is okay for mm80)
-            final img.Image resized = img.copyResize(thresholded,
-                width: 250, interpolation: img.Interpolation.nearest);
-
-            // 5) Ensure height is multiple of 8 (ESC/POS alignment)
-            final int remainder = resized.height % 8;
-            img.Image aligned = resized;
-            if (remainder != 0) {
-              final int newHeight = resized.height + (8 - remainder);
-              aligned = img.Image(resized.width, newHeight);
-              img.fill(aligned, img.getColor(255, 255, 255)); // white pad
-              img.copyInto(aligned, resized, dstY: 0, blend: false);
-            }
-
-            // 6) Send to generator
-            bytes += generator.image(aligned, align: PosAlign.center);
+          } else {
+            print("⚠️ Logo not found in Hive!");
           }
-        } catch (e) {
+        } catch (e, st) {
           print('🛑 Logo Print Error: $e');
+          print(st);
         }
 
         bytes += generator.row([
@@ -728,8 +735,8 @@ class salesOrderReceiptPrinter {
             styles: createPosStyles(
               align: PosAlign.center,
               codeTable: 'CP1252',
-              height: PosTextSize.size1,
-              width: PosTextSize.size1,
+              height: PosTextSize.size2,
+              width: PosTextSize.size2,
             ),
           ),
         ]);
@@ -741,7 +748,7 @@ class salesOrderReceiptPrinter {
             styles: createPosStyles(
               align: PosAlign.center,
               codeTable: 'CP1252',
-              height: PosTextSize.size2, // bigger for emphasis
+              height: PosTextSize.size1, // bigger for emphasis
               width: PosTextSize.size2,
               bold: true,
             ),
@@ -782,7 +789,7 @@ class salesOrderReceiptPrinter {
         bytes += generator.row([
           createPosColumn(
             width: 6,
-            text: 'Branch : Aranmanai',
+            text: 'Branch : ${globals.branchName}',
             styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
           ),
           createPosColumn(
@@ -804,7 +811,13 @@ class salesOrderReceiptPrinter {
         ]);
 
         bytes += generator.feed(1);
-
+        bytes += generator.row([
+          createPosColumn(
+            width: 12,
+            text: '----------------------------------------------',
+            styles: createPosStyles(align: PosAlign.center),
+          ),
+        ]);
         // Add headers for S.No, Item, Price, Qty, and Amount
         bytes += generator.row([
           createPosColumn(
@@ -833,7 +846,13 @@ class salesOrderReceiptPrinter {
             styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
           ),
         ]);
-
+        bytes += generator.row([
+          createPosColumn(
+            width: 12,
+            text: '----------------------------------------------',
+            styles: createPosStyles(align: PosAlign.center),
+          ),
+        ]);
         bytes += generator.feed(1);
 
         double taxVaule = 0.0;
@@ -843,8 +862,8 @@ class salesOrderReceiptPrinter {
         // Process each item
         for (var item in cartItems) {
           // Assuming tax is fetched as dynamic or int, ensure it's treated as double
-          double taxRate =
-              (item.tax as num).toDouble(); // num can be both int and double
+          double taxRate = (item.tax as num)
+              .toDouble(); // num can be both int and double
           double itemTotal = calculateSubtotal();
           //     .toDouble(); // Ensure itemTotal is a double
 
@@ -917,11 +936,7 @@ class salesOrderReceiptPrinter {
           } else {
             // No discount → just print normally
             bytes += generator.row([
-              createPosColumn(
-                width: 1,
-                text: '',
-                styles: createPosStyles(),
-              ),
+              createPosColumn(width: 1, text: '', styles: createPosStyles()),
               createPosColumn(
                 width: 8,
                 text: "$priceDescription (Tax ${item.tax}%)",
@@ -952,9 +967,10 @@ class salesOrderReceiptPrinter {
                 ),
               ),
               createPosColumn(
-                  width: 3,
-                  text: "Rs ${discountedAmount.toStringAsFixed(2)}",
-                  styles: createPosStyles(align: PosAlign.right, bold: true)),
+                width: 3,
+                text: "Rs ${discountedAmount.toStringAsFixed(2)}",
+                styles: createPosStyles(align: PosAlign.right, bold: true),
+              ),
             ]);
           }
 
@@ -986,7 +1002,7 @@ class salesOrderReceiptPrinter {
           ),
         ]);
 
-// --- CUSTOM CHARGE (if any) ---
+        // --- CUSTOM CHARGE (if any) ---
         if ((customChargeController ?? 0.0) != 0.0) {
           bytes += generator.row([
             createPosColumn(
@@ -1006,7 +1022,7 @@ class salesOrderReceiptPrinter {
           ]);
         }
 
-// --- DISCOUNT (if any) ---
+        // --- DISCOUNT (if any) ---
         if ((discountController ?? 0) != 0) {
           bytes += generator.row([
             createPosColumn(
@@ -1026,7 +1042,101 @@ class salesOrderReceiptPrinter {
           ]);
         }
 
-// --- ADVANCE (multiple if exists) ---
+        // --- ADVANCE (multiple if exists) ---
+        if (advanceDateTime != null && advanceDateTime!.isNotEmpty) {
+          for (int i = 0; i < advanceDateTime!.length; i++) {
+            try {
+              // ✅ Safely get advance amount — default to 0.0 if not available
+              double advAmt = 0.0;
+              if (advanceAmount.isNotEmpty) {
+                if (i < advanceAmount.length) {
+                  advAmt = advanceAmount[i];
+                } else {
+                  advAmt = advanceAmount.last; // or 0.0 if you prefer
+                }
+              }
+
+              bytes += generator.row([
+                createPosColumn(
+                  width: 12,
+                  text: "Advance Amount (-): Rs ${advAmt.toStringAsFixed(0)}",
+                  styles: createPosStyles(align: PosAlign.right),
+                ),
+              ]);
+            } catch (e) {
+              print("⚠️ Error parsing advance date/time: $e");
+
+              // ✅ Still show advance amount even if date parsing fails
+              double advAmt = (i < advanceAmount.length)
+                  ? advanceAmount[i]
+                  : (advanceAmount.isNotEmpty ? advanceAmount.last : 0.0);
+
+              bytes += generator.row([
+                createPosColumn(
+                  width: 12,
+                  text: "Advance Amount (-): Rs ${advAmt.toStringAsFixed(0)}",
+                  styles: createPosStyles(align: PosAlign.right),
+                ),
+              ]);
+            }
+          }
+        } else {
+          // ✅ If no advanceDateTime at all, still show one line with 0
+          double advAmt = (advanceAmount.isNotEmpty)
+              ? advanceAmount.first
+              : 0.0;
+          bytes += generator.row([
+            createPosColumn(
+              width: 12,
+              text: "Advance Amount (-): Rs ${advAmt.toStringAsFixed(0)}",
+              styles: createPosStyles(align: PosAlign.right),
+            ),
+          ]);
+        }
+
+        bytes += generator.row([
+          createPosColumn(
+            width: 12,
+            text: "Balance Amount: Rs ${balanceAmount.toStringAsFixed(0)}",
+            styles: createPosStyles(align: PosAlign.right, bold: true),
+          ),
+        ]);
+
+        // Separator
+        bytes += generator.row([
+          createPosColumn(
+            width: 12,
+            text: '----------------------------------------------',
+            styles: createPosStyles(align: PosAlign.center),
+          ),
+        ]);
+
+        // Payment Types (build safely)
+        String paymentTypes = '';
+        if ((selectedPaymentOptionValue.isNotEmpty)) {
+          // prefer the single-string value if provided
+          paymentTypes = selectedPaymentOptionValue;
+        } else if (selectedPaymentOption != null &&
+            selectedPaymentOption!.isNotEmpty) {
+          try {
+            paymentTypes = selectedPaymentOption!.expand((e) => e).join(", ");
+          } catch (e) {
+            // fallback
+            paymentTypes = selectedPaymentOption!
+                .map((e) => e.join(","))
+                .join(", ");
+          }
+        }
+
+        if (paymentTypes.isNotEmpty) {
+          bytes += generator.row([
+            createPosColumn(
+              width: 12,
+              text: "Payment Type: ${paymentTypes}",
+              styles: createPosStyles(align: PosAlign.left),
+            ),
+          ]);
+        }
         if (advanceDateTime != null && advanceDateTime!.isNotEmpty) {
           for (int i = 0; i < advanceDateTime!.length; i++) {
             final dateTimeStr = advanceDateTime![i];
@@ -1041,72 +1151,9 @@ class salesOrderReceiptPrinter {
               bytes += generator.row([
                 createPosColumn(
                   width: 12,
-                  text: "Advance Amount (-): Rs ${advAmt.toStringAsFixed(0)}",
-                  styles: createPosStyles(align: PosAlign.right),
+                  text: "Advance Paid: $advDate - $advTime",
+                  styles: createPosStyles(align: PosAlign.left),
                 ),
-              ]);
-            } catch (e) {
-              // ignore parse error
-            }
-          }
-        }
-
-        bytes += generator.row([
-          createPosColumn(
-            width: 12,
-            text: "Balance Amount: Rs ${balanceAmount.toStringAsFixed(0)}",
-            styles: createPosStyles(align: PosAlign.right, bold: true),
-          ),
-        ]);
-
-        // Separator
-        bytes += generator.row([
-          createPosColumn(
-              width: 12,
-              text: '----------------------------------------------',
-              styles: createPosStyles(align: PosAlign.center)),
-        ]);
-
-        // Payment Types (build safely)
-        String paymentTypes = '';
-        if ((selectedPaymentOptionValue.isNotEmpty)) {
-          // prefer the single-string value if provided
-          paymentTypes = selectedPaymentOptionValue;
-        } else if (selectedPaymentOption != null &&
-            selectedPaymentOption!.isNotEmpty) {
-          try {
-            paymentTypes = selectedPaymentOption!.expand((e) => e).join(", ");
-          } catch (e) {
-            // fallback
-            paymentTypes =
-                selectedPaymentOption!.map((e) => e.join(",")).join(", ");
-          }
-        }
-
-        if (paymentTypes.isNotEmpty) {
-          bytes += generator.row([
-            createPosColumn(
-                width: 12,
-                text: "Payment Type: ${paymentTypes}",
-                styles: createPosStyles(align: PosAlign.left)),
-          ]);
-        }
-        if (advanceDateTime != null && advanceDateTime!.isNotEmpty) {
-          for (int i = 0; i < advanceDateTime!.length; i++) {
-            final dateTimeStr = advanceDateTime![i];
-            try {
-              DateTime parsedDate = DateTime.parse(dateTimeStr);
-              String advDate = DateFormat('dd-MM-yyyy').format(parsedDate);
-              String advTime = DateFormat('hh:mm a').format(parsedDate);
-              final advAmt = (i < advanceAmount.length)
-                  ? advanceAmount[i]
-                  : (advanceAmount.isNotEmpty ? advanceAmount[0] : 0.0);
-
-              bytes += generator.row([
-                createPosColumn(
-                    width: 12,
-                    text: "Advance Paid: $advDate - $advTime",
-                    styles: createPosStyles(align: PosAlign.left)),
               ]);
             } catch (e) {
               // ignore parse error
@@ -1117,32 +1164,35 @@ class salesOrderReceiptPrinter {
         bytes += generator.feed(1);
 
         const int maxLineWidth = 18;
-        List<String> addressLines = splitAddress(
-          "No.45, Raja Veethi, Aranmanai, Ramanathapuram, Tamil Nadu-623501",
-        );
+        List<String> addressLines = splitAddress(branchAddress);
 
-        for (int i = 0; i < addressLines.length; i++) {
+        // Print address lines
+        for (var line in addressLines) {
           bytes += generator.row([
             createPosColumn(
               width: 12,
-              text: addressLines[i],
+              text: line,
               styles: createPosStyles(
-                align: PosAlign.center, // Center the text
+                align: PosAlign.center,
                 codeTable: 'CP1252',
               ),
             ),
           ]);
         }
-        bytes += generator.row([
-          createPosColumn(
-            width: 12,
-            text: 'Phone : 9342978427',
-            styles: createPosStyles(
-              align: PosAlign.center,
-              codeTable: 'CP1252',
+
+        // Print phone number
+        if (branchPhone.isNotEmpty) {
+          bytes += generator.row([
+            createPosColumn(
+              width: 12,
+              text: 'Phone : $branchPhone',
+              styles: createPosStyles(
+                align: PosAlign.center,
+                codeTable: 'CP1252',
+              ),
             ),
-          ),
-        ]);
+          ]);
+        }
         bytes += generator.row([
           createPosColumn(
             width: 6,
@@ -1241,8 +1291,7 @@ class salesOrderReceiptPrinter {
 
   String generateShortHiveInvoiceId() {
     final random = Random();
-    final timestamp = DateTime.now()
-        .millisecondsSinceEpoch
+    final timestamp = DateTime.now().millisecondsSinceEpoch
         .toString()
         .substring(6); // Shortened timestamp
     const characters =

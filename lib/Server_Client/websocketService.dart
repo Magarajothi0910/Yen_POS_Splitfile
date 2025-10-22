@@ -312,25 +312,33 @@ class WebSocketService with ChangeNotifier {
 
   Future<void> _patchHoldOrder(Map<String, dynamic> patchData) async {
     final box = HiveManager.holdOrderBox;
-    final newSaleOrderNo = patchData['holdOrderId'];
+    final holdOrderId = patchData['holdOrderId'];
+    if (holdOrderId == null) {
+      print('⚠️ patchData missing holdOrderId. Skipping.');
+      return;
+    }
 
-    dynamic existingKey; // Changed from int? to dynamic
-    dynamic matchedOrder;
+    dynamic existingKey;
+    dynamic existingOrder;
 
     for (var key in box.keys) {
       final value = box.get(key);
-      if (value is Map &&
-          (value['holdOrderId'] == newSaleOrderNo ||
-              value['id'] == patchData['id'])) {
+      if (value is Map && value['holdOrderId'] == holdOrderId) {
         existingKey = key;
-        matchedOrder = value;
+        existingOrder = value;
         break;
       }
     }
 
     if (existingKey != null) {
-      await box.put(existingKey, patchData);
+      print('🔁 Patching existing hold order with ID: $holdOrderId');
+
+      // Merge existing data with new data
+      final updatedOrder = {...existingOrder, ...patchData};
+
+      await box.put(existingKey, updatedOrder);
     } else {
+      print('🆕 Adding new hold order with ID: $holdOrderId');
       await box.add(patchData);
     }
   }
@@ -560,6 +568,10 @@ class WebSocketService with ChangeNotifier {
 
           await salesOrderBox.put(saleOrderNo, orderData);
           print('💾 Hold Order $saleOrderNo saved to Hive.');
+          // Step 3️⃣ Verify result
+          final updatedOrders = await getSavedHoldOrders();
+          print("📊 Total hold orders in Hive: ${updatedOrders.length}");
+          print("updated orders: $updatedOrders");
           break;
 
         case 'salesApprovalOrderGenerated':
@@ -586,26 +598,62 @@ class WebSocketService with ChangeNotifier {
           } else {}
           break;
         case 'patchholdorderGenerated':
-          final patchOrder = jsonData['patchHoldOrder'];
-
-          // ✅ Check if this order already exists before saving
-          final existingOrders = await getSavedHoldOrders();
-          final alreadyExists = existingOrders.any(
-            (order) => order['holdOrderId'] == patchOrder['holdOrderId'],
+          print(
+            '\n\n🟣 [WebSocket] Received Event: patchholdorderGenerated -----------------------------',
           );
 
-          if (!alreadyExists) {
-            // ✅ Save only if it's a new one
+          // Step 1️⃣ Extract patch order data
+          final patchOrder = jsonData['patchHoldOrder'];
+          print('📦 Received patchHoldOrder payload: $patchOrder');
+
+          if (patchOrder == null) {
+            print('❌ patchHoldOrder data is null. Skipping processing.');
+            break;
+          }
+
+          final holdOrderId = patchOrder['holdOrderId'];
+          print('🧩 Extracted holdOrderId: $holdOrderId');
+
+          // Step 2️⃣ Fetch existing hold orders from Hive
+          print('📂 Fetching existing hold orders from Hive for comparison...');
+          final existingOrders = await getSavedHoldOrders();
+          print('📊 Total existing orders found: ${existingOrders.length}');
+
+          final existingOrder = existingOrders.firstWhere(
+            (order) => order['holdOrderId'] == holdOrderId,
+            orElse: () => {},
+          );
+
+          if (existingOrder.isEmpty) {
+            print('🟢 New hold order detected — adding fresh entry.');
+          } else {
+            print('🟠 Existing hold order found — patching the existing data.');
+          }
+
+          try {
             await _patchHoldOrder(patchOrder);
+            print('✅ Successfully patched/added hold order in Hive.');
+          } catch (e, st) {
+            print('❌ Error while patching hold order: $e');
+            print(st);
+          }
 
-            // ✅ Fetch again to confirm save
-            final updatedOrders = await getSavedHoldOrders();
+          // Step 3️⃣ Verify result
+          final updatedOrders = await getSavedHoldOrders();
+          final justSaved = updatedOrders.firstWhere(
+            (order) => order['holdOrderId'] == holdOrderId,
+            orElse: () => {},
+          );
+          if (justSaved.isNotEmpty) {
+            print('🧾 Patched/Added order details:\n$justSaved');
+          } else {
+            print('⚠️ Hold order not found after patch attempt!');
+          }
 
-            if (updatedOrders.isNotEmpty) {
-              print("updatedOrders: $updatedOrders");
-            }
-          } else {}
-
+          print('✅ [patchholdorderGenerated] Event handling completed.');
+          print(
+            '------------------------------------------------------------------\n\n',
+          );
           break;
         case 'toApproveOrderGenerated':
           final salesOrder = jsonData['toApproveOrder'];

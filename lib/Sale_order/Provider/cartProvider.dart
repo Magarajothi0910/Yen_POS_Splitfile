@@ -53,13 +53,6 @@ class CartProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  CartProvider() {
-    init();
-  }
-  Future<void> init() async {
-    _cartBox = await Hive.openBox('cartBox');
-  }
-
   List<CartItem> get closingStockItems => _closingStockItems;
   List<List<CartItem>> get savedBills => _savedBills;
 
@@ -150,9 +143,6 @@ class CartProvider extends ChangeNotifier {
 
   void clearCart() async {
     globals.cartItems.clear();
-
-    // Clear Hive storage
-    await _cartBox.clear();
 
     customChargeController.clear();
     notifyListeners();

@@ -56,8 +56,6 @@ void main() async {
   await Hive.initFlutter();
   await Hive.openBox('branchesBox');
   await Hive.openBox<String>('audioFiles');
-  final cartProvider = CartProvider();
-  await cartProvider.init();
 
   await ForegroundHelper.init(); // ✅ just await it, don’t assign/use
   final appDir = await getApplicationDocumentsDirectory();
@@ -122,9 +120,7 @@ void main() async {
 
   try {
     await fetchAndStoreBranchData();
-  } catch (e) {
-   
-  }
+  } catch (e) {}
 
   // final serverScreen = ServerScreen();
   // await serverScreen.init();

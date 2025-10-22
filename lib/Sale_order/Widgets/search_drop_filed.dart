@@ -149,27 +149,33 @@ class _SearchDropdownState extends State<SearchDropdown> {
                                       setState(() {
                                         if (index <
                                             provider
-                                                .filteredVarianceNames.length) {
+                                                .filteredVarianceNames
+                                                .length) {
                                           final selectedItem = provider
                                               .getVarianceDetails(varianceName);
                                           if (selectedItem != null) {
-                                            final varianceData =
-                                                provider.getVarianceDetails(
-                                                    varianceName);
+                                            final varianceData = provider
+                                                .getVarianceDetails(
+                                                  varianceName,
+                                                );
                                             final itemName =
                                                 varianceData['itemName'] ??
-                                                    'Unknown Item';
+                                                'Unknown Item';
                                             final varianceUOM =
                                                 provider.getUOMForVariance(
-                                                        varianceName) ??
-                                                    'Unknown UOM';
+                                                  varianceName,
+                                                ) ??
+                                                'Unknown UOM';
                                             // _handleItemSelection(selectedItem,
                                             //     varianceData, varianceUOM);
                                             setState(() {
                                               // Update state variables here if needed
                                               // For example, store selected item or update UI-related variables
-                                              _handleItemSelection(selectedItem,
-                                                  varianceData, varianceUOM);
+                                              _handleItemSelection(
+                                                selectedItem,
+                                                varianceData,
+                                                varianceUOM,
+                                              );
                                               _removeOverlay(); // Close overlay on selection
                                             });
                                             // _removeOverlay(); // Close overlay on selection
@@ -210,17 +216,18 @@ class _SearchDropdownState extends State<SearchDropdown> {
 
     // Extract data safely
     String varianceName = selectedItem['varianceName']?.toString() ?? '';
-    String itemCode = selectedItem['varianceItemCode']?.toString() ??
+    String itemCode =
+        selectedItem['varianceItemCode']?.toString() ??
         variancedata['varianceItemCode']?.toString() ??
         variancedata['varianceitemCode']?.toString() ??
         '';
     String itemName = variancedata['itemName']?.toString() ?? '';
     varianceUOM = varianceUOM ?? '';
 
-
     // Determine price safely
     double price = 0.0;
-    final rawPrice = selectedItem['varianceDefaultPrice'] ??
+    final rawPrice =
+        selectedItem['varianceDefaultPrice'] ??
         variancedata['variance_Defaultprice'];
     if (rawPrice is num) {
       price = rawPrice.toDouble();
@@ -239,38 +246,42 @@ class _SearchDropdownState extends State<SearchDropdown> {
           return NumericCalculator(
             varianceName: varianceName,
             onValueSelected: (weight) {
-              cartProvider.addItemToCart(CartItem(
-                varianceName: varianceName,
-                pricePerKg: price.toInt(),
-                itemName: itemName,
-                uom: varianceUOM!,
-                weight: weight,
-                quantity: 1,
-                isBoxItem: 'no',
-                tax: tax,
-                itemCode: itemCode, // ✅ Correct varianceitemCode stored
-                itemWiseDiscountAmount: 0.0,
-                itemWiseDiscount: 0.0,
-              ));
+              cartProvider.addItemToCart(
+                CartItem(
+                  varianceName: varianceName,
+                  pricePerKg: price.toInt(),
+                  itemName: itemName,
+                  uom: varianceUOM!,
+                  weight: weight,
+                  quantity: 1,
+                  isBoxItem: 'no',
+                  tax: tax,
+                  itemCode: itemCode, // ✅ Correct varianceitemCode stored
+                  itemWiseDiscountAmount: 0.0,
+                  itemWiseDiscount: 0.0,
+                ),
+              );
             },
           );
         },
       );
     } else {
       // For Pcs, Pkt, etc.
-      cartProvider.addItemToCart(CartItem(
-        varianceName: varianceName,
-        pricePerKg: price.toInt(),
-        itemName: itemName,
-        uom: varianceUOM,
-        weight: 0,
-        quantity: 1,
-        isBoxItem: 'no',
-        tax: tax,
-        itemCode: itemCode, // ✅ Correct varianceitemCode stored
-        itemWiseDiscountAmount: 0.0,
-        itemWiseDiscount: 0.0,
-      ));
+      cartProvider.addItemToCart(
+        CartItem(
+          varianceName: varianceName,
+          pricePerKg: price.toInt(),
+          itemName: itemName,
+          uom: varianceUOM,
+          weight: 0,
+          quantity: 1,
+          isBoxItem: 'no',
+          tax: tax,
+          itemCode: itemCode, // ✅ Correct varianceitemCode stored
+          itemWiseDiscountAmount: 0.0,
+          itemWiseDiscount: 0.0,
+        ),
+      );
     }
 
     setState(() {}); // if any UI update needed
@@ -313,8 +324,10 @@ class _SearchDropdownState extends State<SearchDropdown> {
 
         // Access the item provider and check for the item
         final itemProvider = Provider.of<ItemProvider>(context, listen: false);
-        final provider =
-            Provider.of<RegularModeProvider>(context, listen: false);
+        final provider = Provider.of<RegularModeProvider>(
+          context,
+          listen: false,
+        );
         final result = itemProvider.checkVarianceItemCode(itemCode);
 
         if (result.isNotEmpty) {
@@ -414,16 +427,22 @@ class _SearchDropdownState extends State<SearchDropdown> {
                       controller: _controller,
                       decoration: InputDecoration(
                         labelText: 'Search items',
-                        prefixIcon:
-                            Icon(Icons.search, color: Colors.blue.shade700),
+                        prefixIcon: Icon(
+                          Icons.search,
+                          color: Colors.blue.shade700,
+                        ),
                         focusedBorder: OutlineInputBorder(
                           borderSide: BorderSide(
-                              color: Colors.blue.shade700, width: 2.0),
+                            color: Colors.blue.shade700,
+                            width: 2.0,
+                          ),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderSide: BorderSide(
-                              color: Colors.blue.shade300, width: 1.5),
+                            color: Colors.blue.shade300,
+                            width: 1.5,
+                          ),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         fillColor: Colors.blue.shade50,
@@ -445,9 +464,10 @@ class _SearchDropdownState extends State<SearchDropdown> {
                         }
                       },
                       onTap: () => ActiveField.activate(
-                          ctrl: _controller,
-                          node: _searchFocus,
-                          numeric: false),
+                        ctrl: _controller,
+                        node: _searchFocus,
+                        numeric: false,
+                      ),
                     ),
                   ),
                 ),
@@ -467,8 +487,9 @@ class _SearchDropdownState extends State<SearchDropdown> {
                 focusNode: focusNode,
                 decoration: InputDecoration(
                   border: InputBorder.none,
-                  contentPadding:
-                      EdgeInsets.symmetric(vertical: 0.0), // Reduced height
+                  contentPadding: EdgeInsets.symmetric(
+                    vertical: 0.0,
+                  ), // Reduced height
                   isDense: true, // Reduces overall height
                   fillColor: Colors.transparent,
                   filled: true,
@@ -485,11 +506,16 @@ class _SearchDropdownState extends State<SearchDropdown> {
   }
 }
 
-void showQuantityDialog(BuildContext context, String varianceName, double price,
-    Function(double) onAddToCart) {
+void showQuantityDialog(
+  BuildContext context,
+  String varianceName,
+  double price,
+  Function(double) onAddToCart,
+) {
   double quantity = 1.0; // Default quantity
-  final TextEditingController _controller =
-      TextEditingController(text: quantity.toInt().toString());
+  final TextEditingController _controller = TextEditingController(
+    text: quantity.toInt().toString(),
+  );
 
   showDialog(
     context: context,
@@ -515,8 +541,9 @@ void showQuantityDialog(BuildContext context, String varianceName, double price,
                         if (quantity > 1) {
                           setState(() {
                             quantity--;
-                            _controller.text =
-                                quantity.toInt().toString(); // Update TextField
+                            _controller.text = quantity
+                                .toInt()
+                                .toString(); // Update TextField
                           });
                         }
                       },
@@ -532,7 +559,9 @@ void showQuantityDialog(BuildContext context, String varianceName, double price,
                         keyboardType: TextInputType.number,
                         textAlign: TextAlign.center,
                         style: const TextStyle(
-                            fontSize: 22, fontWeight: FontWeight.bold),
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
                         onChanged: (value) {
                           if (value.isEmpty) {
                             // If field is cleared, temporarily set quantity to 0
@@ -564,8 +593,9 @@ void showQuantityDialog(BuildContext context, String varianceName, double price,
                       onPressed: () {
                         setState(() {
                           quantity++;
-                          _controller.text =
-                              quantity.toInt().toString(); // Update TextField
+                          _controller.text = quantity
+                              .toInt()
+                              .toString(); // Update TextField
                         });
                       },
                       icon: const Icon(Icons.add_circle, color: Colors.blue),
@@ -579,8 +609,10 @@ void showQuantityDialog(BuildContext context, String varianceName, double price,
                 style: TextButton.styleFrom(
                   backgroundColor: Colors.redAccent.withOpacity(0.1),
                   foregroundColor: Colors.redAccent,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 22,
+                    vertical: 15,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -603,8 +635,10 @@ void showQuantityDialog(BuildContext context, String varianceName, double price,
                 style: TextButton.styleFrom(
                   backgroundColor: Colors.blueAccent.withOpacity(0.1),
                   foregroundColor: Colors.blueAccent,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 22,
+                    vertical: 15,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),

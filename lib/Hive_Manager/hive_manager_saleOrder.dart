@@ -78,7 +78,7 @@ class HiveManager {
         'Hive not initialized! Call HiveManager.initialize() first',
       );
     }
-    return _toApproveOrderBox!;
+    return _holdOrderBox!;
   }
 
   static Box get salesOrderNumberBox {

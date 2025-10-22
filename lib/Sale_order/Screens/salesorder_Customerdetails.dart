@@ -268,209 +268,232 @@ class _CustomerDetailsState extends State<CustomerDetails> {
         appBar: AppBar(
           automaticallyImplyLeading: false,
           backgroundColor: Colors.white,
-          title: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  //mainAxisAlignment: MainAxisAlignment.start,
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                //mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  Radio<int>(
+                    value: 0,
+                    groupValue: _selectedRadioValue,
+                    onChanged: (int? value) {
+                      setState(() {
+                        _selectedRadioValue = value;
+                        _customerType = 'Normal';
+                        customerScreenProvider.clearControllers();
+                      });
+                    },
+                  ),
+                  Transform.translate(
+                    offset: const Offset(0, 0), // Move the text up by 8 pixels
+                    child: Text(
+                      'Customer',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 19),
+                ],
+              ),
+              const SizedBox(width: 10),
+              // Radio button for "Other Option"
+              Column(
+                children: [
+                  Transform.translate(
+                    offset: const Offset(0, -8),
+                    child: TextButton.icon(
+                      icon: const Icon(Icons.assignment, color: Colors.red),
+                      label: const Text(
+                        "Order Status",
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.red,
+                        ),
+                      ),
+                      onPressed: () => _showDiscountStatus(context),
+                    ),
+                  ),
+                ],
+              ),
+
+              Transform.translate(
+                offset: const Offset(0, -8),
+                child: Stack(
+                  clipBehavior: Clip.none,
                   children: [
-                    Radio<int>(
-                      value: 0,
-                      groupValue: _selectedRadioValue,
-                      onChanged: (int? value) {
+                    TextButton.icon(
+                      icon: const Icon(Icons.assignment, color: Colors.red),
+                      label: const Text(
+                        "Held Orders",
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.red,
+                        ),
+                      ),
+                      onPressed: () {
                         setState(() {
-                          _selectedRadioValue = value;
-                          _customerType = 'Normal';
-                          customerScreenProvider.clearControllers();
+                          showHoldOrdersSheet(context, customerScreenProvider);
                         });
                       },
                     ),
-                    Transform.translate(
-                      offset: const Offset(
-                        0,
-                        0,
-                      ), // Move the text up by 8 pixels
-                      child: Text(
-                        'Customer',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 19),
-                  ],
-                ),
-                const SizedBox(width: 10),
-                // Radio button for "Other Option"
-                Column(
-                  children: [
-                    Transform.translate(
-                      offset: const Offset(0, -8),
-                      child: TextButton.icon(
-                        icon: const Icon(Icons.assignment, color: Colors.red),
-                        label: const Text(
-                          "Order Status",
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+
+                    // Badge
+                    if (customerScreenProvider
+                        .hiveholdSalesOrders
+                        .isNotEmpty) // show only if there are held orders
+                      Positioned(
+                        right: -4,
+                        top: -4,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
                             color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 16,
+                            minHeight: 16,
+                          ),
+                          child: Text(
+                            '${customerScreenProvider.hiveholdSalesOrders.length}', // badge count
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
                           ),
                         ),
-                        onPressed: () => _showDiscountStatus(context),
                       ),
-                    ),
                   ],
                 ),
-
-                Transform.translate(
-                  offset: const Offset(0, -8),
-                  child: TextButton.icon(
-                    // icon: const Icon(Icons.assignment),
-                    icon: const Icon(
-                      Icons.assignment,
-                      color: Colors.red, // Set the color to yellow
-                    ),
-                    label: const Text(
-                      "Held Orders",
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.red,
-                      ),
-                    ),
-
-                    onPressed: () {
-                      showHoldOrdersSheet(context, customerScreenProvider);
-                    },
+              ),
+              Transform.translate(
+                offset: const Offset(0, -8),
+                child: IconButton(
+                  icon: Icon(
+                    Icons.delete_outline,
+                    color: Colors.blue, // Set the color to blue
                   ),
-                ),
-                Transform.translate(
-                  offset: const Offset(0, -8),
-                  child: IconButton(
-                    icon: Icon(
-                      Icons.delete_outline,
-                      color: Colors.blue, // Set the color to blue
-                    ),
-                    iconSize: 28,
-                    onPressed: () {
-                      showDialog(
-                        context: context,
-                        builder: (BuildContext context) {
-                          return Dialog(
-                            shape: RoundedRectangleBorder(
+                  iconSize: 28,
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (BuildContext context) {
+                        return Dialog(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              12,
+                            ), // Reduced border radius
+                          ),
+                          elevation: 10,
+                          child: Container(
+                            width: MediaQuery.of(context).size.width * 0.1,
+                            padding: const EdgeInsets.all(
+                              16,
+                            ), // Reduced padding
+                            decoration: BoxDecoration(
+                              color: Colors
+                                  .blueAccent, // Simplified gradient to a single color
                               borderRadius: BorderRadius.circular(
                                 12,
                               ), // Reduced border radius
                             ),
-                            elevation: 10,
-                            child: Container(
-                              width: MediaQuery.of(context).size.width * 0.1,
-                              padding: const EdgeInsets.all(
-                                16,
-                              ), // Reduced padding
-                              decoration: BoxDecoration(
-                                color: Colors
-                                    .blueAccent, // Simplified gradient to a single color
-                                borderRadius: BorderRadius.circular(
-                                  12,
-                                ), // Reduced border radius
-                              ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.warning_amber_rounded,
-                                    size: 50, // Reduced size
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.warning_amber_rounded,
+                                  size: 50, // Reduced size
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(height: 16),
+                                const Text(
+                                  "Are you sure?",
+                                  style: TextStyle(
+                                    fontSize: 20, // Smaller font size
+                                    fontWeight: FontWeight.bold,
                                     color: Colors.white,
                                   ),
-                                  const SizedBox(height: 16),
-                                  const Text(
-                                    "Are you sure?",
-                                    style: TextStyle(
-                                      fontSize: 20, // Smaller font size
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  "This action will clear all data and cannot be undone.",
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 14, // Smaller font size
+                                    color: Colors.white70,
                                   ),
-                                  const SizedBox(height: 8),
-                                  const Text(
-                                    "This action will clear all data and cannot be undone.",
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 14, // Smaller font size
-                                      color: Colors.white70,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 20),
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceEvenly,
-                                    children: [
-                                      ElevatedButton(
-                                        onPressed: () {
-                                          setState(() {
-                                            globals.cartItems.clear();
+                                ),
+                                const SizedBox(height: 20),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceEvenly,
+                                  children: [
+                                    ElevatedButton(
+                                      onPressed: () {
+                                        setState(() {
+                                          globals.cartItems.clear();
 
-                                            customerScreenProvider
-                                                .clearControllers();
-                                            customerScreenProvider.audioPlayer =
-                                                null;
-                                            customerScreenProvider.photoScreen =
-                                                null;
-                                            customerScreenProvider
-                                                    .recordedFilePath =
-                                                '';
-                                            customerScreenProvider
-                                                    .pickedImage1 =
-                                                null;
-                                            customerScreenProvider
-                                                    .pickedImage2 =
-                                                null;
-                                          });
+                                          customerScreenProvider
+                                              .clearControllers();
+                                          customerScreenProvider.audioPlayer =
+                                              null;
+                                          customerScreenProvider.photoScreen =
+                                              null;
+                                          customerScreenProvider
+                                                  .recordedFilePath =
+                                              '';
+                                          customerScreenProvider.pickedImage1 =
+                                              null;
+                                          customerScreenProvider.pickedImage2 =
+                                              null;
+                                        });
 
-                                          Navigator.of(context).pop();
-                                        },
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor:
-                                              Colors.white, // Simplified color
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ), // Reduced border radius
-                                          ),
+                                        Navigator.of(context).pop();
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor:
+                                            Colors.white, // Simplified color
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ), // Reduced border radius
                                         ),
-                                        child: const Text("Clear"),
                                       ),
-                                      ElevatedButton(
-                                        onPressed: () =>
-                                            Navigator.of(context).pop(),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor:
-                                              Colors.white, // Simplified color
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ), // Reduced border radius
-                                          ),
+                                      child: const Text("Clear"),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor:
+                                            Colors.white, // Simplified color
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ), // Reduced border radius
                                         ),
-                                        child: const Text("Cancel"),
                                       ),
-                                    ],
-                                  ),
-                                ],
-                              ),
+                                      child: const Text("Cancel"),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
-                          );
-                        },
-                      );
-                    },
-                  ),
+                          ),
+                        );
+                      },
+                    );
+                  },
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
         body: Center(

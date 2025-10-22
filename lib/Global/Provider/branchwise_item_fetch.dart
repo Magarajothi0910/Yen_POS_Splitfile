@@ -20,6 +20,8 @@ class ItemProvider with ChangeNotifier {
   ItemProvider() {
     fetchAndSaveSalesOrders();
     fetchAndStoreBranches();
+    fetchDataIfNeeded(branchAlias: globals.aliasname);
+    fetchAndSaveEmployees();
   }
   Future<void> fetchAndSaveSalesOrders() async {
     const String apiUrl =
@@ -48,28 +50,28 @@ class ItemProvider with ChangeNotifier {
         GlobalDataManager().salesorders = saleOrderNos;
 
         notifyListeners();
-      } else {
-      }
-    } catch (e) {
-    }
+      } else {}
+    } catch (e) {}
   }
 
   Future<void> fetchDataIfNeeded({String? branchAlias}) async {
-
     var connectivityResult = await _connectivity.checkConnectivity();
+
     if (connectivityResult == ConnectivityResult.none) {
       return;
     }
 
     var lazyBox = await Hive.openLazyBox('items');
+
     var client = http.Client();
 
     try {
-      // ✅ Fetch from API if not already in Hive
-      if (branchAlias != null &&
+      bool needToFetch =
+          branchAlias != null &&
           (globals.appType == 'server' || globals.appType == '') &&
-          !await lazyBox.containsKey('branchwiseItems_$branchAlias')) {
+          !await lazyBox.containsKey('branchwiseItems_$branchAlias');
 
+      if (needToFetch) {
         try {
           var url =
               'https://yenerp.com/fastapi/branchwiseitems/?branch_alias=$branchAlias';
@@ -78,6 +80,7 @@ class ItemProvider with ChangeNotifier {
 
           if (response.statusCode == 200) {
             var jsonData = json.decode(response.body);
+
             await lazyBox.put('branchwiseItems_$branchAlias', jsonData);
 
             GlobalDataManager().branchwiseItems = jsonData;
@@ -85,7 +88,6 @@ class ItemProvider with ChangeNotifier {
             _extractVarianceNames(jsonData);
             _filteredVarianceNames = _varianceNames;
 
-            // ✅ Update local stock
             final branchwiseItems = jsonData['data'] as Map<String, dynamic>;
             var localStockBox = await Hive.openBox('localStockBox');
 
@@ -95,11 +97,11 @@ class ItemProvider with ChangeNotifier {
 
               final variances =
                   itemDetails['variance'] as Map<String, dynamic>?;
-
               if (variances != null) {
                 for (var varianceEntry in variances.entries) {
                   final varianceName = varianceEntry.key;
                   final varianceData = varianceEntry.value;
+
                   final String? itemCode = varianceData['varianceitemCode'];
 
                   final branchData =
@@ -112,13 +114,12 @@ class ItemProvider with ChangeNotifier {
                         branchData['systemStock_$branchAlias'];
 
                     if (localHiveStock != null) {
-                      // ✅ Update localStockBox
                       await localStockBox.put(localStockKey, localHiveStock);
 
-                      // ✅ Update inside branchwiseItems Hive too
                       final currentGlobalData = await lazyBox.get(
                         'branchwiseItems_$branchAlias',
                       );
+
                       if (currentGlobalData != null) {
                         final dataMap = Map<String, dynamic>.from(
                           currentGlobalData,
@@ -147,6 +148,7 @@ class ItemProvider with ChangeNotifier {
                                   );
                               updatedBranchData['systemStock_$branchAlias'] =
                                   localHiveStock;
+
                               branchwiseMap[branchAlias] = updatedBranchData;
                               varianceDataMap['branchwise'] = branchwiseMap;
                               varianceMap[varianceName] = varianceDataMap;
@@ -158,34 +160,32 @@ class ItemProvider with ChangeNotifier {
                                 'branchwiseItems_$branchAlias',
                                 dataMap,
                               );
+
                               GlobalDataManager().branchwiseItems = dataMap;
                             }
                           }
                         }
-                      }
-                    } else {
-                    }
-                  }
+                      } else {}
+                    } else {}
+                  } else {}
                 }
-              }
+              } else {}
             }
 
             final result = checkVarianceItemCode("FG011");
+
             notifyListeners();
-          } else {
-          }
-        } catch (e) {
-        }
+          } else {}
+        } catch (e, st) {}
       } else {
-        // ✅ Load from Hive if already present
         GlobalDataManager().branchwiseItems = await lazyBox.get(
           'branchwiseItems_$branchAlias',
         );
+
         _extractVarianceNames(GlobalDataManager().branchwiseItems);
         _filteredVarianceNames = _varianceNames;
       }
 
-      // ✅ Fetch branch list if missing
       if (!await lazyBox.containsKey('branches')) {
         try {
           var response = await client.get(
@@ -197,10 +197,8 @@ class ItemProvider with ChangeNotifier {
             GlobalDataManager().branches = jsonData;
             printBranchNames(jsonData);
             notifyListeners();
-          } else {
-          }
-        } catch (e) {
-        }
+          } else {}
+        } catch (e, st) {}
       } else {
         GlobalDataManager().branches = await lazyBox.get('branches');
       }
@@ -210,7 +208,6 @@ class ItemProvider with ChangeNotifier {
   }
 
   Future<void> fetchAndStoreBranches() async {
-
     var client = http.Client();
     var lazyBox = await Hive.openLazyBox('items');
 
@@ -226,13 +223,11 @@ class ItemProvider with ChangeNotifier {
 
         GlobalDataManager().branches = jsonData;
 
-        for (var branch in GlobalDataManager().branches) {
-        }
+        for (var branch in GlobalDataManager().branches) {}
         printBranchNames(jsonData);
 
         notifyListeners();
-      } else {
-      }
+      } else {}
     } catch (e) {
     } finally {
       client.close();
@@ -295,7 +290,6 @@ class ItemProvider with ChangeNotifier {
         // Open Hive box and store employee data
         var box = await Hive.openBox('employeeBox');
         await box.put('employees', employeeData);
-
       } else {}
     } catch (e) {}
   }
@@ -367,7 +361,6 @@ class ItemProvider with ChangeNotifier {
   }
 
   Future<String?> getBranchNameFromAlias(String aliasName) async {
-
     // Step 1: Validate input
     if (aliasName.trim().isEmpty) {
       return 'Invalid alias name';
@@ -386,8 +379,7 @@ class ItemProvider with ChangeNotifier {
     final branches = branchesData as List;
 
     // Step 3: Print all available aliases (for debugging visibility)
-    for (int i = 0; i < branches.length; i++) {
-    }
+    for (int i = 0; i < branches.length; i++) {}
 
     // Step 4: Search for branch by alias name (case-insensitive match for robustness)
     final branch = branches.firstWhere(

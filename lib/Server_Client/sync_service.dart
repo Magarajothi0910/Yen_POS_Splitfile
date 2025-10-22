@@ -509,7 +509,6 @@ class SyncService {
   }
 
   Future<void> syncUnsyncedHoldOrders() async {
-
     // Prevent multiple syncs at the same time
     if (_isSyncing) {
       return;
@@ -546,7 +545,6 @@ class SyncService {
           continue;
         }
 
-
         // Handle nested data if needed
         final dataToSend = holdOrderData['data'] ?? holdOrderData;
 
@@ -570,7 +568,6 @@ class SyncService {
           failedCount++;
         }
       }
-
     } catch (e, st) {
     } finally {
       _isSyncing = false;

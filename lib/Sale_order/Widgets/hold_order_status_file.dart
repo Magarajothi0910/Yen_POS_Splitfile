@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:yenpos/Sale_order/Models/held_order_model.dart';
 import 'package:yenpos/Sale_order/Provider/customerScreen_provider.dart';
+import 'package:yenpos/Sale_order/Provider/get_sales_order_service.dart';
 import 'package:yenpos/Sale_order/Widgets/restore_order_date.dart';
 
-
 void showHoldOrdersSheet(
-    BuildContext context, CustomerScreenProvider customerScreenProvider) {
+  BuildContext context,
+  CustomerScreenProvider customerScreenProvider,
+) {
   customerScreenProvider.fetchHolderFromHive();
   showModalBottomSheet(
     isScrollControlled: true,
@@ -24,10 +26,7 @@ void showHoldOrdersSheet(
             child: Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [
-                    Colors.grey.shade50,
-                    Colors.white,
-                  ],
+                  colors: [Colors.grey.shade50, Colors.white],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                 ),
@@ -36,7 +35,7 @@ void showHoldOrdersSheet(
                     color: Colors.black12,
                     blurRadius: 20,
                     offset: const Offset(0, -4),
-                  )
+                  ),
                 ],
               ),
               child: Column(
@@ -59,7 +58,7 @@ void showHoldOrdersSheet(
                           color: Colors.blue.withOpacity(0.3),
                           blurRadius: 20,
                           offset: const Offset(0, 8),
-                        )
+                        ),
                       ],
                     ),
                     child: Column(
@@ -97,8 +96,10 @@ void showHoldOrdersSheet(
                           return const Center(
                             child: Text(
                               'No held orders',
-                              style:
-                                  TextStyle(fontSize: 16, color: Colors.grey),
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey,
+                              ),
                             ),
                           );
                         }
@@ -138,7 +139,9 @@ void showHoldOrdersSheet(
                                 },
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 12),
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
                                   child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
@@ -150,7 +153,7 @@ void showHoldOrdersSheet(
                                         children: [
                                           Expanded(
                                             child: Text(
-                                              order['customerName'] ?? '-',
+                                              '${order['holdOrderId'] ?? ''} - ${order['customerName'] ?? '-'}',
                                               style: const TextStyle(
                                                 fontSize: 18,
                                                 fontWeight: FontWeight.w700,
@@ -162,20 +165,25 @@ void showHoldOrdersSheet(
                                           ),
                                           Container(
                                             padding: const EdgeInsets.symmetric(
-                                                horizontal: 10, vertical: 4),
+                                              horizontal: 10,
+                                              vertical: 4,
+                                            ),
                                             decoration: BoxDecoration(
                                               color: Colors.orange.shade50,
                                               borderRadius:
                                                   BorderRadius.circular(50),
                                               border: Border.all(
-                                                  color: Colors.orange.shade200,
-                                                  width: 0.6),
+                                                color: Colors.orange.shade200,
+                                                width: 0.6,
+                                              ),
                                             ),
                                             child: Row(
                                               children: [
-                                                const Icon(Icons.info,
-                                                    size: 14,
-                                                    color: Colors.orange),
+                                                const Icon(
+                                                  Icons.info,
+                                                  size: 14,
+                                                  color: Colors.orange,
+                                                ),
                                                 const SizedBox(width: 4),
                                                 Text(
                                                   order['status'] ?? 'Pending',
@@ -200,29 +208,33 @@ void showHoldOrdersSheet(
                                           Row(
                                             children: [
                                               const Icon(
-                                                  Icons.calendar_today_rounded,
-                                                  size: 16,
-                                                  color: Color(0xFF3A7AFE)),
+                                                Icons.calendar_today_rounded,
+                                                size: 16,
+                                                color: Color(0xFF3A7AFE),
+                                              ),
                                               const SizedBox(width: 4),
                                               Text(
                                                 order['deliveryDate'] ?? '-',
                                                 style: const TextStyle(
-                                                    fontSize: 14,
-                                                    fontWeight: FontWeight.w500,
-                                                    color: Colors.black87),
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w500,
+                                                  color: Colors.black87,
+                                                ),
                                               ),
                                               const SizedBox(width: 12),
                                               const Icon(
-                                                  Icons.access_time_filled,
-                                                  size: 16,
-                                                  color: Color(0xFF34C759)),
+                                                Icons.access_time_filled,
+                                                size: 16,
+                                                color: Color(0xFF34C759),
+                                              ),
                                               const SizedBox(width: 4),
                                               Text(
                                                 order['deliveryTime'] ?? '-',
                                                 style: const TextStyle(
-                                                    fontSize: 14,
-                                                    fontWeight: FontWeight.w500,
-                                                    color: Colors.black87),
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w500,
+                                                  color: Colors.black87,
+                                                ),
                                               ),
                                             ],
                                           ),
@@ -233,16 +245,21 @@ void showHoldOrdersSheet(
                                             ),
                                             child: IconButton(
                                               icon: const Icon(
-                                                  Icons.delete_outline_rounded),
+                                                Icons.delete_outline_rounded,
+                                              ),
                                               color: Colors.red.shade400,
                                               splashRadius: 22,
-                                              onPressed: () {
-                                                provider
+                                              onPressed: () async {
+                                                print(
+                                                  '🖱️ Delete button clicked for ${order['holdOrderId']}',
+                                                );
+                                                await provider
                                                     .deleteHoldOrderFromHive(
-                                                        order['holdOrderId']);
+                                                      order['holdOrderId'],
+                                                    );
                                               },
                                             ),
-                                          )
+                                          ),
                                         ],
                                       ),
                                     ],

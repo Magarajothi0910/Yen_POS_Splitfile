@@ -251,141 +251,92 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> handlePatchHoldOrder(Map<String, dynamic> data) async {
-    final salesOrderId = data['holdOrderId'];
-    final patchData = data['data'];
+    print('\n\n🟢 [handlePatchHoldOrder] Triggered');
+    print('📦 Incoming Data: $data');
+
+    final patchData = Map<String, dynamic>.from(data['data'] ?? {});
     final deviceName = data['deviceName'];
     final type = data['type'];
     final sync = data['sync'];
     final edit = data['edit'];
-    final waitingForApprovalResult = data['waitingForApprovalResult'];
-    String soNo = data['holdOrderId'];
+    final holdOrderId = data['holdOrderId'];
+
+    print('🧩 Extracted Fields:');
+    print('   🔹 holdOrderId: $holdOrderId');
+    print('   🔹 deviceName: $deviceName');
+    print('   🔹 type: $type');
+    print('   🔹 sync: $sync');
+    print('   🔹 edit: $edit');
+    print('   🔹 patchData: $patchData');
 
     dynamic targetKey;
 
+    // Step 1: Find the existing hold order in Hive
     for (final entry in holdOrderBox.toMap().entries) {
-      dynamic orderData;
-      if (entry.value is Map) {
-        final mapValue = entry.value as Map;
-        if (mapValue.containsKey('data')) {
-          orderData = mapValue['data'];
-        } else if (mapValue.containsKey('holdOrderId')) {
-          orderData = mapValue;
-        }
-      } else if (entry.value is List) {
-        if (entry.value.isNotEmpty && entry.value[0] is Map) {
-          orderData = entry.value[0];
-        }
-      }
-
-      if (orderData != null) {
-        if (orderData is Map && orderData['holdOrderId'] != null) {
-          if (orderData['holdOrderId'].toString() == soNo.toString()) {
-            targetKey = entry.key;
-            break;
-          }
-        } else if (orderData is List &&
-            orderData.isNotEmpty &&
-            orderData[0] is Map &&
-            orderData[0]['holdOrderId'] != null) {
-          if (orderData[0]['holdOrderId'].toString() == soNo.toString()) {
-            targetKey = entry.key;
-            break;
-          }
-        }
+      final order = entry.value;
+      if (order is Map && order['holdOrderId'] == holdOrderId) {
+        targetKey = entry.key;
+        print('✅ Match found! Key: $targetKey');
+        break;
       }
     }
 
     if (targetKey == null) {
-      for (final entry in holdOrderBox.toMap().entries) {
-        dynamic orderData;
-        if (entry.value is Map) {
-          final mapValue = entry.value as Map;
-          if (mapValue.containsKey('data')) {
-            orderData = mapValue['data'];
-          } else if (mapValue.containsKey('holdOrderId')) {
-            orderData = mapValue;
-          }
-        } else if (entry.value is List && entry.value.isNotEmpty) {
-          orderData = entry.value[0];
-        }
-        if (orderData != null) {
-          if (orderData is Map && orderData.containsKey('holdOrderId')) {
-          } else if (orderData is List &&
-              orderData.isNotEmpty &&
-              orderData[0] is Map &&
-              orderData[0].containsKey('holdOrderId')) {}
-        }
-      }
+      print('❌ No matching holdOrderId found. Exiting.');
       return;
     }
 
+    // Step 2: Load existing order and patch
+    final existingOrder = Map<String, dynamic>.from(
+      holdOrderBox.get(targetKey),
+    );
+    existingOrder.addAll(patchData);
+
+    // Step 3: Update metadata
+    existingOrder.addAll({
+      'deviceName': deviceName,
+      'type': type,
+      'sync': sync,
+      'edit': edit,
+      'saleOrderNo': holdOrderId,
+      'waitingForApprovalResult': data['waitingForApprovalResult'] ?? 'Yes',
+    });
+
+    // Step 4: Save back to Hive
+    await holdOrderBox.put(targetKey, existingOrder);
+    print('✅ Patched order saved to Hive: $existingOrder');
+
+    // Step 5: Notify clients
+    sendDataToClients({
+      'action': 'patchholdorderGenerated',
+      'patchHoldOrder': data,
+    }, clients);
+    sendDataToClientsCallCount++;
+    print('📤 Clients notified. Total calls: $sendDataToClientsCallCount');
+
+    // Step 6: Optional: Sync to server
     try {
-      final existingOrder = holdOrderBox.get(targetKey);
-      if (existingOrder == null) {
-        return;
-      }
-
-      Map<String, dynamic> updatedOrder = Map<String, dynamic>.from(
-        existingOrder,
-      );
-
-      if (updatedOrder.containsKey('data')) {
-        if (updatedOrder['data'] is List && updatedOrder['data'].isNotEmpty) {
-          List<dynamic> dataList = List.from(updatedOrder['data']);
-          if (dataList[0] is Map) {
-            Map<String, dynamic> orderData = Map.from(dataList[0]);
-            orderData.addAll(patchData);
-            dataList[0] = orderData;
-            updatedOrder['data'] = dataList;
-          }
-        } else if (updatedOrder['data'] is Map) {
-          Map<String, dynamic> orderData = Map.from(updatedOrder['data']);
-          orderData.addAll(patchData);
-          updatedOrder['data'] = orderData;
-        }
-      } else {
-        updatedOrder.addAll(patchData);
-      }
-
-      updatedOrder.addAll({
+      final success = await _syncService.patchSalesOrder(holdOrderId, {
+        'data': patchData,
         'deviceName': deviceName,
         'type': type,
         'sync': sync,
         'edit': edit,
-        'waitingForApprovalResult': waitingForApprovalResult ?? 'Yes',
-        'saleOrderNo': soNo,
+        'waitingForApprovalResult': data['waitingForApprovalResult'],
       });
-
-      await holdOrderBox.put(targetKey, updatedOrder);
-
-      sendDataToClients({
-        'action': 'patchholdorderGenerated',
-        'patchHoldOrder': data,
-      }, clients);
-
-      sendDataToClientsCallCount++;
-
-      try {
-        bool success = await _syncService.patchSalesOrder(
-          salesOrderId, // 🔹 first argument (String)
-          {
-            'data': patchData,
-            'deviceName': deviceName,
-            'type': type,
-            'sync': sync,
-            'edit': edit,
-            'waitingForApprovalResult': waitingForApprovalResult,
-          }, // 🔹 second argument (Map)
-        );
-
-        if (success) {
-          updatedOrder['sync'] = true;
-          await holdOrderBox.put(targetKey, updatedOrder);
-        } else {}
-      } catch (e) {}
-    } catch (e) {
-      rethrow;
+      if (success) {
+        existingOrder['sync'] = true;
+        await holdOrderBox.put(targetKey, existingOrder);
+        print('💾 Hive record updated with sync:true');
+      } else {
+        print('⚠️ Server PATCH failed.');
+      }
+    } catch (e, st) {
+      print('❌ Server sync error: $e');
+      print(st);
     }
+
+    print('🎉 [handlePatchHoldOrder] Completed successfully!');
   }
 
   // Helper function to debug Hive box structure
@@ -670,8 +621,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (data['data'] != null &&
           data['data'] is List &&
           data['data'].isNotEmpty) {
-        cleanHoldOrderId =
-            data['data'][0]['holdOrderId'] ?? 'UNKNOWN_HOLD_ORDER';
+        cleanHoldOrderId = data['data']['holdOrderId'] ?? 'UNKNOWN_HOLD_ORDER';
       } else if (data['holdOrderId'] != null) {
         cleanHoldOrderId = data['holdOrderId'];
       }
@@ -702,9 +652,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // Step 5: Post to FastAPI
       print('🚀 Sending Hold Order to FastAPI for sync...');
-      bool success = await _syncService.postToHoldOrder({
-        "data": [holdOrder],
-      });
+      bool success = await _syncService.postToHoldOrder({"data": holdOrder});
 
       // Step 6: Update Sync Status
       if (success) {
@@ -1338,7 +1286,7 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // // Fetch additional data if needed
+    // // // Fetch additional data if needed
     // await itemProvider.fetchDataIfNeeded(branchAlias: globals.aliasname);
 
     // Step 4: Validate fetched branch name
@@ -1472,7 +1420,7 @@ class _LoginScreenState extends State<LoginScreen> {
               Provider.of<ItemProvider>(
                 context,
                 listen: false,
-              ).fetchDataIfNeeded(branchAlias: 'AR');
+              ).fetchDataIfNeeded(branchAlias: globals.aliasname);
               serverip = ip;
               setState(() {
                 serverFound = true;

@@ -23,7 +23,8 @@ class HiveManager {
     _invoiceBox = await Hive.openBox('invoices');
     _modifyOrderBox = await Hive.openBox('modifyOrderBox');
     _toApproveOrderBox = await Hive.openBox('toApproveOrderBox');
-    _holdOrderBox = await Hive.openBox('holdSalesOrderBox');
+
+    _holdOrderBox = await Hive.openBox('holdOrders');
     _salesOrderNumberBox = await Hive.openBox('salesOrderNumberBox');
   }
 
@@ -38,7 +39,8 @@ class HiveManager {
   static Box get salesOrderBox {
     if (_salesOrderBox == null) {
       throw Exception(
-          'Hive not initialized! Call HiveManager.initialize() first');
+        'Hive not initialized! Call HiveManager.initialize() first',
+      );
     }
     return _salesOrderBox!;
   }
@@ -46,7 +48,8 @@ class HiveManager {
   static Box get invoiceBox {
     if (_invoiceBox == null) {
       throw Exception(
-          'Hive not initialized! Call HiveManager.initialize() first');
+        'Hive not initialized! Call HiveManager.initialize() first',
+      );
     }
     return _invoiceBox!;
   }
@@ -54,7 +57,8 @@ class HiveManager {
   static Box get modifyOrderBox {
     if (_modifyOrderBox == null) {
       throw Exception(
-          'Hive not initialized! Call HiveManager.initialize() first');
+        'Hive not initialized! Call HiveManager.initialize() first',
+      );
     }
     return _modifyOrderBox!;
   }
@@ -62,7 +66,8 @@ class HiveManager {
   static Box get toApproveOrderBox {
     if (_toApproveOrderBox == null) {
       throw Exception(
-          'Hive not initialized! Call HiveManager.initialize() first');
+        'Hive not initialized! Call HiveManager.initialize() first',
+      );
     }
     return _toApproveOrderBox!;
   }
@@ -70,7 +75,8 @@ class HiveManager {
   static Box get holdOrderBox {
     if (_holdOrderBox == null) {
       throw Exception(
-          'Hive not initialized! Call HiveManager.initialize() first');
+        'Hive not initialized! Call HiveManager.initialize() first',
+      );
     }
     return _toApproveOrderBox!;
   }
@@ -78,7 +84,8 @@ class HiveManager {
   static Box get salesOrderNumberBox {
     if (_salesOrderNumberBox == null) {
       throw Exception(
-          'Hive not initialized! Call HiveManager.initialize() first');
+        'Hive not initialized! Call HiveManager.initialize() first',
+      );
     }
     return _salesOrderNumberBox!;
   }

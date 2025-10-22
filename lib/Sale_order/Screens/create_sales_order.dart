@@ -293,7 +293,7 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
               item.finalPrice = null;
 
               if (kDebugMode) {
-                print("🔄 Reset discount for item: ${item.varianceName}");
+                
               }
             }
           }

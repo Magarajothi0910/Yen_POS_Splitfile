@@ -60,26 +60,17 @@ Future<bool> verifyFile(String path) async =>
 
 Future<String?> clearFile(String? path) async {
   if (path == null) {
-    print("[CLEAR FILE] Path is null, nothing to delete.");
     return null;
   }
 
   final f = File(path);
-  print("file path to delete: $f");
   try {
     final exists = await f.exists();
     if (exists) {
-      print("[CLEAR FILE] File exists at path: $path. Deleting now...");
       await f.delete();
-      print("[CLEAR FILE] File deleted successfully.");
     } else {
-      print(
-          "[CLEAR FILE] File does not exist at path: $path. Nothing to delete.");
     }
   } catch (e, st) {
-    print("[CLEAR FILE] Error deleting file at path: $path");
-    print("Exception: $e");
-    print("StackTrace: $st");
   }
 
   // 🔑 Always return null so caller can reset the variable

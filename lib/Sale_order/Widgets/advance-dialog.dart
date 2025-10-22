@@ -410,11 +410,9 @@ class _AdvanceAmountDialogState extends State<AdvanceAmountDialog> {
                       ),
                       ElevatedButton(
                         onPressed: () {
-                          print("🟦 Submit button pressed");
 
                           // Step 1: Validate remarks
                           if (_remarksController.text.isEmpty) {
-                            print("⚠️ Remarks field is empty");
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text('Please fill the Remarks'),
@@ -422,9 +420,6 @@ class _AdvanceAmountDialogState extends State<AdvanceAmountDialog> {
                             );
                             return;
                           } else {
-                            print(
-                              "✅ Remarks filled: ${_remarksController.text}",
-                            );
                           }
 
                           // Step 2: Build approval details
@@ -432,7 +427,6 @@ class _AdvanceAmountDialogState extends State<AdvanceAmountDialog> {
                             "approvalType": "Cancel Order",
                             "summary": "no",
                           };
-                          print("📋 Approval Details: $approvalDetails");
 
                           Map<String, dynamic> payload = {
                             "status": "Waiting for approval",
@@ -448,24 +442,16 @@ class _AdvanceAmountDialogState extends State<AdvanceAmountDialog> {
                             "approvalDetails": [approvalDetails],
                           };
 
-                          print("🛠️ Payload created:");
                           payload.forEach((key, value) {
-                            print("   ➡️ $key : $value");
                           });
 
                           // Step 4: Call Provider method
-                          print(
-                            "📡 Calling cancelOrder with SaleOrderNo: ${widget.saleOrderNo}",
-                          );
                           customerScreenProvider.cancelOrder(
                             widget.saleOrderNo,
                             payload,
                           );
 
                           // Step 5: Navigate back
-                          print(
-                            "🔙 Closing dialog and returning to previous screen",
-                          );
                           Navigator.of(context).pop();
                         },
                         style: ElevatedButton.styleFrom(

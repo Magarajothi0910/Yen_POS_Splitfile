@@ -25,24 +25,18 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
   @override
   void initState() {
     super.initState();
-    print("🟢 InstallPOSApp initialized.");
     checkForStoredDeviceCode();
   }
 
   Future<void> checkForStoredDeviceCode() async {
-    print("🔍 Checking for stored device code in Hive...");
 
     try {
       var box = await Hive.openBox('deviceData');
-      print("📦 Hive box 'deviceData' opened successfully.");
 
       final storedDeviceCode = box.get('deviceCode');
-      print("📄 Retrieved storedDeviceCode: $storedDeviceCode");
 
       if (storedDeviceCode != null && storedDeviceCode.isNotEmpty) {
-        print("✅ Device code found! Navigating to LoginScreen...");
         if (!mounted) {
-          print("⚠️ Widget not mounted, navigation skipped.");
           return;
         }
 
@@ -53,9 +47,7 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
           ),
         );
       } else {
-        print("❌ No stored device code found. Opening device code dialog...");
         if (!mounted) {
-          print("⚠️ Widget not mounted, dialog skipped.");
           return;
         }
 
@@ -64,8 +56,6 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
         });
       }
     } catch (e, stackTrace) {
-      print("❗ Error while checking stored device code: $e");
-      print(stackTrace);
     }
   }
 
@@ -425,23 +415,8 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
                                     listen: false,
                                   );
                               try {
-                                print(
-                                  "deviceData!['deviceCode']:${deviceData!['deviceCode']}",
-                                );
-                                print(
-                                  "deviceData!['branchName']:${deviceData!['branchName']}",
-                                );
-                                print(
-                                  "deviceData!['deviceCodeId']:${deviceData!['deviceCodeId']}",
-                                );
 
                                 globals.aliasname = deviceData!['branchName'];
-                                print(
-                                  "globals.aliasname: ${globals.aliasname}",
-                                );
-                                print(
-                                  "gloabls.branchId: ${deviceData!['branchId']}",
-                                );
                                 // Store the device data
                                 await deviceProvider.storeDeviceData(
                                   deviceData!['deviceCode'],
@@ -490,9 +465,6 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
                               ),
                             ),
                             onPressed: () {
-                              print(
-                                "❌ Branch mismatch. Returning to device code entry.",
-                              );
                               if (mounted) {
                                 Navigator.of(context).pop();
                                 showErrorDialog(
@@ -596,7 +568,6 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
                         ),
                         ElevatedButton(
                           onPressed: () {
-                            print("🚪 Exiting application...");
                             Navigator.of(context).pop();
                             if (mounted) Navigator.of(context).maybePop();
                           },
@@ -687,9 +658,6 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
                     const SizedBox(height: 24),
                     ElevatedButton(
                       onPressed: () {
-                        print(
-                          "⚠️ Error dialog closed. Reopening device code dialog.",
-                        );
                         if (mounted) {
                           Navigator.of(context).pop();
                           showDeviceCodeDialog();

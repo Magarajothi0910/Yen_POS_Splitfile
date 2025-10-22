@@ -6,7 +6,7 @@ import 'package:yenpos/Sale_order/Screens/current_orders.dart';
 
 class TakeAwayOrdersNavigator extends StatelessWidget {
 
-  TakeAwayOrdersNavigator({super.key,});
+  const TakeAwayOrdersNavigator({super.key,});
 
   @override
   Widget build(BuildContext context) {

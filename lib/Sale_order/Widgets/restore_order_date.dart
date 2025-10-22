@@ -9,7 +9,6 @@ import 'package:yenpos/Sale_order/Provider/customerScreen_provider.dart';
 import 'package:yenpos/Sale_order/Provider/detailsProvider.dart';
 import 'package:yenpos/Sale_order/Provider/photoProvider.dart';
 
-
 bool isRequestInProgress = false; // Added variable definition
 Future<void> restoreHeldOrderData(BuildContext context, HeldOrder order) async {
   if (isRequestInProgress) {
@@ -20,12 +19,16 @@ Future<void> restoreHeldOrderData(BuildContext context, HeldOrder order) async {
 
   try {
     await Future.microtask(() {
-      final customerScreenProvider =
-          Provider.of<CustomerScreenProvider>(context, listen: false);
+      final customerScreenProvider = Provider.of<CustomerScreenProvider>(
+        context,
+        listen: false,
+      );
       final audioprovider = Provider.of<AudioProvider>(context, listen: false);
       final cartProvider = Provider.of<CartProvider>(context, listen: false);
-      final detailsProvider =
-          Provider.of<DetailsProvider>(context, listen: false);
+      final detailsProvider = Provider.of<DetailsProvider>(
+        context,
+        listen: false,
+      );
       final photoProvider = Provider.of<PhotoProvider>(context, listen: false);
 
       cartProvider.clearCart();
@@ -39,15 +42,15 @@ Future<void> restoreHeldOrderData(BuildContext context, HeldOrder order) async {
       customerScreenProvider.setSelectedDeliveryType(order.deliveryType);
 
       customerScreenProvider.landmarkController.text = order.landmark ?? '';
+      customerScreenProvider.patchHoldOrderId = order.holdOrderId ?? '';
 
       customerScreenProvider.addressController.text = order.address ?? '';
       customerScreenProvider.birthdaydateController.text =
           order.eventDate ?? '';
-      customerScreenProvider.remarkController.text = order.remarks ?? '';
+      customerScreenProvider.remarkController.text = order.remark ?? '';
 
       customerScreenProvider.customerNameController.text =
           order.customerName ?? '';
-      customerScreenProvider.remarkController.text = order.remarks ?? '';
 
       customerScreenProvider.mobileNoController.text =
           order.customerNumber ?? '';
@@ -55,10 +58,10 @@ Future<void> restoreHeldOrderData(BuildContext context, HeldOrder order) async {
       final name = customerScreenProvider.customerNameController.text;
       customerScreenProvider.combinedController.text =
           (mobile.isNotEmpty && name.isNotEmpty)
-              ? '$mobile - $name'
-              : mobile.isNotEmpty
-                  ? mobile
-                  : '';
+          ? '$mobile - $name'
+          : mobile.isNotEmpty
+          ? mobile
+          : '';
       customerScreenProvider.searchController.text = order.employeeName;
 
       detailsProvider.filteredEmployeeFirstNames.clear();
@@ -66,18 +69,20 @@ Future<void> restoreHeldOrderData(BuildContext context, HeldOrder order) async {
       customerScreenProvider.setSelectedHoldOrderId(order.holdOrderId);
 
       for (int index = 0; index < order.itemName.length; index++) {
-        cartProvider.addItemToCart(CartItem(
-          varianceName: order.varianceName[index],
-          itemName: order.itemName[index],
-          pricePerKg: order.price[index],
-          tax: order.tax[index],
-          itemCode: order.itemCode[index],
-          uom: order.uom[index],
-          quantity: order.qty[index],
-          weight: order.weight[index],
-          itemWiseDiscountAmount: order.itemWiseDiscountAmount![index],
-          itemWiseDiscount: order.itemWiseDiscount![index],
-        ));
+        cartProvider.addItemToCart(
+          CartItem(
+            varianceName: order.varianceName[index],
+            itemName: order.itemName[index],
+            pricePerKg: order.price[index],
+            tax: order.tax[index],
+            itemCode: order.itemCode[index],
+            uom: order.uom[index],
+            quantity: order.qty[index],
+            weight: order.weight[index],
+            itemWiseDiscountAmount: order.itemWiseDiscountAmount![index],
+            itemWiseDiscount: order.itemWiseDiscount![index],
+          ),
+        );
       }
     });
 

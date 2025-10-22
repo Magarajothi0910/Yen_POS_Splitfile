@@ -27,6 +27,7 @@ import 'package:yenpos/Sale_order/Print_Receipt/so_placeorder_payment_print.dart
 import 'package:yenpos/Sale_order/Provider/cart_selection_provider.dart';
 import 'package:yenpos/Sale_order/Provider/get_sales_order_service.dart';
 import 'package:yenpos/Sale_order/Provider/saveAudioandImageFile.dart';
+import 'package:yenpos/Sale_order/Screens/create_sales_order.dart';
 import 'package:yenpos/Sale_order/Widgets/storetype_selection_dialogue.dart';
 import 'package:yenpos/Server_Client/websocketService.dart';
 
@@ -106,6 +107,7 @@ class CustomerScreenProvider with ChangeNotifier {
 
   TextEditingController otherEventController = TextEditingController();
   TextEditingController combinedController = TextEditingController();
+
   late WebSocketChannel _channel;
   final Razorpay _razorpay = Razorpay();
   void _initWebSocket() {
@@ -231,18 +233,35 @@ class CustomerScreenProvider with ChangeNotifier {
         CustomerScreenProvider(),
         SalesInvoiceReceiptPrinter(),
       );
+
+      // Fetch all saved hold orders from Hive
       List<Map<String, dynamic>> hiveOrders = await webSocketService
           .getSavedHoldOrders();
 
-      for (int i = 0; i < hiveOrders.length; i++) {}
+      print('📥 Total orders fetched from Hive: ${hiveOrders.length}');
 
-      _rawOrders = hiveOrders;
+      // ✅ Filter only orders with status = "Hold Order"
+      List<Map<String, dynamic>> holdOrders = hiveOrders
+          .where(
+            (order) =>
+                order['status'] != null &&
+                order['status'].toString().trim().toLowerCase() == 'hold order',
+          )
+          .toList();
+
+      print('🛑 Hold Orders filtered: ${holdOrders.length}');
+      for (var order in holdOrders) {
+        print('➡️ Hold Order: $order');
+      }
+
+      _rawOrders = holdOrders;
       _hiveholdSalesOrders = List.from(_rawOrders);
 
       notifyListeners();
 
       return _hiveholdSalesOrders;
     } catch (e) {
+      print('⚠️ Error fetching hold orders: $e');
       return [];
     }
   }
@@ -637,13 +656,6 @@ class CustomerScreenProvider with ChangeNotifier {
   bool showAudioandImage = true;
   String selectedOrderOption = 'Inhouse';
 
-  void onSuggestionSelected(Map<String, String> suggestion) {
-    mobileNoController.text = suggestion['mobile']!;
-    customerNameController.text = suggestion['name']!;
-    suggestions = []; // Clear suggestions after selection
-    notifyListeners();
-  }
-
   Future<void> cancelOrder(
     String salesOrderId,
     Map<String, dynamic> payload,
@@ -686,105 +698,6 @@ class CustomerScreenProvider with ChangeNotifier {
       _channel.sink.add(jsonData);
     } catch (e) {
       // You might want to show an error to the user here
-    }
-  }
-
-  Future<void> fetchSuggestions(String query) async {
-    if (query.isEmpty) {
-      suggestions = [];
-      notifyListeners();
-      return;
-    }
-
-    final url = Uri.parse('http://192.168.29.8:8881/customer/');
-    try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        final List customers = json.decode(response.body);
-        suggestions = customers
-            .where(
-              (customer) =>
-                  customer['customerPhoneNumber'].toString().startsWith(query),
-            ) // Filter by mobile number prefix
-            .map(
-              (customer) => {
-                'mobile': customer['customerPhoneNumber'].toString(),
-                'name': customer['customerName'].toString(),
-              },
-            )
-            .toList();
-        notifyListeners();
-      } else {
-        throw Exception('Failed to load customers');
-      }
-    } catch (e) {
-      suggestions = [];
-      notifyListeners();
-    }
-  }
-
-  void fetchCompanySuggestionsDebounced(String query) {
-    if (_debounce?.isActive ?? false) _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
-      fetchCompanySuggestions(query);
-    });
-  }
-
-  Future<bool> addCompany(String name, String address, String gst) async {
-    try {
-      final response = await http.post(
-        Uri.parse('https://yenerp.com/fastapi/companies/'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'companyName': name,
-          'companyAddress': address,
-          'companyGST': gst,
-          'status': '1',
-        }),
-      );
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return true;
-      } else {
-        return false;
-      }
-    } catch (e) {
-      return false;
-    }
-  }
-
-  Future<void> fetchCompanySuggestions(String query) async {
-    if (query.isEmpty) {
-      suggestions = [];
-      notifyListeners();
-      return;
-    }
-
-    final url = Uri.parse('https://yenerp.com/companies/');
-    try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        final List customers = json.decode(response.body);
-
-        suggestions = customers
-            .where(
-              (customer) =>
-                  customer['companyName'].toString().startsWith(query),
-            ) // Filter by company name prefix
-            .map(
-              (customer) => {
-                'name': customer['companyName'].toString(),
-                'address': customer['companyAddress'].toString(),
-                'gst': customer['companyGST'].toString(),
-              },
-            )
-            .toList();
-        notifyListeners();
-      } else {
-        throw Exception('Failed to load companies');
-      }
-    } catch (e) {
-      suggestions = [];
-      notifyListeners();
     }
   }
 
@@ -1895,7 +1808,7 @@ class CustomerScreenProvider with ChangeNotifier {
   TextEditingController customersearchController = TextEditingController();
   List<Map<String, String>> filteredCustomers = [];
   String customersearchQuery = '';
-  String holdOrderId = "";
+  String patchHoldOrderId = "";
   String approvalOrderId = "";
 
   TextEditingController customerNameController = TextEditingController();
@@ -1940,52 +1853,10 @@ class CustomerScreenProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  // -------------------- FUNCTION -------------------- //
   void holdOrers(cartProvider, path, apiProvider, img1, img2) {
+    print('📦 holdOrers() called');
     _heldOrder(cartProvider, path, apiProvider, img1, img2);
-  }
-
-  Future<void> updateCustomId(String curentCustomId, String CustomId) async {
-    final String currentCustomId =
-        curentCustomId; // Replace with actual custom ID
-    final String newCustomId = CustomId; // New custom ID
-
-    final url = Uri.parse(
-      'https://yenerp.com/fastapi/audios/media/$currentCustomId/audio',
-    );
-
-    final response = await http.patch(
-      url,
-      body: {'new_custom_id': newCustomId},
-    );
-
-    if (response.statusCode == 200) {
-    } else {}
-  }
-
-  Future<void> updateImageId(String currentCustomId, String newCustomId) async {
-    final url = Uri.parse(
-      "https://yenerp.com/fastapi/imageOrder/media/batch_update",
-    );
-
-    try {
-      // Prepare the request body
-      final body = {
-        'current_custom_id': currentCustomId,
-        'new_custom_id': newCustomId,
-      };
-
-      // Send the PATCH request
-      final response = await http.patch(
-        url,
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: body,
-      );
-
-      if (response.statusCode == 200) {
-        // Parse the response if needed
-        final data = json.decode(response.body);
-      } else {}
-    } catch (e) {}
   }
 
   void clearControllers() {
@@ -2002,8 +1873,13 @@ class CustomerScreenProvider with ChangeNotifier {
     companygstNumberController.clear();
     remarkController.clear();
     combinedController.clear();
-
+    dateController.clear();
+    timeController.clear();
+    mobileNoController.clear();
     customerCombinedController.clear();
+    CartProvider().clearCart();
+
+    notifyListeners();
   }
 
   @override
@@ -2017,51 +1893,6 @@ class CustomerScreenProvider with ChangeNotifier {
     searchController.dispose();
     advanceAmountController.dispose(); // Dispose all controllers
     super.dispose();
-  }
-
-  Future<bool> addCustomer(String mobile, String name) async {
-    try {
-      final response = await http.post(
-        Uri.parse('https://yenerp.com/fastapi/customers/'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'customerPhoneNumber': mobile,
-          'customerName': name,
-          'status': '1',
-        }),
-      );
-      return response.statusCode == 200 || response.statusCode == 201;
-    } catch (e) {
-      debugPrint('Error adding customer: $e');
-      return false;
-    }
-  }
-
-  bool isFormValid = true;
-  List<Map<String, String>> suggestions = [];
-
-  Future<List<Map<String, String>>> fetchCustomerList() async {
-    try {
-      final response = await http.get(
-        // Uri.parse('https://yenerp.com/fastapi/customer/'),
-        Uri.parse('https://yenerp.com/fastapi/customers/'),
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      if (response.statusCode == 200) {
-        final List<dynamic> customerData = json.decode(response.body);
-        return customerData.map((data) {
-          return {
-            'customerName': data['customerName'] as String,
-            'customerPhoneNumber': data['customerPhoneNumber'] as String,
-          };
-        }).toList();
-      } else {
-        throw Exception('Failed to load customer');
-      }
-    } catch (e) {
-      throw Exception('Error fetching customer: $e');
-    }
   }
 
   void _startPayment(CartProvider cartProvider) {
@@ -2307,7 +2138,19 @@ class CustomerScreenProvider with ChangeNotifier {
     BuildContext context,
     Map<String, double> payments,
   ) async {
-    print("🚀 [saveOrder] Function called at ${DateTime.now()}");
+    print('🟢 [saveOrder] Triggered...');
+    print('--------------------------------------------------');
+    print('📋 Parameters:');
+    print('🪙 Total Advance: $totalAdvance');
+    print('💰 Order Amount: $orderAmount');
+    print('💸 Discount: $discount');
+    print('🧾 Deducted Amount: $deductedAmount');
+    print('💵 Total Amount: $totalAmount');
+    print('🗒️ Remark: $remark');
+    print('📦 HoldOrderId: $patchHoldOrderId');
+    print('🎧 AudioOrderId: $audioOrderId');
+
+    print('--------------------------------------------------');
 
     final List<double> advanceAmount = [];
     final List<List<String>> advancePaymentType = [];
@@ -2315,19 +2158,19 @@ class CustomerScreenProvider with ChangeNotifier {
     final List<String> advanceDateTime = [];
 
     void addAdvancePayment(Map<String, double> payMap) {
-      print("💰 [Advance Payment] Incoming payment map: $payMap");
       final filtered = Map.fromEntries(
         payMap.entries.where((e) => e.value > 0),
       );
       if (filtered.isEmpty) {
-        print("⚠️ No valid payment entries found, skipping.");
+        print('⚠️ No valid payment entries found in payMap.');
         return;
       }
 
       final total = filtered.values.fold<double>(0, (a, b) => a + b);
-      print(
-        "✅ [Advance Payment] Total: $total, Modes: ${filtered.keys.toList()}",
-      );
+      print('💳 [Advance Payment Added]');
+      print('   🔹 Modes: ${filtered.keys.toList()}');
+      print('   🔹 Amounts: ${filtered.values.toList()}');
+      print('   🔹 Total: $total');
 
       advanceAmount.add(total);
       advancePaymentType.add(filtered.keys.toList(growable: false));
@@ -2336,20 +2179,21 @@ class CustomerScreenProvider with ChangeNotifier {
     }
 
     if (payments.isNotEmpty) {
-      print("💳 [Payments] Found ${payments.length} payment methods");
+      print('💰 [Payments] Found non-empty payment map: $payments');
       addAdvancePayment(payments);
     } else {
-      print("⚠️ [Payments] No payments provided");
+      print('⚠️ [Payments] Empty payment map — skipping advance payment add.');
     }
 
     final double computedTotalAdvance = advanceAmount.fold<double>(
       0,
       (a, b) => a + b,
     );
-    print("💵 [Advance Total] Computed total advance: $computedTotalAdvance");
+
+    print('💰 Computed Total Advance: $computedTotalAdvance');
 
     // 🔹 Cart Items
-    print("🛒 [Cart] Extracting items from globals.cartItems...");
+    print('🛒 [Cart] Collecting cart item details...');
     final List<String> itemNames = globals.cartItems
         .map((e) => e.itemName)
         .toList();
@@ -2383,17 +2227,11 @@ class CustomerScreenProvider with ChangeNotifier {
         .map((e) => e.itemWiseDiscountAmount ?? 0.0)
         .toList();
 
-    print("📦 [Cart Summary]");
-    for (int i = 0; i < globals.cartItems.length; i++) {
-      final item = globals.cartItems[i];
-      print(
-        "  🧾 Item ${i + 1}: ${item.itemName} (${item.varianceName}), Code: ${item.itemCode}, Qty: ${item.quantity}, UOM: ${item.uom}, Price: ${item.pricePerKg}, Tax: ${item.tax}",
-      );
-    }
+    print('✅ [Cart] ${globals.cartItems.length} items found.');
 
     final double customCharge =
         double.tryParse(cartProvider.customChargeController.text) ?? 0;
-    print("⚙️ [Custom Charge] Applied: $customCharge");
+    print('⚙️ Custom Charge: $customCharge');
 
     final List<double> amounts = globals.cartItems.map((item) {
       final base = (item.uom == 'Pcs' || item.uom == 'Pkt')
@@ -2402,78 +2240,72 @@ class CustomerScreenProvider with ChangeNotifier {
       final disc = (item.itemWiseDiscountAmount ?? 0.0);
       final result = base - disc;
       print(
-        "💰 [Item Calc] ${item.itemName} (${item.uom}): Base=$base, Discount=$disc, Final=$result",
+        '🧮 Item "${item.itemName}" | Base: $base | Discount: $disc | Final: $result',
       );
       return result;
     }).toList();
 
-    // 🔹 Totals
     final double itemTotal = amounts.fold<double>(0, (a, b) => a + b);
     final double totalAmount2 = itemTotal + customCharge;
     final double finalPrice = itemTotal + customCharge - deductedAmount;
     final double balanceAmount = finalPrice - computedTotalAdvance;
 
-    print("📊 [Totals]");
-    print("   ➕ Item Total: $itemTotal");
-    print("   ➕ Custom Charge: $customCharge");
-    print("   ➖ Discount Amount: $deductedAmount");
-    print("   💵 Final Price: $finalPrice");
-    print("   💸 Balance After Advance: $balanceAmount");
+    print('🧾 Totals:');
+    print('   🔹 Item Total: $itemTotal');
+    print('   🔹 Total + Custom Charge: $totalAmount2');
+    print('   🔹 Final Price: $finalPrice');
+    print('   🔹 Balance: $balanceAmount');
 
-    // 🔹 Generate identifiers
     final String saleOrderNo = generateSaleOrderNo();
     final String formattedTime = DateFormat('hh:mm a').format(DateTime.now());
     const String deviceName = "POS1";
 
-    print("🧾 [Order Info]");
-    print("   🆔 SaleOrderNo: $saleOrderNo");
-    print("   ⏰ Time: $formattedTime");
-    print("   💻 Device: $deviceName");
+    print('🆔 Generated Sale Order No: $saleOrderNo');
+    print('🕒 Time: $formattedTime');
+    print('💻 Device: $deviceName');
 
     Directory? orderDir = await createOrderDir(saleOrderNo);
     final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+    print('📂 Order Directory: $orderDir');
+    print('⏱ Timestamp: $timestamp');
 
-    // 🔹 SAVE FILES
+    // 🔹 Save Files
     String? savedAudioPath;
     String? savedImg1Path;
     String? savedImg2Path;
 
     if (path != null && orderDir != null) {
-      print("🎙️ [File Save] Saving audio file...");
       savedAudioPath = await saveFile(
         File(path),
         orderDir,
         '${saleOrderNo}_${timestamp}_audio',
       );
-      print("✅ Audio Saved: $savedAudioPath");
+      print('🎧 Audio File Saved: $savedAudioPath');
     }
 
     if (img1 != null && orderDir != null) {
-      print("🖼️ [File Save] Saving Image 1...");
       savedImg1Path = await saveFile(
         img1,
         orderDir,
         '${saleOrderNo}_${timestamp}_img1',
       );
-      print("✅ Image 1 Saved: $savedImg1Path");
+      print('🖼️ Image1 File Saved: $savedImg1Path');
     }
 
     if (img2 != null && orderDir != null) {
-      print("🖼️ [File Save] Saving Image 2...");
       savedImg2Path = await saveFile(
         img2,
         orderDir,
         '${saleOrderNo}_${timestamp}_img2',
       );
-      print("✅ Image 2 Saved: $savedImg2Path");
+      print('🖼️ Image2 File Saved: $savedImg2Path');
     }
 
     storedBranch = branchProvider.getStoredBranch(globalbranch.branchName);
-    print(
-      "🏬 [Branch] BranchName: ${storedBranch?.branchName}, Alias: ${storedBranch?.aliasName}",
-    );
+    print('🏢 Branch Info: ${storedBranch?.branchName ?? "Unknown"}');
 
     // 🔹 Build SalesOrder Object
+    print('🧱 Building SalesOrder object...');
     final salesOrder = SalesOrder(
       itemName: itemNames,
       varianceName: varianceNames,
@@ -2525,17 +2357,15 @@ class CustomerScreenProvider with ChangeNotifier {
       eventDate: birthdaydateController.text,
       itemWiseDiscount: itemWiseDiscounts,
       itemWiseDiscountAmount: itemWiseDiscountAmounts,
-      holdOrderId: (selectedHoldOrderId ?? ""),
+      holdOrderId: (patchHoldOrderId ?? ""),
       approvalOrderId: approvalOrderId,
     );
 
-    print("🧩 [SalesOrder] Object ready: ${jsonEncode(salesOrder.toJson())}");
-
     try {
-      print("💾 [Hive] Saving order to local Hive...");
+      print('💾 [Hive] Saving sales order...');
       final salesOrderBox = HiveManager.salesOrderBox;
       await salesOrderBox.put(saleOrderNo, salesOrder.toJson());
-      print("✅ [Hive] Saved order successfully with key: $saleOrderNo");
+      print('✅ Saved to Hive successfully.');
 
       final postData = {
         "data": salesOrder.toJson(),
@@ -2546,37 +2376,89 @@ class CustomerScreenProvider with ChangeNotifier {
         "edit": "No",
       };
 
-      print("🌐 [API] Sending sales order to server...");
+      print('🌐 Sending order to server...');
       await sendSalesOrderDataToServer(postData);
-      print("✅ [API] Sales order sent successfully.");
+      print('✅ Order sent successfully to server.');
 
-      // 🔹 Handle Hold Orders
       if ((selectedHoldOrderId ?? "").isNotEmpty) {
-        print("🕐 [Hold Order] Converting hold order: $selectedHoldOrderId");
+        print(
+          '🔁 [HoldOrder] Detected existing Hold Order — sending full data with updated status...',
+        );
+
+        final Map<String, dynamic> holdOrderConvertedData = {
+          ...salesOrder.toJson(), // copy all existing order data
+          "status": "Hold Order Converted", // 🔹 only status changed
+        };
+
         final patchData = {
-          "data": {"status": "Hold Order Converted"},
+          "data": holdOrderConvertedData,
           "type": "patchHoldOrder",
           "sync": "No",
           "edit": "No",
-          "holdOrderId": selectedHoldOrderId,
+          "holdOrderId": patchHoldOrderId,
         };
 
         await sendSalesOrderDataToServer(patchData);
-        print("✅ [Hold Order] Successfully patched hold order.");
+        notifyListeners();
       }
-    } catch (e) {
-      print("🔥 [Error] Exception during saveOrder: $e");
+
+      // 🧹 Cleanup after success
+      print('🧹 Starting post-upload cleanup...');
+      try {
+        if (savedAudioPath != null && await File(savedAudioPath).exists()) {
+          await File(savedAudioPath).delete();
+          print('🗑️ Deleted uploaded audio file: $savedAudioPath');
+        }
+        if (savedImg1Path != null && await File(savedImg1Path).exists()) {
+          await File(savedImg1Path).delete();
+          print('🗑️ Deleted uploaded image1 file: $savedImg1Path');
+        }
+        if (savedImg2Path != null && await File(savedImg2Path).exists()) {
+          await File(savedImg2Path).delete();
+          print('🗑️ Deleted uploaded image2 file: $savedImg2Path');
+        }
+
+        photoScreen = null;
+        audioPlayer = null;
+        savedAudioPath = null;
+        savedImg1Path = null;
+        savedImg2Path = null;
+
+        clearControllers();
+        CartProvider().clearCart();
+        cartSelectionProvider.clearSelections();
+        advanceDateTime.clear();
+        advancePaymentType.clear();
+        modeWiseAmount.clear();
+        advanceAmount.clear();
+        cartProvider.customChargeController.clear();
+
+        isSubmitting = false;
+        showAudioandImage = false;
+        pickedImage1 = null;
+        pickedImage2 = null;
+        recordedFilePath = '';
+
+        print('✅ [Cleanup] All temporary files and data cleared successfully.');
+      } catch (e) {
+        print('⚠️ [Cleanup Warning] Post-upload cleanup failed: $e');
+      }
+
+      print('✅ [saveOrder] Completed Successfully!');
+      print('--------------------------------------------------');
+    } catch (e, st) {
+      print('❌ [saveOrder] Error: $e');
+      print(st);
       rethrow;
     } finally {
-      print("🧹 [Cleanup] Clearing controllers and resetting state...");
-      clearControllers();
-      globals.cartItems.clear();
+      print('🏁 [saveOrder] Final cleanup triggered...');
       cartSelectionProvider.clearSelections();
       advanceDateTime.clear();
       advancePaymentType.clear();
       modeWiseAmount.clear();
       advanceAmount.clear();
-      CartProvider().clearCart();
+      cartProvider.customChargeController.clear();
+
       isSubmitting = false;
       showAudioandImage = false;
       pickedImage1 = null;
@@ -2584,14 +2466,14 @@ class CustomerScreenProvider with ChangeNotifier {
       recordedFilePath = '';
       audioPlayer = null;
       photoScreen = null;
+      path = null;
+      img1 = null;
+      img2 = null;
 
-      print("✅ [Cleanup] State cleared successfully.");
+      print('🧩 [Final] Memory & UI state reset complete.');
+      print('--------------------------------------------------');
       notifyListeners();
     }
-
-    print(
-      "🎉 [saveOrder] Completed successfully for SaleOrderNo: $saleOrderNo",
-    );
   }
 
   int _approvalOrderCounter = 0;
@@ -2691,7 +2573,7 @@ class CustomerScreenProvider with ChangeNotifier {
         companyAddress: companyAddressController.text,
         companyGST: companygstNumberController.text,
         orderType: selectedOrderOption,
-        holdOrderId: holdOrderId,
+        holdOrderId: patchHoldOrderId,
         approvalOrderId: approvalOrderId,
         approvalDetails: [
           ApprovalOrderDetail(
@@ -2878,7 +2760,7 @@ class CustomerScreenProvider with ChangeNotifier {
       companyAddress: companyAddressController.text,
       companyGST: companygstNumberController.text,
       orderType: selectedOrderOption,
-      holdOrderId: holdOrderId,
+      holdOrderId: patchHoldOrderId,
       approvalOrderId: approvalOrderId,
       approvalDetails: [
         ApprovalOrderDetail(
@@ -2916,7 +2798,7 @@ class CustomerScreenProvider with ChangeNotifier {
       showAudioandImage = false;
       advanceDateTime!.clear();
       advancePaymentType!.clear();
-      // audioOrderId = null;
+      audioOrderId = null;
       // clearAudioAndPhotoIds();
       notifyListeners();
     }
@@ -3011,7 +2893,7 @@ class CustomerScreenProvider with ChangeNotifier {
       cash: cashAdvance,
       card: cardAdvance,
       upi: upiAdvance,
-      holdOrderId: holdOrderId,
+      holdOrderId: patchHoldOrderId,
       approvalOrderId: approvalOrderId,
     );
 
@@ -3072,88 +2954,6 @@ class CustomerScreenProvider with ChangeNotifier {
     } catch (e) {}
   }
 
-  Future<void> _postImages(
-    String salesOrderId,
-    File? pickedImage1,
-    File? pickedImage2,
-  ) async {
-    try {
-      var uri = Uri.parse(
-        "https://yenerp.com/fastapi/imageOrder/upload_photo",
-      ); // Change to your FastAPI endpoint
-      var request = http.MultipartRequest('POST', uri);
-
-      // Attach the salesOrderId to the request
-      request.fields['custom_id'] = salesOrderId;
-
-      // Check and add image1 if it's picked
-      if (pickedImage1 != null) {
-        var image1Bytes = await pickedImage1.readAsBytes();
-        var image1MimeType =
-            lookupMimeType(pickedImage1.path) ??
-            'image/jpeg'; // Default to 'image/jpeg' if MIME type is not found
-
-        // Add image1 as a multipart file
-        request.files.add(
-          http.MultipartFile.fromBytes(
-            'files', // The field name expected by FastAPI
-            image1Bytes,
-            filename: pickedImage1.path
-                .split('/')
-                .last, // Extract the filename from the path
-            contentType: MediaType.parse(
-              image1MimeType,
-            ), // Use the correct MIME type
-          ),
-        );
-      }
-
-      // Check and add image2 if it's picked
-      if (pickedImage2 != null) {
-        var image2Bytes = await pickedImage2.readAsBytes();
-        var image2MimeType =
-            lookupMimeType(pickedImage2.path) ??
-            'image/jpeg'; // Default to 'image/jpeg' if MIME type is not found
-
-        // Add image2 as a multipart file
-        request.files.add(
-          http.MultipartFile.fromBytes(
-            'files', // The field name expected by FastAPI
-            image2Bytes,
-            filename: pickedImage2.path
-                .split('/')
-                .last, // Extract the filename from the path
-            contentType: MediaType.parse(
-              image2MimeType,
-            ), // Use the correct MIME type
-          ),
-        );
-      }
-
-      // Send the request and await the response
-      var response = await request.send();
-
-      if (response.statusCode == 200) {
-        var responseBody = await response.stream.bytesToString();
-        var responseData = jsonDecode(responseBody);
-
-        // Process the response to get the uploaded image URLs
-        var uploadedPhotos = responseData['uploaded_photos'];
-        for (var photo in uploadedPhotos) {}
-      } else {}
-    } catch (e) {}
-  }
-
-  Future<void> handleImageUpload(
-    String salesOrderId,
-    File? img1,
-    File? img2,
-  ) async {
-    if (img1 != null || img2 != null) {
-      await _postImages(salesOrderId, img1, img2);
-    }
-  }
-
   int _holdOrderCounter = 0;
 
   // Function to generate holdOrderId like HOLD01, HOLD02...
@@ -3169,28 +2969,34 @@ class CustomerScreenProvider with ChangeNotifier {
     File? img1,
     File? img2,
   ) async {
-    // Extract cart data
-    List<String> itemNames = globals.cartItems
-        .map((item) => item.itemName)
+    print("✅ Step 1: Start _heldOrder function");
+
+    print('🛒 [Cart] Collecting cart item details...');
+    final List<String> itemNames = globals.cartItems
+        .map((e) => e.itemName)
         .toList();
-    List<String> varianceNames = globals.cartItems
-        .map((item) => item.varianceName)
+    final List<String> varianceNames = globals.cartItems
+        .map((e) => e.varianceName)
         .toList();
-    List<int> quantities = globals.cartItems
-        .map((item) => item.quantity)
+    final List<int> quantities = globals.cartItems
+        .map((e) => e.quantity)
         .toList();
-    List<String> itemCodes = globals.cartItems
-        .map((item) => item.itemCode.toString())
+    final List<String> itemCodes = globals.cartItems
+        .map((e) => e.itemCode)
         .toList();
-    List<String> uoms = globals.cartItems
-        .map((item) => item.uom.toString())
+    final List<String> uoms = globals.cartItems.map((e) => e.uom).toList();
+    final List<int> taxs = globals.cartItems.map((e) => e.tax).toList();
+    final List<double> weights = globals.cartItems
+        .map((e) => e.weight)
         .toList();
-    List<int> taxs = globals.cartItems.map((item) => item.tax).toList();
-    List<double> weights = globals.cartItems
-        .map((item) => item.weight)
+    final List<int> prices = globals.cartItems
+        .map((e) => e.pricePerKg)
         .toList();
-    List<int> prices = globals.cartItems
-        .map((item) => item.pricePerKg)
+    final List<int> boxQuantities = globals.cartItems
+        .map((e) => e.boxQuantity ?? 0)
+        .toList();
+    final List<String> isBoxItem = globals.cartItems
+        .map((e) => e.isBoxItem ?? '')
         .toList();
     final List<double> itemWiseDiscounts = globals.cartItems
         .map((e) => e.itemWiseDiscount ?? 0.0)
@@ -3199,74 +3005,385 @@ class CustomerScreenProvider with ChangeNotifier {
         .map((e) => e.itemWiseDiscountAmount ?? 0.0)
         .toList();
 
-    // Calculate amounts
-    List<double> amounts = globals.cartItems.map((item) {
-      double calculatedAmount;
-      if (item.uom == 'Pcs' || item.uom == 'Pkt') {
-        calculatedAmount = item.pricePerKg * item.quantity.toDouble();
-      } else {
-        calculatedAmount = item.weight * item.quantity * item.pricePerKg;
-      }
-      return calculatedAmount;
+    print('✅ [Cart] ${globals.cartItems.length} items found.');
+
+    final double customCharge =
+        double.tryParse(cartProvider.customChargeController.text) ?? 0;
+    print('⚙️ Custom Charge: $customCharge');
+
+    final List<double> amounts = globals.cartItems.map((item) {
+      final base = (item.uom == 'Pcs' || item.uom == 'Pkt')
+          ? (item.pricePerKg * item.quantity).toDouble()
+          : (item.weight * item.quantity * item.pricePerKg);
+      final disc = (item.itemWiseDiscountAmount ?? 0.0);
+      final result = base - disc;
+      print(
+        '🧮 Item "${item.itemName}" | Base: $base | Discount: $disc | Final: $result',
+      );
+      return result;
     }).toList();
 
-    // Generate IDs and Timestamps
-    String saleOrderNo = generateSaleOrderNo();
-    String formattedDate = DateFormat('dd-MM-yyyy').format(DateTime.now());
-    String formattedTime = DateFormat('hh:mm a').format(DateTime.now());
+    final double itemTotal = amounts.fold<double>(0, (a, b) => a + b);
+    final double totalAmount2 = itemTotal + customCharge;
+    final double finalPrice = itemTotal + customCharge - deductedAmount;
+
+    print('🧾 Totals:');
+    print('   🔹 Item Total: $itemTotal');
+    print('   🔹 Total + Custom Charge: $totalAmount2');
+    print('   🔹 Final Price: $finalPrice');
+
+    final String saleOrderNo = generateSaleOrderNo();
+    final String formattedTime = DateFormat('hh:mm a').format(DateTime.now());
+    const String deviceName = "POS1";
+
+    print('🆔 Generated Sale Order No: $saleOrderNo');
+    print('🕒 Time: $formattedTime');
+    print('💻 Device: $deviceName');
+
+    Directory? orderDir = await createOrderDir(saleOrderNo);
+    final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+    print('📂 Order Directory: $orderDir');
+    print('⏱ Timestamp: $timestamp');
+
+    // 🔹 Save Files
+    String? savedAudioPath;
+    String? savedImg1Path;
+    String? savedImg2Path;
+
+    if (path != null && orderDir != null) {
+      savedAudioPath = await saveFile(
+        File(path),
+        orderDir,
+        '${saleOrderNo}_${timestamp}_audio',
+      );
+      print('🎧 Audio File Saved: $savedAudioPath');
+    }
+
+    if (img1 != null && orderDir != null) {
+      savedImg1Path = await saveFile(
+        img1,
+        orderDir,
+        '${saleOrderNo}_${timestamp}_img1',
+      );
+      print('🖼️ Image1 File Saved: $savedImg1Path');
+    }
+
+    if (img2 != null && orderDir != null) {
+      savedImg2Path = await saveFile(
+        img2,
+        orderDir,
+        '${saleOrderNo}_${timestamp}_img2',
+      );
+      print('🖼️ Image2 File Saved: $savedImg2Path');
+    }
     String holdOrderId = generateHoldOrderId();
+    storedBranch = branchProvider.getStoredBranch(globalbranch.branchName);
+    print('🏢 Branch Info: ${storedBranch?.branchName ?? "Unknown"}');
 
     // Construct the HeldOrder object
+    print("📋 Creating HeldOrder object...");
     HeldOrder holdsalesOrder = HeldOrder(
       salesOrderId: '',
       itemName: itemNames,
       varianceName: varianceNames,
       qty: quantities,
       uom: uoms,
+      isBoxItem: isBoxItem,
       weight: weights,
       amount: amounts,
+      boxQty: boxQuantities,
+      totalAmount2: totalAmount2,
+      branchId: storedBranch?.branchId ?? "",
+      branchName: storedBranch?.branchName ?? "",
+      aliasName: storedBranch?.aliasName ?? "",
+      totalAmount: itemTotal,
       itemCode: itemCodes,
       tax: taxs,
       price: prices,
       deliveryDate: dateController.text,
       deliveryTime: timeController.text,
-      event: selectedEvent.toString(),
+      event: (selectedEvent ?? ""),
       customerNumber: mobileNoController.text,
       customerName: customerNameController.text,
-      deliveryType: selectedDeliveryType.toString(),
+      deliveryType: (selectedDeliveryType ?? ""),
       address: addressController.text,
       landmark: landmarkController.text,
+      discount: discount,
+      discountAmount: deductedAmount,
+      remark: remarkController.text,
+      shiftId: globalsData.shiftId.value,
+      customCharge: customCharge,
+
+      finalPrice: finalPrice,
+
       saleOrderNo: saleOrderNo,
-      orderDate: formattedDate,
+      orderDate: DateTime.now().toIso8601String(),
       orderTime: formattedTime,
+      audioPath: savedAudioPath,
+      imagePath1: savedImg1Path,
+      imagePath2: savedImg2Path,
       employeeName: searchController.text,
       status: 'Hold Order',
-      holdOrderId: holdOrderId,
+      advanceDateTime: advanceDateTime,
+      companyName: companyNameController.text,
+      companyAddress: companyAddressController.text,
+      companyGST: companygstNumberController.text,
+      orderType: (selectedOrderOption ?? ""),
       eventDate: birthdaydateController.text,
-      remarks: remarkController.text,
       itemWiseDiscount: itemWiseDiscounts,
       itemWiseDiscountAmount: itemWiseDiscountAmounts,
+      holdOrderId: holdOrderId,
+      approvalOrderId: approvalOrderId,
     );
 
+    print("✅ HeldOrder object created successfully.");
+
     // Prepare JSON
+    print("🧾 Converting HeldOrder to JSON...");
     String jsonHoldSalesOrder = jsonEncode({
-      "data": holdsalesOrder.toJson(),
+      "data": [holdsalesOrder.toJson()],
       "type": "holdOrder",
       'sync': "No",
       'edit': 'No',
     });
 
+    print('📤 Final Hold Order JSON: $jsonHoldSalesOrder');
+
+    // 🧹 [CLEANUP AFTER SUCCESSFUL SERVER SYNC]
+    try {
+      photoScreen = null;
+      audioPlayer = null;
+
+      img1 = null;
+      img2 = null;
+
+      // Clear temp selections, inputs, and UI state
+      clearControllers();
+      CartProvider().clearCart();
+
+      cartProvider.customChargeController.clear();
+
+      isSubmitting = false;
+      showAudioandImage = false;
+      pickedImage1 = null;
+      pickedImage2 = null;
+      recordedFilePath = '';
+
+      notifyListeners();
+      print("✅ [Cleanup] All media and temp data cleared successfully.");
+    } catch (e) {
+      print("⚠️ [Cleanup Warning] Post-upload cleanup failed: $e");
+    }
+
+    notifyListeners();
+    // 🧩 Clear references (local variables)
+    path = '';
+    img1 = null;
+    img2 = null;
+
+    print("✅ [Cleanup] Cleared local and global media references.");
+
+    notifyListeners();
     // Send via WebSocket or API
     try {
+      print("🌐 Sending hold order data to server...");
       await sendHoldDataToServer(jsonDecode(jsonHoldSalesOrder));
+      print("✅ Hold data sent successfully.");
     } catch (e) {
+      print('❌ Error while posting order: $e');
     } finally {
+      print("🧹 Clearing inputs and resetting state...");
       clearControllers();
       cartProvider.clearCart();
       isSubmitting = false;
       showAudioandImage = false;
       advanceDateTime?.clear();
       advancePaymentType?.clear();
+      print("✅ Hold order flow completed.");
     }
   }
+
+  //
 }
+
+//   String generateHoldOrderId() {
+//     _holdOrderCounter++;
+//     return 'HOLD${_holdOrderCounter.toString().padLeft(2, '0')}';
+//   }
+
+//   Future<void> _heldOrder(
+//     CartProvider cartProvider,
+//     String path,
+//     ApiServiceSalesOrderProvider apiProvider,
+//     File? img1,
+//     File? img2,
+//   ) async {
+//     print("✅ Step 1: Start _heldOrder function");
+
+//     // Extract cart data
+//     print("📦 Extracting cart item details...");
+//     List<String> itemNames = globals.cartItems
+//         .map((item) => item.itemName)
+//         .toList();
+//     List<String> varianceNames = globals.cartItems
+//         .map((item) => item.varianceName)
+//         .toList();
+//     List<int> quantities = globals.cartItems
+//         .map((item) => item.quantity)
+//         .toList();
+//     List<String> itemCodes = globals.cartItems
+//         .map((item) => item.itemCode.toString())
+//         .toList();
+//     List<String> uoms = globals.cartItems
+//         .map((item) => item.uom.toString())
+//         .toList();
+//     List<int> taxs = globals.cartItems.map((item) => item.tax).toList();
+//     List<double> weights = globals.cartItems
+//         .map((item) => item.weight)
+//         .toList();
+//     List<int> prices = globals.cartItems
+//         .map((item) => item.pricePerKg)
+//         .toList();
+
+//     print("🧾 Item Names: $itemNames");
+//     print("🧾 Variance Names: $varianceNames");
+//     print("📦 Quantities: $quantities");
+//     print("📦 Item Codes: $itemCodes");
+//     print("📐 UOMs: $uoms");
+//     print("💰 Taxes: $taxs");
+//     print("⚖️ Weights: $weights");
+//     print("💸 Prices: $prices");
+
+//     // Calculate amounts
+//     print("🧮 Calculating item amounts...");
+//     List<double> amounts = globals.cartItems.map((item) {
+//       double calculatedAmount;
+//       if (item.uom == 'Pcs' || item.uom == 'Pkt') {
+//         calculatedAmount = item.pricePerKg * item.quantity.toDouble();
+//       } else {
+//         calculatedAmount = item.weight * item.quantity * item.pricePerKg;
+//       }
+//       print("➡️ Item: ${item.itemName}, Amount: $calculatedAmount");
+//       return calculatedAmount;
+//     }).toList();
+
+//     // Generate IDs and Timestamps
+//     String saleOrderNo = generateSaleOrderNo();
+//     String formattedDate = DateFormat('dd-MM-yyyy').format(DateTime.now());
+//     String formattedTime = DateFormat('hh:mm a').format(DateTime.now());
+//     String holdOrderId = generateHoldOrderId();
+
+//     List<double> itemWiseDiscounts = globals.cartItems
+//         .map((e) => e.itemWiseDiscount ?? 0.0)
+//         .toList();
+//     List<double> itemWiseDiscountAmounts = globals.cartItems
+//         .map((e) => e.itemWiseDiscountAmount ?? 0.0)
+//         .toList();
+
+//     print("🆔 Generated Sale Order No: $saleOrderNo");
+//     print("🆔 Generated Hold Order ID: $holdOrderId");
+//     print("📅 Order Date: $formattedDate");
+//     print("🕒 Order Time: $formattedTime");
+
+//     // Construct the HeldOrder object
+//     print("📋 Creating HeldOrder object...");
+//     HeldOrder holdsalesOrder = HeldOrder(
+//       salesOrderId: '',
+//       itemName: itemNames,
+//       varianceName: varianceNames,
+//       qty: quantities,
+//       uom: uoms,
+//       weight: weights,
+//       amount: amounts,
+//       itemCode: itemCodes,
+//       tax: taxs,
+//       price: prices,
+//       deliveryDate: dateController.text,
+//       deliveryTime: timeController.text,
+//       event: selectedEvent.toString(),
+//       customerNumber: mobileNoController.text,
+//       customerName: customerNameController.text,
+//       deliveryType: selectedDeliveryType.toString(),
+//       address: addressController.text,
+//       landmark: landmarkController.text,
+//       saleOrderNo: saleOrderNo,
+//       orderDate: formattedDate,
+//       orderTime: formattedTime,
+//       employeeName: searchController.text,
+//       status: 'Hold Order',
+//       holdOrderId: holdOrderId,
+//       eventDate: birthdaydateController.text,
+//       remarks: remarkController.text,
+//       itemWiseDiscount: itemWiseDiscounts,
+//       itemWiseDiscountAmount: itemWiseDiscountAmounts,
+//     );
+
+//     print("✅ HeldOrder object created successfully.");
+
+//     // Prepare JSON
+//     print("🧾 Converting HeldOrder to JSON...");
+//     String jsonHoldSalesOrder = jsonEncode({
+//       "data": [holdsalesOrder.toJson()],
+//       "type": "holdOrder",
+//       'sync': "No",
+//       'edit': 'No',
+//     });
+
+//     print('📤 Final Hold Order JSON: $jsonHoldSalesOrder');
+
+//     // 🧹 [CLEANUP AFTER SUCCESSFUL SERVER SYNC]
+//     try {
+//       photoScreen = null;
+//       audioPlayer = null;
+
+//       img1 = null;
+//       img2 = null;
+
+//       // Clear temp selections, inputs, and UI state
+//       clearControllers();
+//       CartProvider().clearCart();
+
+//       cartProvider.customChargeController.clear();
+
+//       isSubmitting = false;
+//       showAudioandImage = false;
+//       pickedImage1 = null;
+//       pickedImage2 = null;
+//       recordedFilePath = '';
+
+//       notifyListeners();
+//       print("✅ [Cleanup] All media and temp data cleared successfully.");
+//     } catch (e) {
+//       print("⚠️ [Cleanup Warning] Post-upload cleanup failed: $e");
+//     }
+
+//     notifyListeners();
+//     // 🧩 Clear references (local variables)
+//     path = '';
+//     img1 = null;
+//     img2 = null;
+
+//     print("✅ [Cleanup] Cleared local and global media references.");
+
+//     notifyListeners();
+//     // Send via WebSocket or API
+//     try {
+//       print("🌐 Sending hold order data to server...");
+//       await sendHoldDataToServer(jsonDecode(jsonHoldSalesOrder));
+//       print("✅ Hold data sent successfully.");
+//     } catch (e) {
+//       print('❌ Error while posting order: $e');
+//     } finally {
+//       print("🧹 Clearing inputs and resetting state...");
+//       clearControllers();
+//       cartProvider.clearCart();
+//       isSubmitting = false;
+//       showAudioandImage = false;
+//       advanceDateTime?.clear();
+//       advancePaymentType?.clear();
+//       print("✅ Hold order flow completed.");
+//     }
+//   }
+
+//   //
+// }

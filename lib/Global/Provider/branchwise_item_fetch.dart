@@ -296,11 +296,6 @@ class ItemProvider with ChangeNotifier {
         var box = await Hive.openBox('employeeBox');
         await box.put('employees', employeeData);
 
-        // print("Employee data saved in Hive.");
-
-        // Print the stored data from Hive to verify
-        // final storedData = box.get('employees');
-        // print("Stored Employee Data: $storedData");
       } else {}
     } catch (e) {}
   }

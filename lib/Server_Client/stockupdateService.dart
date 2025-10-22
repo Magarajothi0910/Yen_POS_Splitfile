@@ -115,26 +115,16 @@ Future<void> decreaseLocalHiveStock({
   required List<String> varianceNames,
   required List<int> stockUpdates,
 }) async {
-  print("🚀 [decreaseLocalHiveStock] Called for branch: $branchAlias");
-  print("🔢 varianceCodes: $varianceCodes");
-  print("🧾 varianceNames: $varianceNames");
-  print("📦 stockUpdates: $stockUpdates");
 
   // ✅ Validate input list lengths
   if (varianceCodes.length != varianceNames.length ||
       varianceCodes.length != stockUpdates.length) {
-    print("❌ [decreaseLocalHiveStock] Input list lengths mismatch!");
-    print("  varianceCodes: ${varianceCodes.length}");
-    print("  varianceNames: ${varianceNames.length}");
-    print("  stockUpdates: ${stockUpdates.length}");
     return;
   }
 
   // ✅ Retrieve global data from memory
   dynamic globalData = GlobalDataManager().branchwiseItems;
   if (globalData == null || globalData['data'] == null) {
-    print(
-        "❌ [decreaseLocalHiveStock] GlobalDataManager.branchwiseItems is null or missing 'data'");
     return;
   }
 
@@ -142,8 +132,6 @@ Future<void> decreaseLocalHiveStock({
       Map<String, dynamic>.from(globalData['data']);
   bool anyUpdated = false;
 
-  print(
-      "📂 [decreaseLocalHiveStock] Loaded branchwise data with ${branchwiseData.length} items");
 
   // ✅ Loop through each variance to update
   for (int i = 0; i < varianceCodes.length; i++) {
@@ -152,10 +140,6 @@ Future<void> decreaseLocalHiveStock({
     final decreaseAmount = stockUpdates[i];
     bool updatedThisVariance = false;
 
-    print("➡️ [decreaseLocalHiveStock] Processing variance ($i):");
-    print("   - varianceCode: $varCode");
-    print("   - varianceName: $varName");
-    print("   - decreaseAmount: $decreaseAmount");
 
     // ✅ Loop through all items in branchwiseData
     for (final itemEntry in branchwiseData.entries) {
@@ -177,10 +161,8 @@ Future<void> decreaseLocalHiveStock({
 
         // 🔍 Match variance by code + name
         if (storedCode == varCode && storedName == varName) {
-          print("🎯 Match found in item: $itemKey, variance: $varianceKey");
 
           if (!varianceValue.containsKey('branchwise')) {
-            print("⚠️ Variance missing 'branchwise' data, skipping...");
             continue;
           }
 
@@ -188,8 +170,6 @@ Future<void> decreaseLocalHiveStock({
               Map<String, dynamic>.from(varianceValue['branchwise']);
 
           if (!branchwiseMap.containsKey(branchAlias)) {
-            print(
-                "⚠️ Branch $branchAlias not found in branchwise map, skipping...");
             continue;
           }
 
@@ -203,10 +183,6 @@ Future<void> decreaseLocalHiveStock({
 
           if (updatedStock < 0) updatedStock = 0;
 
-          print("📉 Updating stock:");
-          print("   - Current stock: $currentStock");
-          print("   - Decrease by: $decreaseAmount");
-          print("   - Updated stock: $updatedStock");
 
           // ✅ Update the branch data
           branchData[stockKey] = updatedStock;
@@ -226,8 +202,6 @@ Future<void> decreaseLocalHiveStock({
             'varianceName': varName,
             'updatedStock': updatedStock,
           };
-          print(
-              "📡 Sending stockDecreaseUpdate to ${clients.length} client(s): $decreaseMessage");
           sendDataToClients(decreaseMessage, clients);
 
           updatedThisVariance = true;
@@ -238,18 +212,12 @@ Future<void> decreaseLocalHiveStock({
     }
 
     if (!updatedThisVariance) {
-      print(
-          "⚠️ [decreaseLocalHiveStock] No match found for varianceCode=$varCode, varianceName=$varName");
     } else {
-      print(
-          "✅ [decreaseLocalHiveStock] Stock updated for varianceCode=$varCode");
     }
   }
 
   // ✅ Save updates to Hive if any change occurred
   if (anyUpdated) {
-    print(
-        "💾 [decreaseLocalHiveStock] Saving updated branchwise data to Hive...");
     final box = await Hive.openLazyBox('items');
     final newGlobalData = Map<String, dynamic>.from(globalData);
     newGlobalData['data'] = branchwiseData;
@@ -257,12 +225,7 @@ Future<void> decreaseLocalHiveStock({
     await box.put('branchwiseItems_$branchAlias', newGlobalData);
     GlobalDataManager().branchwiseItems = newGlobalData;
 
-    print(
-        "✅ [decreaseLocalHiveStock] Hive and GlobalDataManager updated successfully.");
   } else {
-    print(
-        "⚠️ [decreaseLocalHiveStock] No stock updates made, skipping Hive write.");
   }
 
-  print("🏁 [decreaseLocalHiveStock] Completed for branch: $branchAlias");
 }

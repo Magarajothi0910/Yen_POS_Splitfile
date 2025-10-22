@@ -7,7 +7,6 @@ class ChooseModePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    print("🟩 [ChooseModePage] Widget built successfully");
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -33,21 +32,14 @@ class ChooseModePage extends StatelessWidget {
                   // EXPRESS MODE BUTTON
                   OutlinedButton(
                     onPressed: () {
-                      print("⚡ [ChooseModePage] Express Mode button clicked");
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) {
-                            print(
-                              "➡️ [ChooseModePage] Navigating to Express Mode screen...",
-                            );
                             return BottomNavigationPageExpressModeScreen();
                           },
                         ),
                       ).then((_) {
-                        print(
-                          "⬅️ [ChooseModePage] Returned from Express Mode screen",
-                        );
                       });
                     },
                     style: ElevatedButton.styleFrom(
@@ -71,21 +63,14 @@ class ChooseModePage extends StatelessWidget {
                   // REGULAR MODE BUTTON
                   OutlinedButton(
                     onPressed: () {
-                      print("🕓 [ChooseModePage] Regular Mode button clicked");
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) {
-                            print(
-                              "➡️ [ChooseModePage] Navigating to Regular Mode screen...",
-                            );
                             return BottomNavigationPageExpressModeScreen();
                           },
                         ),
                       ).then((_) {
-                        print(
-                          "⬅️ [ChooseModePage] Returned from Regular Mode screen",
-                        );
                       });
                     },
                     style: ElevatedButton.styleFrom(

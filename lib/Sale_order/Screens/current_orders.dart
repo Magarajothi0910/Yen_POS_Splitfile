@@ -16,11 +16,8 @@ import '../../Global/Widget/custom_colors.dart';
 import '../../Global/Widget/custom_sized_box.dart';
 import '../../Global/Widget/todat_orders_print.dart';
 
-
-
 class CurrentOrdersPage extends StatefulWidget {
-
-  const CurrentOrdersPage({super.key, });
+  const CurrentOrdersPage({super.key});
 
   @override
   _CurrentOrdersPageState createState() => _CurrentOrdersPageState();
@@ -44,45 +41,54 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
   Widget build(BuildContext context) {
     final apiService = context.watch<ApiServiceSalesOrderProvider>();
     apiService.filterOrdersByDate(apiService.selectedDate!);
-// Print the raw hivefilteredOrders
+    // Print the raw hivefilteredOrders
     debugPrint(
-        "🔹 hivefilteredOrders length => ${apiService.hivefilteredOrders.length} (Type: ${apiService.hivefilteredOrders.runtimeType})");
+      "🔹 hivefilteredOrders length => ${apiService.hivefilteredOrders.length} (Type: ${apiService.hivefilteredOrders.runtimeType})",
+    );
 
-// Convert to SalesOrderDisplay
+    // Convert to SalesOrderDisplay
     final mappedOrders = apiService.hivefilteredOrders.map((order) {
-      debugPrint("📝 Raw Hive order => $order (Type: ${order.runtimeType})");
+    
       final mapped = SalesOrderDisplay.fromMap(order);
       debugPrint(
-          "✅ Mapped SalesOrderDisplay => ${mapped.toJson()} (Type: ${mapped.runtimeType})");
+        "✅ Mapped SalesOrderDisplay => ${mapped.toJson()} (Type: ${mapped.runtimeType})",
+      );
       return mapped;
     }).toList();
 
-// Filter out "Open Order"
+    // Filter out "Open Order"
     final filteredSalesOrders = mappedOrders.where((order) {
       debugPrint(
-          "🔎 Checking orderNo: ${order.saleOrderNo}, Status: ${order.status} (Type: ${order.status.runtimeType})");
+        "🔎 Checking orderNo: ${order.saleOrderNo}, Status: ${order.status} (Type: ${order.status.runtimeType})",
+      );
       return order.status != "Open Order";
     }).toList();
 
-// Final debug print
+    // Final debug print
     debugPrint(
-        "🎯 Final filteredSalesOrders length => ${filteredSalesOrders.length} (Type: ${filteredSalesOrders.runtimeType})");
+      "🎯 Final filteredSalesOrders length => ${filteredSalesOrders.length} (Type: ${filteredSalesOrders.runtimeType})",
+    );
     for (var order in filteredSalesOrders) {
       debugPrint(
-          "📦 Filtered Order => ${order.toJson()} (Type: ${order.runtimeType})");
+        "📦 Filtered Order => ${order.toJson()} (Type: ${order.runtimeType})",
+      );
     }
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: _buildAppBar(
-          context, apiService, filteredSalesOrders.cast<SalesOrderDisplay>()),
+        context,
+        apiService,
+        filteredSalesOrders.cast<SalesOrderDisplay>(),
+      ),
       body: Row(
         children: [
           Expanded(
             flex: 1,
             child: _buildOrderList(
-                filteredSalesOrders.cast<SalesOrderDisplay>(),
-                apiService,
-                _selectedTransactionIndex),
+              filteredSalesOrders.cast<SalesOrderDisplay>(),
+              apiService,
+              _selectedTransactionIndex,
+            ),
           ),
           // const VerticalDivider(),
           // Expanded(flex: 1, child: EditCustomerDetails()),
@@ -95,12 +101,12 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
                         _selectedTransactionIndex != null
                     ? EditCustomerDetails(
                         key: ValueKey(
-                            '${_selectedTransactionIndex}_${customerScreenProvider.isModifyMode}'),
+                          '${_selectedTransactionIndex}_${customerScreenProvider.isModifyMode}',
+                        ),
                         selectedOrder:
                             filteredSalesOrders[_selectedTransactionIndex!],
                         isEditing: customerScreenProvider.isModifyMode.value,
                         orderType: 'CurrentOrder',
-                  
                       )
                     : _buildEmptyOrderState();
               },
@@ -110,7 +116,10 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
           Expanded(
             flex: 1,
             child: _buildOrderDetails(
-                filteredSalesOrders, _selectedTransactionIndex, apiService),
+              filteredSalesOrders,
+              _selectedTransactionIndex,
+              apiService,
+            ),
           ),
         ],
       ),
@@ -129,10 +138,7 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
           Text("${hivefilteredSalesOrders.length} "),
-          const Text(
-            'Current Orders',
-            style: TextStyle(color: Colors.black),
-          ),
+          const Text('Current Orders', style: TextStyle(color: Colors.black)),
           const SizedBox(width: 10),
 
           /// Previous Date Button
@@ -166,7 +172,9 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
           ElevatedButton(
             onPressed: () async {
               PrintUtility.printReceiptDetails(
-                  context, hivefilteredSalesOrders);
+                context,
+                hivefilteredSalesOrders,
+              );
             },
             child: const Text('Print'),
             style: ElevatedButton.styleFrom(
@@ -220,11 +228,7 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
               onPressed: () {
                 Navigator.pushReplacement(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) => SalesOrderScreen(
-           
-                    ),
-                  ),
+                  MaterialPageRoute(builder: (context) => SalesOrderScreen()),
                 );
               },
               style: ElevatedButton.styleFrom(
@@ -364,8 +368,11 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
   }
   // Helper Functions
 
-  Widget _buildOrderDetails(List<SalesOrderDisplay> hivefilteredSalesOrders,
-      int? selectedIndex, ApiServiceSalesOrderProvider apiService) {
+  Widget _buildOrderDetails(
+    List<SalesOrderDisplay> hivefilteredSalesOrders,
+    int? selectedIndex,
+    ApiServiceSalesOrderProvider apiService,
+  ) {
     if (selectedIndex == null || hivefilteredSalesOrders.isEmpty) {
       return _buildEmptyOrderState();
     }
@@ -391,11 +398,16 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.shopping_cart_outlined,
-              size: 100, color: const Color.fromARGB(255, 97, 220, 236)),
+          Icon(
+            Icons.shopping_cart_outlined,
+            size: 100,
+            color: const Color.fromARGB(255, 97, 220, 236),
+          ),
           SizedBox(height: 20),
-          Text("Select an order to view details",
-              style: TextStyle(color: Colors.grey, fontSize: 18)),
+          Text(
+            "Select an order to view details",
+            style: TextStyle(color: Colors.grey, fontSize: 18),
+          ),
         ],
       ),
     );
@@ -406,8 +418,9 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
     String paymentTypes = '';
     if (salesOrder.advancePaymentType != null) {
       paymentTypes = salesOrder.advancePaymentType!
-          .expand((innerList) =>
-              innerList) // flatten List<List<String>> → List<String>
+          .expand(
+            (innerList) => innerList,
+          ) // flatten List<List<String>> → List<String>
           .join(', ');
     }
 
@@ -422,10 +435,7 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
               'Payment Type',
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
             ),
-            Text(
-              paymentTypes,
-              style: TextStyle(fontSize: 11),
-            ),
+            Text(paymentTypes, style: TextStyle(fontSize: 11)),
           ],
         ),
         // Order Number Column
@@ -494,24 +504,25 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
           }
 
           return _buildOrderItemTile(
-              salesOrder, nonBoxItemIndices[adjustedIndex],
-              showAsBoxItem: false);
+            salesOrder,
+            nonBoxItemIndices[adjustedIndex],
+            showAsBoxItem: false,
+          );
         },
       ),
     );
   }
 
   Widget _buildBoxItemsCard(
-      SalesOrderDisplay salesOrder, List<int> boxIndices) {
+    SalesOrderDisplay salesOrder,
+    List<int> boxIndices,
+  ) {
     return Card(
       elevation: 4,
       margin: EdgeInsets.symmetric(vertical: 0, horizontal: 0),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: Colors.blue.shade300,
-          width: 1.5,
-        ),
+        side: BorderSide(color: Colors.blue.shade300, width: 1.5),
       ),
       child: Container(
         decoration: BoxDecoration(
@@ -586,17 +597,20 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
                 ),
                 child: Column(
                   children: boxIndices
-                      .map((index) => Padding(
-                            padding: EdgeInsets.only(
-                                bottom: index == boxIndices.last ? 0 : 8),
-                            child: Container(
-                              child: _buildOrderItemTile(
-                                salesOrder,
-                                index,
-                                showAsBoxItem: true,
-                              ),
+                      .map(
+                        (index) => Padding(
+                          padding: EdgeInsets.only(
+                            bottom: index == boxIndices.last ? 0 : 8,
+                          ),
+                          child: Container(
+                            child: _buildOrderItemTile(
+                              salesOrder,
+                              index,
+                              showAsBoxItem: true,
                             ),
-                          ))
+                          ),
+                        ),
+                      )
                       .toList(),
                 ),
               ),
@@ -607,8 +621,11 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
     );
   }
 
-  Widget _buildOrderItemTile(SalesOrderDisplay salesOrder, int index,
-      {bool showAsBoxItem = false}) {
+  Widget _buildOrderItemTile(
+    SalesOrderDisplay salesOrder,
+    int index, {
+    bool showAsBoxItem = false,
+  }) {
     final uom = salesOrder.uom[index];
     final quantity = salesOrder.qty[index].toDouble();
     final weight = salesOrder.weight[index].toDouble();
@@ -640,10 +657,7 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
           color: showAsBoxItem ? Colors.blue.shade800 : Colors.grey.shade800,
         ),
       ),
-      subtitle: Text(
-        priceDescription,
-        style: const TextStyle(fontSize: 10),
-      ),
+      subtitle: Text(priceDescription, style: const TextStyle(fontSize: 10)),
       trailing: Text(
         '₹${salesOrder.amount[index].toStringAsFixed(2)}',
         style: TextStyle(
@@ -716,57 +730,58 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
           if ((salesOrder.advanceAmount ?? []).isNotEmpty &&
               (salesOrder.advanceDateTime ?? []).isNotEmpty)
             Column(
-              children: List.generate(
-                salesOrder.advanceAmount!.length,
-                (index) {
-                  DateTime? dt;
-                  final dateStr = salesOrder.advanceDateTime![index];
+              children: List.generate(salesOrder.advanceAmount!.length, (
+                index,
+              ) {
+                DateTime? dt;
+                final dateStr = salesOrder.advanceDateTime![index];
 
-                  // Safely parse string to DateTime
-                  try {
-                    dt = DateTime.parse(dateStr);
-                  } catch (e) {
-                    dt = null;
-                  }
+                // Safely parse string to DateTime
+                try {
+                  dt = DateTime.parse(dateStr);
+                } catch (e) {
+                  dt = null;
+                }
 
-                  final formattedDate =
-                      dt != null ? dateFormatter.format(dt) : dateStr;
-                  final formattedTime =
-                      dt != null ? timeFormatter.format(dt) : '';
+                final formattedDate = dt != null
+                    ? dateFormatter.format(dt)
+                    : dateStr;
+                final formattedTime = dt != null
+                    ? timeFormatter.format(dt)
+                    : '';
 
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // Date & Time Column
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Paid on : $formattedDate - $formattedTime',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green, // advance in green
-                              ),
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Date & Time Column
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Paid on : $formattedDate - $formattedTime',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green, // advance in green
                             ),
-                          ],
-                        ),
-                        // Advance Amount on the right
-                        Text(
-                          'Advance: ₹${salesOrder.advanceAmount![index].toStringAsFixed(0)}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green,
                           ),
+                        ],
+                      ),
+                      // Advance Amount on the right
+                      Text(
+                        'Advance: ₹${salesOrder.advanceAmount![index].toStringAsFixed(0)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
                         ),
-                      ],
-                    ),
-                  );
-                },
-              ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
             ),
           // Balance Amount at the end
           Text(
@@ -783,7 +798,9 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
   }
 
   Widget _buildOrderActions(
-      BuildContext context, SalesOrderDisplay salesOrder) {
+    BuildContext context,
+    SalesOrderDisplay salesOrder,
+  ) {
     // Only show the button if order is not completed
     if (salesOrder.status == "Sales Completed") {
       return SizedBox.shrink(); // Empty widget, button won't be shown

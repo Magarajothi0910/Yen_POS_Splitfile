@@ -279,28 +279,6 @@ class _MorePageState extends State<MorePage> {
     }
   }
 
-  // Future<void> fetchCreditBills() async {
-  //   const String apiUrl = 'https://yenerp.com/fastapi/creditbills/';
-  //   try {
-  //     final response = await http.get(Uri.parse(apiUrl));
-
-  //     if (response.statusCode == 200) {
-  //       final data = json.decode(response.body); // Decode JSON response
-
-  //       print('Credit Bills Data:');
-  //       print("Credit Bills Data: ${data}"); // Print the fetched data
-  //       print("Total Data Count: ${data.length}"); // Print the total data count
-
-  //       setState(() {
-  //         creditBills = data; // Store the data in the state variable
-  //       });
-  //     } else {
-  //       print('Failed to fetch credit bills: ${response.statusCode}');
-  //     }
-  //   } catch (error) {
-  //     print('Error fetching credit bills: $error');
-  //   }
-  // }
 
   @override
   void initState() {

@@ -123,7 +123,7 @@ void main() async {
   try {
     await fetchAndStoreBranchData();
   } catch (e) {
-    print("Error occurred while fetching or storing data: $e");
+   
   }
 
   // final serverScreen = ServerScreen();

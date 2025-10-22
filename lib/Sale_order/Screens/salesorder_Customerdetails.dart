@@ -47,23 +47,23 @@ class _CustomerDetailsState extends State<CustomerDetails> {
   List<Map<String, String>> suggestions = [];
   bool isSuggestionsVisible = false;
   TextEditingController controller123 = TextEditingController();
-  void _loadStoredImages() {
-    final box = Hive.box('imagesBox');
-    String? imagePath1 = box.get('image1');
-    String? imagePath2 = box.get('image2');
-    setState(() {
-      final customerScreenProvider = Provider.of<CustomerScreenProvider>(
-        context,
-        listen: false,
-      );
-      customerScreenProvider.pickedImage1 = imagePath1 != null
-          ? File(imagePath1)
-          : null;
-      customerScreenProvider.pickedImage2 = imagePath2 != null
-          ? File(imagePath2)
-          : null;
-    });
-  }
+  // void _loadStoredImages() {
+  //   final box = Hive.box('imagesBox');
+  //   String? imagePath1 = box.get('image1');
+  //   String? imagePath2 = box.get('image2');
+  //   setState(() {
+  //     final customerScreenProvider = Provider.of<CustomerScreenProvider>(
+  //       context,
+  //       listen: false,
+  //     );
+  //     customerScreenProvider.pickedImage1 = imagePath1 != null
+  //         ? File(imagePath1)
+  //         : null;
+  //     customerScreenProvider.pickedImage2 = imagePath2 != null
+  //         ? File(imagePath2)
+  //         : null;
+  //   });
+  // }
 
   final _remarkFocus = FocusNode();
   final _addressFocus = FocusNode();
@@ -190,7 +190,7 @@ class _CustomerDetailsState extends State<CustomerDetails> {
   @override
   void initState() {
     super.initState();
-    _loadStoredImages();
+    // _loadStoredImages();
     Provider.of<CustomerScreenProvider>(
       context,
       listen: false,
@@ -411,14 +411,26 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                     children: [
                                       ElevatedButton(
                                         onPressed: () {
-                                          globals.cartItems.clear();
+                                          setState(() {
+                                            globals.cartItems.clear();
 
-                                          customerScreenProvider
-                                              .clearControllers();
-                                          customerScreenProvider.audioPlayer =
-                                              null;
-                                          customerScreenProvider.photoScreen =
-                                              null;
+                                            customerScreenProvider
+                                                .clearControllers();
+                                            customerScreenProvider.audioPlayer =
+                                                null;
+                                            customerScreenProvider.photoScreen =
+                                                null;
+                                            customerScreenProvider
+                                                    .recordedFilePath =
+                                                '';
+                                            customerScreenProvider
+                                                    .pickedImage1 =
+                                                null;
+                                            customerScreenProvider
+                                                    .pickedImage2 =
+                                                null;
+                                          });
+
                                           Navigator.of(context).pop();
                                         },
                                         style: ElevatedButton.styleFrom(
@@ -1466,8 +1478,10 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                   text: 'Hold Order',
                                   onPressed: globals.cartItems.isNotEmpty
                                       ? () {
+                                          print('🟢 Hold Order Button Clicked');
                                           if (_formKey.currentState!
                                               .validate()) {
+                                            print('✅ Form validation passed.');
                                             customerScreenProvider.holdOrers(
                                               cartProvider,
                                               customerScreenProvider
@@ -1481,19 +1495,52 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                             ScaffoldMessenger.of(
                                               context,
                                             ).showSnackBar(
-                                              const SnackBar(
-                                                content: Text(
-                                                  'Order data saved successfully!',
+                                              SnackBar(
+                                                content: Row(
+                                                  children: const [
+                                                    Icon(
+                                                      Icons
+                                                          .check_circle_outline,
+                                                      color: Colors.white,
+                                                    ),
+                                                    SizedBox(width: 12),
+                                                    Expanded(
+                                                      child: Text(
+                                                        'Order data saved successfully!',
+                                                        style: TextStyle(
+                                                          fontSize: 16,
+                                                          fontWeight:
+                                                              FontWeight.w500,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                backgroundColor:
+                                                    Colors.green[600],
+                                                behavior:
+                                                    SnackBarBehavior.floating,
+                                                margin: const EdgeInsets.all(
+                                                  16,
+                                                ),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                                duration: const Duration(
+                                                  seconds: 3,
                                                 ),
                                               ),
                                             );
-                                            _formKey.currentState!.reset();
-                                            customerScreenProvider
-                                                .clearControllers();
-                                            globals.cartItems.clear();
+                                          } else {
+                                            print('❌ Form validation failed.');
                                           }
                                         }
-                                      : () {},
+                                      : () {
+                                          print(
+                                            '⚠️ Hold Order Button Disabled - No items in cart.',
+                                          );
+                                        },
                                   backgroundColor: globals.cartItems.isNotEmpty
                                       ? Colors.lightBlue
                                       : Colors.grey,

@@ -274,16 +274,13 @@ class salesOrderReceiptPrinter {
       }
 
       for (int i = 0; i < cartItems.length; i++) {
-        print("for loop started");
         final item = cartItems[i];
         final double amount = item.uom == 'Kgs'
             ? (item.weight * item.quantity * item.pricePerKg).toDouble()
             : (item.quantity * item.pricePerKg).toDouble();
-        print("amount: $amount");
 
         final double discountedAmount =
             amount - ((item.itemWiseDiscountAmount ?? 0).toDouble());
-        print("discountedAmount: $discountedAmount");
 
         String priceDescription = '';
         if (item.uom.toLowerCase() == 'kgs' || item.uom.toLowerCase() == 'kg') {
@@ -296,7 +293,6 @@ class salesOrderReceiptPrinter {
           priceDescription =
               '${item.quantity.toStringAsFixed(0)} ${item.uom} × Rs.${item.pricePerKg.toStringAsFixed(0)}';
         }
-        print("priceDescription: $priceDescription");
 
         bytes += generator.row([
           createPosColumn(
@@ -315,7 +311,6 @@ class salesOrderReceiptPrinter {
             styles: createPosStyles(align: PosAlign.left),
           ),
         ]);
-        print("printing........");
 
         // ---------------- Amount (strike-through if discount exists) ----------------
         if ((item.itemWiseDiscount ?? 0) > 0 ||
@@ -343,7 +338,6 @@ class salesOrderReceiptPrinter {
             ),
           ]);
         }
-        print("printg.....2");
 
         if (item.itemWiseDiscount > 0 || item.itemWiseDiscountAmount > 0) {
           bytes += generator.row([
@@ -367,9 +361,6 @@ class salesOrderReceiptPrinter {
             ),
           ]);
         }
-        print("priceDescription:  ${(item.itemWiseDiscountAmount)}");
-        print("discountedAmount: ${discountedAmount}");
-        print("printg.....3");
         // ---------------- Empty row for spacing ----------------
         bytes += generator.row([
           createPosColumn(
@@ -387,7 +378,6 @@ class salesOrderReceiptPrinter {
           styles: createPosStyles(align: PosAlign.center, codeTable: 'CP1252'),
         ),
       ]);
-      print("total Amount : ${totalAmount}");
       bytes += generator.row([
         createPosColumn(
           width: 12,
@@ -675,13 +665,9 @@ class salesOrderReceiptPrinter {
           final String? logoName = box.get('BMlogo_name');
 
           if (imageBytes != null) {
-            print(
-              "✅ Loaded logo from Hive ($logoName) | Size: ${imageBytes.lengthInBytes} bytes",
-            );
             final img.Image? logo = img.decodeImage(imageBytes);
 
             if (logo != null) {
-              print("🖼 Original Logo: ${logo.width}x${logo.height}");
               final img.Image whiteBg = img.Image(logo.width, logo.height);
               img.fill(whiteBg, img.getColor(255, 255, 255));
               img.copyInto(whiteBg, logo, blend: true);
@@ -718,14 +704,10 @@ class salesOrderReceiptPrinter {
               }
 
               bytes += generator.image(aligned, align: PosAlign.center);
-              print("🖨 Sent logo image to printer");
             }
           } else {
-            print("⚠️ Logo not found in Hive!");
           }
         } catch (e, st) {
-          print('🛑 Logo Print Error: $e');
-          print(st);
         }
 
         bytes += generator.row([
@@ -1064,7 +1046,6 @@ class salesOrderReceiptPrinter {
                 ),
               ]);
             } catch (e) {
-              print("⚠️ Error parsing advance date/time: $e");
 
               // ✅ Still show advance amount even if date parsing fails
               double advAmt = (i < advanceAmount.length)

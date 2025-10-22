@@ -8,7 +8,8 @@ import 'package:yenpos/Sale_order/Print_Receipt/allorderprint.dart';
 import 'package:yenpos/Sale_order/Provider/cartProvider.dart';
 import 'package:yenpos/Sale_order/Provider/cart_selection_provider.dart';
 import 'package:yenpos/Sale_order/Provider/customerScreen_provider.dart';
-import 'package:yenpos/Sale_order/Provider/discount_service.dart' as globaldiscount;
+import 'package:yenpos/Sale_order/Provider/discount_service.dart'
+    as globaldiscount;
 import 'package:yenpos/Sale_order/Provider/get_sales_order_service.dart';
 import 'package:yenpos/Sale_order/Widgets/cheque_details.dart';
 import 'package:yenpos/Sale_order/Widgets/paymentDetail_keybaord.dart';
@@ -94,7 +95,6 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
   OverlayEntry? _overlayEntry;
 
   final ScrollController _scrollController = ScrollController();
-
 
   late final List<TextEditingController> controllers;
   final FocusNode _customCashFocusNode = FocusNode();
@@ -740,7 +740,6 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
                         chequeNameFocus: _chequeNameFocus,
                         chequeDateFocus: _chequeDateFocus,
                         onFocusChanged: (index) {},
-               
                       ),
                     ],
                   ],
@@ -966,6 +965,8 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
                                                     context,
                                                     payments, // 👈 pass payments map
                                                   );
+
+                                              // Clear UI and provider data
 
                                               Navigator.pop(
                                                 context,

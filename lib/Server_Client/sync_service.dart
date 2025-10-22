@@ -36,9 +36,8 @@ class SyncService {
       if (isOnline) {
         syncUnsyncedSaleOrders();
         syncUnsyncedInvoices();
-      } else {
-        debugPrint("⚠️ Device is offline → skipping scheduled sync");
-      }
+        syncUnsyncedHoldOrders();
+      } else {}
     });
   }
 
@@ -48,12 +47,8 @@ class SyncService {
       var task = syncQueue.removeAt(0);
       try {
         await task();
-      } catch (e, stack) {
-        debugPrint("❌ Task failed with error: $e");
-        debugPrint("🪲 Stack trace: $stack");
-      }
+      } catch (e, stack) {}
     }
-    debugPrint("📭 Queue processing finished.");
   }
 
   /// Add a task to the queue
@@ -62,9 +57,7 @@ class SyncService {
 
     if (isOnline) {
       processSyncQueue();
-    } else {
-      debugPrint("⚠️ Offline → Task queued, will run when back online.");
-    }
+    } else {}
   }
 
   /// Monitor network connectivity
@@ -80,9 +73,7 @@ class SyncService {
 
       if (isOnline) {
         processSyncQueue();
-      } else {
-        debugPrint("🔌 Offline detected → Queue will wait.");
-      }
+      } else {}
     });
   }
 
@@ -116,23 +107,30 @@ class SyncService {
   }
 
   Future<void> savePosInvoiceToHive(Map<String, dynamic> invoice) async {
-    print("🚀 [savePosInvoiceToHive] Called with invoice: $invoice");
-
     var invoiceBox = await Hive.openBox('invoices');
-    print("📂 [savePosInvoiceToHive] Opened Hive box: invoices");
 
     invoice['sync'] = 'No';
     invoice['edit'] = 'No'; // Initialize edit field
-    print(
-      "📝 [savePosInvoiceToHive] Added sync=No & edit=No flags to invoice.",
-    );
 
     await invoiceBox.add(invoice);
-    print("💾 [savePosInvoiceToHive] Invoice saved locally in Hive.");
 
     // Check connectivity and try to sync after saving locally
-    print("🔄 [savePosInvoiceToHive] Triggering syncUnsyncedInvoices...");
     await syncUnsyncedInvoices();
+  }
+
+  Future<void> saveHoldToHive(
+    Map<String, dynamic> data,
+    Box holdOrderBox,
+  ) async {
+    var holdOrderBox = await Hive.openBox('holdOrders');
+
+    data['sync'] = 'No';
+    data['edit'] = 'No'; // Initialize edit field
+
+    await holdOrderBox.add(data);
+
+    // Check connectivity and try to sync after saving locally
+    await syncUnsyncedHoldOrders();
   }
 
   Future<void> saveInvoiceToHive(Map<String, dynamic> invoice) async {
@@ -358,12 +356,42 @@ class SyncService {
   }
 
   Future<bool> postToApproveOrder(Map<String, dynamic> salesOrder) async {
-    final String salesOrderApi = "https://yenerp.com/fastapi/toapprove/";
+    final String salesOrderApi = "https://yenerp.com/fastapi/heldorders/";
     // Print the payload and URL for debugging
 
     try {
       if (!isOnline) {
         queueSync(() => postToApproveOrder(salesOrder));
+        return false;
+      }
+
+      // Send the POST request
+      final response = await http.post(
+        Uri.parse(salesOrderApi),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(salesOrder),
+      );
+
+      // Debug response details
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        // patchSaleOrder(salesOrder, response.body);
+        return true;
+      } else {
+        return false;
+      }
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<bool> postToHoldOrder(Map<String, dynamic> salesOrder) async {
+    final String salesOrderApi = "https://yenerp.com/fastapi/heldorders/";
+    // Print the payload and URL for debugging
+
+    try {
+      if (!isOnline) {
+        queueSync(() => postToHoldOrder(salesOrder));
         return false;
       }
 
@@ -441,83 +469,120 @@ class SyncService {
   }
 
   Future<void> syncUnsyncedInvoices() async {
-    print("🚀 [syncUnsyncedInvoices] Called");
-
     if (_isSyncing) {
-      print("⚠️ [syncUnsyncedInvoices] Sync already in progress. Skipping...");
       return;
     }
     _isSyncing = true;
 
     try {
       var invoiceBox = await Hive.openBox('invoices');
-      print("📂 [syncUnsyncedInvoices] Opened Hive box: invoices");
 
       for (int i = 0; i < invoiceBox.length; i++) {
         var invoiceData = invoiceBox.getAt(i);
-        print(
-          "🔎 [syncUnsyncedInvoices] Checking invoice at index $i: $invoiceData",
-        );
 
         // Decode if string
         if (invoiceData is String) {
           invoiceData = jsonDecode(invoiceData);
-          print("📦 [syncUnsyncedInvoices] Decoded string invoice into Map.");
         }
 
         if (invoiceData is Map<String, dynamic> &&
             invoiceData['sync'] == 'No') {
-          print("📡 [syncUnsyncedInvoices] Found unsynced invoice.");
-
           // 🩹 FIX: If the actual data is inside 'salesOrderId', extract it
           if (invoiceData.containsKey('salesOrderId') &&
               invoiceData['salesOrderId'] is Map<String, dynamic>) {
-            print(
-              "🧩 [syncUnsyncedInvoices] Extracting nested salesOrderId map...",
-            );
             invoiceData = invoiceData['salesOrderId'];
           }
 
           bool success = await postInvoice(invoiceData);
           if (success) {
-            print("✅ [syncUnsyncedInvoices] Invoice synced successfully.");
-
             invoiceData['sync'] = 'Yes';
             // await invoiceBox.putAt(i, invoiceData);
-            print(
-              "💾 [syncUnsyncedInvoices] Updated invoice sync status in Hive.",
-            );
           } else {
-            print(
-              "❌ [syncUnsyncedInvoices] Failed to sync invoice. Stopping loop.",
-            );
             break;
           }
-        } else {
-          print("ℹ️ [syncUnsyncedInvoices] Invoice already synced or invalid.");
-        }
+        } else {}
       }
     } catch (e, st) {
-      print("❌ [syncUnsyncedInvoices] Error: $e");
-      print("🛑 Stacktrace: $st");
     } finally {
       _isSyncing = false;
-      print("🏁 [syncUnsyncedInvoices] Sync process completed.");
+    }
+  }
+
+  Future<void> syncUnsyncedHoldOrders() async {
+
+    // Prevent multiple syncs at the same time
+    if (_isSyncing) {
+      return;
+    }
+    _isSyncing = true;
+
+    try {
+      // -------------------- Step 1: Open Hive Box --------------------
+      final Box holdOrderBox = await Hive.openBox('holdOrderBox');
+
+      int syncedCount = 0;
+      int failedCount = 0;
+
+      // -------------------- Step 2: Loop through all entries --------------------
+      for (int i = 0; i < holdOrderBox.length; i++) {
+        dynamic holdOrderData = holdOrderBox.getAt(i);
+
+        // Decode JSON string if necessary
+        if (holdOrderData is String) {
+          try {
+            holdOrderData = jsonDecode(holdOrderData);
+          } catch (e) {
+            continue;
+          }
+        }
+
+        // Validate data type
+        if (holdOrderData is! Map<String, dynamic>) {
+          continue;
+        }
+
+        // Check sync status
+        if (holdOrderData['sync'] == 'Yes') {
+          continue;
+        }
+
+
+        // Handle nested data if needed
+        final dataToSend = holdOrderData['data'] ?? holdOrderData;
+
+        // -------------------- Step 3: Sync with API --------------------
+        try {
+          bool success = await postToHoldOrder({
+            "data": [dataToSend],
+          });
+
+          if (success) {
+            holdOrderData['sync'] = 'Yes';
+
+            // Replace the existing record
+            await holdOrderBox.putAt(i, holdOrderData);
+            syncedCount++;
+          } else {
+            failedCount++;
+            break; // Stop sync if API fails
+          }
+        } catch (e, st) {
+          failedCount++;
+        }
+      }
+
+    } catch (e, st) {
+    } finally {
+      _isSyncing = false;
     }
   }
 
   Future<bool> postInvoice(Map<String, dynamic> invoice) async {
-    print("🚀 [postInvoice] Called with invoice: $invoice");
-
     try {
       // Convert payment values safely
       invoice['cash'] = int.tryParse(invoice['cash']?.toString() ?? '') ?? 0;
       invoice['card'] = int.tryParse(invoice['card']?.toString() ?? '') ?? 0;
       invoice['upi'] = int.tryParse(invoice['upi']?.toString() ?? '') ?? 0;
-
-      print(
-        "💰 [postInvoice] Normalized payments → cash: ${invoice['cash']}, card: ${invoice['card']}, upi: ${invoice['upi']}",
-      );
 
       final response = await http.post(
         Uri.parse(invoiceApiUrl),
@@ -525,21 +590,12 @@ class SyncService {
         body: jsonEncode(invoice),
       );
 
-      print(
-        "📡 [postInvoice] Sent POST request → Status: ${response.statusCode}, Body: ${response.body}",
-      );
-
       if (response.statusCode == 201 || response.statusCode == 200) {
-        print("✅ [postInvoice] Invoice posted successfully.");
         return true;
       } else {
-        print(
-          "❌ [postInvoice] Invoice post failed. Status: ${response.statusCode}",
-        );
         return false;
       }
     } catch (e) {
-      print("❌ [postInvoice] Exception while posting invoice: $e");
       return false;
     }
   }

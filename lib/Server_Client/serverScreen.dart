@@ -88,6 +88,8 @@ class _LoginScreenState extends State<LoginScreen> {
       _syncService.syncUnsyncedSaleOrders();
       // _syncService.syncUnsyncedInvoices(clients: clients);
       _syncService.syncUnsyncedInvoices();
+
+      _syncService.syncUnsyncedHoldOrders();
     });
     // Provider.of<LoginProvider>(context, listen: false).fetchAndStoreLoginData();
 
@@ -100,6 +102,7 @@ class _LoginScreenState extends State<LoginScreen> {
       // _syncService.syncUnsyncedInvoices();
       _syncService.syncUnsyncedInvoices();
       _syncService.syncPendingPatches();
+      _syncService.syncUnsyncedHoldOrders();
     });
 
     checkIfServerWasPreviouslyStored();
@@ -128,36 +131,23 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<String?> fetchNextSalesOrderNumberFromHive(String prefix) async {
-    print("🧠 [fetchNextSalesOrderNumberFromHive] Called with prefix: $prefix");
-
     // Open Hive box
     final saleOrderNumberBox = await Hive.openBox('salesOrderNumberBox');
-    print("📦 [fetchNextSalesOrderNumberFromHive] Opened salesOrderNumberBox");
 
     // Get all stored numbers
     final List<String> allNumbers = saleOrderNumberBox.values
         .expand((e) => e is List ? e.map((x) => x.toString()) : [e.toString()])
         .toList();
 
-    print(
-      "📋 [fetchNextSalesOrderNumberFromHive] Existing numbers: $allNumbers",
-    );
-
     // If no existing numbers, start fresh
     if (allNumbers.isEmpty) {
       final newNumber = '${prefix}0001';
       await saleOrderNumberBox.add(newNumber);
-      print(
-        "🆕 [fetchNextSalesOrderNumberFromHive] Created first order number: $newNumber",
-      );
       return newNumber;
     }
 
     // Get the last stored number
     final String lastOrderNumber = allNumbers.last;
-    print(
-      "🔢 [fetchNextSalesOrderNumberFromHive] Last stored number: $lastOrderNumber",
-    );
 
     // Extract numeric part correctly (ignore extra prefix inside number)
     String numericPart = '';
@@ -168,10 +158,6 @@ class _LoginScreenState extends State<LoginScreen> {
       final match = RegExp(r'(\d+)$').firstMatch(lastOrderNumber);
       numericPart = match?.group(1) ?? '0';
     }
-
-    print(
-      "🔍 [fetchNextSalesOrderNumberFromHive] Extracted numeric part: $numericPart",
-    );
 
     // Convert to int and increment
     final int lastCount = int.tryParse(numericPart) ?? 0;
@@ -185,9 +171,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
     // Save in Hive
     await saleOrderNumberBox.add(newOrderNumber);
-    print(
-      "💾 [fetchNextSalesOrderNumberFromHive] Saved new order number: $newOrderNumber",
-    );
 
     return newOrderNumber;
   }
@@ -461,69 +444,46 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> handleSaleOrder(Map<String, dynamic> data) async {
-    print("🚀 [handleSaleOrder] Called with data: $data");
-
     // Extract the sales order data (nested or top-level)
     final salesOrder = data['data'] ?? data;
-    print("📦 [handleSaleOrder] Extracted salesOrder: $salesOrder");
 
     // Determine the prefix for the sales order number
     String prefix =
         salesOrder['saleOrderNo']?.toString().trim() ??
         salesOrder['aliasName']?.toString().trim() ??
         "SOSB";
-    print("🔠 [handleSaleOrder] Using prefix: $prefix");
 
     // Get new sales order number from API/Hive
     final newSalesOrderNo = await fetchNextSalesOrderNumberFromHive(prefix);
-    print(
-      "🔢 [handleSaleOrder] New sales order number from Hive: $newSalesOrderNo",
-    );
 
     if (newSalesOrderNo == null) {
-      print("❌ [handleSaleOrder] Failed to get new sales order number.");
       return;
     }
 
     // Clean and update the sales order number
     final cleanSalesOrderNo = newSalesOrderNo.replaceAll('"', '');
     salesOrder['saleOrderNo'] = cleanSalesOrderNo;
-    print("✅ [handleSaleOrder] Updated saleOrderNo: $cleanSalesOrderNo");
 
     // Save the order locally (initial save as unsynced)
-    print("💾 [handleSaleOrder] Saving order to Hive (unsynced)...");
     await savePosSaleOrderToHive(data, saleOrderBox);
-    print("💾 [handleSaleOrder] Order saved locally to Hive.");
 
     // Notify clients with updated order number
-    print("📡 [handleSaleOrder] Sending updated sales order to clients...");
     sendDataToClients({
       'action': 'salesOrderGenerated',
       'salesOrder': data, // now includes updated saleOrderNo
     }, clients);
     _sendDataToClientsCount++;
-    print(
-      "📨 [handleSaleOrder] Data sent to clients. Total count: $_sendDataToClientsCount",
-    );
 
     // Post to API
-    print("🌐 [handleSaleOrder] Posting sales order to API...");
     bool success = await _syncService.postSalesOrder({
       "data": [salesOrder],
     });
 
     if (success) {
-      print("✅ [handleSaleOrder] Sales order successfully synced to API.");
-
       // ✅ Mark this order as synced in Hive
       data["sync"] = "Yes"; // add sync flag
       await saleOrderBox.put(cleanSalesOrderNo, data);
-      print("💾 [handleSaleOrder] Order marked as synced and updated in Hive.");
-    } else {
-      print("⚠️ [handleSaleOrder] Failed to sync sales order to API.");
-    }
-
-    print("🏁 [handleSaleOrder] Completed for order: $cleanSalesOrderNo\n");
+    } else {}
   }
 
   Future<void> handleInvoiceOrder(Map<String, dynamic> data) async {
@@ -696,29 +656,71 @@ class _LoginScreenState extends State<LoginScreen> {
     } else {}
   }
 
-  void handleHoldOrder(Map<String, dynamic> data) async {
-    // Notify connected clients about the new sales order.
+  Future<void> handleHoldOrder(Map<String, dynamic> data) async {
+    print('🟢 handleHoldOrder() triggered...');
 
-    // Save the sales order locally.
-    await saveToApproveOrderToHive(data);
+    try {
+      if (data.isEmpty) {
+        print('⚠️ Received empty hold order data.');
+        return;
+      }
 
-    // If the sales order data contains a nested "data" key,
-    // extract it. Otherwise, fallback to the original data.
-    final modifyOrder = data['data'] ?? data;
+      // Step 1: Extract holdOrderId safely
+      String cleanHoldOrderId = 'UNKNOWN_HOLD_ORDER';
+      if (data['data'] != null &&
+          data['data'] is List &&
+          data['data'].isNotEmpty) {
+        cleanHoldOrderId =
+            data['data'][0]['holdOrderId'] ?? 'UNKNOWN_HOLD_ORDER';
+      } else if (data['holdOrderId'] != null) {
+        cleanHoldOrderId = data['holdOrderId'];
+      }
+      print('🆔 Processing Hold Order ID: $cleanHoldOrderId');
 
-    sendDataToClients({
-      'action': 'holdOrderGenerated',
-      'holdOrder': data,
-    }, clients);
+      // Step 2: Save to Hive
+      print('💾 Saving Hold Order to Hive...');
+      await saveHoldOrderToHive(data, holdOrderBox);
+      print('✅ Hold Order saved successfully in Hive.');
+      _syncService.saveHoldToHive(data, holdOrderBox);
 
-    // Post the flattened sales order to the FastAPI endpoint.
-    bool success = await _syncService.postToApproveOrder({
-      "data": [modifyOrder],
-    });
+      // Step 3: Extract first hold order map
+      final holdOrder =
+          (data['data'] != null &&
+              data['data'] is List &&
+              data['data'].isNotEmpty)
+          ? data['data'][0]
+          : data;
+      print('📦 Extracted hold order payload: ${holdOrder.toString()}');
 
-    if (success) {
-      // _syncService.patchSaleOrder();
-    } else {}
+      // Step 4: Notify clients
+      print('📡 Broadcasting hold order to connected clients...');
+      sendDataToClients({
+        'action': 'holdOrderGenerated',
+        'holdOrder': data,
+      }, clients);
+      print('✅ holdOrderGenerated event sent to clients.');
+
+      // Step 5: Post to FastAPI
+      print('🚀 Sending Hold Order to FastAPI for sync...');
+      bool success = await _syncService.postToHoldOrder({
+        "data": [holdOrder],
+      });
+
+      // Step 6: Update Sync Status
+      if (success) {
+        print('✅ Hold Order synced successfully with FastAPI.');
+        data["sync"] = "Yes";
+        await holdOrderBox.put(cleanHoldOrderId, data);
+        print('💾 Hive updated: Hold Order marked as synced.');
+      } else {
+        print('❌ Failed to sync Hold Order with FastAPI.');
+      }
+    } catch (e, st) {
+      print('❌ Error in handleHoldOrder(): $e');
+      print(st);
+    } finally {
+      print('🏁 handleHoldOrder() completed.\n');
+    }
   }
 
   void handleSalesApprovalOrder(Map<String, dynamic> data) async {
@@ -969,11 +971,8 @@ class _LoginScreenState extends State<LoginScreen> {
         handlePatchSaleOrder(data);
       },
       'holdOrder': (data) async {
-        sendDataToClients({
-          'action': 'holdOrderGenerated',
-          'holdOrder': data,
-        }, clients);
-        saveHoldOrderToHive(data, holdOrderBox);
+        print("hold order data: $data");
+        handleHoldOrder(data);
       },
       'salesApprovalOrder': (data) async {
         handleSalesApprovalOrder(data);
@@ -1317,79 +1316,57 @@ class _LoginScreenState extends State<LoginScreen> {
   bool employeeIdVerified = false; // To track if the employee ID is correct
 
   Future<void> proceedToDashboard() async {
-    print("🔹 [Dashboard] Starting proceedToDashboard...");
-
     // Step 0: Widget mount check
     if (!mounted) {
-      print("⚠️ [Dashboard] Widget not mounted. Exiting.");
       return;
     }
 
     // Step 1: Alias name validation
     if (globals.aliasname == null || globals.aliasname!.trim().isEmpty) {
-      print("⚠️ [Dashboard] Alias name is null or empty. Exiting.");
       return;
     }
-    print("🔹 [Dashboard] Alias name: ${globals.aliasname}");
 
     // Step 2: Initialize ItemProvider
     final itemProvider = Provider.of<ItemProvider>(context, listen: false);
-    print("🔹 [Dashboard] ItemProvider initialized.");
 
     // Step 3: Fetch branch name from alias
     final branchName = await itemProvider.getBranchNameFromAlias(
       globals.aliasname,
     );
-    print("🔹 [Dashboard] Fetched branch name: $branchName");
 
     if (!mounted) {
-      print(
-        "⚠️ [Dashboard] Widget not mounted after fetching branch name. Exiting.",
-      );
       return;
     }
 
     // // Fetch additional data if needed
     // await itemProvider.fetchDataIfNeeded(branchAlias: globals.aliasname);
-    print("🔹 [Dashboard] Data fetch completed if needed.");
 
     // Step 4: Validate fetched branch name
     if (branchName == null || branchName == 'Branch Not Found') {
-      print("❌ [Dashboard] Branch not found. Exiting.");
       return;
     }
 
     // Step 5: Set global variable
     globals.branchName = branchName;
-    print("🔹 [Dashboard] Branch name set globally: ${globals.branchName}");
 
     // Step 6: Proceed to shift check
     final url = Uri.parse(
       'https://yenerp.com/fastapi/shifts/check-open-shift?branch_name=${globals.branchName}',
     );
-    print("🔹 [Dashboard] Checking open shift with URL: $url");
 
     final client = http.Client();
 
     try {
       final response = await client.get(url);
-      print("🔹 [Dashboard] HTTP status code: ${response.statusCode}");
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        print("🔹 [Dashboard] Shift data received: $data");
 
         globals.shiftId.value = data['shiftId']?.toString() ?? '0';
         globals.shiftNumber.value = data['shiftNumber']?.toString() ?? '0';
-        print(
-          "🔹 [Dashboard] Shift ID: ${globals.shiftId.value}, Shift Number: ${globals.shiftNumber.value}",
-        );
 
         int shiftNumberInt = int.tryParse(globals.shiftNumber.value) ?? 0;
         if (shiftNumberInt != 0) {
-          print(
-            "✅ [Dashboard] Open shift found. Navigating to ChooseModePage...",
-          );
           if (mounted) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               Navigator.pushReplacement(
@@ -1399,9 +1376,6 @@ class _LoginScreenState extends State<LoginScreen> {
             });
           }
         } else {
-          print(
-            "⚠️ [Dashboard] No open shift found. Navigating to OpenShift...",
-          );
           if (mounted) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -1418,7 +1392,6 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         }
       } else {
-        print("❌ [Dashboard] Failed to fetch shift data from server.");
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -1429,7 +1402,6 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
     } catch (e, stackTrace) {
-      print("❌ [Dashboard] Exception while fetching shift: $e\n$stackTrace");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
@@ -1441,14 +1413,12 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> discoverServerAndHandle() async {
-    print("🔹 Starting UDP server discovery...");
     final udp = await UDP.bind(Endpoint.any());
 
     udp.send(
       utf8.encode('WHO_IS_SERVER'),
       Endpoint.broadcast(port: const Port(33441)),
     );
-    print("🔹 Broadcast message sent.");
 
     final serverBox = await Hive.openBox('serverBox');
     bool found = false;
@@ -1459,7 +1429,6 @@ class _LoginScreenState extends State<LoginScreen> {
       )) {
         if (datagram != null) {
           final message = utf8.decode(datagram.data);
-          print("🔹 UDP response received: $message");
 
           if (message.startsWith('SERVER:')) {
             final parts = message.split(':');
@@ -1474,7 +1443,6 @@ class _LoginScreenState extends State<LoginScreen> {
               serverFound = true;
             });
 
-            print("✅ Server discovered: $ip:$port");
             found = true;
             udp.close();
 
@@ -1484,13 +1452,10 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         }
       }
-    } catch (e) {
-      print("❌ UDP discovery error: $e");
-    }
+    } catch (e) {}
 
     if (!found && mounted) {
       udp.close();
-      print("⚠️ No server found. Showing NoServerDialog...");
 
       showDialog(
         context: context,
@@ -1830,49 +1795,27 @@ class _LoginScreenState extends State<LoginScreen> {
                                     onPressed: loginProvider.isSigningIn
                                         ? null
                                         : () async {
-                                            print("🔹 Login button pressed.");
                                             bool loginSuccess =
                                                 await loginProvider.loginUser(
                                                   context,
                                                 );
-                                            print(
-                                              "🔹 Login result: $loginSuccess",
-                                            );
 
                                             if (loginSuccess) {
-                                              print(
-                                                "🔹 Login successful. Checking server availability...",
-                                              );
-
                                               if (serverFound) {
-                                                print(
-                                                  "🔹 Server was already found: $serverip. Checking if alive...",
-                                                );
                                                 bool isAlive =
                                                     await isServerReachable(
                                                       serverip,
                                                       8383,
                                                     );
-                                                print(
-                                                  "🔹 Server alive status: $isAlive",
-                                                );
                                                 if (isAlive) {
                                                   await proceedToDashboard();
                                                 } else {
-                                                  print(
-                                                    "⚠️ Server not reachable. Discovering server...",
-                                                  );
                                                   await discoverServerAndHandle();
                                                 }
                                               } else {
-                                                print(
-                                                  "⚠️ Server not found previously. Discovering server...",
-                                                );
                                                 await discoverServerAndHandle();
                                               }
-                                            } else {
-                                              print("❌ Login failed.");
-                                            }
+                                            } else {}
                                           },
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.blue.shade800,

@@ -1602,7 +1602,6 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
         return ValueListenableBuilder<String>(
           valueListenable: shiftId,
           builder: (context, shiftId, __) {
-            debugPrint("Shift ID 1: $shiftId");
             return ValueListenableBuilder<ConnectivityResult>(
               valueListenable: connectivityResult,
               builder: (context, connectivity, ___) {
@@ -1698,7 +1697,6 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
                               return;
                             }
 
-                            debugPrint("Button tapped & confirmed");
 
                             var invoiceBox = await Hive.openBox('invoicesBox');
                             bool needsSync = invoiceBox.values.any((
@@ -1725,7 +1723,6 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
                               await syncService.syncUnsyncedInvoices();
                             }
 
-                            debugPrint("Sync Service Completed");
 
                             await CashManagementProvider.patchShiftClosingData(
                               shiftId,

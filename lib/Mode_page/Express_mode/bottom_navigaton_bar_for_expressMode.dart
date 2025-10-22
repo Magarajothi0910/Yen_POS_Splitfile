@@ -5,11 +5,8 @@ import 'package:yenpos/transactionPage/Screen/transaction_page.dart';
 
 import '../../more_page/more_page.dart';
 
-
 class BottomNavigationPageExpressModeScreen extends StatefulWidget {
-
-  const BottomNavigationPageExpressModeScreen(
-      {super.key,});
+  const BottomNavigationPageExpressModeScreen({super.key});
 
   @override
   // ignore: library_private_types_in_public_api
@@ -29,12 +26,8 @@ class _BottomNavigationPageExpressModeScreenState
     // const TableScreen(),
     // // const CurrentOrdersP
     // // const CurrentOrdersPage(),
-    TakeAwayOrdersNavigator(
-
-    ),
-    TransactionPage(
-
-    ),
+    TakeAwayOrdersNavigator(),
+    TransactionPage(),
     // MorePage(
 
     // ),
@@ -65,7 +58,8 @@ class _BottomNavigationPageExpressModeScreenState
         body: _pages[_currentIndex],
         bottomNavigationBar: Container(
           decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: Colors.black12))),
+            border: Border(top: BorderSide(color: Colors.black12)),
+          ),
           child: ValueListenableBuilder(
             valueListenable: _invoiceBox.listenable(),
             builder: (context, box, widget) {
@@ -82,10 +76,14 @@ class _BottomNavigationPageExpressModeScreenState
                 },
                 backgroundColor: Colors.white,
                 type: BottomNavigationBarType.fixed,
-                selectedLabelStyle:
-                    const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                unselectedLabelStyle:
-                    const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                selectedLabelStyle: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+                unselectedLabelStyle: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
                 items: [
                   // const BottomNavigationBarItem(
                   //   icon: Icon(Icons.grid_view),

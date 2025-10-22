@@ -65,7 +65,6 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
 
   void _onMobileNumberChanged(String value) async {
     if (_isAddingCustomer) return;
-    print("value:$value");
     final customerProvider =
         Provider.of<CustomerScreenProvider>(context, listen: false);
     final mobile = value.split(' - ').first.replaceAll(RegExp(r'[^0-9]'), '');
@@ -173,7 +172,6 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
     Map<String, dynamic> suggestion,
     CustomerScreenProvider customerProvider,
   ) {
-    print("🔹 Suggestion selected: $suggestion");
     _removeSuggestionsOverlay();
 
     final searchProvider = context.read<CustomerSearchProvider>();
@@ -200,8 +198,6 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
 
     FocusScope.of(context).unfocus();
     setState(() {});
-    print(
-        "✅ Updated combined controller: ${customerProvider.customerCombinedController.text}");
   }
 
   Future<bool> _checkCustomerExists(
@@ -419,7 +415,6 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
                 style: const TextStyle(fontSize: 14),
                 onChanged: _onMobileNumberChanged,
                 onTap: () {
-                  print("🔹 TextField tapped");
                   ActiveField.activate(
                     ctrl: customerProvider.customerCombinedController,
                     node: _mobileFocusNode,

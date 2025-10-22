@@ -49,7 +49,7 @@ class DetailsProvider extends ChangeNotifier {
   // List<String> filteredItems = [];
   Future<void> fetchVariances() async {
     final url = 'https://yenerp.com/fastapi/branchwiseitems/';
-    print("Fetching variances from $url");
+    
     try {
       final response = await http.get(Uri.parse(url));
 

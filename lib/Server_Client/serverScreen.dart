@@ -2,37 +2,40 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
-import 'package:connectivity_plus/connectivity_plus.dart';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart' as http;
-import 'package:intl/intl.dart';
-import 'package:network_info_plus/network_info_plus.dart';
+
 import 'package:provider/provider.dart';
 import 'package:udp/udp.dart';
-import 'package:web_socket_channel/io.dart';
+
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:yenpos/Global/Provider/branchwise_item_fetch.dart';
 
-import 'package:yenpos/Global/global_data_manager.dart';
 import 'package:yenpos/Global/globals_data.dart';
 import 'package:yenpos/Global/globals_data.dart' as globals;
 import 'package:yenpos/Hive_Manager/hive_manager_saleOrder.dart';
 import 'package:yenpos/Mode_page/choose_mode_screen.dart';
-import 'package:yenpos/Server_Client/handlers/invoice_handler.dart';
-import 'package:yenpos/Server_Client/hive_service.dart';
+
+import 'package:yenpos/Server_Client/handlers/websocket_handler.dart';
+
 import 'package:yenpos/Server_Client/makethisdeviceas%20server_Dialog.dart';
 import 'package:yenpos/Server_Client/sendDataToClients.dart';
 import 'package:yenpos/Server_Client/serverreachable.dart';
 import 'package:yenpos/Server_Client/startServers.dart';
-import 'package:yenpos/Server_Client/stockupdateService.dart';
+
 import 'package:yenpos/Server_Client/sync_service.dart';
 import 'package:yenpos/background_task/background_permission_guard.dart';
 import 'package:yenpos/background_task/flutter_foreground_task.dart';
+import 'package:yenpos/kotpreinvoice/providers/order_provider.dart';
+import 'package:yenpos/kotpreinvoice/providers/product_provider.dart';
 
 import 'package:yenpos/loginPage/provider/loginPageProvider.dart';
 import 'package:yenpos/shift_managment_page/openshift/open_shift.dart';
+
+import 'package:web_socket_channel/io.dart'; // 👈 this one adds fromSocket()
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -43,14 +46,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final List<Map<String, dynamic>> _receivedData = [];
-  List<Map<String, dynamic>> _invoiceData = []; // List to store invoice data
-  final TextEditingController _userNameController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  WebSocketChannel? channel;
-  Set<WebSocketChannel> clients = {};
   List<Map<String, dynamic>> orders = [];
-  final SyncService _syncService1 = SyncService();
+  HttpServer? _wsServer;
   Set<String> sentPatchOrders = {};
   final SyncService _syncService = SyncService();
   Timer? _syncTimer;
@@ -62,1285 +59,362 @@ class _LoginScreenState extends State<LoginScreen> {
   String status = 'Searching for server...';
   //saleorders
 
-  late Box saleOrderBox;
-  late Box saleOrderNumber;
-
-  late Box invoiceBox;
-
-  late Box holdOrderBox;
   Timer? _approvalCheckTimer;
   Map<String, dynamic>? paymentDetails;
   int _sendDataToClientsCount = 0;
   final TextEditingController _advanceController = TextEditingController();
   bool placeOrderCliked = false;
   bool showPaymentScreen = false;
-  final Set<String> _processedMessageIds = {};
+  final ValueNotifier<bool> serverFoundNotifier = ValueNotifier(false);
+
   //saleorder
   @override
   initState() {
     super.initState();
     // HiveManager().invoices.then((_) => _loadInvoices());
     // HiveManager().posInvoiceBox; // Just to ensure it's initialized
-    // HiveManager().tableStatusBox; // Just to ensure it's initialized
-    _openBoxes();
-    _syncTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
-      SyncService();
-      _syncService.syncUnsyncedSaleOrders();
-      // _syncService.syncUnsyncedInvoices(clients: clients);
-      _syncService.syncUnsyncedInvoices();
+    HiveManager.initialize(); // Just to ensure it's initialized
 
-      _syncService.syncUnsyncedHoldOrders();
-    });
-    // Provider.of<LoginProvider>(context, listen: false).fetchAndStoreLoginData();
+    // _syncTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+    //   SyncService();
+    //   _syncService.syncUnsyncedSaleOrders();
+    //   _syncService.syncUnsyncedHoldOrders();
+    //   _syncService.syncUnsyncedInvoices();
+    //   _syncService.syncPendingPatches();
+    //   _syncService.syncUnsyncedHoldOrders();
+    // });
+    // // Provider.of<LoginProvider>(context, listen: false).fetchAndStoreLoginData();
 
-    _approvalCheckTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
-      checkPendingApprovals(saleOrderBox);
-      chequePendingDiscountApproval(holdOrderBox);
-    });
-    _syncTimer = Timer.periodic(const Duration(minutes: 10), (timer) {
-      _syncService.syncUnsyncedSaleOrders();
-      // _syncService.syncUnsyncedInvoices();
-      _syncService.syncUnsyncedInvoices();
-      _syncService.syncPendingPatches();
-      _syncService.syncUnsyncedHoldOrders();
-    });
+    // _approvalCheckTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+    //   checkPendingApprovals(HiveManager.salesOrderBox);
+    //   chequePendingDiscountApproval(HiveManager.holdOrderBox);
+    // });
 
     checkIfServerWasPreviouslyStored();
     // discoverServerAndHandle();
   }
 
-  Future<void> _openBoxes() async {
-    invoiceBox = await Hive.openBox('invoices');
-    Hive.openBox('salesOrders');
-    saleOrderBox = await Hive.openBox('saleOrderBox');
-    saleOrderNumber = await Hive.openBox("salesOrderNumberBox");
-    holdOrderBox = await Hive.openBox('holdOrders');
-    await Hive.openBox('salesOrderNumberBox');
-    await Hive.openBox('holdOrders');
-
-    Hive.openBox('salesApprovalOrder');
-    Hive.openBox('saleOrderModifyOrders');
-
-    setState(() {});
-  }
-
-  String generateSalesOrderId(String branchCode, int sequenceNumber) {
-    final yearSuffix = DateFormat('yy').format(DateTime.now());
-    final sequenceStr = sequenceNumber.toString().padLeft(4, '0');
-    return 'SO$branchCode$yearSuffix$sequenceStr';
-  }
-
-  Future<String?> fetchNextSalesOrderNumberFromHive(String prefix) async {
-    // Open Hive box
-    final saleOrderNumberBox = await Hive.openBox('salesOrderNumberBox');
-
-    // Get all stored numbers
-    final List<String> allNumbers = saleOrderNumberBox.values
-        .expand((e) => e is List ? e.map((x) => x.toString()) : [e.toString()])
-        .toList();
-
-    // If no existing numbers, start fresh
-    if (allNumbers.isEmpty) {
-      final newNumber = '${prefix}0001';
-      await saleOrderNumberBox.add(newNumber);
-      return newNumber;
-    }
-
-    // Get the last stored number
-    final String lastOrderNumber = allNumbers.last;
-
-    // Extract numeric part correctly (ignore extra prefix inside number)
-    String numericPart = '';
-    if (lastOrderNumber.startsWith(prefix)) {
-      numericPart = lastOrderNumber.substring(prefix.length);
-    } else {
-      // fallback: extract last numeric sequence
-      final match = RegExp(r'(\d+)$').firstMatch(lastOrderNumber);
-      numericPart = match?.group(1) ?? '0';
-    }
-
-    // Convert to int and increment
-    final int lastCount = int.tryParse(numericPart) ?? 0;
-    final int nextCount = lastCount + 1;
-
-    // Pad to 4 digits
-    final String formattedNumber = nextCount.toString().padLeft(4, '0');
-
-    // ✅ Correct format: prefix + 4-digit count
-    final String newOrderNumber = '$prefix$formattedNumber';
-
-    // Save in Hive
-    await saleOrderNumberBox.add(newOrderNumber);
-
-    return newOrderNumber;
-  }
-
-  Future<String?> fetchNextInvoiceOrderNumberFromHive(String prefix) async {
-    // Open the Hive box for sales orders
-    final invoiceBox = await Hive.openBox('invoices');
-
-    // Get the current count for the prefix or initialize it to 250000
-    final currentCount = invoiceBox.get(prefix) ?? 0000;
-
-    // Increment to get the next count
-    final nextCount = currentCount + 1;
-
-    // Save the updated count back to Hive
-    await invoiceBox.put(prefix, nextCount);
-
-    // Format the numeric part with leading zeros to ensure it is always six digits
-    final formattedNumber = nextCount.toString().padLeft(4, '0');
-
-    // Return the new sales order number in the format "prefix + formattedNumber"
-    return '$prefix$formattedNumber';
-  }
-
-  int sendDataToClientsCallCount = 0;
-
-  Future<void> handlePatchSaleOrder(Map<String, dynamic> data) async {
-    final String soNo = data['saleOrderNo'] ?? '';
-
-    // Open Hive Box
-    var saleOrderBox = await Hive.openBox('saleOrderBox');
-
-    // Find matching entry in Hive
-    String? targetKey;
-    Map<String, dynamic>? existingData;
-    for (final entry in saleOrderBox.toMap().entries) {
-      final orderData = entry.value['data'];
-      if (orderData is Map && orderData['saleOrderNo'] == soNo) {
-        targetKey = entry.key.toString();
-        existingData = Map<String, dynamic>.from(entry.value);
-        break;
-      }
-    }
-
-    if (targetKey == null || existingData == null) {
-      return;
-    }
-
-    // Merge patchData into existingData
-    final Map<String, dynamic> patchData = Map<String, dynamic>.from(
-      data['data'] ?? {},
-    );
-    final Map<String, dynamic> existingOrderData = Map<String, dynamic>.from(
-      existingData['data'] ?? {},
-    );
-
-    existingOrderData.addAll(patchData);
-    existingData['data'] = existingOrderData;
-
-    await saleOrderBox.put(targetKey, existingData);
-
-    sendDataToClients({
-      'action': 'patchsaleorderGenerated',
-      'saleOrderNo': soNo,
-      'patchSaleOrder': existingData,
-    }, clients);
-
-    sendDataToClientsCallCount++;
+  Future<void> checkIfServerWasPreviouslyStored() async {
+    print("🔍 [checkIfServerWasPreviouslyStored] Starting check...");
 
     try {
-      bool success = await _syncService.patchSalesOrder(soNo, existingData);
+      print("📦 Opening Hive boxes: configBox & serverBox");
+      final configBox = Hive.box('configBox');
+      final serverBox = Hive.box('serverBox');
 
-      if (success) {
-        existingData['sync'] = "Yes";
-        await saleOrderBox.put(targetKey, existingData);
-      } else {}
-    } catch (e) {}
-  }
+      final savedIp = serverBox.get('serverIp')?.toString() ?? '';
+      final savedPort = serverBox.get('serverPort')?.toString() ?? '';
 
-  Future<void> handlePatchHoldOrder(Map<String, dynamic> data) async {
-    print('\n\n🟢 [handlePatchHoldOrder] Triggered');
-    print('📦 Incoming Data: $data');
+      print("📡 Saved Server IP: '$savedIp', Port: '$savedPort'");
 
-    final patchData = Map<String, dynamic>.from(data['data'] ?? {});
-    final deviceName = data['deviceName'];
-    final type = data['type'];
-    final sync = data['sync'];
-    final edit = data['edit'];
-    final holdOrderId = data['holdOrderId'];
-
-    print('🧩 Extracted Fields:');
-    print('   🔹 holdOrderId: $holdOrderId');
-    print('   🔹 deviceName: $deviceName');
-    print('   🔹 type: $type');
-    print('   🔹 sync: $sync');
-    print('   🔹 edit: $edit');
-    print('   🔹 patchData: $patchData');
-
-    dynamic targetKey;
-
-    // Step 1: Find the existing hold order in Hive
-    for (final entry in holdOrderBox.toMap().entries) {
-      final order = entry.value;
-      if (order is Map && order['holdOrderId'] == holdOrderId) {
-        targetKey = entry.key;
-        print('✅ Match found! Key: $targetKey');
-        break;
-      }
-    }
-
-    if (targetKey == null) {
-      print('❌ No matching holdOrderId found. Exiting.');
-      return;
-    }
-
-    // Step 2: Load existing order and patch
-    final existingOrder = Map<String, dynamic>.from(
-      holdOrderBox.get(targetKey),
-    );
-    existingOrder.addAll(patchData);
-
-    // Step 3: Update metadata
-    existingOrder.addAll({
-      'deviceName': deviceName,
-      'type': type,
-      'sync': sync,
-      'edit': edit,
-      'saleOrderNo': holdOrderId,
-      'waitingForApprovalResult': data['waitingForApprovalResult'] ?? 'Yes',
-    });
-
-    // Step 4: Save back to Hive
-    await holdOrderBox.put(targetKey, existingOrder);
-    print('✅ Patched order saved to Hive: $existingOrder');
-
-    // Step 5: Notify clients
-    sendDataToClients({
-      'action': 'patchholdorderGenerated',
-      'patchHoldOrder': data,
-    }, clients);
-    sendDataToClientsCallCount++;
-    print('📤 Clients notified. Total calls: $sendDataToClientsCallCount');
-
-    // Step 6: Optional: Sync to server
-    try {
-      final success = await _syncService.patchSalesOrder(holdOrderId, {
-        'data': patchData,
-        'deviceName': deviceName,
-        'type': type,
-        'sync': sync,
-        'edit': edit,
-        'waitingForApprovalResult': data['waitingForApprovalResult'],
-      });
-      if (success) {
-        existingOrder['sync'] = true;
-        await holdOrderBox.put(targetKey, existingOrder);
-        print('💾 Hive record updated with sync:true');
-      } else {
-        print('⚠️ Server PATCH failed.');
-      }
-    } catch (e, st) {
-      print('❌ Server sync error: $e');
-      print(st);
-    }
-
-    print('🎉 [handlePatchHoldOrder] Completed successfully!');
-  }
-
-  // Helper function to debug Hive box structure
-  void debugHiveBoxStructure() {
-    final boxMap = holdOrderBox.toMap();
-
-    boxMap.entries.forEach((entry) {
-      if (entry.value is Map) {
-        final map = entry.value as Map;
-
-        if (map.containsKey('data')) {
-          if (map['data'] is List) {}
-        }
-      }
-    });
-  }
-
-  Future<void> handleOpenSaleOrder(Map<String, dynamic> data) async {
-    // Extract the sales order data (nested or top-level)
-    final salesOrder = data['data'] ?? data;
-
-    // Determine the prefix for the sales order number
-    String prefix =
-        salesOrder['saleOrderNo']?.toString().trim() ??
-        salesOrder['branchAlias']?.toString().trim() ??
-        "SOSB";
-
-    // Get new sales order number from API/Hive
-    final newSalesOrderNo = await fetchNextSalesOrderNumberFromHive(prefix);
-    if (newSalesOrderNo == null) {
-      return;
-    }
-
-    // Clean and update the sales order number
-    final cleanSalesOrderNo = newSalesOrderNo.replaceAll('"', '');
-    salesOrder['saleOrderNo'] = cleanSalesOrderNo;
-
-    // Save the order locally
-    await savePosSaleOrderToHive(data, saleOrderBox);
-
-    // Notify clients with updated order number
-    sendDataToClients({
-      'action': 'OpSalesOrderGenerated',
-      'opSalesOrder': data, // now includes updated saleOrderNo
-    }, clients);
-    _sendDataToClientsCount++;
-
-    // Post to API
-
-    bool success = await _syncService.postSalesOrder({
-      "data": [salesOrder],
-    });
-
-    if (success) {
-    } else {}
-  }
-
-  Future<void> handleSaleOrder(Map<String, dynamic> data) async {
-    // Extract the sales order data (nested or top-level)
-    final salesOrder = data['data'] ?? data;
-
-    // Determine the prefix for the sales order number
-    String prefix =
-        salesOrder['saleOrderNo']?.toString().trim() ??
-        salesOrder['aliasName']?.toString().trim() ??
-        "SOSB";
-
-    // Get new sales order number from API/Hive
-    final newSalesOrderNo = await fetchNextSalesOrderNumberFromHive(prefix);
-
-    if (newSalesOrderNo == null) {
-      return;
-    }
-
-    // Clean and update the sales order number
-    final cleanSalesOrderNo = newSalesOrderNo.replaceAll('"', '');
-    salesOrder['saleOrderNo'] = cleanSalesOrderNo;
-
-    // Save the order locally (initial save as unsynced)
-    await savePosSaleOrderToHive(data, saleOrderBox);
-
-    // Notify clients with updated order number
-    sendDataToClients({
-      'action': 'salesOrderGenerated',
-      'salesOrder': data, // now includes updated saleOrderNo
-    }, clients);
-    _sendDataToClientsCount++;
-
-    // Post to API
-    bool success = await _syncService.postSalesOrder({
-      "data": [salesOrder],
-    });
-
-    if (success) {
-      // ✅ Mark this order as synced in Hive
-      data["sync"] = "Yes"; // add sync flag
-      await saleOrderBox.put(cleanSalesOrderNo, data);
-    } else {}
-  }
-
-  Future<void> handleInvoiceOrder(Map<String, dynamic> data) async {
-    // Extract the sales order data (nested or top-level)
-    final salesOrder = data['data'] ?? data;
-
-    // Determine the prefix for the sales order number
-    String prefix =
-        salesOrder['saleOrderNo']?.toString().trim() ??
-        salesOrder['branchAlias']?.toString().trim() ??
-        "SOSB";
-
-    // Get new sales order number from API/Hive
-    final newSalesOrderNo = await fetchNextInvoiceOrderNumberFromHive(prefix);
-    if (newSalesOrderNo == null) {
-      return;
-    }
-
-    // Clean and update the sales order number
-    final cleanSalesOrderNo = newSalesOrderNo.replaceAll('"', '');
-    salesOrder['saleOrderNo'] = cleanSalesOrderNo;
-
-    // Save the order locally
-    await savePosInvoiceOrderToHive(data, saleOrderBox);
-
-    // Notify clients with updated order number
-    sendDataToClients({
-      'action': 'invoiceGenerated',
-      'invoice': data, // now includes updated saleOrderNo
-    }, clients);
-    _sendDataToClientsCount++;
-
-    // Post to API
-
-    bool success = await _syncService.postInvoiceOrder({
-      "data": [salesOrder],
-    });
-
-    if (success) {
-    } else {}
-  }
-
-  void handleModifyOrder(Map<String, dynamic> data) async {
-    // Notify connected clients about the new sales order.
-    sendDataToClients({
-      'action': 'modifyOrderGenerated',
-      'modifyOrder': data,
-    }, clients);
-
-    // Save the sales order locally.
-    await saveModifyOrderToHive(data);
-
-    // If the sales order data contains a nested "data" key,
-    // extract it. Otherwise, fallback to the original data.
-    final modifyOrder = data['data'] ?? data;
-
-    // Post the flattened sales order to the FastAPI endpoint.
-    bool success = await _syncService.postModifyOrder({
-      "data": [modifyOrder],
-    });
-
-    if (success) {
-    } else {}
-  }
-
-  void handleDiscountApprovalOrder(Map<String, dynamic> data) async {
-    // Notify connected clients about the new sales order.
-    sendDataToClients({
-      'action': 'modifyOrderGenerated',
-      'modifyOrder': data,
-    }, clients);
-
-    // Save the sales order locally.
-    await saveModifyOrderToHive(data);
-
-    // If the sales order data contains a nested "data" key,
-    // extract it. Otherwise, fallback to the original data.
-    final modifyOrder = data['data'] ?? data;
-
-    // Post the flattened sales order to the FastAPI endpoint.
-    bool success = await _syncService.postModifyOrder({
-      "data": [modifyOrder],
-    });
-
-    if (success) {
-    } else {}
-  }
-
-  Future<void> saveToApproveOrderToHive(Map<String, dynamic> data) async {
-    // Save the sales approval order to the Hive database
-    var modifyOrdersBox = await Hive.openBox('salesOrderToApprove');
-    await modifyOrdersBox.add(data);
-  }
-
-  // Define a method to handle adding a customer to a sales order.
-  Future<void> saveSalesOrderAddCustomerToHive(
-    Map<String, dynamic> customerData,
-  ) async {
-    var customerBox = await Hive.openBox('customerBox');
-    final String? mobile = customerData['mobile'];
-
-    if (mobile == null) {
-      return;
-    }
-
-    // ── Check for duplicates ──
-    final exists = customerBox.values.any((customer) {
-      final existing = Map<String, dynamic>.from(customer);
-      return existing['mobile'] == mobile;
-    });
-
-    if (exists) {
-      return;
-    }
-
-    // ── Save new customer ──
-    await customerBox.add(customerData);
-  }
-
-  void handleSalesOrderAddCustomer(Map<String, dynamic> data) async {
-    // ── Save locally (with duplicate check)
-    await saveSalesOrderAddCustomerToHive(data);
-
-    // ── Extract fields for API sync
-    final String? name = data['name'] as String?;
-    final String? mobile = data['mobile'] as String?;
-    final String? branch = data['branchId'] as String?;
-
-    if (name == null || mobile == null) {
-      return;
-    }
-
-    // ── broadcast to clients
-    sendDataToClients({
-      'action': 'salesOrderAddCustomerGenerated',
-      'salesOrderAddCustomer': data,
-    }, clients);
-
-    final success = await _syncService.postAddNewCustomerOrder(
-      name: name,
-      mobile: mobile,
-      branchId: branch,
-    );
-
-    if (success) {
-    } else {}
-  }
-
-  void handleToApproveOrder(Map<String, dynamic> data) async {
-    // Notify connected clients about the new sales order.
-
-    // Save the sales order locally.
-    await saveToApproveOrderToHive(data);
-
-    // If the sales order data contains a nested "data" key,
-    // extract it. Otherwise, fallback to the original data.
-    final modifyOrder = data['data'] ?? data;
-
-    sendDataToClients({
-      'action': 'toApproveOrderGenerated',
-      'toApproveOrder': data,
-    }, clients);
-
-    // Post the flattened sales order to the FastAPI endpoint.
-    bool success = await _syncService.postToApproveOrder({
-      "data": [modifyOrder],
-    });
-
-    if (success) {
-    } else {}
-  }
-
-  Future<void> handleHoldOrder(Map<String, dynamic> data) async {
-    print('🟢 handleHoldOrder() triggered...');
-
-    try {
-      if (data.isEmpty) {
-        print('⚠️ Received empty hold order data.');
+      if (savedIp.isEmpty || savedPort.isEmpty) {
+        print("⚠️ No previously stored server info found — exiting check.");
         return;
       }
 
-      // Step 1: Extract holdOrderId safely
-      String cleanHoldOrderId = 'UNKNOWN_HOLD_ORDER';
-      if (data['data'] != null &&
-          data['data'] is List &&
-          data['data'].isNotEmpty) {
-        cleanHoldOrderId = data['data']['holdOrderId'] ?? 'UNKNOWN_HOLD_ORDER';
-      } else if (data['holdOrderId'] != null) {
-        cleanHoldOrderId = data['holdOrderId'];
-      }
-      print('🆔 Processing Hold Order ID: $cleanHoldOrderId');
-
-      // Step 2: Save to Hive
-      print('💾 Saving Hold Order to Hive...');
-      await saveHoldOrderToHive(data, holdOrderBox);
-      print('✅ Hold Order saved successfully in Hive.');
-      _syncService.saveHoldToHive(data, holdOrderBox);
-
-      // Step 3: Extract first hold order map
-      final holdOrder =
-          (data['data'] != null &&
-              data['data'] is List &&
-              data['data'].isNotEmpty)
-          ? data['data'][0]
-          : data;
-      print('📦 Extracted hold order payload: ${holdOrder.toString()}');
-
-      // Step 4: Notify clients
-      print('📡 Broadcasting hold order to connected clients...');
-      sendDataToClients({
-        'action': 'holdOrderGenerated',
-        'holdOrder': data,
-      }, clients);
-      print('✅ holdOrderGenerated event sent to clients.');
-
-      // Step 5: Post to FastAPI
-      print('🚀 Sending Hold Order to FastAPI for sync...');
-      bool success = await _syncService.postToHoldOrder({"data": holdOrder});
-
-      // Step 6: Update Sync Status
-      if (success) {
-        print('✅ Hold Order synced successfully with FastAPI.');
-        data["sync"] = "Yes";
-        await holdOrderBox.put(cleanHoldOrderId, data);
-        print('💾 Hive updated: Hold Order marked as synced.');
-      } else {
-        print('❌ Failed to sync Hold Order with FastAPI.');
-      }
-    } catch (e, st) {
-      print('❌ Error in handleHoldOrder(): $e');
-      print(st);
-    } finally {
-      print('🏁 handleHoldOrder() completed.\n');
-    }
-  }
-
-  void handleSalesApprovalOrder(Map<String, dynamic> data) async {
-    final salesOrder = data['data'] ?? data;
-    await saveSalesApprovalOrderToHive(data);
-    sendDataToClients({
-      'action': 'salesApprovalOrderGenerated',
-      'salesApprovalOrder': data,
-    }, clients);
-    bool success = await _syncService.postDiscountOrder({
-      "data": [salesOrder],
-    });
-
-    if (success) {
-    } else {}
-  }
-
-  Future<void> saveSalesApprovalOrderToHive(Map<String, dynamic> data) async {
-    var box = await Hive.openBox('salesApprovalOrder');
-    await box.add(data);
-  }
-
-  Future<void> checkIfServerWasPreviouslyStored() async {
-    final serverBox = HiveManager().serverBox;
-    final configBox = HiveManager().configBox;
-
-    // Force everything to String
-    final rawIp = serverBox?.get('serverIp', defaultValue: '');
-    final rawPort = serverBox?.get('serverPort', defaultValue: '');
-    final savedIp = rawIp?.toString() ?? '';
-    final savedPort = rawPort?.toString() ?? '';
-
-    if (savedIp.isNotEmpty && savedPort.isNotEmpty) {
+      print("🌐 Fetching local device IP...");
       final localIp = await getLocalIp();
+      print("💻 Local IP Detected: $localIp");
+
       serverip = savedIp;
       serverPort = savedPort;
 
+      // 🧠 Check if this device was the server
       if (localIp == savedIp) {
-        appType = 'server';
-        await configBox.put('appType', 'server');
+        print("🖥 Detected local server setup (localIp == savedIp).");
+        print("🔎 Checking if local server port $savedPort is open...");
 
-        Provider.of<ItemProvider>(
-          context,
-          listen: false,
-        ).fetchDataIfNeeded(branchAlias: 'AR');
-      } else {
-        appType = 'client';
-        await configBox.put('appType', 'client');
-      }
-      setState(() => serverFound = true);
-    }
-    // else {
-    //   setState(() => serverFound = false);
-    //   appType = 'client';
-    //   await configBox.put('appType', 'client');
-    // }
-  }
-
-  void startServer(
-    Set<WebSocketChannel> clients,
-    Function(Map<String, dynamic>) onDataReceived,
-  ) async {
-    try {
-      final server = await HttpServer.bind(InternetAddress.anyIPv4, 8383);
-
-      server.transform(WebSocketTransformer()).listen((WebSocket socket) {
-        handleWebSocket(socket, clients, onDataReceived);
-      });
-    } catch (e) {}
-  }
-
-  Map<String, String> seathiveOrderIds = {};
-
-  void handleWebSocket(
-    WebSocket socket,
-    Set<WebSocketChannel> clients,
-    Function(Map<String, dynamic>) onDataReceived,
-  ) {
-    this.channel = IOWebSocketChannel(socket);
-    clients.add(this.channel!);
-    // final itemProvider = Provider.of<ItemProvider>(context, listen: false);
-    // Map for handling messages triggered by the 'action' field
-    final Map<String, Future<void> Function(Map<String, dynamic>)>
-    actionHandlers = {
-      'hello': (data) async {
-        channel!.sink.add(
-          jsonEncode({
-            'action': 'response',
-            'message': 'Hello Client, message received!',
-          }),
+        final isLocalServerRunning = await isPortOpen(
+          localIp!,
+          int.parse(savedPort),
         );
-      },
 
-      'requestBranchwiseItems': (data) async {
-        try {
-          // Get the saved branchwiseItems data from your global data manager
-          final savedData = GlobalDataManager().branchwiseItems;
+        print("✅ Local server running status: $isLocalServerRunning");
 
-          if (savedData == null) {
-            // No data saved yet, send an error message or empty data
-            channel!.sink.add(
-              jsonEncode({
-                'action': 'branchwiseItemsError',
-                'message': 'No branchwise items data available.',
-              }),
-            );
-            return;
-          }
+        if (isLocalServerRunning) {
+          print("🚀 Starting in SERVER mode...");
+          appType = 'server';
+          await configBox.put('appType', 'server');
 
-          // Send the raw saved data directly, no alias or filtering
-          channel!.sink.add(
-            jsonEncode({
-              'action': 'branchwiseItems',
-              // optionally send a timestamp or some meta info if needed
-              'data': savedData,
-            }),
-          );
-        } catch (e) {
-          channel!.sink.add(
-            jsonEncode({
-              'action': 'branchwiseItemsError',
-              'message': 'Failed to send branchwise items.',
-            }),
-          );
+          print("⚙️ Launching Foreground service for SERVER...");
+          await ForegroundHelper.startIfNotRunning(appType: 'server');
+          print("🟢 Foreground service (server) started successfully.");
+          await Provider.of<ProductProvider>(
+            context,
+            listen: false,
+          ).fetchAllData(context);
+        } else {
+          print("❌ Local server not running on $localIp:$savedPort.");
         }
-        ;
-      },
+      } else {
+        // 🌐 Client Mode
+        print("📲 Detected as CLIENT device (savedIp != localIp).");
+        print(
+          "🔎 Checking if remote server $savedIp:$savedPort is reachable...",
+        );
 
-      'heartbeat': (data) async {
-        channel!.sink.add(jsonEncode({'action': 'heartbeatAck'}));
-      }, // inside your handleWebSocket(...) where you build actionHandlers:
+        final reachable = await isServerReachable(
+          savedIp,
+          int.parse(savedPort),
+        );
 
-      'seat_tapped': (data) async {
-        sendDataToClients(data, clients);
-      },
-      'seat_returned': (data) async {
-        sendDataToClients(data, clients);
-      },
+        print("🌍 Server reachability: $reachable");
 
-      'newClientConnected': (data) async {
-        await handleNewClientConnected(data, channel!);
-      },
+        if (reachable) {
+          print("🚀 Starting in CLIENT mode...");
+          appType = 'client';
+          await configBox.put('appType', 'client');
 
-      'reverseCancelOrderItem': (data) async {
-        final hiveOrderId = data['hiveOrderId'];
-        final int updatedIndex = data['updatedIndex'];
-        final double updatedQty = (data['updatedQuantity'] as num).toDouble();
-        final double updatedCancelledQty = (data['updatedCancelledQty'] as num)
-            .toDouble();
-        final double totalAmount = (data['totalAmount'] as num).toDouble();
-        final bool partiallycancelled = data['partiallycancelled'] == true;
-
-        // Notify clients
-        sendDataToClients({
-          'action': 'reverseCancelOrderItem',
-          'hiveOrderId': hiveOrderId,
-          'updatedIndex': updatedIndex,
-          'updatedQuantity': updatedQty,
-          'updatedCancelledQty': updatedCancelledQty,
-          'totalAmount': totalAmount,
-          'partiallycancelled': partiallycancelled,
-        }, clients);
-      },
-      'updatePrinterItems': (data) async {
-        final printer = data['printer'];
-        final printerName = printer['name'];
-        final updatedItems = printer['items'];
-
-        bool printerFound = false;
-        for (var entry in _receivedData) {
-          if (entry['action'] == 'printerDetails' &&
-              entry['name'] == printerName) {
-            entry['items'] =
-                updatedItems; // Update the items for the matched printer
-            printerFound = true;
-            break;
+          try {
+            print("⚙️ Launching Foreground service for CLIENT...");
+            await ForegroundHelper.startIfNotRunning(appType: 'client');
+            print("🟢 Foreground service (client) started successfully.");
+          } catch (e) {
+            print("🔥 Error while starting foreground service (client): $e");
+            if (mounted) {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text('WebSocket error: $e')));
+            }
           }
+        } else {
+          print("❌ Saved server not reachable at $savedIp:$savedPort.");
         }
+      }
 
-        if (!printerFound) {
-          _receivedData.add({
-            'action': 'printerDetails',
-            'name': printerName,
-            'ipAddress': printer['ipAddress'],
-            'type': printer['type'],
-            'items': updatedItems,
-            'orderSource': printer['orderSource'],
-          });
-        } else {}
+      // ✅ Finalize
+      if (mounted) {
+        print(
+          "✅ Server check complete — updating serverFoundNotifier to true.",
+        );
+        serverFoundNotifier.value = true;
+      }
+    } catch (e, stack) {
+      print("🔥 Exception caught in checkIfServerWasPreviouslyStored: $e");
+      print(stack);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error checking server: $e')));
+      }
+    }
 
-        // Save the updated printer details to Hive
-        await savePrinterDetailsToHive({
-          'action': 'printerDetails',
-          'name': printerName,
-          'ipAddress': printer['ipAddress'],
-          'type': printer['type'],
-          'items': updatedItems,
-          'orderSource': printer['orderSource'],
-        });
-
-        // Broadcast the updated printer details to all clients
-        sendDataToClients({
-          'action': 'updatePrinterItems',
-          'printer': {
-            'name': printerName,
-            'ipAddress': printer['ipAddress'],
-            'type': printer['type'],
-            'items': updatedItems,
-          },
-        }, clients);
-      },
-
-      'printerDetails': (data) async {
-        await savePrinterDetailsToHive(data);
-        _receivedData.add(data);
-        sendDataToClients(data, clients);
-      },
-    };
-
-    // Map for handling messages triggered by the 'type' field
-    final Map<String, Future<void> Function(Map<String, dynamic>)>
-    typeHandlers = {
-      'invoice': (data) async {
-        handleInvoice(data, clients);
-      },
-      'opSalesOrder': (data) async {
-        handleOpenSaleOrder(data);
-      },
-      'posInvoice': (data) async {
-        handleInvoice(data, clients);
-      },
-      'salesOrder': (data) async {
-        handleSaleOrder(data);
-      },
-      'patchSaleOrder': (data) async {
-        handlePatchSaleOrder(data);
-      },
-      'patchHoldOrder': (data) async {
-        handlePatchHoldOrder(data);
-      },
-      'postToApprove': (data) async {
-        handleToApproveOrder(data);
-      },
-      'modifySaleOrder': (data) async {
-        handleModifyOrder(data);
-      },
-      'cancelOrder': (data) async {
-        handlePatchSaleOrder(data);
-      },
-      'holdOrder': (data) async {
-        print("hold order data: $data");
-        handleHoldOrder(data);
-      },
-      'salesApprovalOrder': (data) async {
-        handleSalesApprovalOrder(data);
-      },
-      'newCustomer': (data) async {
-        handleSalesOrderAddCustomer(data);
-      },
-      'paymentDetails': (data) async {
-        paymentDetails = data;
-        _advanceController.text = data['advance'].toString();
-        // notifyListeners(); // Notify listeners about the state change
-      },
-      'placeOrderCliked': (data) async {
-        showPaymentScreen = true;
-        // notifyListeners(); // Notify listeners about the state change
-      },
-      'serverAliveRequest': (data) async {
-        final payload = {
-          'action': 'serverAliveResponse',
-          'message': 'Server is alive and running!',
-        };
-        channel!.sink.add(jsonEncode(payload));
-      },
-      'stockFromDispatch': (data) async {
-        try {
-          // Extract branch alias with fallback default
-          final branchAlias = (data['branches'] as String?)?.trim() ?? 'AR';
-          if (branchAlias.isEmpty) {
-            return;
-          }
-
-          // Extract dynamic lists safely
-          final varianceCodesDynamic = data['varianceCode'] as List<dynamic>?;
-          final varianceNamesDynamic = data['varianceNames'] as List<dynamic>?;
-          final stockUpdatesDynamic = data['stockUpdates'] as List<dynamic>?;
-
-          // Validate all required fields are present
-          if (varianceCodesDynamic == null ||
-              varianceNamesDynamic == null ||
-              stockUpdatesDynamic == null) {
-            return;
-          }
-
-          // Validate equal length
-          final len = varianceCodesDynamic.length;
-          if (varianceNamesDynamic.length != len ||
-              stockUpdatesDynamic.length != len) {
-            return;
-          }
-
-          // Convert to typed lists with trimming
-          final varianceCodes = varianceCodesDynamic
-              .map((e) => e.toString().trim())
-              .toList();
-          final varianceNames = varianceNamesDynamic
-              .map((e) => e.toString().trim())
-              .toList();
-          final stockUpdates = stockUpdatesDynamic.map((e) {
-            final qty = int.tryParse(e.toString());
-            return qty ?? 0;
-          }).toList();
-
-          // Validate stockUpdates values are positive integers
-          for (int i = 0; i < stockUpdates.length; i++) {
-            if (stockUpdates[i] <= 0) {
-              return;
-            }
-          }
-
-          // Debug print all inputs before update
-
-          // Call your stock update method
-          await updateLocalHiveStock(
-            branchAlias: branchAlias,
-            varianceCodes: varianceCodes,
-            varianceNames: varianceNames,
-            stockUpdates: stockUpdates,
-            clients: clients,
-          );
-        } catch (e, st) {}
-      }, //
-      'stockUpdateFromKot': (data) async {
-        try {
-          // Extract branch alias with fallback default
-          final branchAlias = (data['branchAlias'] as String?)?.trim() ?? 'AR';
-          if (branchAlias.isEmpty) {
-            return;
-          }
-
-          // Extract dynamic lists safely
-          final varianceCodesDynamic = data['varianceCode'] as List<dynamic>?;
-          final varianceNamesDynamic = data['varianceNames'] as List<dynamic>?;
-          final stockUpdatesDynamic = data['stockUpdates'] as List<dynamic>?;
-
-          // Validate all required fields are present
-          if (varianceCodesDynamic == null ||
-              varianceNamesDynamic == null ||
-              stockUpdatesDynamic == null) {
-            return;
-          }
-
-          // Validate equal length
-          final len = varianceCodesDynamic.length;
-          if (varianceNamesDynamic.length != len ||
-              stockUpdatesDynamic.length != len) {
-            return;
-          }
-
-          // Convert to typed lists with trimming
-          final varianceCodes = varianceCodesDynamic
-              .map((e) => e.toString().trim())
-              .toList();
-          final varianceNames = varianceNamesDynamic
-              .map((e) => e.toString().trim())
-              .toList();
-          final stockUpdates = stockUpdatesDynamic.map((e) {
-            final qty = int.tryParse(e.toString());
-            return qty ?? 0;
-          }).toList();
-
-          // Validate stockUpdates values are positive integers
-          for (int i = 0; i < stockUpdates.length; i++) {
-            if (stockUpdates[i] <= 0) {
-              return;
-            }
-          }
-
-          // Debug print all inputs before update
-
-          // Call your stock update method
-          await updateLocalHiveStock(
-            branchAlias: branchAlias,
-            varianceCodes: varianceCodes,
-            varianceNames: varianceNames,
-            stockUpdates: stockUpdates,
-            clients: clients,
-          );
-        } catch (e, st) {}
-      },
-      'addStockUpdateFromKot': (data) async {
-        try {
-          // Extract branch alias with fallback default
-          final branchAlias = (data['branchAlias'] as String?)?.trim() ?? 'AR';
-          if (branchAlias.isEmpty) {
-            return;
-          }
-
-          // Extract dynamic lists safely
-          final varianceCodesDynamic = data['varianceCode'] as List<dynamic>?;
-          final varianceNamesDynamic = data['varianceNames'] as List<dynamic>?;
-          final stockUpdatesDynamic = data['stockUpdates'] as List<dynamic>?;
-
-          // Validate all required fields are present
-          if (varianceCodesDynamic == null ||
-              varianceNamesDynamic == null ||
-              stockUpdatesDynamic == null) {
-            return;
-          }
-
-          // Validate equal length
-          final len = varianceCodesDynamic.length;
-          if (varianceNamesDynamic.length != len ||
-              stockUpdatesDynamic.length != len) {
-            return;
-          }
-
-          // Convert to typed lists with trimming
-          final varianceCodes = varianceCodesDynamic
-              .map((e) => e.toString().trim())
-              .toList();
-          final varianceNames = varianceNamesDynamic
-              .map((e) => e.toString().trim())
-              .toList();
-          final stockUpdates = stockUpdatesDynamic.map((e) {
-            final qty = int.tryParse(e.toString());
-            return qty ?? 0;
-          }).toList();
-
-          // Validate stockUpdates values are positive integers
-          for (int i = 0; i < stockUpdates.length; i++) {
-            if (stockUpdates[i] <= 0) {
-              return;
-            }
-          }
-
-          // Debug print all inputs before update
-
-          // Call your stock update method
-          await updateLocalHiveStock(
-            branchAlias: branchAlias,
-            varianceCodes: varianceCodes,
-            varianceNames: varianceNames,
-            stockUpdates: stockUpdates,
-            clients: clients,
-          );
-        } catch (e, st) {}
-      },
-      'decreaseStockUpdateFromKot': (data) async {
-        try {
-          // Extract branch alias with fallback default
-          final branchAlias = (data['branchAlias'] as String?)?.trim() ?? 'AR';
-          if (branchAlias.isEmpty) {
-            return;
-          }
-
-          // Extract dynamic lists safely
-          final varianceCodesDynamic = data['varianceCode'] as List<dynamic>?;
-          final varianceNamesDynamic = data['varianceNames'] as List<dynamic>?;
-          final stockUpdatesDynamic = data['stockUpdates'] as List<dynamic>?;
-
-          // Validate all required fields are present
-          if (varianceCodesDynamic == null ||
-              varianceNamesDynamic == null ||
-              stockUpdatesDynamic == null) {
-            return;
-          }
-
-          // Validate equal length
-          final len = varianceCodesDynamic.length;
-          if (varianceNamesDynamic.length != len ||
-              stockUpdatesDynamic.length != len) {
-            return;
-          }
-
-          // Convert to typed lists with trimming
-          final varianceCodes = varianceCodesDynamic
-              .map((e) => e.toString().trim())
-              .toList();
-          final varianceNames = varianceNamesDynamic
-              .map((e) => e.toString().trim())
-              .toList();
-          final stockUpdates = stockUpdatesDynamic.map((e) {
-            final qty = int.tryParse(e.toString());
-            return qty ?? 0;
-          }).toList();
-
-          // Validate stockUpdates values are positive integers
-          for (int i = 0; i < stockUpdates.length; i++) {
-            if (stockUpdates[i] <= 0) {
-              return;
-            }
-          }
-
-          // Debug print all inputs before update
-
-          // Call your stock update method
-          await decreaseLocalHiveStock(
-            branchAlias: branchAlias,
-            varianceCodes: varianceCodes,
-            varianceNames: varianceNames,
-            stockUpdates: stockUpdates,
-            clients: clients,
-          );
-        } catch (e, st) {}
-      },
-      'sentIp': (data) async {
-        // Retrieve the current device's WiFi IP using network_info_plus.
-        final info = NetworkInfo();
-        final myIp = await info.getWifiIP();
-
-        // Compare the received IP with the current device IP.
-        bool isSame = (data['ip'] == myIp);
-
-        // Optionally, show a dialog with the details.
-
-        // Send the current device IP, the received data, and the match result to the clients.
-        sendDataToClients({
-          'action': 'deviceIpGenerated',
-          'data': data,
-          'deviceIp': myIp,
-          'isSame': isSame,
-        }, clients);
-      },
-    };
-
-    // Listen for incoming messages from the WebSocket stream
-    channel!.stream.listen(
-      (message) async {
-        try {
-          if (message is String && message.trim().isNotEmpty) {
-            String fixedMessage = message.replaceAll("'", '"');
-            var data = jsonDecode(fixedMessage);
-
-            // Special handling for heartbeat
-            if (data.containsKey('action') && data['action'] == 'heartbeat') {
-              channel!.sink.add(jsonEncode({'action': 'heartbeatAck'}));
-              return;
-            }
-
-            // Process actions if present
-            if (data.containsKey('action') &&
-                actionHandlers.containsKey(data['action'])) {
-              await actionHandlers[data['action']]!(data);
-              return;
-            }
-
-            // Process types if present
-            if (data.containsKey('type') &&
-                typeHandlers.containsKey(data['type'])) {
-              await typeHandlers[data['type']]!(data);
-              return;
-            }
-          }
-        } catch (e) {}
-      },
-      onDone: () {
-        clients.remove(channel);
-      },
-      onError: (error) {
-        clients.remove(channel);
-      },
-    );
+    print("🔚 [checkIfServerWasPreviouslyStored] Finished execution.\n");
   }
 
-  Future<void> onDataReceived(Map<String, dynamic> data) async {
+  Future<bool> isPortOpen(String ip, int port) async {
+    try {
+      final socket = await Socket.connect(
+        ip,
+        port,
+        timeout: const Duration(milliseconds: 500),
+      );
+      socket.destroy();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Future<void> startServer(Set<WebSocketChannel> clients, Function(Map<String, dynamic>, WebSocketChannel) onDataReceived) async {
+  //   try {
+  //     final server = await HttpServer.bind(InternetAddress.anyIPv4, 8181);
+  //     print("✅ [SERVER] Started on port 8181");
+  //     print("===========================================");
+
+  //     await for (HttpRequest request in server) {
+  //       if (WebSocketTransformer.isUpgradeRequest(request)) {
+  //         final socket = await WebSocketTransformer.upgrade(request);
+  //         final channel = IOWebSocketChannel(socket);
+  //         final clientId = DateTime.now().millisecondsSinceEpoch.toString();
+
+  //         clients.add(channel);
+  //         clientIds[channel] = clientId;
+
+  //         print("🟢 [CLIENT CONNECTED] ID: $clientId");
+  //         print("📡 [TOTAL CONNECTED CLIENTS]: ${clients.length}");
+  //         print("-------------------------------------------");
+
+  //         handleWebSocket(channel, clients, (data) {
+  //           onDataReceived(data, channel);
+  //         });
+  //         channel.stream.listen(
+  //           (data) => onDataReceived(jsonDecode(data), channel),
+  //           onDone: () {
+  //             print("🔴 [CLIENT DISCONNECTED]");
+  //             clients.remove(channel);
+  //             print("📉 Active clients: ${clients.length}");
+  //           },
+  //           onError: (err) {
+  //             print("⚠️server WebSocket error: $err");
+  //             clients.remove(channel);
+  //           },
+  //         );
+  //       }
+  //     }
+  //   } catch (e, st) {
+  //     print("🔥 [SERVER START ERROR]: $e");
+  //   }
+  // }
+
+  Future<void> startServer(
+    Set<WebSocketChannel> clients,
+    Function(Map<String, dynamic>, WebSocketChannel) onDataReceived,
+  ) async {
+    if (_wsServer != null) {
+      print("ℹ️ Server already running.");
+      return;
+    }
+    try {
+      _wsServer = await HttpServer.bind(
+        InternetAddress.anyIPv4,
+        port,
+        shared: true,
+      );
+      _wsServer!.transform(WebSocketTransformer()).listen((WebSocket socket) {
+        final channel = IOWebSocketChannel(socket);
+        handleWebSocket(channel, clients, (data) {
+          onDataReceived(data, channel);
+        });
+      });
+      print("✅ WebSocket server started on port $port");
+    } catch (e) {
+      print("❌ Failed to start server: $e");
+      if (mounted) {
+        debugPrint('Failed to start server: $e');
+        // CustomSnackBar.show(
+        //   context,
+        //   'Failed to start server: $e',
+        //   type: SnackType.error,
+        // );
+      }
+    }
+  }
+
+  Future<void> onDataReceived(
+    Map<String, dynamic> data,
+    WebSocketChannel channel,
+  ) async {
     if (data != null) {
-      //for (var order in _receivedData) {}
-      if (data['action'] == 'seat_tapped') {
-        sendDataToClients(data, clients);
-      } else if (data['action'] == 'seat_returned') {
+      if (data['action'] == 'seat_tapped' ||
+          data['action'] == 'seat_returned') {
         sendDataToClients(data, clients);
       }
-      setState(() {
-        _receivedData.add(data);
-      });
-      // sendDataToClients(data, clients);
+
+      if (mounted) {
+        setState(() {
+          receivedData.add(data);
+        });
+      }
 
       if (data['action'] == 'updatePrinterItems') {
-        // Broadcast the updated printer data to all clients
         sendDataToClients({
           'action': 'updatePrinterItems',
           'printer': data['printer'],
         }, clients);
       }
+
       if (data['action'] == 'removePrinter') {
         handleRemovePrinter(data, clients);
       }
-    } else {}
+    }
   }
 
-  bool employeeIdVerified = false; // To track if the employee ID is correct
+  Future<void> proceedToDashboard(BuildContext context) async {
+    print("➡️ Proceeding to dashboard initialization...");
 
-  Future<void> proceedToDashboard() async {
-    // Step 0: Widget mount check
-    if (!mounted) {
+    if (!context.mounted) {
+      print("⚠️ Context not mounted, aborting dashboard navigation.");
       return;
     }
 
-    // Step 1: Alias name validation
     if (globals.aliasname == null || globals.aliasname!.trim().isEmpty) {
+      print("⚠️ Alias name is empty or null.");
       return;
     }
 
-    // Step 2: Initialize ItemProvider
-    final itemProvider = Provider.of<ItemProvider>(context, listen: false);
+    print("🏷 Alias name: ${globals.aliasname}");
 
-    // Step 3: Fetch branch name from alias
-    final branchName = await itemProvider.getBranchNameFromAlias(
-      globals.aliasname,
+    final itemProvider = Provider.of<ItemProvider>(context, listen: false);
+    final branchInfo = await itemProvider.getBranchInfoFromAlias(
+      globals.aliasname!,
     );
 
-    if (!mounted) {
+    if (branchInfo == null) {
+      print("❌ Branch info not found for alias: ${globals.aliasname}");
       return;
     }
 
-    // // // Fetch additional data if needed
-    // await itemProvider.fetchDataIfNeeded(branchAlias: globals.aliasname);
+    // Set globals safely
+    globals.branchName = branchInfo['branchName'] ?? 'Branch Not Found';
+    globals.branchAddress = branchInfo['address'] ?? 'Address Not Available';
+    globals.branchPhoneno = branchInfo['phone'] ?? 'Phone Not Available';
 
-    // Step 4: Validate fetched branch name
-    if (branchName == null || branchName == 'Branch Not Found') {
+    print("✅ Global branch info set:");
+    print("🏢 Name: ${globals.branchName}");
+    print("📍 Address: ${globals.branchAddress}");
+    print("📞 Phone: ${globals.branchPhoneno}");
+
+    // ✅ Use globals.branchName safely
+    if (!context.mounted) return;
+
+    if (globals.branchName == null ||
+        globals.branchName == 'Branch Not Found') {
+      print("❌ Branch not found for alias: ${globals.aliasname}");
       return;
     }
 
-    // Step 5: Set global variable
-    globals.branchName = branchName;
-
-    // Step 6: Proceed to shift check
     final url = Uri.parse(
       'https://yenerp.com/fastapi/shifts/check-open-shift?branch_name=${globals.branchName}',
     );
+
+    print("🌐 Sending request to check open shift: $url");
 
     final client = http.Client();
 
     try {
       final response = await client.get(url);
+      print("📩 Shift check response status: ${response.statusCode}");
+      print("📦 Response body: ${response.body}");
 
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 && response.body.isNotEmpty) {
         final data = jsonDecode(response.body);
+        print("✅ Decoded shift data: $data");
 
         globals.shiftId.value = data['shiftId']?.toString() ?? '0';
         globals.shiftNumber.value = data['shiftNumber']?.toString() ?? '0';
 
+        print("🆔 Shift ID: ${globals.shiftId.value}");
+        print("🔢 Shift Number: ${globals.shiftNumber.value}");
+
         int shiftNumberInt = int.tryParse(globals.shiftNumber.value) ?? 0;
-        if (shiftNumberInt != 0) {
-          if (mounted) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => ChooseModePage()),
-              );
-            });
+
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!context.mounted) return;
+
+          if (shiftNumberInt != 0) {
+            print("✅ Active shift found — navigating to ChooseModePage...");
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => ChooseModePage()),
+            );
+          } else {
+            print("⚠️ No open shift found — navigating to OpenShift page...");
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('No open shift found for today.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => OpenShift()),
+            );
           }
-        } else {
-          if (mounted) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('No open shift found for today.'),
-                  backgroundColor: Colors.orange,
-                ),
-              );
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => OpenShift()),
-              );
-            });
-          }
-        }
+        });
       } else {
-        if (mounted) {
+        print("❌ Failed to fetch shift data or response empty.");
+        if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Failed to fetch shift data.'),
@@ -1349,24 +423,31 @@ class _LoginScreenState extends State<LoginScreen> {
           );
         }
       }
-    } catch (e, stackTrace) {
-      if (mounted) {
+    } catch (e, stack) {
+      print("🔥 Error in proceedToDashboard: $e");
+      print(stack);
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
       client.close();
+      print("🔚 HTTP client closed.");
     }
   }
 
+  /// 📡 Discover server or create one if not found
   Future<void> discoverServerAndHandle() async {
-    final udp = await UDP.bind(Endpoint.any());
+    print("🔍 Starting server discovery via UDP...");
 
+    final udp = await UDP.bind(Endpoint.any());
     udp.send(
       utf8.encode('WHO_IS_SERVER'),
-      Endpoint.broadcast(port: const Port(33441)),
+      Endpoint.broadcast(port: const Port(56789)),
     );
+
+    print("📤 Broadcasted WHO_IS_SERVER on port 56789.");
 
     final serverBox = await Hive.openBox('serverBox');
     bool found = false;
@@ -1377,11 +458,14 @@ class _LoginScreenState extends State<LoginScreen> {
       )) {
         if (datagram != null) {
           final message = utf8.decode(datagram.data);
+          print("📨 Received UDP message: $message");
 
           if (message.startsWith('SERVER:')) {
             final parts = message.split(':');
             final ip = parts[1];
             final port = parts[2];
+
+            print("✅ Server discovered at $ip:$port");
 
             await serverBox.put('serverIp', ip);
             await serverBox.put('serverPort', port);
@@ -1393,43 +477,73 @@ class _LoginScreenState extends State<LoginScreen> {
 
             found = true;
             udp.close();
+            print("🧩 UDP listener closed after finding server.");
 
-            // Navigate safely
-            await proceedToDashboard();
+            await ForegroundHelper.startIfNotRunning(appType: 'client');
+
+            print("🚀 Foreground service started as client.");
+            await proceedToDashboard(context);
             break;
           }
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      print("❌ Error during server discovery: $e");
+    }
 
     if (!found && mounted) {
+      print("⚠️ No server found — prompting user to create one.");
+
       udp.close();
 
       showDialog(
         context: context,
         builder: (_) => NoServerDialog(
           onMakeServer: () async {
+            print("🛠 User chose to make this device the server.");
+
             final ip = await getLocalIp();
             if (ip != null) {
+              print("✅ Setting up server on local IP: $ip");
+
               final box = await Hive.openBox('serverBox');
               await box.put('serverIp', ip);
               await box.put('serverPort', port);
+
               final configBox = HiveManager().configBox;
               appType = 'server';
               await configBox.put('appType', 'server');
+
               Provider.of<ItemProvider>(
                 context,
                 listen: false,
               ).fetchDataIfNeeded(branchAlias: globals.aliasname);
+
               serverip = ip;
+
               setState(() {
                 serverFound = true;
               });
 
-              startUdpResponder(ip, udpPort);
-              startServer(clients, onDataReceived);
+              await ForegroundHelper.startIfNotRunning(appType: 'server');
+              print("⚙️ Foreground service started as server.");
 
-              proceedToDashboard();
+              startUdpResponder(ip, udpPort);
+              print("📡 UDP responder started on port $udpPort.");
+
+              startServer(clients, onDataReceived);
+              print("🧠 Local server started successfully.");
+              await Provider.of<ProductProvider>(
+                context,
+                listen: false,
+              ).fetchAllData(context);
+              await Provider.of<OrderProvider>(
+                context,
+                listen: false,
+              ).requestDataFromServer();
+              proceedToDashboard(context);
+            } else {
+              print("❌ Failed to get local IP — cannot start server.");
             }
           },
         ),
@@ -1437,7 +551,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> checkPendingApprovals(salesOrdersBox) async {
+  Future<void> checkPendingApprovals(Box salesOrdersBox) async {
     salesOrdersBox.toMap().forEach((key, value) {});
 
     salesOrdersBox.toMap().forEach((key, value) {
@@ -1515,7 +629,7 @@ class _LoginScreenState extends State<LoginScreen> {
     salesOrdersBox.toMap().forEach((key, value) {});
   }
 
-  Future<void> chequePendingDiscountApproval(holdOrderBox) async {
+  Future<void> chequePendingDiscountApproval(Box holdOrderBox) async {
     holdOrderBox.toMap().forEach((key, value) {});
 
     holdOrderBox.toMap().forEach((key, value) {
@@ -1601,9 +715,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // 2) Start your foreground service at the very first run (if you want)
       await ForegroundHelper.init();
-      await ForegroundHelper.startIfNotRunning();
+      await ForegroundHelper.startIfNotRunning(appType: 'server');
     });
-
     final loginProvider = Provider.of<LoginProvider>(context);
     return Scaffold(
       backgroundColor: Colors.white,
@@ -1736,34 +849,67 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                                 const SizedBox(height: 25),
 
-                                // Login button
+                                // 🧠 Login Button Widget
                                 SizedBox(
                                   width: double.infinity,
                                   child: ElevatedButton(
                                     onPressed: loginProvider.isSigningIn
                                         ? null
                                         : () async {
+                                            print("🔹 Login button clicked.");
+
+                                            // 🧠 Remove focus from all TextFields (hide keyboard)
+                                            FocusScope.of(context).unfocus();
+
                                             bool loginSuccess =
                                                 await loginProvider.loginUser(
                                                   context,
                                                 );
+                                            print(
+                                              "✅ Login success: $loginSuccess",
+                                            );
 
                                             if (loginSuccess) {
+                                              print(
+                                                "🔍 Checking if server is already found...",
+                                              );
                                               if (serverFound) {
+                                                print(
+                                                  "✅ Server previously found: $serverip",
+                                                );
                                                 bool isAlive =
                                                     await isServerReachable(
                                                       serverip,
-                                                      8383,
+                                                      8181,
                                                     );
+                                                print(
+                                                  "🌐 Server reachable: $isAlive",
+                                                );
+
                                                 if (isAlive) {
-                                                  await proceedToDashboard();
+                                                  print(
+                                                    "🚀 Proceeding to dashboard...",
+                                                  );
+                                                  await proceedToDashboard(
+                                                    context,
+                                                  );
                                                 } else {
+                                                  print(
+                                                    "⚠️ Server not reachable — discovering again...",
+                                                  );
                                                   await discoverServerAndHandle();
                                                 }
                                               } else {
+                                                print(
+                                                  "🔎 No existing server found — starting discovery...",
+                                                );
                                                 await discoverServerAndHandle();
                                               }
-                                            } else {}
+                                            } else {
+                                              print(
+                                                "❌ Login failed — staying on login screen.",
+                                              );
+                                            }
                                           },
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.blue.shade800,
@@ -1786,7 +932,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                   ),
                                 ),
-
                                 const SizedBox(height: 25),
 
                                 Divider(
@@ -1862,5 +1007,15 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _syncTimer?.cancel();
+    _patchCheckTimer?.cancel();
+    _approvalCheckTimer?.cancel();
+    _advanceController.dispose();
+    serverFoundNotifier.dispose();
+    super.dispose();
   }
 }

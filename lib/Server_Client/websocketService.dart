@@ -1,1240 +1,959 @@
+// import 'dart:async';
+// import 'dart:convert';
+// import 'dart:io';
+// import 'package:flutter/foundation.dart';
+// import 'package:hive/hive.dart';
+// import 'package:web_socket_channel/io.dart';
+// import 'package:web_socket_channel/web_socket_channel.dart';
+// import 'package:yenpos/Global/globals_data.dart' as globals;
+// import 'package:yenpos/Sale_order/Print_Receipt/invoicePrint.dart';
+// import 'package:yenpos/Sale_order/Provider/customerScreen_provider.dart';
+// import 'package:yenpos/Server_Client/handlers/message_Router.dart';
+
+
+// class WebSocketService with ChangeNotifier {
+//   static WebSocketService? _instance;
+
+//   final CustomerScreenProvider customerProvider;
+//   final SalesInvoiceReceiptPrinter receiptPrinter;
+
+//   WebSocketService._(this.customerProvider, this.receiptPrinter);
+
+//   static WebSocketService get instance {
+//     if (_instance == null) {
+//       throw StateError('WebSocketService not initialized.');
+//     }
+//     return _instance!;
+//   }
+
+//   static void init(
+//     CustomerScreenProvider customerProvider,
+//     SalesInvoiceReceiptPrinter receiptPrinter,
+//   ) {
+//     _instance ??= WebSocketService._(customerProvider, receiptPrinter);
+//   }
+
+//   WebSocketChannel? channel;
+//   StreamSubscription? _subscription;
+//   bool _isConnected = false;
+//   bool _isConnecting = false;
+
+//   final String deviceName = globals.deviceName ?? 'POS1';
+//   final String clientId = DateTime.now().millisecondsSinceEpoch.toString();
+
+//   // ✅ CONNECT
+//   void connect() {
+//     if (_isConnected || _isConnecting) {
+//       return;
+//     }
+
+//     _isConnecting = true;
+//     final uri = 'ws://${globals.serverip}:${globals.port}';
+
+//     try {
+//       channel = IOWebSocketChannel.connect(uri);
+
+//       _subscription = channel!.stream.listen(
+//         (message) => _handleIncoming(message),
+//         onError: (err) {
+//           _handleDisconnect();
+//         },
+//         onDone: () {
+//           _handleDisconnect();
+//         },
+//         cancelOnError: true,
+//       );
+
+//       _isConnected = true;
+//       _isConnecting = false;
+
+//       _send({
+//         'action': 'newClientConnected',
+//         'deviceName': deviceName,
+//         'clientId': clientId,
+//         'message': 'client_register',
+//       });
+//     } catch (e, st) {
+//       _isConnected = false;
+//       _isConnecting = false;
+//     }
+//   }
+
+//   // ✅ DISCONNECT
+//   void _handleDisconnect() {
+//     _isConnected = false;
+//     _isConnecting = false;
+//     try {
+//       _subscription?.cancel();
+//       channel?.sink.close();
+//     } catch (_) {}
+//     _subscription = null;
+//     channel = null;
+//   }
+
+//   void disconnect() {
+//     _handleDisconnect();
+//   }
+
+//   Future<void> reconnect() async {
+//     disconnect();
+//     connect();
+//   }
+
+//   // ✅ SEND
+//   void _send(Map<String, dynamic> data) {
+//     if (!_isConnected || channel == null) {
+//       return;
+//     }
+//     try {
+//       final msg = jsonEncode(data);
+//       channel!.sink.add(msg);
+//     } catch (e) {
+//     }
+//   }
+
+//   void sendMessage(Map<String, dynamic> data) => _send(data);
+
+//   // ✅ RECEIVE
+//   Future<void> _handleIncoming(dynamic message) async {
+//     try {
+//       final msgStr = message.toString();
+//       await MessageRouter.handle(
+//         msgStr,
+//         customerProvider,
+//         receiptPrinter,
+//         this,
+//       );
+//     } catch (e, st) {
+//     }
+//   }
+
+//   String _shorten(String s, [int limit = 200]) =>
+//       s.length <= limit ? s : '${s.substring(0, limit)}...';
+// }
+
+// unified_websocket_service.dart
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
-import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:provider/provider.dart';
 
-import 'package:collection/collection.dart';
-import 'package:synchronized/synchronized.dart';
+// --- Your project imports (adjust paths as necessary) ---
 import 'package:yenpos/Global/globals_data.dart' as globals;
-import 'package:yenpos/Hive_Manager/hive_manager_saleOrder.dart';
+import 'package:yenpos/Server_Client/handlers/message_Router.dart';
+import 'package:yenpos/Server_Client/handlers/websocket_handler.dart';
+import 'package:yenpos/kotpreinvoice/models/globals.dart';
 import 'package:yenpos/Sale_order/Print_Receipt/invoicePrint.dart';
 import 'package:yenpos/Sale_order/Provider/customerScreen_provider.dart';
+import 'package:yenpos/Server_Client/handlers/message_Router.dart';
+import 'package:yenpos/kotpreinvoice/models/globals.dart' as kotGlobals;
+import 'package:yenpos/Server_Client/sendDataToClients.dart'; // sendDataToClientsKOT
+import 'package:yenpos/kotpreinvoice/models/printer.dart' show Printer;
+import 'package:yenpos/kotpreinvoice/providers/order_provider.dart';
+import 'package:yenpos/kotpreinvoice/providers/order_type_provider.dart';
+import 'package:yenpos/kotpreinvoice/providers/printer_provider.dart';
+import 'package:yenpos/kotpreinvoice/providers/upi_provider.dart';
+import 'package:yenpos/kotpreinvoice/services/sendDataToClients.dart';
+import 'package:yenpos/loginPage/provider/loginPageProvider.dart';
+import 'package:yenpos/main.dart';
 
-class PatchHandler {
-  static Box<String>? _messageBox;
-  static const String _boxName = 'processedMessages';
-  static const Duration _messageExpiry = Duration(minutes: 30);
-  static final _lock = Lock(); // Synchronization lock
-
-  // Initialize Hive box for processed messages
-  static Future<void> init() async {
-    _messageBox = await Hive.openBox<String>(_boxName);
-  }
-
-  // Check if messageId has been processed
-  static bool containsMessage(String messageId) {
-    return _messageBox?.containsKey(messageId) ?? false;
-  }
-
-  // Mark messageId as processed with timestamp
-  static void addProcessedMessage(String messageId) {
-    _messageBox?.put(messageId, DateTime.now().toIso8601String());
-  }
-
-  // Remove processed message
-  static void removeMessage(String messageId) {
-    _messageBox?.delete(messageId);
-  }
-
-  // Clear expired messages
-  static void clearExpiredMessages() {
-    final now = DateTime.now();
-    _messageBox?.toMap().forEach((key, value) {
-      try {
-        final timestamp = DateTime.parse(value);
-        if (now.difference(timestamp) > _messageExpiry) {
-          _messageBox?.delete(key);
-        }
-      } catch (e) {
-        debugPrint('❌ Error parsing timestamp for message $key: $e');
-      }
-    });
-  }
-}
-
+// -----------------------------------------------------
+// Unified WebSocket Service - supports server & client
+// -----------------------------------------------------
 class WebSocketService with ChangeNotifier {
-  late WebSocketChannel channel;
+  // SINGLETON (optional) - comment out if you prefer multiple instances
   static WebSocketService? _instance;
+  static WebSocketService get instance {
+    if (_instance == null) {
+      throw StateError('UnifiedWebSocketService not initialized. Call init(...) first.');
+    }
+    return _instance!;
+  }
+
+  static void init({
+    required OrderProvider orderProvider,
+    required PrinterProviderDine printerProvider,
+    required OrderTypeProviderDine orderTypeProvider,
+    required LoginProvider loginProvider,
+    required UpiProviderDine upiProvider,
+    required CustomerScreenProvider customerProvider,
+    required SalesInvoiceReceiptPrinter receiptPrinter,
+  }) {
+    _instance ??= WebSocketService._(
+      orderProvider: orderProvider,
+      printerProvider: printerProvider,
+      orderTypeProvider: orderTypeProvider,
+      loginProvider: loginProvider,
+      upiProvider: upiProvider,
+      customerProvider: customerProvider,
+      receiptPrinter: receiptPrinter,
+    );
+  }
+
+  // --- Dependencies ---
+  final OrderProvider orderProvider;
+  final PrinterProviderDine printerProvider;
+  final OrderTypeProviderDine orderTypeProvider;
+  final LoginProvider loginProvider;
+  final UpiProviderDine upiProvider;
+  final CustomerScreenProvider customerProvider;
+  final SalesInvoiceReceiptPrinter receiptPrinter;
+
+  WebSocketService._({
+    required this.orderProvider,
+    required this.printerProvider,
+    required this.orderTypeProvider,
+    required this.loginProvider,
+    required this.upiProvider,
+    required this.customerProvider,
+    required this.receiptPrinter,
+  }) {
+    initializeHiveAndStart();
+  }
+
+  // --- State ---
+  WebSocketChannel? channel;
+  StreamSubscription? _subscription;
+  bool _isConnected = false;
+  bool _isConnecting = false;
+
+  HttpServer? _wsServer;
+  final List<WebSocketChannel> _clients = []; // local connected clients (server mode)
+  final Map<String, String> _itemPrinterIpCache = {};
+
   Timer? _heartbeatTimer;
   Timer? _reconnectTimer;
-  bool _isConnected = false;
-  File? img1;
-  File? img2;
-  int _messageReceivedCount = 0;
-  final CustomerScreenProvider receiptPrinter;
-  final Set<String> _processedOrders = {};
-  final Set<String> _processedinvoiceOrders = {};
-  // Map to track how many times each sale order was received and when
-  final Map<String, List<DateTime>> patchReceiptLog = {};
-  final Set<String> _processedModifyOrders = {};
-  final Set<String> _processedToApproveOrders = {};
-  final Set<String> _processedHoldOrders = {};
-  final Map<String, Timer> _debounceTimers = {};
-  final SalesInvoiceReceiptPrinter saleInvoicereceiptPrinter;
-  factory WebSocketService(
-    CustomerScreenProvider receiptPrinter,
-    SalesInvoiceReceiptPrinter printer,
-  ) {
-    return _instance ??= WebSocketService._internal(receiptPrinter, printer);
-  }
-  // Keep track of processed sale orders to avoid duplicate prints
-  final Set<String> processedPatchOrders = {};
-  // WebSocketService(this.receiptPrinter, this.saleInvoicereceiptPrinter) {
-  //   _connect();
-  // }
-  final Set<String> _processedMessageIds = {}; // Track processed message IDs
-  // final Set<String> _processedPatchOrders = {};
-  WebSocketService._internal(
-    this.receiptPrinter,
-    this.saleInvoicereceiptPrinter,
-  ) {
-    connect();
-  }
-  int patchSaleOrderReceivedCount = 0;
-  StreamSubscription? _subscription;
-  // Keep this global in client
-  // 🔹 Global Counters & Trackers
-  int serverSendCount = 0;
-  int clientSendCount = 0;
-  int clientReceiveCount = 0;
+  bool _dialogShown = false;
 
-  final Map<String, int> serverSendTracker = {};
-  final Map<String, int> clientSendTracker = {};
-  final Map<String, int> clientReceiveTracker = {};
-  final Map<String, DateTime> patchProcessedOrders = {};
-  void connect() {
-    if (_isConnected || _subscription != null)
-      return; // Prevent duplicate connections
+  bool get isConnected => _isConnected;
+  List<Map<String, dynamic>> _receivedActions = [];
+  List<Map<String, dynamic>> _receivedOrders = [];
+
+  List<Map<String, dynamic>> get receivedActions => _receivedActions;
+  List<Map<String, dynamic>> get receivedOrders => _receivedOrders;
+
+  // --- Initialization ---
+  Future<void> initializeHiveAndStart() async {
+    try {
+      // open serverBox if not already open (your previous code used this)
+      if (!Hive.isBoxOpen('serverBox')) {
+        await Hive.openBox('serverBox');
+      }
+      // print some debug
+      debugPrint('UnifiedWebSocketService: serverip=${globals.serverip}, appType=${globals.appType}');
+      if (globals.appType == 'server') {
+        await _startLocalWebSocketServer();
+        debugPrint('UnifiedWebSocketService: server mode - local WebSocket server started.');
+      } else {
+        // only start client logic; actual connect may be triggered later by UI
+        debugPrint('UnifiedWebSocketService: client mode - ready to connect.');
+        // optionally auto-connect:
+        // connect();
+      }
+    } catch (e, st) {
+      debugPrint('Error during initializeHiveAndStart: $e\n$st');
+    }
+  }
+   void sendMessage(Map<String, dynamic> data) => _sendClient(data);
+  
+
+  // -------------------------
+  // Local WebSocket SERVER
+  // -------------------------
+  Future<void> _startLocalWebSocketServer() async {
+    if (_wsServer != null) {
+      debugPrint('WebSocket server already running.');
+      return;
+    }
+
+    final int port = globals.port ?? 8080;
 
     try {
-      channel = IOWebSocketChannel.connect(
-        'ws://${globals.serverip}:${globals.port}',
+      _wsServer = await HttpServer.bind(
+        InternetAddress.anyIPv4,
+        port,
+        shared: true,
       );
-      _isConnected = true;
-      WebSocketChannel? _channel;
-      StreamSubscription? _sub;
 
-      _subscription = channel.stream.listen(
+      _wsServer!
+          .transform(WebSocketTransformer())
+          .listen((WebSocket socket) {
+        final channel = IOWebSocketChannel(socket);
+        _clients.add(channel);
+        debugPrint('New client connected (local server). total clients=${_clients.length}');
+
+        // optional: notify new client that server is ready
+        try {
+          channel.sink.add(jsonEncode({
+            'action': 'server_connected',
+            'message': 'Welcome client',
+            'serverTime': DateTime.now().toIso8601String(),
+          }));
+        } catch (_) {}
+
+        // setup message handling for this client
+        channel.stream.listen((data) {
+          try {
+            // router in your original server handled Map or String - we reuse _handleIncomingMessage
+            _handleIncomingMessage(data, channel: channel);
+          } catch (e, st) {
+            debugPrint('Error handling message from client: $e\n$st');
+          }
+        }, onError: (err) {
+          debugPrint('Local client error: $err');
+        }, onDone: () {
+          debugPrint('Local client disconnected.');
+          _clients.remove(channel);
+        }, cancelOnError: true);
+      }, onError: (err) {
+        debugPrint('Local WebSocket server listen error: $err');
+      });
+
+      debugPrint('Local WebSocket server started on port $port');
+    } catch (e, st) {
+      debugPrint('Failed to start local WebSocket server: $e\n$st');
+      _wsServer = null;
+    }
+  }
+
+  // Broadcast helper for server mode
+  void _broadcastToLocalClients(Map<String, dynamic> data) {
+    final msg = jsonEncode(data);
+    for (final c in List<WebSocketChannel>.from(_clients)) {
+      try {
+        c.sink.add(msg);
+      } catch (e) {
+        debugPrint('Failed to send to a local client, removing: $e');
+        try {
+          c.sink.close();
+        } catch (_) {}
+        _clients.remove(c);
+      }
+    }
+  }
+
+  // -------------------------
+  // WebSocket CLIENT
+  // -------------------------
+  Future<void> connect() async {
+    if (_isConnected || _isConnecting) {
+      debugPrint('connect: already connected/connecting -> skip');
+      return;
+    }
+
+    final serverip = globals.serverip;
+    final port = globals.port;
+    if (serverip == null || serverip.isEmpty) {
+      debugPrint('connect: serverip not set');
+      return;
+    }
+
+    _isConnecting = true;
+    final uri = 'ws://$serverip:$port';
+    try {
+      debugPrint('connect: connecting to $uri');
+      channel = IOWebSocketChannel.connect(
+        uri,
+        // optional connect timeout is currently not exposed by IOWebSocketChannel.connect
+      );
+
+      _subscription = channel!.stream.listen(
         (message) {
-          // print('Received raw WebSocket message: $message');
-          handleMessage(message);
+          _handleIncomingMessage(message);
         },
-        onError: (error) {
-          // print('WebSocket error: $error');
-          _isConnected = false;
-          _subscription?.cancel();
-          _subscription = null;
-          _scheduleReconnect();
+        onError: (err) {
+          debugPrint('Client WebSocket error: $err');
+          _handleDisconnect();
         },
         onDone: () {
-          _isConnected = false;
-          _subscription?.cancel();
-          _subscription = null;
-          _scheduleReconnect();
+          debugPrint('Client WebSocket done');
+          _handleDisconnect();
         },
+        cancelOnError: true,
       );
 
-      sendMessage({'action': 'hello', 'message': 'Hello Server'});
-      _startHeartbeat();
-
-      // Removed unreachable shutdown() function to eliminate dead code.
-    } catch (e) {
-      _isConnected = false;
-      _scheduleReconnect();
-    }
-  }
-
-  Map<String, String> _printedOrders = {}; // instead of bool
-  @override
-  void dispose() {
-    _subscription?.cancel();
-    channel.sink.close();
-    _heartbeatTimer?.cancel();
-    _reconnectTimer?.cancel();
-    super.dispose();
-  }
-
-  final Set<String> _processedPatchOrders = {};
-  List<Map<String, dynamic>> _cachedOrders = [];
-
-  Future<void> putOrder(dynamic key, Map<String, dynamic> order) async {
-    await HiveManager.salesOrderBox.put(key, order);
-    await HiveManager.salesOrderBox.flush();
-    await HiveManager.salesOrderBox.compact();
-  }
-
-  Future<void> handlePatchSaleOrderMessage(
-    Map<String, dynamic> messageData,
-  ) async {
-    if (PatchHandler._messageBox == null) {
-      await PatchHandler.init();
-    }
-
-    await PatchHandler._lock.synchronized(() async {
-      try {
-        PatchHandler.clearExpiredMessages();
-
-        // Extract messageId
-        final messageId =
-            messageData['messageId']?.toString() ??
-            messageData['patchSaleOrder']?['messageId']?.toString();
-
-        // Extract salesOrderNo
-        final salesOrderId =
-            messageData['saleOrderNo']?.toString() ??
-            messageData['patchSaleOrder']?['saleOrderNo']?.toString() ??
-            messageData['patchSaleOrder']?['data']?['saleOrderNo']?.toString();
-
-        if (salesOrderId == null) {
-          return;
-        }
-
-        if (PatchHandler.containsMessage(salesOrderId)) {
-          return;
-        }
-
-        // ✅ Extract patch data safely
-        final rawPatchData = messageData['patchSaleOrder']?['data'];
-        final Map<String, dynamic> patchData = rawPatchData != null
-            ? Map<String, dynamic>.from(rawPatchData as Map)
-            : {};
-
-        if (patchData.isEmpty) {
-          return;
-        }
-
-        // Get Hive box
-        final salesOrdersBox = HiveManager.salesOrderBox;
-        final allEntries = salesOrdersBox.toMap();
-
-        // Find matching entries
-        final matchingEntries = allEntries.entries.where((entry) {
-          final entryData = entry.value['data'] ?? entry.value;
-          return entryData is Map && entryData['saleOrderNo'] == salesOrderId;
-        }).toList();
-
-        if (matchingEntries.isEmpty) {
-          return;
-        }
-
-        // Handle duplicates
-        if (matchingEntries.length > 1) {
-          matchingEntries.sort(
-            (a, b) => (b.value['lastUpdated'] ?? '').compareTo(
-              a.value['lastUpdated'] ?? '',
-            ),
-          );
-          for (var entry in matchingEntries.skip(1)) {
-            await salesOrdersBox.delete(entry.key);
-          }
-        }
-
-        // Ensure correct key
-        final targetEntry = matchingEntries.firstWhere(
-          (entry) => entry.key == salesOrderId,
-          orElse: () => matchingEntries.first,
-        );
-
-        if (targetEntry.key != salesOrderId) {
-          try {
-            await salesOrdersBox.put(salesOrderId, targetEntry.value);
-            await salesOrdersBox.delete(targetEntry.key);
-          } catch (e) {
-            return;
-          }
-        }
-
-        // Mark message processed
-        PatchHandler.addProcessedMessage(salesOrderId);
-
-        // Extract existing order
-        final updatedOrder = Map<String, dynamic>.from(targetEntry.value);
-        Map<String, dynamic> orderData;
-
-        if (updatedOrder['data'] is Map) {
-          orderData = Map<String, dynamic>.from(updatedOrder['data']);
-        } else {
-          orderData = Map<String, dynamic>.from(updatedOrder);
-          updatedOrder.clear();
-          updatedOrder['data'] = orderData;
-        }
-
-        // ✅ Merge patch into existing data
-        orderData.addAll(patchData);
-        updatedOrder['data'] = orderData;
-        updatedOrder['lastUpdated'] = DateTime.now().toIso8601String();
-        updatedOrder['patchId'] = messageId;
-
-        try {
-          await putOrder(salesOrderId, updatedOrder);
-
-          final savedOrder = salesOrdersBox.get(salesOrderId);
-
-          notifyListeners();
-        } catch (e) {
-          PatchHandler.removeMessage(salesOrderId);
-          return;
-        }
-      } catch (e, stackTrace) {}
-    });
-  }
-
-  Future<void> _patchSaleOrder(Map<String, dynamic> patchData) async {
-    final box = HiveManager.salesOrderBox;
-    final newSaleOrderNo = patchData['salesOrderId'];
-
-    int? existingKey;
-    dynamic matchedOrder;
-
-    for (var key in box.keys) {
-      final value = box.get(key);
-      if (value is Map &&
-          (value['saleOrderNo'] == newSaleOrderNo ||
-              value['id'] == patchData['id'])) {
-        existingKey = key;
-        matchedOrder = value;
-        break;
-      }
-    }
-
-    if (existingKey != null) {
-      await box.put(existingKey, patchData);
-    } else {
-      await box.add(patchData);
-    }
-  }
-
-  Future<void> _patchHoldOrder(Map<String, dynamic> patchData) async {
-    final box = HiveManager.holdOrderBox;
-    final holdOrderId = patchData['holdOrderId'];
-    if (holdOrderId == null) {
-      print('⚠️ patchData missing holdOrderId. Skipping.');
-      return;
-    }
-
-    dynamic existingKey;
-    dynamic existingOrder;
-
-    for (var key in box.keys) {
-      final value = box.get(key);
-      if (value is Map && value['holdOrderId'] == holdOrderId) {
-        existingKey = key;
-        existingOrder = value;
-        break;
-      }
-    }
-
-    if (existingKey != null) {
-      print('🔁 Patching existing hold order with ID: $holdOrderId');
-
-      // Merge existing data with new data
-      final updatedOrder = {...existingOrder, ...patchData};
-
-      await box.put(existingKey, updatedOrder);
-    } else {
-      print('🆕 Adding new hold order with ID: $holdOrderId');
-      await box.add(patchData);
-    }
-  }
-
-  Future<void> handleMessage(dynamic message) async {
-    try {
-      final jsonData = jsonDecode(message);
-      // print('✅ Decoded JSON: $jsonData');
-
-      final action = jsonData['action'];
-
-      switch (action) {
-        case 'invoiceGenerated':
-          final invoice = jsonData['invoice'];
-
-          if (invoice == null) {
-            break;
-          }
-
-          final salesOrder = invoice['salesOrderId'];
-
-          if (salesOrder != null && salesOrder is Map<String, dynamic>) {
-            // Step 2: Generate unique identifier
-            String generatedUniqueId =
-                '${salesOrder['invoiceDate']}-${salesOrder['totalAmount']}-${salesOrder['orderInvoiceNo']}';
-
-            // Step 3: Add fields to invoice object before saving
-            invoice['uniqueIdentifier'] =
-                invoice['uniqueIdentifier'] ?? generatedUniqueId;
-
-            // Step 4: Add metadata to salesOrder
-            invoice['salesOrderId']['type'] = invoice['type'];
-            invoice['salesOrderId']['sync'] = invoice['sync'];
-            invoice['salesOrderId']['edit'] = invoice['edit'];
-
-            // ✅ Step 5: Check duplicates before saving
-            final invoiceBox = HiveManager.invoiceBox;
-            final orderInvoiceNo = salesOrder['orderInvoiceNo']?.toString();
-
-            if (orderInvoiceNo != null && orderInvoiceNo.isNotEmpty) {
-              if (!invoiceBox.containsKey(orderInvoiceNo)) {
-                // Only save if not already stored
-                try {
-                  await saveInvoiceToHive(invoice);
-
-                  final orders = await getInvoiceOrders();
-                } catch (e, st) {}
-              } else {
-                debugPrint(
-                  "⚠️ Duplicate invoice event skipped: $orderInvoiceNo",
-                );
-              }
-            }
-          }
-
-          // Step 6: Update receipt printer
-          receiptPrinter.updateInvoiceReceiptData(salesOrder);
-
-          // Step 7: Notify listeners
-          notifyListeners();
-
-          break;
-        case 'stockDecreaseUpdate':
-          final branchAliseName = jsonData['branchAlias'];
-          final varianceCode = jsonData['varianceCode'];
-          final varianceName = jsonData['varianceName'];
-          final updatedStock = jsonData['updatedStock'];
-          // await handleStockDecreaseUpdate(decoded);
-          break;
-        case 'OpSalesOrderGenerated':
-          final salesOrder = jsonData['opSalesOrder'];
-          if (salesOrder == null || salesOrder is! Map<String, dynamic>) {
-            return;
-          }
-
-          final orderData = salesOrder['data'] ?? {};
-          if (orderData is! Map<String, dynamic>) {
-            return;
-          }
-
-          final saleOrderNo = orderData['saleOrderNo']?.toString();
-          if (saleOrderNo == null || saleOrderNo.isEmpty) {
-            return;
-          }
-
-          // Debounce based on saleOrderNo
-          if (_debounceTimers.containsKey(saleOrderNo)) {
-            return;
-          }
-
-          // Set debounce timer for this saleOrderNo
-          _debounceTimers[saleOrderNo] = Timer(Duration(milliseconds: 500), () {
-            _debounceTimers.remove(saleOrderNo); // Clear timer after processing
-          });
-
-          // Add metadata
-          orderData['type'] = 'opSalesOrder';
-
-          // Check in-memory cache
-          if (_processedOrders.contains(saleOrderNo)) {
-            return;
-          }
-
-          // Check Hive storage
-          final salesOrderBox = HiveManager.salesOrderBox;
-          if (salesOrderBox.containsKey(saleOrderNo)) {
-            _processedOrders.add(saleOrderNo);
-            return;
-          }
-
-          // Save to Hive
-          try {
-            await salesOrderBox.put(saleOrderNo, orderData);
-            _processedOrders.add(saleOrderNo);
-
-            // Update receipt printer
-            final orders = await getSavedSalesOrders();
-
-            notifyListeners();
-          } catch (e) {
-            _processedOrders.remove(saleOrderNo); // Allow retry on failure
-          }
-          break;
-        case 'salesOrderGenerated':
-          final salesOrder = jsonData['salesOrder'];
-          if (salesOrder == null || salesOrder is! Map<String, dynamic>) {
-            return;
-          }
-
-          // Extract and print file paths
-          final audioPath =
-              salesOrder["data"]?['audioPath'] ?? '❌ No audio path found';
-          final image1Path =
-              salesOrder["data"]?['imagePath1'] ?? '❌ No image1 path found';
-          final image2Path =
-              salesOrder["data"]?['imagePath2'] ?? '❌ No image2 path found';
-
-          final orderData = salesOrder['data'] ?? {};
-          if (orderData is! Map<String, dynamic>) {
-            return;
-          }
-
-          final saleOrderNo = orderData['saleOrderNo']?.toString();
-          if (saleOrderNo == null || saleOrderNo.isEmpty) {
-            return;
-          }
-
-          // Debounce based on saleOrderNo
-          if (_debounceTimers.containsKey(saleOrderNo)) {
-            return;
-          }
-
-          _debounceTimers[saleOrderNo] = Timer(Duration(milliseconds: 500), () {
-            _debounceTimers.remove(saleOrderNo);
-          });
-
-          // Add metadata and paths
-          orderData['type'] = 'salesOrder';
-          orderData['audioPath'] = audioPath;
-          orderData['imagePath1'] = image1Path;
-          orderData['imagePath2'] = image2Path;
-
-          // Check in-memory cache
-          if (_processedOrders.contains(saleOrderNo)) {
-            return;
-          }
-
-          // Check Hive storage
-          final salesOrderBox2 = HiveManager.salesOrderBox;
-          if (salesOrderBox2.containsKey(saleOrderNo)) {
-            _processedOrders.add(saleOrderNo);
-            return;
-          }
-
-          // Save to Hive
-          try {
-            await salesOrderBox2.put(saleOrderNo, orderData);
-
-            _processedOrders.add(saleOrderNo);
-
-            // Debug: show content of Hive box
-            for (var key in salesOrderBox2.keys) {}
-
-            // Update receipt printer
-            final encoder = JsonEncoder.withIndent('  ');
-            final orders = await getSavedSalesOrders();
-
-            if (orders.isNotEmpty) {
-              receiptPrinter.updateReceiptData(orderData);
-            } else {}
-
-            notifyListeners();
-          } catch (e) {
-            _processedOrders.remove(saleOrderNo);
-          }
-
-          break;
-        case 'holdOrderGenerated':
-          final salesOrder = jsonData['holdOrder'];
-          print('📩 Received holdOrderGenerated event.');
-
-          if (salesOrder == null || salesOrder is! Map<String, dynamic>) {
-            print('⚠️ Invalid holdOrder data.');
-            return;
-          }
-
-          final orderDataList = salesOrder['data'] ?? [];
-          if (orderDataList is! List || orderDataList.isEmpty) {
-            print('⚠️ Empty orderDataList received.');
-            return;
-          }
-
-          final orderData = orderDataList[0];
-          final saleOrderNo = orderData['holdOrderId']?.toString();
-          if (saleOrderNo == null || saleOrderNo.isEmpty) {
-            print('⚠️ Missing holdOrderId.');
-            return;
-          }
-
-          print('🆔 Processing holdOrderId: $saleOrderNo');
-          final salesOrderBox = HiveManager.holdOrderBox;
-
-          if (salesOrderBox.containsKey(saleOrderNo)) {
-            print('⚠️ Duplicate hold order detected — already saved.');
-            return;
-          }
-
-          await salesOrderBox.put(saleOrderNo, orderData);
-          print('💾 Hold Order $saleOrderNo saved to Hive.');
-          // Step 3️⃣ Verify result
-          final updatedOrders = await getSavedHoldOrders();
-          print("📊 Total hold orders in Hive: ${updatedOrders.length}");
-          print("updated orders: $updatedOrders");
-          break;
-
-        case 'salesApprovalOrderGenerated':
-          await _saveApproveOrderToHive(jsonData['salesApprovalOrder']);
-          final approvalOrders = await getSavedApprovalOrder();
-          break;
-
-        case 'salesModifyOrderGenerated':
-          await _saveModifyOrderToHive(jsonData['salesModifyOrder']);
-          final modifyOrders = await getModifyOrder();
-          break;
-        case 'salesOrderAddCustomerGenerated':
-          await _saveAddNewCustomerToHive(jsonData['salesOrderAddCustomer']);
-          final addnewCustomer = await _getAddnewCustomer();
-          break;
-
-        case 'saleorderPatchGenerated':
-          final patchOrder = jsonData['patchSaleOrder'];
-
-          await _patchSaleOrder(patchOrder);
-          final orders = await getSavedSalesOrders();
-          if (orders.isNotEmpty) {
-            saleInvoicereceiptPrinter.updateReceiptData(orders.last);
-          } else {}
-          break;
-        case 'patchholdorderGenerated':
-          print(
-            '\n\n🟣 [WebSocket] Received Event: patchholdorderGenerated -----------------------------',
-          );
-
-          // Step 1️⃣ Extract patch order data
-          final patchOrder = jsonData['patchHoldOrder'];
-          print('📦 Received patchHoldOrder payload: $patchOrder');
-
-          if (patchOrder == null) {
-            print('❌ patchHoldOrder data is null. Skipping processing.');
-            break;
-          }
-
-          final holdOrderId = patchOrder['holdOrderId'];
-          print('🧩 Extracted holdOrderId: $holdOrderId');
-
-          // Step 2️⃣ Fetch existing hold orders from Hive
-          print('📂 Fetching existing hold orders from Hive for comparison...');
-          final existingOrders = await getSavedHoldOrders();
-          print('📊 Total existing orders found: ${existingOrders.length}');
-
-          final existingOrder = existingOrders.firstWhere(
-            (order) => order['holdOrderId'] == holdOrderId,
-            orElse: () => {},
-          );
-
-          if (existingOrder.isEmpty) {
-            print('🟢 New hold order detected — adding fresh entry.');
-          } else {
-            print('🟠 Existing hold order found — patching the existing data.');
-          }
-
-          try {
-            await _patchHoldOrder(patchOrder);
-            print('✅ Successfully patched/added hold order in Hive.');
-          } catch (e, st) {
-            print('❌ Error while patching hold order: $e');
-            print(st);
-          }
-
-          // Step 3️⃣ Verify result
-          final updatedOrders = await getSavedHoldOrders();
-          final justSaved = updatedOrders.firstWhere(
-            (order) => order['holdOrderId'] == holdOrderId,
-            orElse: () => {},
-          );
-          if (justSaved.isNotEmpty) {
-            print('🧾 Patched/Added order details:\n$justSaved');
-          } else {
-            print('⚠️ Hold order not found after patch attempt!');
-          }
-
-          print('✅ [patchholdorderGenerated] Event handling completed.');
-          print(
-            '------------------------------------------------------------------\n\n',
-          );
-          break;
-        case 'toApproveOrderGenerated':
-          final salesOrder = jsonData['toApproveOrder'];
-          if (salesOrder == null || salesOrder is! Map<String, dynamic>) {
-            return;
-          }
-
-          final orderData = salesOrder['data'] ?? {};
-          if (orderData is! Map<String, dynamic>) {
-            return;
-          }
-
-          final saleOrderNo = orderData['saleOrderNo']?.toString();
-          if (saleOrderNo == null || saleOrderNo.isEmpty) {
-            return;
-          }
-
-          // Debounce based on saleOrderNo
-          if (_debounceTimers.containsKey(saleOrderNo)) {
-            return;
-          }
-
-          // Set debounce timer for this saleOrderNo
-          _debounceTimers[saleOrderNo] = Timer(Duration(milliseconds: 500), () {
-            _debounceTimers.remove(saleOrderNo); // Clear timer after processing
-          });
-
-          // Add metadata
-          orderData['type'] = 'postToApprove';
-
-          // Check in-memory cache
-          if (_processedToApproveOrders.contains(saleOrderNo)) {
-            return;
-          }
-
-          // Check Hive storage
-          final salesOrderBox = HiveManager.toApproveOrderBox;
-          if (salesOrderBox.containsKey(saleOrderNo)) {
-            _processedToApproveOrders.add(saleOrderNo);
-            return;
-          }
-
-          // Save to Hive
-          try {
-            await salesOrderBox.put(saleOrderNo, orderData);
-            _processedToApproveOrders.add(saleOrderNo);
-          } catch (e) {
-            _processedToApproveOrders.remove(
-              saleOrderNo,
-            ); // Allow retry on failure
-          }
-          break;
-        case 'modifyOrderGenerated':
-          final salesOrder = jsonData['modifyOrder'];
-          if (salesOrder == null || salesOrder is! Map<String, dynamic>) {
-            return;
-          }
-
-          final orderData = salesOrder['data'] ?? {};
-          if (orderData is! Map<String, dynamic>) {
-            return;
-          }
-
-          final saleOrderNo = orderData['saleOrderNo']?.toString();
-          if (saleOrderNo == null || saleOrderNo.isEmpty) {
-            return;
-          }
-
-          // Debounce based on saleOrderNo
-          if (_debounceTimers.containsKey(saleOrderNo)) {
-            return;
-          }
-
-          // Set debounce timer for this saleOrderNo
-          _debounceTimers[saleOrderNo] = Timer(Duration(milliseconds: 500), () {
-            _debounceTimers.remove(saleOrderNo); // Clear timer after processing
-          });
-
-          // Add metadata
-          orderData['type'] = 'salesOrder';
-
-          // Check in-memory cache
-          if (_processedModifyOrders.contains(saleOrderNo)) {
-            return;
-          }
-
-          // Check Hive storage
-          final salesOrderBox = HiveManager.modifyOrderBox;
-          if (salesOrderBox.containsKey(saleOrderNo)) {
-            _processedModifyOrders.add(saleOrderNo);
-            return;
-          }
-
-          // Save to Hive
-          try {
-            await salesOrderBox.put(saleOrderNo, orderData);
-            _processedModifyOrders.add(saleOrderNo);
-          } catch (e) {
-            _processedModifyOrders.remove(
-              saleOrderNo,
-            ); // Allow retry on failure
-          }
-          break;
-
-        case 'patchsaleorderGenerated':
-          final soNo = jsonData['saleOrderNo'] ?? '';
-
-          await handlePatchSaleOrderMessage(jsonData);
-
-          // 🔹 Check status
-          final currentStatus = _printedOrders[soNo];
-
-          // 🔹 Get saved orders
-          final orders = await getSavedSalesOrders();
-
-          if (orders.isNotEmpty) {
-            final lastOrder = orders.last;
-
-            // Mark as printed before printing
-            _printedOrders[soNo] = "printed";
-            notifyListeners();
-
-            // 🔹 Print receipt
-            receiptPrinter.updatePatchReceiptData(lastOrder);
-
-            // Mark as printed before printing
-            _printedOrders[soNo] = "";
-          } else {}
-          break;
-        default:
-          return;
-      }
-    } catch (e) {}
-  }
-
-  Future<void> handleStockDecreaseUpdate(Map<String, dynamic> data) async {
-    try {
-      final branchAlias = data['branchAlias']?.toString() ?? '';
-      final varianceCodes = List<String>.from(data['varianceCode'] ?? []);
-      final varianceNames = List<String>.from(data['varianceNames'] ?? []);
-      final stockUpdates = List<int>.from(data['stockUpdates'] ?? []);
-
-      if (branchAlias.isEmpty ||
-          varianceCodes.isEmpty ||
-          varianceNames.isEmpty ||
-          stockUpdates.isEmpty) {
-        return;
-      }
-
-      // Load Hive box where stock data is stored
-      final box = await Hive.openBox('branchwiseStock');
-      final existingData = Map<String, dynamic>.from(box.get('data') ?? {});
-
-      // Update stock locally
-      for (int i = 0; i < varianceCodes.length; i++) {
-        final varCode = varianceCodes[i];
-        final varName = varianceNames[i];
-        final decreaseQty = stockUpdates[i];
-
-        existingData.forEach((itemKey, itemValue) {
-          final item = Map<String, dynamic>.from(itemValue);
-          final varianceMap = Map<String, dynamic>.from(item['variance'] ?? {});
-
-          varianceMap.forEach((vKey, vValue) {
-            final variance = Map<String, dynamic>.from(vValue);
-            if (variance['varianceitemCode'] == varCode &&
-                variance['varianceName'] == varName) {
-              final branchMap = Map<String, dynamic>.from(
-                variance['branchwise'] ?? {},
-              );
-              final branchData = Map<String, dynamic>.from(
-                branchMap[branchAlias] ?? {},
-              );
-
-              final stockKey = 'systemStock_$branchAlias';
-              int currentStock =
-                  int.tryParse(branchData[stockKey]?.toString() ?? '0') ?? 0;
-              int updatedStock = (currentStock - decreaseQty).clamp(0, 999999);
-
-              branchData[stockKey] = updatedStock;
-              branchMap[branchAlias] = branchData;
-              variance['branchwise'] = branchMap;
-              varianceMap[vKey] = variance;
-              item['variance'] = varianceMap;
-              existingData[itemKey] = item;
-            }
-          });
-        });
-      }
-
-      // Save updated data back to Hive
-      await box.put('data', existingData);
-    } catch (e, st) {}
-  }
-
-  Future<void> _saveApproveOrderToHive(Map<String, dynamic> salesOrder) async {
-    // Step 1: Open Hive box
-    var approveOrderBox = await Hive.openBox('salesApprovalOrder');
-
-    // Step 2: Extract and clean order data
-    Map<String, dynamic> orderToSave = salesOrder;
-
-    if (salesOrder.containsKey('data') &&
-        salesOrder['data'] is List &&
-        (salesOrder['data'] as List).isNotEmpty) {
-      orderToSave = Map<String, dynamic>.from(
-        (salesOrder['data'] as List).first,
-      );
-    } else {}
-
-    // Step 3: Validate and extract saleOrderNo
-    final saleOrderNo = orderToSave['saleOrderNo']?.toString();
-    if (saleOrderNo == null) {
-      return;
-    }
-
-    // Step 4: Check for duplicates
-    final exists = approveOrderBox.values.any((storedOrder) {
-      if (storedOrder is Map<String, dynamic>) {
-        return storedOrder['saleOrderNo']?.toString() == saleOrderNo;
-      }
-      return false;
-    });
-
-    // Step 5: Save or skip
-    if (!exists) {
-      await approveOrderBox.add(orderToSave);
-    } else {}
-  }
-
-  Future<void> _saveAddNewCustomerToHive(
-    Map<String, dynamic> customerData,
-  ) async {
-    var customerBox = await Hive.openBox('customerBox');
-
-    final newMobile = customerData['mobile']?.toString() ?? '';
-
-    // 🔎 Check if mobile number already exists in Hive
-    bool exists = customerBox.values.any((customer) {
-      final existingMobile = customer['mobile']?.toString() ?? '';
-      return existingMobile == newMobile;
-    });
-
-    if (exists) {
-    } else {
-      await customerBox.add(customerData);
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> _getAddnewCustomer() async {
-    var customerBox = await Hive.openBox('customerBox');
-    final customers = customerBox.values
-        .map((customer) => Map<String, dynamic>.from(customer))
-        .toList();
-
-    return customers;
-  }
-
-  Future<void> _saveModifyOrderToHive(Map<String, dynamic> salesOrder) async {
-    var approveOrderBox = HiveManager.modifyOrderBox;
-    Map<String, dynamic> orderToSave = salesOrder;
-    // If the salesOrder has a nested 'data' key with a list, use its first element.
-    if (salesOrder.containsKey('data') &&
-        salesOrder['data'] is List &&
-        (salesOrder['data'] as List).isNotEmpty) {
-      orderToSave = Map<String, dynamic>.from(
-        (salesOrder['data'] as List).first,
-      );
-    }
-    await approveOrderBox.add(orderToSave);
-  }
-
-  Map<String, int> saleOrderNoCounts = {};
-
-  Future<List<Map<String, dynamic>>> getSavedSalesOrders() async {
-    try {
-      final saleOrderBox = HiveManager.salesOrderBox;
-
-      final seenSaleOrderNos = <String>{};
-      final uniqueOrders = <Map<String, dynamic>>[];
-      final keysToDelete = <dynamic>[];
-
-      final allEntries = saleOrderBox.toMap();
-
-      // Strict pattern: e.g., SOAR250001
-      final validPattern = RegExp(r'^SO[A-Z]{2}\d{6}$');
-
-      for (var entry in allEntries.entries) {
-        final key = entry.key;
-        final order = entry.value;
-
-        if (order is Map) {
-          final orderMap = Map<String, dynamic>.from(order);
-          final dataMap = orderMap['data'] is Map
-              ? Map<String, dynamic>.from(orderMap['data'])
-              : orderMap;
-
-          final saleOrderNo = dataMap['saleOrderNo']?.toString();
-
-          if (saleOrderNo != null && saleOrderNo.trim().isNotEmpty) {
-            if (!validPattern.hasMatch(saleOrderNo)) {
-              keysToDelete.add(key);
-              continue;
-            }
-
-            if (!seenSaleOrderNos.contains(saleOrderNo)) {
-              seenSaleOrderNos.add(saleOrderNo);
-              uniqueOrders.add(orderMap);
-            } else {
-              keysToDelete.add(key);
-            }
-          } else {}
-        } else {}
-      }
-
-      if (keysToDelete.isNotEmpty) {
-        await saleOrderBox.deleteAll(keysToDelete);
-      }
-
-      return uniqueOrders;
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> getSavedHoldOrders() async {
-    try {
-      final saleOrderBox = HiveManager.holdOrderBox;
-
-      final seenSaleOrderNos = <String>{};
-      final uniqueOrders = <Map<String, dynamic>>[];
-      final keysToDelete = <dynamic>[];
-
-      for (var entry in saleOrderBox.toMap().entries) {
-        final key = entry.key;
-        final order = entry.value;
-
-        if (order is Map) {
-          final orderMap = Map<String, dynamic>.from(order);
-          // Check for saleOrderNo in the nested data map
-          final dataMap = orderMap['data'] is Map
-              ? Map<String, dynamic>.from(orderMap['data'])
-              : orderMap;
-          final saleOrderNo = dataMap['holdOrderId'] as String?;
-
-          if (saleOrderNo != null) {
-            if (!seenSaleOrderNos.contains(saleOrderNo)) {
-              seenSaleOrderNos.add(saleOrderNo);
-              uniqueOrders.add(orderMap);
-            } else {
-              keysToDelete.add(key);
-            }
-          }
-        }
-      }
-
-      await saleOrderBox.deleteAll(keysToDelete);
-      return uniqueOrders;
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  // 3. Update getInvoiceOrders to work with new structure
-  Future<void> saveInvoiceToHive(Map<String, dynamic> invoiceData) async {
-    try {
-      var invoiceBox = HiveManager.invoiceBox;
-
-      // Extract salesOrder safely
-      final salesOrder = invoiceData['salesOrderId'];
-      if (salesOrder == null || salesOrder is! Map<String, dynamic>) {
-        return;
-      }
-
-      final orderInvoiceNo = salesOrder['orderInvoiceNo']?.toString();
-      if (orderInvoiceNo == null || orderInvoiceNo.isEmpty) {
-        return;
-      }
-
-      // ✅ Check if already exists
-      if (invoiceBox.containsKey(orderInvoiceNo)) {
-        debugPrint(
-          "⚠️ Duplicate detected: $orderInvoiceNo already exists. Skipping save.",
-        );
-        return;
-      }
-
-      // ✅ Save only once with orderInvoiceNo as key
-      await invoiceBox.put(orderInvoiceNo, invoiceData);
-    } catch (e, st) {}
-  }
-
-  Future<List<Map<String, dynamic>>> getInvoiceOrders() async {
-    try {
-      final invoiceBox = HiveManager.invoiceBox;
-
-      // ✅ Collect values as Map
-      final rawInvoices = invoiceBox.keys
-          .map((key) {
-            final value = invoiceBox.get(key);
-            if (value is Map<String, dynamic>) {
-              return Map<String, dynamic>.from(value);
-            }
-            return null;
-          })
-          .whereType<Map<String, dynamic>>()
-          .toList();
-
-      // ✅ Ensure uniqueness by orderInvoiceNo
-      final Set<String> seen = {};
-      final uniqueInvoices = <Map<String, dynamic>>[];
-
-      for (var inv in rawInvoices) {
-        final orderNo = inv['salesOrderId']?['orderInvoiceNo']?.toString();
-        if (orderNo != null && orderNo.isNotEmpty) {
-          if (seen.add(orderNo)) {
-            uniqueInvoices.add(inv); // only first occurrence added
-          }
-        }
-      }
-
-      debugPrint(
-        "📦 Total unique invoices retrieved: ${uniqueInvoices.length}",
-      );
-      for (var inv in uniqueInvoices) {
-        debugPrint(
-          "   ➡️ Invoice orderInvoiceNo: ${inv['salesOrderId']?['orderInvoiceNo']}",
-        );
-      }
-
-      return uniqueInvoices;
+      _isConnected = true;
+      _isConnecting = false;
+
+      _startHeartbeatClient();
+
+      // register client on server
+      _sendClient({
+        'action': 'newClientConnected',
+        'deviceName': globals.deviceName ?? 'POS',
+        'clientId': DateTime.now().millisecondsSinceEpoch.toString(),
+        'message': 'client_register',
+      });
+      debugPrint('connect: connected and registered');
+      notifyListeners();
     } catch (e, st) {
-      return [];
+      debugPrint('connect error: $e\n$st');
+      _isConnected = false;
+      _isConnecting = false;
+      _showConnectionLostDialog();
+      _scheduleReconnect();
+      notifyListeners();
     }
   }
 
-  Future<List<Map<String, dynamic>>> getSavedHoldOrder() async {
-    // var holdOrderBox = await Hive.openBox('holdSalesOrderBox');
+  void disconnect() {
     try {
-      var holdOrderBox = HiveManager.holdOrderBox;
-
-      final seenHoldOrderNos = <String>{};
-      final uniqueOrders = <Map<String, dynamic>>[];
-      final keysToDelete = <dynamic>[];
-
-      for (var entry in holdOrderBox.toMap().entries) {
-        final key = entry.key;
-        final order = entry.value;
-
-        if (order is Map) {
-          final orderMap = Map<String, dynamic>.from(order);
-          // Check for saleOrderNo in the nested data map
-          final dataMap = orderMap['data'] is Map
-              ? Map<String, dynamic>.from(orderMap['data'])
-              : orderMap;
-          final saleOrderNo = dataMap['holdOrderId'] as String?;
-
-          if (saleOrderNo != null) {
-            if (!seenHoldOrderNos.contains(saleOrderNo)) {
-              seenHoldOrderNos.add(saleOrderNo);
-              uniqueOrders.add(orderMap);
-            } else {
-              keysToDelete.add(key);
-            }
-          }
-        }
-      }
-
-      await holdOrderBox.deleteAll(keysToDelete);
-      return uniqueOrders;
-    } catch (e) {
-      rethrow;
-    }
+      _subscription?.cancel();
+      channel?.sink.close();
+    } catch (_) {}
+    _subscription = null;
+    channel = null;
+    _isConnected = false;
+    _isConnecting = false;
+    _stopHeartbeatClient();
+    notifyListeners();
   }
 
-  Future<List<Map<String, dynamic>>> getSavedApprovalOrder() async {
-    // Step 1: Open the Hive box
-    var approvalOrderBox = await Hive.openBox('salesApprovalOrder');
-
-    // Step 2: Check if the box is empty
-    if (approvalOrderBox.isEmpty) {
-      return [];
-    }
-
-    // Step 3: Iterate and log each record before converting
-    approvalOrderBox.toMap().forEach((key, value) {});
-
-    // Step 4: Convert each value to a Map<String, dynamic>
-    final List<Map<String, dynamic>> approvalOrders = approvalOrderBox.values
-        .map((order) {
-          final convertedOrder = Map<String, dynamic>.from(order);
-          return convertedOrder;
-        })
-        .toList();
-
-    // Step 5: Return the result
-    return approvalOrders;
+  Future<void> reconnect() async {
+    disconnect();
+    await connect();
   }
 
-  Future<List<Map<String, dynamic>>> getModifyOrder() async {
+  void _sendClient(Map<String, dynamic> data) {
+    if (!_isConnected || channel == null) {
+      debugPrint('_sendClient: not connected');
+      return;
+    }
     try {
-      // var modifyOrderBox = await Hive.openBox('modifyOrderBox');
-
-      final modifyOrderBox = HiveManager.modifyOrderBox;
-      final seenSaleOrderNos = <String>{};
-      final uniqueOrders = <Map<String, dynamic>>[];
-
-      for (var order in modifyOrderBox.values) {
-        if (order is Map) {
-          final orderMap = Map<String, dynamic>.from(order);
-          final saleOrderNo = orderMap['saleOrderNo'] as String?;
-
-          if (saleOrderNo != null && !seenSaleOrderNos.contains(saleOrderNo)) {
-            seenSaleOrderNos.add(saleOrderNo);
-            uniqueOrders.add(orderMap);
-          }
-        }
-      }
-
-      return uniqueOrders;
+      final msg = jsonEncode(data);
+      channel!.sink.add(msg);
     } catch (e) {
-      rethrow;
+      debugPrint('_sendClient error: $e');
+      _handleDisconnect();
     }
   }
 
-  Future<List<Map<String, dynamic>>> getToApproveOrder() async {
-    try {
-      final modifyOrderBox = HiveManager.toApproveOrderBox;
-      final seenSaleOrderNos = <String>{};
-      final uniqueOrders = <Map<String, dynamic>>[];
-      for (var order in modifyOrderBox.values) {
-        if (order is Map) {
-          final orderMap = Map<String, dynamic>.from(order);
-          final saleOrderNo = orderMap['saleOrderNo'] as String?;
-
-          if (saleOrderNo != null && !seenSaleOrderNos.contains(saleOrderNo)) {
-            seenSaleOrderNos.add(saleOrderNo);
-            uniqueOrders.add(orderMap);
-          }
-        }
+  // -------------------------
+  // Heartbeat + Reconnect (client)
+  // -------------------------
+  void _startHeartbeatClient() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 10), (t) {
+      if (!_isConnected) {
+        debugPrint('Heartbeat: disconnected state detected');
+        _handleDisconnect();
+        return;
       }
-
-      return uniqueOrders;
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  void sendMessage(Map<String, dynamic> data) {
-    if (_isConnected) {
       try {
-        final encodedMessage = jsonEncode(data);
-        channel.sink.add(encodedMessage);
-        // print('Message sent: $encodedMessage');
-      } catch (e) {}
-    } else {}
-  }
-
-  void _startHeartbeat() {
-    _heartbeatTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
-      if (_isConnected) {
-        sendMessage({'action': 'heartbeat'});
+        channel?.sink.add(jsonEncode({'action': 'heartbeat'}));
+      } catch (e) {
+        debugPrint('Heartbeat send failed: $e');
+        _handleDisconnect();
       }
     });
+  }
+
+  void _stopHeartbeatClient() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
   }
 
   void _scheduleReconnect() {
-    if (_reconnectTimer != null) return; // Prevent multiple timers
-    _reconnectTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      if (!_isConnected) {
-        connect();
-      } else {
+    if (_reconnectTimer != null) {
+      debugPrint('Reconnect timer already running.');
+      return;
+    }
+
+    int retryCount = 0;
+    const int maxRetries = 5;
+
+    _reconnectTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+      try {
+        final navigatorState = MyApp.navigatorKey.currentState;
+        final isOnLoginScreen = navigatorState?.canPop() == false;
+
+        if (!_isConnected && !_isConnecting && !isOnLoginScreen && retryCount < maxRetries) {
+          debugPrint('Reconnect attempt ${retryCount + 1}/$maxRetries');
+          await connect();
+          retryCount++;
+          if (_isConnected) {
+            debugPrint('Reconnected successfully');
+            _reconnectTimer?.cancel();
+            _reconnectTimer = null;
+          }
+        } else {
+          _reconnectTimer?.cancel();
+          _reconnectTimer = null;
+          if (!_isConnected && !isOnLoginScreen && navigatorState != null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              try {
+                _showConnectionLostDialog();
+                showDialog(
+                    context: navigatorState.context,
+                    builder: (ctx) {
+                      return AlertDialog(
+                        title: const Text('Connection Lost'),
+                        content: const Text('Failed to reconnect to server.'),
+                        actions: [
+                          TextButton(
+                            onPressed: () {
+                              Navigator.of(ctx).pop();
+                              reconnect();
+                            },
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      );
+                    });
+              } catch (e, st) {
+                debugPrint('Exception while showing reconnect UI: $e\n$st');
+              }
+            });
+          }
+        }
+      } catch (e, st) {
+        debugPrint('Exception in reconnect timer: $e\n$st');
         _reconnectTimer?.cancel();
         _reconnectTimer = null;
       }
     });
   }
 
-  void closeConnection() {
-    _heartbeatTimer?.cancel();
-    _reconnectTimer?.cancel();
-    channel.sink.close();
+  void _handleDisconnect() {
+    _isConnected = false;
+    _isConnecting = false;
+    _stopHeartbeatClient();
+    _subscription?.cancel();
+    _subscription = null;
+    channel = null;
+    debugPrint('Client disconnected, scheduling reconnect');
+    _showConnectionLostDialog();
+    _scheduleReconnect();
+    notifyListeners();
   }
+
+    void sendUpiState(bool isEnabled) {
+    if (globals.appType == 'server') {
+      _handleLocalUpiUpdate(isEnabled);
+      sendDataToClientsKOT({
+        'action': 'updateUpiState',
+        'isUpiEnabled': isEnabled,
+      });
+      return;
+    }
+
+    if (!_isConnected) {
+      debugPrint("Cannot send UPI state: WebSocket not connected");
+      reconnect();
+      return;
+    }
+
+    try {
+      final data = {'action': 'updateUpiState', 'isUpiEnabled': isEnabled};
+      channel?.sink.add(jsonEncode(data));
+      debugPrint("📤 Sent UPI state: $isEnabled");
+    } catch (e) {
+      debugPrint("❌ Failed to send UPI state: $e");
+      _handleDisconnect();
+    }
+  }
+
+  void _handleLocalUpiUpdate(bool isEnabled) {
+    try {
+      final context = MyApp.navigatorKey.currentContext;
+      if (context != null) {
+        final upiProvider = Provider.of<UpiProviderDine>(
+          context,
+          listen: false,
+        );
+        upiProvider.setUpiState(isEnabled);
+        debugPrint('💾 Local UPI state updated on server: $isEnabled');
+      } else {
+        debugPrint(
+          "⚠️ Could not update UPI state — no active context available",
+        );
+      }
+    } catch (e) {
+      debugPrint('⚠️ Failed to update local UPI state: $e');
+    }
+  }
+
+
+  // -------------------------
+  // Incoming message handler (shared)
+  // -------------------------
+  /// [message] may be a String or Map or data from a server/client socket
+  /// if [channel] is provided (non-null) this came from a local connected client (server mode)
+  void _handleIncomingMessage(dynamic message, {WebSocketChannel? channel}) {
+    try {
+      Map<String, dynamic> jsonData;
+
+      if (message is String && message.trim().isNotEmpty) {
+        // some of your code used replaceAll("'", '"') - we attempt safe decode
+        final str = message.trim();
+        try {
+          jsonData = jsonDecode(str);
+        } catch (_) {
+          // try relaxed decode replacing single quotes -> double (last resort)
+          jsonData = jsonDecode(str.replaceAll("'", '"'));
+        }
+      } else if (message is Map<String, dynamic>) {
+        jsonData = message;
+      } else if (message is List || message is Map) {
+        // convert to Map if possible
+        jsonData = jsonDecode(jsonEncode(message)) as Map<String, dynamic>;
+      } else {
+        debugPrint('Invalid message type: ${message.runtimeType}');
+        return;
+      }
+
+      // If it's an order (table + items), add to orders list
+      if (jsonData.containsKey('table') && jsonData.containsKey('items')) {
+        if (!jsonData.containsKey('orderSource')) {
+          jsonData['orderSource'] = orderProvider.orderSource;
+        }
+        _receivedOrders.add(jsonData);
+        // If this arrived at server, optionally broadcast to other clients
+        if (globals.appType == 'server') {
+          _broadcastToLocalClients(jsonData);
+        }
+      } else {
+        _receivedActions.add(jsonData);
+        // Save action to Hive (non-blocking)
+        saveActionToHive(jsonData);
+      }
+
+      // Handle printer actions, UPI, seat_transfer, seat_returned, etc.
+      final action = jsonData['action'];
+      if (action == 'printerDetails' ||
+          action == 'updatePrinterItems' ||
+          action == 'removePrinter') {
+        sendPrinterDetails(jsonData as Printer);
+      }
+
+      if (action == 'seat_returned') {
+        _receivedActions.removeWhere((actionMap) =>
+            actionMap['action'] == 'seat_tapped' &&
+            actionMap['tableNumber'] == jsonData['tableNumber'] &&
+            actionMap['seat'] == jsonData['seat']);
+      }
+
+      if (action == 'seat_transfer') {
+        _handleSeatTransferAction(jsonData);
+      }
+
+      if (action == 'updateUpiState') {
+        final bool isUpiEnabled = jsonData['isUpiEnabled'] ?? false;
+        try {
+          upiProvider.setUpiState(isUpiEnabled);
+        } catch (e) {
+          debugPrint('Failed to update upiProvider: $e');
+        }
+      }
+
+      // If message should be routed to the message router (printing/receipt)
+      // Reuse your MessageRouter.handle if appropriate
+      try {
+        // MessageRouter expects a String; pass JSON string
+        MessageRouter.handle(jsonEncode(jsonData), customerProvider, receiptPrinter, this);
+      } catch (e) {
+        // Some messages may be handled elsewhere; ignore if router not suitable
+      }
+
+      // If this message was received by the server from one client and the server should relay to others:
+      // (we already broadcast order messages above)
+      notifyListeners();
+    } catch (e, st) {
+      debugPrint('Error decoding/handling message: $e\n$st');
+    }
+  }
+
+  void sendRemovePrinter(String printerName) {
+    if (globals.appType == 'server') {
+      printerProvider.removePrinterByName(printerName);
+      sendDataToClientsKOT({
+        'action': 'removePrinter',
+        'printerName': printerName,
+        'orderSource': orderProvider.orderSource,
+      });
+      return;
+    }
+    if (!_isConnected) {
+      debugPrint("Cannot send remove printer request: WebSocket not connected");
+      reconnect();
+      return;
+    }
+    try {
+      final data = {
+        'action': 'removePrinter',
+        'printerName': printerName,
+        'orderSource': orderProvider.orderSource,
+      };
+      channel?.sink.add(jsonEncode(data));
+      debugPrint("📤 Sent remove printer: $printerName");
+    } catch (e) {
+      debugPrint("Failed to send remove printer request: $e");
+      _handleDisconnect();
+    }
+  }
+
+  void _handleSeatTransferAction(Map<String, dynamic> jsonData) {
+    final String orderId = jsonData['seathiveOrderId']?.toString() ?? '';
+    final String targetTable = jsonData['targetTable']?.toString() ?? '';
+    final String targetSeat = jsonData['targetSeat']?.toString() ?? '';
+
+    var updated = false;
+    for (int i = 0; i < _receivedOrders.length; i++) {
+      final order = _receivedOrders[i];
+      if ((order['seathiveOrderId']?.toString() ?? '') == orderId ||
+          (order['id']?.toString() ?? '') == orderId) {
+        order['table'] = targetTable;
+        order['seat'] = targetSeat;
+        updated = true;
+        saveOrderToHive(order);
+        debugPrint('Updated order $orderId to table $targetTable seat $targetSeat');
+        break;
+      }
+    }
+    if (!updated) debugPrint('Order not found for seat transfer: $orderId');
+
+    // Remove conflicting seat_tapped actions
+    _receivedActions.removeWhere((action) =>
+        action['action'] == 'seat_tapped' &&
+        action['tableNumber'] == jsonData['currentTable'] &&
+        action['seat'] == jsonData['currentSeat']);
+  }
+
+  // -------------------------
+  // Printer update handling
+  // -------------------------
+   void sendPrinterDetails(Printer printer) {
+    if (globals.appType == 'server') {
+      _handleLocalPrinterUpdate(printer);
+      sendDataToClientsKOT({
+        'action': 'updatePrinterItems',
+        'printer': printer.toJson(),
+        'orderSource': orderProvider.orderSource,
+      });
+      return;
+    }
+    if (!_isConnected) {
+      debugPrint("Cannot send printer details: WebSocket not connected");
+      reconnect();
+      return;
+    }
+    try {
+      final data = {
+        'action': 'updatePrinterItems',
+        'printer': printer.toJson(),
+        'orderSource': orderProvider.orderSource,
+      };
+      channel?.sink.add(jsonEncode(data));
+      debugPrint("📤 Sent printer details: ${printer.name}");
+    } catch (e) {
+      debugPrint("Failed to send printer details: $e");
+      _handleDisconnect();
+    }
+  }
+
+   void _handleLocalPrinterUpdate(Printer printer) {
+    final existingPrinterIndex = printerProvider.printers.indexWhere(
+      (p) => p.name == printer.name,
+    );
+    if (existingPrinterIndex != -1) {
+      printerProvider.updatePrinter(existingPrinterIndex, printer);
+    } else {
+      printerProvider.addPrinter(printer);
+    }
+    sendDataToClientsKOT({
+      'action': 'updatePrinterItems',
+      'printer': printer.toJson(),
+      'orderSource': orderProvider.orderSource,
+    });
+    debugPrint("✅ Handled local printer update: ${printer.name}");
+  }
+
+
+
+  // -------------------------
+  // Hive helpers
+  // -------------------------
+  Future<void> saveActionToHive(Map<String, dynamic> action) async {
+    try {
+      if (!Hive.isBoxOpen('actions')) await Hive.openBox('actions');
+      final box = Hive.box('actions');
+      await box.add(action);
+    } catch (e) {
+      debugPrint('Error saving action to Hive: $e');
+    }
+  }
+
+  Future<void> saveOrderToHive(Map<String, dynamic> order) async {
+    try {
+      if (!Hive.isBoxOpen('ordersBox')) await Hive.openBox('ordersBox');
+      final box = Hive.box('ordersBox');
+      await box.add(order);
+    } catch (e) {
+      debugPrint('Error saving order to Hive: $e');
+    }
+  }
+
+  // -------------------------
+  // UI dialogs
+  // -------------------------
+  void _showConnectionLostDialog() {
+    if (_dialogShown) return;
+    final context = MyApp.navigatorKey.currentState?.overlay?.context;
+    if (context == null || !context.mounted) return;
+    _dialogShown = true;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        title: const Text('Connection Lost'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.wifi_off, size: 60, color: Colors.red),
+            SizedBox(height: 20),
+            Text('Server is Offline! Please check your server device or Wifi Connection', textAlign: TextAlign.center),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx, rootNavigator: true).pop();
+              _dialogShown = false;
+              reconnect();
+            },
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    ).then((_) {
+      _dialogShown = false;
+    });
+  }
+
+  void _hideConnectionLostDialog() {
+    final context = MyApp.navigatorKey.currentState?.overlay?.context;
+    if (context != null && context.mounted) {
+      Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
+    }
+    _dialogShown = false;
+  }
+
+  // -------------------------
+  // Utility - expose send methods
+  // -------------------------
+  /// Send a raw map to server (client mode) or broadcast locally (server mode)
+  void sendRaw(Map<String, dynamic> data, {bool broadcastToLocal = true}) {
+    if (globals.appType == 'server') {
+      // process locally first
+      _handleIncomingMessage(data);
+      if (broadcastToLocal) _broadcastToLocalClients(data);
+      // optionally call global helper sendDataToClientsKOT (if you use it)
+      try {
+        sendDataToClientsKOT(data); // your global function that notifies other subsystems
+      } catch (_) {}
+      return;
+    }
+
+    // client mode: send to server
+    if (!_isConnected) {
+      debugPrint('sendRaw: not connected -> attempting connect');
+      connect();
+      // also attempt send later or fail silently; we attempt immediate send if connected
+    }
+    _sendClient(data);
+  }
+
+  /// convenience to send device code (client mode)
+  void sendDeviceCode(String deviceCode) {
+    if (globals.appType == 'server') {
+      // on server, treat as local register
+      debugPrint('sendDeviceCode called on server mode -> no-op or local handling');
+      return;
+    }
+    if (!_isConnected) {
+      reconnect();
+      return;
+    }
+    _sendClient({'action': 'newClientConnected', 'deviceCode': deviceCode});
+  }
+
+  /// seat transfer helper
+  Future<bool> sendSeatTransfer({
+    required String currentTable,
+    required String currentSeat,
+    required String targetTable,
+    required String targetSeat,
+    required String seathiveOrderId,
+  }) async {
+    final data = {
+      'action': 'seat_transfer',
+      'currentTable': currentTable,
+      'currentSeat': currentSeat,
+      'targetTable': targetTable,
+      'targetSeat': targetSeat,
+      'seathiveOrderId': seathiveOrderId,
+      'orderSource': orderProvider.orderSource,
+    };
+
+    if (globals.appType == 'server') {
+      _handleIncomingMessage(data);
+      // if you want to notify connected clients
+      _broadcastToLocalClients(data);
+      sendDataToClientsKOT(data);
+      return true;
+    }
+
+    if (!_isConnected) {
+      await connect();
+      if (!_isConnected) {
+        debugPrint('Cannot send seat transfer: not connected');
+        return false;
+      }
+    }
+
+    try {
+      _sendClient(data);
+      debugPrint('Sent seat transfer: $data');
+      return true;
+    } catch (e) {
+      debugPrint('Failed to send seat transfer: $e');
+      _handleDisconnect();
+      return false;
+    }
+  }
+
+  // -------------------------
+  // Dispose / cleanup
+  // -------------------------
+  @override
+  void dispose() {
+    try {
+      _heartbeatTimer?.cancel();
+      _reconnectTimer?.cancel();
+      _subscription?.cancel();
+      channel?.sink.close();
+      for (final c in _clients) {
+        try {
+          c.sink.close();
+        } catch (_) {}
+      }
+      _clients.clear();
+      _wsServer?.close(force: true);
+    } catch (_) {}
+    super.dispose();
+  }
+
+  // -------------------------
+  // Convenience debug helpers
+  // -------------------------
+  String _shorten(String s, [int limit = 200]) => s.length <= limit ? s : '${s.substring(0, limit)}...';
 }
+

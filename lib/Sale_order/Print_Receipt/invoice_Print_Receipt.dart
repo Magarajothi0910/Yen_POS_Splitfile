@@ -48,8 +48,9 @@ class ReceiptPrinter {
     String paymentAmount;
     DateTime now = DateTime.now();
     String formattedDate = DateFormat('dd-MM-yyyy').format(now);
-    String formattedTime =
-        DateFormat('hh:mm a').format(now); // 12-hour format with AM/PM
+    String formattedTime = DateFormat(
+      'hh:mm a',
+    ).format(now); // 12-hour format with AM/PM
 
     if (selectedPaymentOption == 'Cash: Custom' &&
         customAmountController.text.isNotEmpty) {
@@ -62,8 +63,8 @@ class ReceiptPrinter {
       paymentAmount = 'Rs ${totalAmount.toStringAsFixed(0)}';
     }
     var invoiceNumberGenerator = InvoiceNumberGenerator();
-    String newInvoiceNumber =
-        await invoiceNumberGenerator.generateInvoiceNumber();
+    String newInvoiceNumber = await invoiceNumberGenerator
+        .generateInvoiceNumber();
     var cartProvider = Provider.of<CurrentSaleProvider>(context, listen: false);
     var cartItems = cartProvider.currentSaleItems;
     double discountPercentage = cartProvider.discountPercentage;
@@ -73,8 +74,10 @@ class ReceiptPrinter {
     // Fetch the settings
     // ignore: unused_local_variable
     final settings = GlobalDataManager().billReceiptSettings;
-    final printerProvider =
-        Provider.of<PrinterProviderpos>(context, listen: false);
+    final printerProvider = Provider.of<PrinterProviderpos>(
+      context,
+      listen: false,
+    );
 
     String printerIp = printerProvider.getOverallPrinterIp().toString();
 
@@ -83,15 +86,20 @@ class ReceiptPrinter {
 
     final PosPrintResult res = await printer.connect(printerIp, port: 9100);
     // Check if there are any hold bills in the cart
-    bool hasHoldBills =
-        cartProvider.currentSaleItems.any((item) => item['status'] == 'hold');
+    bool hasHoldBills = cartProvider.currentSaleItems.any(
+      (item) => item['status'] == 'hold',
+    );
 
     if (hasHoldBills) {
-      developer.log('Yes, there are hold bills in the cart.',
-          name: 'PrintReceiptLog');
+      developer.log(
+        'Yes, there are hold bills in the cart.',
+        name: 'PrintReceiptLog',
+      );
     } else {
-      developer.log('No hold bills found in the cart.',
-          name: 'PrintReceiptLog');
+      developer.log(
+        'No hold bills found in the cart.',
+        name: 'PrintReceiptLog',
+      );
     }
     if (res == PosPrintResult.success) {
       List<int> bytes = [];
@@ -99,37 +107,40 @@ class ReceiptPrinter {
 
       bytes += generator.row([
         createPosColumn(
-            width: 12,
-            text: '',
-            styles: createPosStyles(
-              align: PosAlign.center,
-              height: PosTextSize.size6,
-              width: PosTextSize.size6,
-              codeTable: 'CP1252',
-            )),
+          width: 12,
+          text: '',
+          styles: createPosStyles(
+            align: PosAlign.center,
+            height: PosTextSize.size6,
+            width: PosTextSize.size6,
+            codeTable: 'CP1252',
+          ),
+        ),
       ]);
       bytes += generator.row([
         createPosColumn(
-            width: 12,
-            text: 'BestMummy',
-            styles: createPosStyles(
-              align: PosAlign.center,
-              height: PosTextSize.size1,
-              width: PosTextSize.size1,
-              codeTable: 'CP1252',
-            )),
+          width: 12,
+          text: 'BestMummy',
+          styles: createPosStyles(
+            align: PosAlign.center,
+            height: PosTextSize.size1,
+            width: PosTextSize.size1,
+            codeTable: 'CP1252',
+          ),
+        ),
       ]);
 
       bytes += generator.row([
         createPosColumn(
-            width: 12,
-            text: 'Sweets & Cakes',
-            styles: createPosStyles(
-              align: PosAlign.center,
-              height: PosTextSize.size1,
-              width: PosTextSize.size1,
-              codeTable: 'CP1252',
-            )),
+          width: 12,
+          text: 'Sweets & Cakes',
+          styles: createPosStyles(
+            align: PosAlign.center,
+            height: PosTextSize.size1,
+            width: PosTextSize.size1,
+            codeTable: 'CP1252',
+          ),
+        ),
       ]);
       bytes += generator.feed(1);
 
@@ -149,108 +160,114 @@ class ReceiptPrinter {
       bytes += generator.feed(1);
       bytes += generator.row([
         createPosColumn(
-            width: 12,
-            text: 'Sales Invoice',
-            styles: createPosStyles(
-              align: PosAlign.center,
-              codeTable: 'CP1252',
-              height: PosTextSize.size1,
-              width: PosTextSize.size1,
-            )),
+          width: 12,
+          text: 'Sales Invoice',
+          styles: createPosStyles(
+            align: PosAlign.center,
+            codeTable: 'CP1252',
+            height: PosTextSize.size1,
+            width: PosTextSize.size1,
+          ),
+        ),
       ]);
       bytes += generator.feed(1);
 
       // Add formatted date and time
       bytes += generator.row([
         createPosColumn(
-            width: 6,
-            text: 'Date: $formattedDate',
-            styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252')),
+          width: 6,
+          text: 'Date: $formattedDate',
+          styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
+        ),
         createPosColumn(
-            width: 6,
-            text: 'Time: $formattedTime',
-            styles:
-                createPosStyles(align: PosAlign.right, codeTable: 'CP1252')),
+          width: 6,
+          text: 'Time: $formattedTime',
+          styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
+        ),
       ]);
 
       bytes += generator.feed(1);
 
       bytes += generator.row([
         createPosColumn(
-            width: 5,
-            text: 'Branch:Aranmanai',
-            styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252')),
+          width: 5,
+          text: 'Branch:Aranmanai',
+          styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
+        ),
         createPosColumn(
-            width: 7,
-            text: 'BillNo:$newInvoiceNumber',
-            styles:
-                createPosStyles(align: PosAlign.right, codeTable: 'CP1252')),
+          width: 7,
+          text: 'BillNo:$newInvoiceNumber',
+          styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
+        ),
       ]);
 
       bytes += generator.feed(1);
 
-//       const int maxLineWidth = 18;
-// // Process and print employee name
-//       List<String> employeeNameLines =
-//           splitText(employeeNumberController, maxLineWidth);
-//       for (int i = 0; i < employeeNameLines.length; i++) {
-//         bytes += generator.row([
-//           createPosColumn(
-//               width: 12, // Assuming 12 is the full width of your receipt paper
-//               text: i == 0
-//                   ? 'Sales Person : ${employeeNameLines[i]}'
-//                   : '              ${employeeNameLines[i]}',
-//               styles:
-//                   createPosStyles(align: PosAlign.left, codeTable: 'CP1252')),
-//         ]);
-//       }
+      //       const int maxLineWidth = 18;
+      // // Process and print employee name
+      //       List<String> employeeNameLines =
+      //           splitText(employeeNumberController, maxLineWidth);
+      //       for (int i = 0; i < employeeNameLines.length; i++) {
+      //         bytes += generator.row([
+      //           createPosColumn(
+      //               width: 12, // Assuming 12 is the full width of your receipt paper
+      //               text: i == 0
+      //                   ? 'Sales Person : ${employeeNameLines[i]}'
+      //                   : '              ${employeeNameLines[i]}',
+      //               styles:
+      //                   createPosStyles(align: PosAlign.left, codeTable: 'CP1252')),
+      //         ]);
+      //       }
 
-// // Continue with other receipt details
-//       bytes += generator.row([
-//         createPosColumn(
-//           width: 12,
-//           text: 'Customer No: $customerNumber',
-//           styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
-//         ),
-//       ]);
+      // // Continue with other receipt details
+      //       bytes += generator.row([
+      //         createPosColumn(
+      //           width: 12,
+      //           text: 'Customer No: $customerNumber',
+      //           styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
+      //         ),
+      //       ]);
       bytes += generator.row([
         createPosColumn(
-            width: 6,
-            text: 'Sales Person : $employeeNumberController',
-            styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252')),
+          width: 6,
+          text: 'Sales Person : $employeeNumberController',
+          styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
+        ),
         createPosColumn(
-            width: 6,
-            text: 'Customer No: $customerNumber',
-            styles:
-                createPosStyles(align: PosAlign.right, codeTable: 'CP1252')),
+          width: 6,
+          text: 'Customer No: $customerNumber',
+          styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
+        ),
       ]);
       bytes += generator.feed(1);
 
       // Add headers for S.No, Item, Price, Qty, and Amount
       bytes += generator.row([
         createPosColumn(
-            width: 1,
-            text: 'S.No',
-            styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252')),
+          width: 1,
+          text: 'S.No',
+          styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
+        ),
         createPosColumn(
-            width: 5,
-            text: 'ITEM',
-            styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252')),
+          width: 5,
+          text: 'ITEM',
+          styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
+        ),
         createPosColumn(
-            width: 2,
-            text: '',
-            styles:
-                createPosStyles(align: PosAlign.right, codeTable: 'CP1252')),
+          width: 2,
+          text: '',
+          styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
+        ),
         createPosColumn(
-            width: 1,
-            text: '',
-            styles:
-                createPosStyles(align: PosAlign.right, codeTable: 'CP1252')),
+          width: 1,
+          text: '',
+          styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
+        ),
         createPosColumn(
-            width: 3,
-            text: 'AMOUNT',
-            styles:
-                createPosStyles(align: PosAlign.right, codeTable: 'CP1252')),
+          width: 3,
+          text: 'AMOUNT',
+          styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
+        ),
       ]);
 
       bytes += generator.feed(1);
@@ -354,27 +371,29 @@ class ReceiptPrinter {
 
         saveInvoiceToHiveAndPrint();
 
-        List<String> itemNameLines =
-            splitText(item['varianceData']['varianceName'] ?? '', 15);
+        List<String> itemNameLines = splitText(
+          item['varianceData']['varianceName'] ?? '',
+          15,
+        );
 
         // Main item name
         bytes += generator.row([
           createPosColumn(
-              width: 1,
-              text: (i + 1).toString(), // S.No
-              styles:
-                  createPosStyles(align: PosAlign.left, codeTable: 'CP1252')),
+            width: 1,
+            text: (i + 1).toString(), // S.No
+            styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
+          ),
           createPosColumn(
-              width: 8,
-              text: itemNameLines[0], // First line of item name
-              styles:
-                  createPosStyles(align: PosAlign.left, codeTable: 'CP1252')),
+            width: 8,
+            text: itemNameLines[0], // First line of item name
+            styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
+          ),
           createPosColumn(
-              width: 3,
-              text:
-                  "Rs ${cartProvider.calculateItemTotal(item).toStringAsFixed(0)}", // Price
-              styles:
-                  createPosStyles(align: PosAlign.right, codeTable: 'CP1252')),
+            width: 3,
+            text:
+                "Rs ${cartProvider.calculateItemTotal(item).toStringAsFixed(0)}", // Price
+            styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
+          ),
         ]);
 
         // If there are additional lines for the item name, print them below
@@ -382,18 +401,23 @@ class ReceiptPrinter {
           for (int j = 1; j < itemNameLines.length; j++) {
             bytes += generator.row([
               createPosColumn(
-                  width: 1,
-                  text: '',
-                  styles: createPosStyles(align: PosAlign.left)),
+                width: 1,
+                text: '',
+                styles: createPosStyles(align: PosAlign.left),
+              ),
               createPosColumn(
-                  width: 8,
-                  text: itemNameLines[j], // Additional line of item name
-                  styles: createPosStyles(
-                      align: PosAlign.left, codeTable: 'CP1252')),
+                width: 8,
+                text: itemNameLines[j], // Additional line of item name
+                styles: createPosStyles(
+                  align: PosAlign.left,
+                  codeTable: 'CP1252',
+                ),
+              ),
               createPosColumn(
-                  width: 3,
-                  text: '',
-                  styles: createPosStyles(align: PosAlign.right)),
+                width: 3,
+                text: '',
+                styles: createPosStyles(align: PosAlign.right),
+              ),
             ]);
           }
         }
@@ -401,78 +425,80 @@ class ReceiptPrinter {
         // Quantity and unit price (for kg, pcs, etc.)
         bytes += generator.row([
           createPosColumn(
-              width: 1,
-              text: '',
-              styles: createPosStyles(align: PosAlign.left)),
+            width: 1,
+            text: '',
+            styles: createPosStyles(align: PosAlign.left),
+          ),
           createPosColumn(
-              width: 8,
-              text:
-                  "(${item['quantity']} ${item['varianceData']['variance_Uom']} x ${item['varianceData']['variance_Defaultprice']} tax ${item['itemData']['tax']}%)", // Quantity and unit price
-              styles:
-                  createPosStyles(align: PosAlign.left, codeTable: 'CP1252')),
+            width: 8,
+            text:
+                "(${item['quantity']} ${item['varianceData']['variance_Uom']} x ${item['varianceData']['variance_Defaultprice']} tax ${item['itemData']['tax']}%)", // Quantity and unit price
+            styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
+          ),
           createPosColumn(
-              width: 3,
-              text: "", // Total amount
-              styles:
-                  createPosStyles(align: PosAlign.right, codeTable: 'CP1252')),
+            width: 3,
+            text: "", // Total amount
+            styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
+          ),
         ]);
 
         // Add an empty row for spacing between items
         bytes += generator.row([
           createPosColumn(
-              width: 12,
-              text: '',
-              styles: createPosStyles(align: PosAlign.center)),
+            width: 12,
+            text: '',
+            styles: createPosStyles(align: PosAlign.center),
+          ),
         ]);
       }
 
       // Adding totals and other details
       bytes += generator.row([
         createPosColumn(
-            width: 12,
-            text: '----------------------------------------------',
-            styles:
-                createPosStyles(align: PosAlign.center, codeTable: 'CP1252')),
+          width: 12,
+          text: '----------------------------------------------',
+          styles: createPosStyles(align: PosAlign.center, codeTable: 'CP1252'),
+        ),
       ]);
       // Display the discount amount and percentage
       if (discountController.text == 0) {
         bytes += generator.row([
           createPosColumn(
-              width: 12,
-              text:
-                  "Discount: $discountPercentage% (-Rs ${discountAmount.toStringAsFixed(0)})",
-              styles:
-                  createPosStyles(align: PosAlign.right, codeTable: 'CP1252')),
+            width: 12,
+            text:
+                "Discount: $discountPercentage% (-Rs ${discountAmount.toStringAsFixed(0)})",
+            styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
+          ),
         ]);
       }
       // Print Custom Charge
       if (customChargeController.text == 0) {
         bytes += generator.row([
           createPosColumn(
-              width: 12,
-              text: "Custom Charge: Rs ${customCharge.toStringAsFixed(0)}",
-              styles:
-                  createPosStyles(align: PosAlign.right, codeTable: 'CP1252')),
+            width: 12,
+            text: "Custom Charge: Rs ${customCharge.toStringAsFixed(0)}",
+            styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
+          ),
         ]);
       }
 
       // Find the section where the payment details are printed and adjust it:
       bytes += generator.row([
         createPosColumn(
-            width: 12,
-            text:
-                "$selectedPaymentOptionValue: ${totalAmount.toStringAsFixed(0)}",
-            styles:
-                createPosStyles(align: PosAlign.right, codeTable: 'CP1252')),
+          width: 12,
+          text:
+              "$selectedPaymentOptionValue: ${totalAmount.toStringAsFixed(0)}",
+          styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
+        ),
       ]);
 
       bytes += generator.row([
         createPosColumn(
-            width: 12,
-            text:
-                "Total : Rs ${cartProvider.calculateTotal().toStringAsFixed(0)}",
-            styles:
-                createPosStyles(align: PosAlign.right, codeTable: 'CP1252')),
+          width: 12,
+          text:
+              "Total : Rs ${cartProvider.calculateTotal().toStringAsFixed(0)}",
+          styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
+        ),
       ]);
       // Print SGST and CGST details
       // Right-aligning SGST and CGST using generator.row()
@@ -494,7 +520,7 @@ class ReceiptPrinter {
       //         styles: const PosStyles(align: PosAlign.right))
       //   ]);
       // });
-// Combine SGST and CGST details on a single line
+      // Combine SGST and CGST details on a single line
       sgstMap.forEach((rate, sgstAmount) {
         double cgstAmount =
             cgstMap[rate] ?? 0.0; // Get the corresponding CGST amount
@@ -513,37 +539,39 @@ class ReceiptPrinter {
 
       bytes += generator.row([
         createPosColumn(
-            width: 12,
-            text: '----------------------------------------------',
-            styles:
-                createPosStyles(align: PosAlign.center, codeTable: 'CP1252')),
+          width: 12,
+          text: '----------------------------------------------',
+          styles: createPosStyles(align: PosAlign.center, codeTable: 'CP1252'),
+        ),
       ]);
       bytes += generator.feed(1);
       bytes += generator.row([
         createPosColumn(
-            width: 12,
-            text:
-                'TOTAL Rs ${cartProvider.calculateTotal().toStringAsFixed(0)}',
-            styles: createPosStyles(
-                align: PosAlign.right,
-                codeTable: 'CP1252',
-                height: PosTextSize.size2,
-                width: PosTextSize.size2)),
+          width: 12,
+          text: 'TOTAL Rs ${cartProvider.calculateTotal().toStringAsFixed(0)}',
+          styles: createPosStyles(
+            align: PosAlign.right,
+            codeTable: 'CP1252',
+            height: PosTextSize.size2,
+            width: PosTextSize.size2,
+          ),
+        ),
       ]);
       bytes += generator.feed(1);
       bytes += generator.row([
         createPosColumn(
-            width: 12,
-            text: 'Thank You ! Visit Again !',
-            styles:
-                createPosStyles(align: PosAlign.center, codeTable: 'CP1252')),
+          width: 12,
+          text: 'Thank You ! Visit Again !',
+          styles: createPosStyles(align: PosAlign.center, codeTable: 'CP1252'),
+        ),
       ]);
 
       // Inside _printReceiptDetails function
       bytes += generator.feed(1);
 
       List<String> addressLines = splitAddress(
-          "No.72, Salai Bazaar, Ramanathapuram,  Tamil Nadu-623501");
+        "No.72, Salai Bazaar, Ramanathapuram,  Tamil Nadu-623501",
+      );
 
       for (int i = 0; i < addressLines.length; i++) {
         bytes += generator.row([
@@ -559,10 +587,10 @@ class ReceiptPrinter {
       }
       bytes += generator.row([
         createPosColumn(
-            width: 12,
-            text: 'Phone : 9500910118',
-            styles:
-                createPosStyles(align: PosAlign.center, codeTable: 'CP1252')),
+          width: 12,
+          text: 'Phone : 9500910118',
+          styles: createPosStyles(align: PosAlign.center, codeTable: 'CP1252'),
+        ),
       ]);
       bytes += generator.row([
         createPosColumn(
@@ -579,8 +607,9 @@ class ReceiptPrinter {
 
       bytes += generator.feed(1);
 
-      printer
-          .rawBytes(Uint8List.fromList(bytes)); // Send the bytes to the printer
+      printer.rawBytes(
+        Uint8List.fromList(bytes),
+      ); // Send the bytes to the printer
 
       printer.cut();
 
@@ -636,12 +665,11 @@ class ReceiptPrinter {
 
   String generateShortHiveInvoiceId() {
     final random = Random();
-    final timestamp = DateTime.now()
-        .millisecondsSinceEpoch
+    final timestamp = DateTime.now().millisecondsSinceEpoch
         .toString()
         .substring(6); // Shortened timestamp
     const characters =
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123334419'; // Alphanumeric characters
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZ0125678989'; // Alphanumeric characters
     final randomId =
         List<int>.generate(6, (_) => random.nextInt(characters.length))
             .map((index) => characters[index])

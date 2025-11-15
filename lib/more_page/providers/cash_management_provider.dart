@@ -292,8 +292,7 @@ class CashManagementProvider extends ChangeNotifier {
 
         return formattedShifts;
       }
-    } catch (e, st) {
-    }
+    } catch (e, st) {}
     return [];
   }
 
@@ -372,27 +371,17 @@ class CashManagementProvider extends ChangeNotifier {
         }).toList();
 
         dayEndData = formatted;
-        if (kDebugMode) {
-          debugPrint('Fetched ${formatted.length} day-end records.');
-        }
+
         return formatted;
       } else {
-        if (kDebugMode) {
-          debugPrint(
-            'Unexpected response data format or status code: '
-            '${response.statusCode}',
-          );
-        }
         return [];
       }
     } on DioError catch (e) {
       final errorMsg = e.response != null
           ? 'DioError: HTTP ${e.response?.statusCode}, data: ${e.response?.data}'
           : 'DioError: ${e.message}';
-      debugPrint(errorMsg);
       return [];
     } catch (e, st) {
-      debugPrint('Unexpected fetchDayEndDetails error: $e\n$st');
       return [];
     }
   }
@@ -403,10 +392,6 @@ class CashManagementProvider extends ChangeNotifier {
     Map<String, dynamic> dayEnd,
     List<Map<String, dynamic>> shifts,
   ) async {
-    debugPrint(
-      "🏁 Starting printOpenDayEndShifts with dayEnd: $dayEnd and ${shifts.length} shifts",
-    );
-
     CapabilityProfile profile;
     NetworkPrinter printer;
     Generator generator;
@@ -417,9 +402,6 @@ class CashManagementProvider extends ChangeNotifier {
       printer = NetworkPrinter(PaperSize.mm80, profile);
       generator = Generator(PaperSize.mm80, profile);
     } catch (e, st) {
-      debugPrint(
-        "❌ Error loading profile or setting up printer/generator: $e\n$st",
-      );
       return;
     }
 
@@ -755,9 +737,6 @@ class CashManagementProvider extends ChangeNotifier {
     int openShiftCount = 0;
     for (var shift in shifts) {
       if (shift['dayEndStatus'] != 'open') {
-        debugPrint(
-          "Skipping shift ${shift['shiftNumber'] ?? 'N/A'} with dayEndStatus: ${shift['dayEndStatus']}",
-        );
         continue;
       }
       openShiftCount++;
@@ -779,14 +758,7 @@ class CashManagementProvider extends ChangeNotifier {
           closeDate = dateFormat.format(closeDt);
           closeTime = timeFormat.format(closeDt);
         }
-        debugPrint(
-          "Parsed DateTime values — open: $openDt ($openDate @ $openTime), close: $closeDt ($closeDate @ $closeTime)",
-        );
-      } catch (e, st) {
-        debugPrint(
-          "❌ Error parsing dates for shift ${shift['shiftNumber'] ?? 'N/A'}: $e\n$st",
-        );
-      }
+      } catch (e, st) {}
 
       // Add shift header
       allBytes += generator.text(
@@ -912,26 +884,16 @@ class CashManagementProvider extends ChangeNotifier {
     if (openShiftCount > 0 || allBytes.isNotEmpty) {
       try {
         printer.rawBytes(Uint8List.fromList(allBytes));
-        debugPrint(
-          "✅ Printed day-end details and $openShiftCount open shifts in a single receipt.",
-        );
-      } catch (e, st) {
-      }
-    } else {
-      debugPrint(
-        "ℹ️ No shifts with dayEndStatus 'open' found, but printed day-end details.",
-      );
-    }
+      } catch (e, st) {}
+    } else {}
 
     // Disconnect printer
     try {
       printer.disconnect();
-    } catch (e, st) {
-    }
+    } catch (e, st) {}
   }
 
   static Future<void> patchShiftClosingData(
-    //final closingDifference = actualOpeningCash - manualOpeningBalance;
     String shiftID,
     BuildContext context,
   ) async {
@@ -949,7 +911,7 @@ class CashManagementProvider extends ChangeNotifier {
     }
 
     final patchUrl = "https://yenerp.com/fastapi/shifts/close-shift/$shiftID";
-    //final patchUrl = "http://192.168.29.8:8888/shift/close-shift/$shiftID";
+    // final patchUrl = "http://192.168.29.8:8888/shift/close-shift/$shiftID";
 
     try {
       // Convert denomination_counts keys to strings for JSON serialization
@@ -957,13 +919,16 @@ class CashManagementProvider extends ChangeNotifier {
       denominationCounts.value.forEach((key, value) {
         stringDenominationCounts[key.toString()] = value;
       });
+
       final closingDifferenceAmount =
           (manualOpeningBalance.value - actualOpeningCash).toStringAsFixed(2);
       final closingDifferenceAmountNum =
           double.tryParse(closingDifferenceAmount) ?? 0.0;
+
       final closingDifferenceType = closingDifferenceAmountNum > 0
           ? "excess"
           : (closingDifferenceAmountNum < 0 ? "shortage" : "no difference");
+
       final payload = {
         "status": "closed",
         "manualCashsales": physicalCashSales.value,
@@ -974,22 +939,28 @@ class CashManagementProvider extends ChangeNotifier {
         "closingDifferenceType": closingDifferenceType,
       };
 
-
       final response = await _dio.patch(patchUrl, data: payload);
+
+      // Immediately check context after await
+      if (!context.mounted) return;
 
       if (response.statusCode == 200) {
         isShiftClosed.value = true;
+
+        // Print denomination bill
         DenominationBill.printDenominationBill(context);
 
         // Fetch updated shift data
         final shifts = await fetchShiftDetails();
+        if (!context.mounted) return;
+
         final currentShift = shifts.firstWhere(
           (s) => s['shiftId'] == shiftID,
           orElse: () => {},
         );
 
         if (currentShift.isNotEmpty) {
-          // Console output for debugging
+          // Debug log in console
           StringBuffer buffer = StringBuffer();
           buffer.writeln('=== Shift End Report ===');
           buffer.writeln('-----------------------');
@@ -1013,21 +984,29 @@ class CashManagementProvider extends ChangeNotifier {
         ActiveField.controller.value?.clear();
         ActiveField.controller.value = null;
 
-        // Show a snackbar to confirm
+        // Show snackbar safely
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Shift Closed & Report Printed')),
           );
         }
+        debugPrint('s1');
 
-        // Navigate to OpenShift screen
+        // Add a small delay before navigation to prevent context disposal issues
+        await Future.delayed(const Duration(milliseconds: 400));
+        debugPrint('s2');
+
+        // Navigate to OpenShift screen safely
         if (context.mounted) {
+          debugPrint('s3');
+
           Navigator.of(
             context,
           ).push(MaterialPageRoute(builder: (context) => OpenShift()));
+          debugPrint('s4');
         }
       } else {
-        // Handle non-200 status codes
+        // Handle non-200 responses
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -1041,13 +1020,14 @@ class CashManagementProvider extends ChangeNotifier {
         }
       }
     } catch (e) {
-      // Handle DioException and other errors
       String errorMessage = 'Failed to close shift: $e';
+
       if (e is DioException && e.response != null) {
         errorMessage =
             'Failed to close shift: ${e.response?.statusCode} - ${e.response?.data.toString() ?? e.message}';
-      } else {
       }
+
+      // Show error snackbar safely
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1060,10 +1040,120 @@ class CashManagementProvider extends ChangeNotifier {
     }
   }
 
+  // static Future<void> patchShiftClosingData(
+  //   //final closingDifference = actualOpeningCash - manualOpeningBalance;
+  //   String shiftID,
+  //   BuildContext context,
+  // ) async {
+  //   if (shiftID.isEmpty) {
+  //     if (context.mounted) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         const SnackBar(
+  //           backgroundColor: Colors.red,
+  //           content: Text('Shift ID is empty. Cannot close shift.'),
+  //           duration: Duration(seconds: 3),
+  //         ),
+  //       );
+  //     }
+  //     return;
+  //   }
+
+  //   final patchUrl = "https://yenerp.com/fastapi/shifts/close-shift/$shiftID";
+  //   //final patchUrl = "http://192.168.29.8:8888/shift/close-shift/$shiftID";
+
+  //   try {
+  //     // Convert denomination_counts keys to strings for JSON serialization
+  //     final stringDenominationCounts = <String, int>{};
+  //     denominationCounts.value.forEach((key, value) {
+  //       stringDenominationCounts[key.toString()] = value;
+  //     });
+  //     final closingDifferenceAmount = (manualOpeningBalance.value - actualOpeningCash).toStringAsFixed(2);
+  //     final closingDifferenceAmountNum = double.tryParse(closingDifferenceAmount) ?? 0.0;
+  //     final closingDifferenceType = closingDifferenceAmountNum > 0
+  //         ? "excess"
+  //         : (closingDifferenceAmountNum < 0 ? "shortage" : "no difference");
+  //     final payload = {
+  //       "status": "closed",
+  //       "manualCashsales": physicalCashSales.value,
+  //       "manualUpisales": double.tryParse(upiSalesController.value) ?? 0.0,
+  //       "manualCardsales": double.tryParse(cardSalesController.value) ?? 0.0,
+  //       "manualClosingBalance": manualOpeningBalance.value.toString(),
+  //       "closingDifferenceAmount": closingDifferenceAmount,
+  //       "closingDifferenceType": closingDifferenceType,
+  //     };
+
+  //     final response = await _dio.patch(patchUrl, data: payload);
+
+  //     if (response.statusCode == 200) {
+  //       isShiftClosed.value = true;
+  //       DenominationBill.printDenominationBill(context);
+
+  //       // Fetch updated shift data
+  //       final shifts = await fetchShiftDetails();
+  //       final currentShift = shifts.firstWhere((s) => s['shiftId'] == shiftID, orElse: () => {});
+
+  //       if (currentShift.isNotEmpty) {
+  //         // Console output for debugging
+  //         StringBuffer buffer = StringBuffer();
+  //         buffer.writeln('=== Shift End Report ===');
+  //         buffer.writeln('-----------------------');
+  //         currentShift.forEach((key, value) {
+  //           buffer.writeln('$key: $value');
+  //         });
+  //         buffer.writeln('-----------------------');
+
+  //         // Print to thermal printer
+  //         await printShiftData(currentShift);
+  //       }
+
+  //       // Clear all fields after successful shift close
+  //       physicalCashSales.value = 0;
+  //       manualOpeningBalance.value = 0;
+  //       denominationCounts.value = {};
+  //       cashSalesController.value = "";
+  //       upiSalesController.value = "";
+  //       cardSalesController.value = "";
+  //       ActiveField.controller.value?.clear();
+  //       ActiveField.controller.value = null;
+
+  //       // Show a snackbar to confirm
+  //       if (context.mounted) {
+  //         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Shift Closed & Report Printed')));
+  //       }
+
+  //       // Navigate to OpenShift screen
+  //       if (context.mounted) {
+  //         Navigator.of(context).push(MaterialPageRoute(builder: (context) => OpenShift()));
+  //       }
+  //     } else {
+  //       // Handle non-200 status codes
+  //       if (context.mounted) {
+  //         ScaffoldMessenger.of(context).showSnackBar(
+  //           SnackBar(
+  //             backgroundColor: Colors.red,
+  //             content: Text('Failed to close shift: Server returned status ${response.statusCode}'),
+  //             duration: const Duration(seconds: 3),
+  //           ),
+  //         );
+  //       }
+  //     }
+  //   } catch (e) {
+  //     // Handle DioException and other errors
+  //     String errorMessage = 'Failed to close shift: $e';
+  //     if (e is DioException && e.response != null) {
+  //       errorMessage = 'Failed to close shift: ${e.response?.statusCode} - ${e.response?.data.toString() ?? e.message}';
+  //     } else {}
+  //     if (context.mounted) {
+  //       ScaffoldMessenger.of(
+  //         context,
+  //       ).showSnackBar(SnackBar(backgroundColor: Colors.red, content: Text(errorMessage), duration: const Duration(seconds: 5)));
+  //     }
+  //   }
+  // }
+
   /// Print shift report to thermal printer
 
   static Future<void> printShiftData(Map<String, dynamic> shift) async {
-
     CapabilityProfile profile;
     NetworkPrinter printer;
     Generator generator;
@@ -1073,9 +1163,6 @@ class CashManagementProvider extends ChangeNotifier {
       printer = NetworkPrinter(PaperSize.mm80, profile);
       generator = Generator(PaperSize.mm80, profile);
     } catch (e, st) {
-      debugPrint(
-        "❌ Error loading profile or setting up printer/generator: $e\n$st",
-      );
       return;
     }
 
@@ -1109,11 +1196,7 @@ class CashManagementProvider extends ChangeNotifier {
         closeDate = dateFormat.format(closeDt);
         closeTime = timeFormat.format(closeDt);
       }
-      debugPrint(
-        "Parsed DateTime values — open: $openDt ($openDate @ $openTime), close: $closeDt ($closeDate @ $closeTime)",
-      );
-    } catch (e, st) {
-    }
+    } catch (e, st) {}
 
     List bytes = [];
 
@@ -1551,8 +1634,7 @@ class CashManagementProvider extends ChangeNotifier {
       printer.rawBytes(Uint8List.fromList(bytes.cast<int>()));
       //printer.cut();
       printer.disconnect();
-    } catch (e, st) {
-    }
+    } catch (e, st) {}
   }
 
   /// Post day-end data to API and print day-end report
@@ -1582,14 +1664,8 @@ class CashManagementProvider extends ChangeNotifier {
         ).showSnackBar(const SnackBar(content: Text('DayEnded successfully!')));
       }
 
-      if (response.statusCode != 200) {
-        debugPrint(
-          'Failed to post day end data: ${response.statusCode} ${response.data}',
-        );
-      }
-    } catch (e) {
-      debugPrint('Error posting day end data: $e');
-    }
+      if (response.statusCode != 200) {}
+    } catch (e) {}
   }
 
   static Future<List<Map<String, String>>> fetchValidationDetails() async {
@@ -1640,13 +1716,8 @@ class CashManagementProvider extends ChangeNotifier {
                 v['storeDispatchPendings']?.toString() ?? "",
           };
         }).toList();
-      } else {
-        debugPrint(
-          "❌ fetch Validation Details: status code ${response.statusCode}",
-        );
-      }
-    } catch (e, st) {
-    }
+      } else {}
+    } catch (e, st) {}
     return [];
   }
 
@@ -1673,8 +1744,7 @@ class CashManagementProvider extends ChangeNotifier {
           return {"status": d['status']?.toString() ?? ""};
         }).toList();
       }
-    } catch (e, st) {
-    }
+    } catch (e, st) {}
     return [];
   }
 
@@ -1698,10 +1768,8 @@ class CashManagementProvider extends ChangeNotifier {
         } else {
           // Unexpected type
         }
-      } else {
-      }
-    } catch (e, st) {
-    }
+      } else {}
+    } catch (e, st) {}
     return "";
   }
 
@@ -1724,26 +1792,16 @@ class CashManagementProvider extends ChangeNotifier {
           return Map<String, dynamic>.from(item as Map);
         }).toList();
 
-        if (kDebugMode) {
-          debugPrint(
-            'PATCH /dayend/$branchName SUCCESS: ${result.length} shifts updated.',
-          );
-        }
         return result;
       } else {
-        if (kDebugMode) {
-          debugPrint('Unexpected status or data: ${response.statusCode}');
-        }
         return [];
       }
     } on DioError catch (e) {
       final msg = e.response != null
           ? 'DioError: HTTP ${e.response?.statusCode}, data: ${e.response?.data}'
           : 'DioError: ${e.message}';
-      debugPrint(msg);
       return [];
     } catch (e, st) {
-      debugPrint('Error in patchDayEnd: $e\n$st');
       return [];
     }
   }
@@ -1814,8 +1872,7 @@ class CashManagementProvider extends ChangeNotifier {
       printer.rawBytes(Uint8List.fromList(bytes));
       await Future.delayed(const Duration(seconds: 1));
       printer.disconnect();
-    } else {
-    }
+    } else {}
   }
 
   /// ------------------ Calculations (same as your originals) ------------------

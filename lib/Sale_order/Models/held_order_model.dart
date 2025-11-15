@@ -94,7 +94,7 @@ class HeldOrder {
   List<String>? isBoxItem;
   List<double>? itemWiseDiscount;
   List<double>? itemWiseDiscountAmount;
-  List<int>? boxQty;
+  int? boxQty; // ✅ single int now
   List<ApprovalOrderDetail>? approvalDetails;
   String? approvalOrderId;
 
@@ -120,7 +120,7 @@ class HeldOrder {
     this.deliveryDate,
     this.deliveryTime,
     required this.event,
-    required this.shiftId,
+    this.shiftId,
     this.boxQty,
     this.cash,
     this.card,
@@ -134,7 +134,6 @@ class HeldOrder {
     required this.discountAmount,
     this.remark,
     this.customCharge,
-
     required this.finalPrice,
     this.balanceAmount,
     required this.saleOrderNo,
@@ -186,7 +185,6 @@ class HeldOrder {
       'discountAmount': discountAmount,
       'remark': remark,
       'customCharge': customCharge,
-
       'finalPrice': finalPrice,
       'balanceAmount': balanceAmount,
       'saleOrderNo': saleOrderNo,
@@ -218,28 +216,42 @@ class HeldOrder {
 
   factory HeldOrder.fromMap(Map<String, dynamic> map) {
     return HeldOrder(
-      salesOrderId: (map['salesOrderId'] ?? '').toString(),
+      salesOrderId: map['salesOrderId']?.toString() ?? '',
       itemName: List<String>.from(map['itemName'] ?? []),
       varianceName: List<String>.from(map['varianceName'] ?? []),
-      weight: List<double>.from(
-        (map['weight'] ?? []).map((e) => (e as num).toDouble()),
-      ),
-      qty: List<int>.from((map['qty'] ?? []).map((e) => (e as num).toInt())),
-      price: List<int>.from(
-        (map['price'] ?? []).map((e) => (e as num).toInt()),
-      ),
       itemCode: List<String>.from(map['itemCode'] ?? []),
-      tax: List<int>.from((map['tax'] ?? []).map((e) => (e as num).toInt())),
       uom: List<String>.from(map['uom'] ?? []),
-      amount: List<double>.from(
-        (map['amount'] ?? []).map((e) => (e as num).toDouble()),
-      ),
+      weight: map['weight'] != null
+          ? List<double>.from(
+              (map['weight'] as List).map((e) => (e as num).toDouble()),
+            )
+          : [],
+      amount: map['amount'] != null
+          ? List<double>.from(
+              (map['amount'] as List).map((e) => (e as num).toDouble()),
+            )
+          : [],
+      tax: List<int>.from(map['tax'] ?? []),
+      qty: List<int>.from(map['qty'] ?? []),
+      price: List<int>.from(map['price'] ?? []),
+      totalAmount: (map['totalAmount'] ?? 0).toDouble(),
+      totalAmount2: map['totalAmount2'] != null
+          ? (map['totalAmount2'] as num).toDouble()
+          : null,
+      cash: map['cash'] != null ? (map['cash'] as num).toDouble() : null,
+      card: map['card'] != null ? (map['card'] as num).toDouble() : null,
+      upi: map['upi'] != null ? (map['upi'] as num).toDouble() : null,
+      finalPrice: (map['finalPrice'] ?? 0).toDouble(),
+      balanceAmount: map['balanceAmount'] != null
+          ? (map['balanceAmount'] as num).toDouble()
+          : null,
       deliveryDate: map['deliveryDate']?.toString(),
       deliveryTime: map['deliveryTime']?.toString(),
       event: map['event']?.toString() ?? '',
-      branchId: map['branchId']?.toString(),
       branchName: map['branchName']?.toString(),
       aliasName: map['aliasName']?.toString(),
+      branchId: map['branchId']?.toString(),
+      holdOrderId: map['holdOrderId']?.toString(),
       customerNumber: map['customerNumber']?.toString() ?? '',
       customerName: map['customerName']?.toString() ?? '',
       deliveryType: map['deliveryType']?.toString() ?? '',
@@ -247,21 +259,13 @@ class HeldOrder {
       landmark: map['landmark']?.toString() ?? '',
       discount: (map['discount'] ?? 0).toDouble(),
       discountAmount: (map['discountAmount'] ?? 0).toDouble(),
-      remark: map['remark']?.toString() ?? '',
-      customCharge: (map['customCharge'] != null)
+      remark: map['remark']?.toString(),
+      customCharge: map['customCharge'] != null
           ? (map['customCharge'] as num).toDouble()
           : null,
-
-      totalAmount: (map['totalAmount'] ?? 0).toDouble(),
-      totalAmount2: (map['totalAmount2'] != null)
-          ? (map['totalAmount2'] as num).toDouble()
-          : null,
-      finalPrice: (map['finalPrice'] ?? 0).toDouble(),
-      balanceAmount: (map['balanceAmount'] ?? 0).toDouble(),
       saleOrderNo: map['saleOrderNo']?.toString() ?? '',
       orderDate: map['orderDate']?.toString(),
       orderTime: map['orderTime']?.toString(),
-      holdOrderId: map['holdOrderId']?.toString(),
       employeeName: map['employeeName']?.toString() ?? '',
       status: map['status']?.toString() ?? '',
       shiftId: map['shiftId']?.toString(),
@@ -276,30 +280,31 @@ class HeldOrder {
       isBoxItem: map['isBoxItem'] != null
           ? List<String>.from(map['isBoxItem'])
           : null,
-      boxQty: map['boxQty'] != null
-          ? List<int>.from(
-              (map['boxQty'] as List).map((e) => (e as num).toInt()),
-            )
-          : null,
-      itemWiseDiscount: (map['itemWiseDiscount'] != null)
+      itemWiseDiscount: map['itemWiseDiscount'] != null
           ? List<double>.from(
               (map['itemWiseDiscount'] as List).map(
                 (e) => (e as num).toDouble(),
               ),
             )
           : null,
-      itemWiseDiscountAmount: (map['itemWiseDiscountAmount'] != null)
+      itemWiseDiscountAmount: map['itemWiseDiscountAmount'] != null
           ? List<double>.from(
               (map['itemWiseDiscountAmount'] as List).map(
                 (e) => (e as num).toDouble(),
               ),
             )
           : null,
-
+      boxQty: map['boxQty'] != null
+          ? (map['boxQty'] as num).toInt()
+          : null, // ✅ fixed
+      approvalDetails: map['approvalDetails'] != null
+          ? List<ApprovalOrderDetail>.from(
+              (map['approvalDetails'] as List).map(
+                (x) => ApprovalOrderDetail.fromMap(x),
+              ),
+            )
+          : null,
       approvalOrderId: map['approvalOrderId']?.toString(),
-      cash: (map['cash'] != null) ? (map['cash'] as num).toDouble() : null,
-      card: (map['card'] != null) ? (map['card'] as num).toDouble() : null,
-      upi: (map['upi'] != null) ? (map['upi'] as num).toDouble() : null,
       imagePath1: map['imagePath1']?.toString(),
       imagePath2: map['imagePath2']?.toString(),
       audioPath: map['audioPath']?.toString(),
@@ -307,91 +312,7 @@ class HeldOrder {
   }
 
   factory HeldOrder.fromJson(Map<String, dynamic> json) {
-    return HeldOrder(
-      salesOrderId: json['salesOrderId'] ?? '',
-      itemName: List<String>.from(json['itemName'] ?? []),
-      varianceName: List<String>.from(json['varianceName'] ?? []),
-      itemCode: List<String>.from(json['itemCode'] ?? []),
-      qty: List<int>.from(json['qty'] ?? []),
-      tax: List<int>.from(json['tax'] ?? []),
-      uom: List<String>.from(json['uom'] ?? []),
-      amount: List<double>.from(
-        (json['amount'] ?? []).map((e) => (e as num).toDouble()),
-      ),
-      price: List<int>.from(json['price'] ?? []),
-      weight: List<double>.from(
-        (json['weight'] ?? []).map((e) => (e as num).toDouble()),
-      ),
-      deliveryDate: json['deliveryDate'],
-      deliveryTime: json['deliveryTime'],
-      event: json['event'] ?? '',
-      branchName: json['branchName'],
-      aliasName: json['aliasName'],
-      branchId: json['branchId'],
-      holdOrderId: json['holdOrderId'],
-      customerNumber: json['customerNumber'] ?? '',
-      customerName: json['customerName'] ?? '',
-      deliveryType: json['deliveryType'] ?? '',
-      address: json['address'] ?? '',
-      landmark: json['landmark'] ?? '',
-      discount: (json['discount'] ?? 0).toDouble(),
-      discountAmount: (json['discountAmount'] ?? 0).toDouble(),
-      remark: json['remark'] ?? '',
-      customCharge: (json['customCharge'] != null)
-          ? (json['customCharge'] as num).toDouble()
-          : null,
-
-      totalAmount: (json['totalAmount'] ?? 0).toDouble(),
-      totalAmount2: (json['totalAmount2'] != null)
-          ? (json['totalAmount2'] as num).toDouble()
-          : null,
-      finalPrice: (json['finalPrice'] ?? 0).toDouble(),
-      balanceAmount: (json['balanceAmount'] ?? 0).toDouble(),
-      saleOrderNo: json['saleOrderNo'] ?? '',
-      orderDate: json['orderDate'],
-      orderTime: json['orderTime'],
-      employeeName: json['employeeName'] ?? '',
-      status: json['status'] ?? '',
-      shiftId: json['shiftId'],
-      companyName: json['companyName'],
-      companyAddress: json['companyAddress'],
-      companyGST: json['companyGST'],
-      advanceDateTime: json['advanceDateTime'] != null
-          ? List<String>.from(json['advanceDateTime'])
-          : null,
-      orderType: json['orderType'],
-      eventDate: json['eventDate'],
-      isBoxItem: json['isBoxItem'] != null
-          ? List<String>.from(json['isBoxItem'])
-          : null,
-      boxQty: json['boxQty'] != null
-          ? List<int>.from(
-              (json['boxQty'] as List).map((e) => (e as num).toInt()),
-            )
-          : null,
-      itemWiseDiscount: (json['itemWiseDiscount'] != null)
-          ? List<double>.from(
-              (json['itemWiseDiscount'] as List).map(
-                (e) => (e as num).toDouble(),
-              ),
-            )
-          : null,
-      itemWiseDiscountAmount: (json['itemWiseDiscountAmount'] != null)
-          ? List<double>.from(
-              (json['itemWiseDiscountAmount'] as List).map(
-                (e) => (e as num).toDouble(),
-              ),
-            )
-          : null,
-
-      approvalOrderId: json['approvalOrderId'],
-      cash: (json['cash'] != null) ? (json['cash'] as num).toDouble() : null,
-      card: (json['card'] != null) ? (json['card'] as num).toDouble() : null,
-      upi: (json['upi'] != null) ? (json['upi'] as num).toDouble() : null,
-      imagePath1: json['imagePath1'],
-      imagePath2: json['imagePath2'],
-      audioPath: json['audioPath'],
-    );
+    return HeldOrder.fromMap(json);
   }
 }
 

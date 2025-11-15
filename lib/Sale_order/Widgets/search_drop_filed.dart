@@ -8,10 +8,9 @@ import 'package:yenpos/Global/globals_data.dart';
 import 'package:yenpos/Mode_page/Regular_mode/Provider/regular_mode_screen_provider.dart';
 import 'package:yenpos/Sale_order/Provider/cartProvider.dart';
 import '../../Global/Widget/custom_textWidgets.dart';
-
 import 'numeric_Calculator.dart';
 
-final FocusNode focusNode = FocusNode(); // Add FocusNode
+final FocusNode focusNode = FocusNode();
 
 class SearchDropdown extends StatefulWidget {
   const SearchDropdown({Key? key}) : super(key: key);
@@ -25,15 +24,14 @@ class _SearchDropdownState extends State<SearchDropdown> {
   final TextEditingController _hiddenController = TextEditingController();
   OverlayEntry? _overlayEntry;
   final LayerLink _layerLink = LayerLink();
-
-  bool _isQrMode = false; // QR mode toggle
-  bool _isProcessing = false; // To prevent overlapping processing
+  bool _isQrMode = false;
+  bool _isProcessing = false;
   final FocusNode _searchFocus = FocusNode();
+
   @override
   void initState() {
     super.initState();
-
-    // text-change listener stays the same
+    final cartProvider = Provider.of<CartProvider>(context, listen: false);
     _controller.addListener(_updateOverlay);
   }
 
@@ -41,30 +39,22 @@ class _SearchDropdownState extends State<SearchDropdown> {
   void dispose() {
     _searchFocus.dispose();
     _controller.removeListener(_updateOverlay);
-    _controller.clear(); // Clear the text controller
+    _controller.clear();
     _controller.dispose();
-    _hiddenController.dispose(); // Dispose the hidden controller
-
+    _hiddenController.dispose();
     _removeOverlay();
     super.dispose();
   }
 
   void _updateOverlay() {
     final provider = Provider.of<RegularModeProvider>(context, listen: false);
-
     provider.filterVarianceNamesBySearchQuery(_controller.text.trim());
-
     if (_controller.text.isEmpty) {
-      // Only remove if there’s no text
       _removeOverlay();
       return;
     }
-
     if (_overlayEntry == null) {
-      // Show once
       _showOverlay();
-    } else {
-      // Just refresh UI without removing
     }
   }
 
@@ -72,7 +62,7 @@ class _SearchDropdownState extends State<SearchDropdown> {
     if (_overlayEntry == null) {
       _overlayEntry = _createOverlayEntry();
       Overlay.of(context).insert(_overlayEntry!);
-    } else {}
+    }
   }
 
   void _removeOverlay() {
@@ -88,9 +78,7 @@ class _SearchDropdownState extends State<SearchDropdown> {
 
     return OverlayEntry(
       builder: (context) => GestureDetector(
-        behavior:
-            HitTestBehavior.translucent, // Allows detection of outside taps
-
+        behavior: HitTestBehavior.translucent,
         child: Stack(
           children: [
             Positioned(
@@ -126,7 +114,6 @@ class _SearchDropdownState extends State<SearchDropdown> {
                                 itemBuilder: (_, index) {
                                   final varianceName =
                                       provider.filteredVarianceNames[index];
-
                                   return ListTile(
                                     dense: true,
                                     contentPadding: EdgeInsets.symmetric(
@@ -166,20 +153,13 @@ class _SearchDropdownState extends State<SearchDropdown> {
                                                   varianceName,
                                                 ) ??
                                                 'Unknown UOM';
-                                            // _handleItemSelection(selectedItem,
-                                            //     varianceData, varianceUOM);
-                                            setState(() {
-                                              // Update state variables here if needed
-                                              // For example, store selected item or update UI-related variables
-                                              _handleItemSelection(
-                                                selectedItem,
-                                                varianceData,
-                                                varianceUOM,
-                                              );
-                                              _removeOverlay(); // Close overlay on selection
-                                            });
-                                            // _removeOverlay(); // Close overlay on selection
-                                          } else {}
+                                            _handleItemSelection(
+                                              selectedItem,
+                                              varianceData,
+                                              varianceUOM,
+                                            );
+                                            _removeOverlay();
+                                          }
                                         }
                                       });
                                     },
@@ -214,7 +194,6 @@ class _SearchDropdownState extends State<SearchDropdown> {
   ) {
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
 
-    // Extract data safely
     String varianceName = selectedItem['varianceName']?.toString() ?? '';
     String itemCode =
         selectedItem['varianceItemCode']?.toString() ??
@@ -224,7 +203,6 @@ class _SearchDropdownState extends State<SearchDropdown> {
     String itemName = variancedata['itemName']?.toString() ?? '';
     varianceUOM = varianceUOM ?? '';
 
-    // Determine price safely
     double price = 0.0;
     final rawPrice =
         selectedItem['varianceDefaultPrice'] ??
@@ -235,10 +213,8 @@ class _SearchDropdownState extends State<SearchDropdown> {
       price = double.tryParse(rawPrice) ?? 0.0;
     }
 
-    // Determine tax (optional fallback)
     final tax = variancedata['variancetax'] ?? 0;
 
-    // Handle UOM types
     if (varianceUOM == 'Kgs' || varianceUOM == 'Kg') {
       showDialog(
         context: context,
@@ -256,7 +232,7 @@ class _SearchDropdownState extends State<SearchDropdown> {
                   quantity: 1,
                   isBoxItem: 'no',
                   tax: tax,
-                  itemCode: itemCode, // ✅ Correct varianceitemCode stored
+                  itemCode: itemCode,
                   itemWiseDiscountAmount: 0.0,
                   itemWiseDiscount: 0.0,
                 ),
@@ -266,7 +242,6 @@ class _SearchDropdownState extends State<SearchDropdown> {
         },
       );
     } else {
-      // For Pcs, Pkt, etc.
       cartProvider.addItemToCart(
         CartItem(
           varianceName: varianceName,
@@ -277,14 +252,13 @@ class _SearchDropdownState extends State<SearchDropdown> {
           quantity: 1,
           isBoxItem: 'no',
           tax: tax,
-          itemCode: itemCode, // ✅ Correct varianceitemCode stored
+          itemCode: itemCode,
           itemWiseDiscountAmount: 0.0,
           itemWiseDiscount: 0.0,
         ),
       );
     }
-
-    setState(() {}); // if any UI update needed
+    setState(() {});
     _clearSelection();
   }
 
@@ -299,7 +273,7 @@ class _SearchDropdownState extends State<SearchDropdown> {
     setState(() {
       _isQrMode = !_isQrMode;
       if (_isQrMode) {
-        focusNode.requestFocus(); // Ensure focus on the hidden field
+        focusNode.requestFocus();
       } else {
         focusNode.unfocus();
       }
@@ -310,19 +284,16 @@ class _SearchDropdownState extends State<SearchDropdown> {
     if (_isProcessing || !_isQrMode || value.isEmpty) return;
 
     setState(() {
-      _isProcessing = true; // Prevent overlapping scans
+      _isProcessing = true;
     });
 
     try {
-      // Parse the scanned data
       final Map<String, dynamic> scannedData = _parseScannedData(value);
-
       if (scannedData.containsKey('ItemCode')) {
         final itemCode = scannedData['ItemCode'] ?? "";
         final quantity = parseToDouble(scannedData['Qty'] ?? 1);
         final uom = scannedData['UOM'] ?? '';
 
-        // Access the item provider and check for the item
         final itemProvider = Provider.of<ItemProvider>(context, listen: false);
         final provider = Provider.of<RegularModeProvider>(
           context,
@@ -339,7 +310,6 @@ class _SearchDropdownState extends State<SearchDropdown> {
             final itemName = varianceData['itemName'] ?? 'Unknown Item';
             final varianceUOM =
                 provider.getUOMForVariance(varianceName) ?? 'Unknown UOM';
-
             _handleItemSelection(selectedItem, varianceData, varianceUOM);
           }
         } else {
@@ -366,20 +336,17 @@ class _SearchDropdownState extends State<SearchDropdown> {
         ),
       );
     } finally {
-      // Clear the input field and refocus for the next scan
       _controller.clear();
-      // focusNode.requestFocus();
       setState(() {
-        _isProcessing = false; // Al0ow new scans
+        _isProcessing = false;
       });
     }
   }
 
   Map<String, dynamic> _parseScannedData(String value) {
     try {
-      return json.decode(value); // Try parsing JSON
+      return json.decode(value);
     } catch (_) {
-      // Parse key-value format if not JSON
       final Map<String, dynamic> parsedData = {};
       value.replaceAll('{', '').replaceAll('}', '').split(',').forEach((pair) {
         final keyValue = pair.split(':');
@@ -401,12 +368,11 @@ class _SearchDropdownState extends State<SearchDropdown> {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        _removeOverlay(); // Hide the overlay when tapped outside
-        focusNode.unfocus(); // Remove focus from the text field
-        _searchFocus.unfocus(); // ✅ defocus Search box
+        _removeOverlay();
+        focusNode.unfocus();
+        _searchFocus.unfocus();
       },
-      behavior: HitTestBehavior
-          .translucent, // Ensures the tap is detected even on empty space
+      behavior: HitTestBehavior.translucent,
       child: CompositedTransformTarget(
         link: _layerLink,
         child: Column(
@@ -416,12 +382,10 @@ class _SearchDropdownState extends State<SearchDropdown> {
                 Expanded(
                   child: FocusScope(
                     onFocusChange: (hasFocus) {
-                      if (!hasFocus) {
-                        _removeOverlay();
-                      }
+                      if (!hasFocus) _removeOverlay();
                     },
                     child: TextField(
-                      readOnly: true, // ✅ allow typing
+                      readOnly: true,
                       showCursor: true,
                       focusNode: _searchFocus,
                       controller: _controller,
@@ -456,14 +420,14 @@ class _SearchDropdownState extends State<SearchDropdown> {
                         ),
                       ],
                       style: TextStyle(color: Colors.blue.shade900),
-                      // ✅ pressing enter now works properly
                       onSubmitted: (value) {
                         if (value.trim().isNotEmpty) {
-                          _handleInput(value); // first handle value
-                          _updateOverlay(); // then trigger overlay suggestion
+                          _handleInput(value);
+                          _updateOverlay();
                         }
                       },
                       onTap: () => ActiveField.activate(
+                        context: context,
                         ctrl: _controller,
                         node: _searchFocus,
                         numeric: false,
@@ -487,14 +451,9 @@ class _SearchDropdownState extends State<SearchDropdown> {
                 focusNode: focusNode,
                 decoration: InputDecoration(
                   border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(
-                    vertical: 0.0,
-                  ), // Reduced height
-                  isDense: true, // Reduces overall height
-                  fillColor: Colors.transparent,
-                  filled: true,
+                  contentPadding: EdgeInsets.symmetric(vertical: 0.0),
                 ),
-                style: const TextStyle(fontSize: 0), // Keep font size minimal
+                style: const TextStyle(fontSize: 0),
                 keyboardType: TextInputType.none,
                 onSubmitted: _handleInput,
               ),
@@ -512,7 +471,7 @@ void showQuantityDialog(
   double price,
   Function(double) onAddToCart,
 ) {
-  double quantity = 1.0; // Default quantity
+  double quantity = 1.0;
   final TextEditingController _controller = TextEditingController(
     text: quantity.toInt().toString(),
   );
@@ -521,10 +480,10 @@ void showQuantityDialog(
     context: context,
     builder: (BuildContext context) {
       return StatefulBuilder(
-        builder: (BuildContext context, StateSetter setState) {
+        builder: (context, setState) {
           return AlertDialog(
             title: Text(
-              "$varianceName   ₹${price.toStringAsFixed(2)}",
+              "$varianceName ₹${price.toStringAsFixed(2)}",
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             content: Column(
@@ -534,24 +493,19 @@ void showQuantityDialog(
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Decrement Button
                     IconButton(
                       iconSize: 40,
                       onPressed: () {
                         if (quantity > 1) {
                           setState(() {
                             quantity--;
-                            _controller.text = quantity
-                                .toInt()
-                                .toString(); // Update TextField
+                            _controller.text = quantity.toInt().toString();
                           });
                         }
                       },
                       icon: const Icon(Icons.remove_circle, color: Colors.blue),
                     ),
                     const SizedBox(width: 10),
-
-                    // Quantity TextField
                     SizedBox(
                       width: 60,
                       child: TextField(
@@ -564,7 +518,6 @@ void showQuantityDialog(
                         ),
                         onChanged: (value) {
                           if (value.isEmpty) {
-                            // If field is cleared, temporarily set quantity to 0
                             setState(() {
                               quantity = 0.0;
                             });
@@ -575,7 +528,6 @@ void showQuantityDialog(
                                 quantity = newValue.toDouble();
                               });
                             } else {
-                              // Reset to 1 if invalid input
                               setState(() {
                                 quantity = 1.0;
                                 _controller.text = quantity.toInt().toString();
@@ -586,16 +538,12 @@ void showQuantityDialog(
                       ),
                     ),
                     const SizedBox(width: 10),
-
-                    // Increment Button
                     IconButton(
                       iconSize: 40,
                       onPressed: () {
                         setState(() {
                           quantity++;
-                          _controller.text = quantity
-                              .toInt()
-                              .toString(); // Update TextField
+                          _controller.text = quantity.toInt().toString();
                         });
                       },
                       icon: const Icon(Icons.add_circle, color: Colors.blue),
@@ -617,20 +565,15 @@ void showQuantityDialog(
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                onPressed: () {
-                  Navigator.of(context).pop(); // Close the dialog
-                },
+                onPressed: () => Navigator.of(context).pop(),
                 child: const Text("Cancel", style: TextStyle(fontSize: 16)),
               ),
-              // Add to Cart Button
               TextButton(
                 onPressed: () {
                   if (quantity > 0) {
                     Navigator.of(context).pop();
-                    onAddToCart(quantity); // Callback to add item to cart
+                    onAddToCart(quantity);
                   }
-                  // _controller.clear();
-                  // focusNode.unfocus(); // Unfocus the TextField
                 },
                 style: TextButton.styleFrom(
                   backgroundColor: Colors.blueAccent.withOpacity(0.1),

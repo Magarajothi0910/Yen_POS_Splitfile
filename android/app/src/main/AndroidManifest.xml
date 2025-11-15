@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Network permissions -->
+    <!-- Network -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
@@ -9,17 +9,25 @@
     <!-- Camera -->
     <uses-permission android:name="android.permission.CAMERA" />
 
-    <!-- Bluetooth permissions -->
+    <!-- Bluetooth -->
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
 
-    <!-- Optional: Location for Bluetooth scanning -->
+    <!-- Optional: Location (for Bluetooth scanning) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
-    <!-- Storage/media permissions -->
+    <!-- Foreground service + wake lock -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Storage/media -->
     <!-- For SDK <= 32 -->
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
@@ -32,13 +40,14 @@
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
 
-    <!-- USB permissions -->
-    <uses-feature android:name="android.hardware.usb.host" android:required="true" />
+      <uses-feature android:name="android.hardware.usb.host" android:required="true" />
 
     <application
         android:label="yenposapp"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:usesCleartextTraffic="true"
+        android:icon="@mipmap/ic_launcher"
+        android:enableOnBackInvokedCallback="true">
 
         <activity
             android:name=".MainActivity"
@@ -50,7 +59,6 @@
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
 
-            <!-- Theme applied before Flutter UI initializes -->
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme" />
@@ -67,7 +75,7 @@
             android:value="2" />
     </application>
 
-    <!-- Required to query activities that can process text -->
+    <!-- To query activities that can process text -->
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT" />

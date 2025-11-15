@@ -37,6 +37,7 @@ class _BankSearchDropdownState extends State<BankSearchDropdown> {
         Provider.of<BankSearchProvider>(context, listen: false);
 
     ActiveField.activate(
+      context: context,
       ctrl: bankProvider.bankNameController,
       node: bankProvider.bankFocusNode,
       numeric: false,

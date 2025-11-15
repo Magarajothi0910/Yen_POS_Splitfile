@@ -19,9 +19,11 @@ class SelectedItemsDialog extends StatelessWidget {
     double normalTotal = 0.0;
     double discountedTotal = 0.0;
 
+    // Calculate totals
     for (var item in selectedItems) {
-      final itemTotal = item.quantity * item.pricePerKg;
+      final itemTotal = _calculateItemTotal(item);
       normalTotal += itemTotal;
+
       final discountAmount = item.itemWiseDiscount != null
           ? itemTotal * (item.itemWiseDiscount / 100)
           : 0.0;
@@ -67,8 +69,10 @@ class SelectedItemsDialog extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: const [
-                  Icon(Icons.shopping_cart_checkout_rounded,
-                      color: Colors.white),
+                  Icon(
+                    Icons.shopping_cart_checkout_rounded,
+                    color: Colors.white,
+                  ),
                   SizedBox(width: 10),
                   Text(
                     'Selected Items Summary',
@@ -90,7 +94,7 @@ class SelectedItemsDialog extends StatelessWidget {
               child: SingleChildScrollView(
                 child: Column(
                   children: selectedItems.map((item) {
-                    final itemTotal = item.quantity * item.pricePerKg;
+                    final itemTotal = _calculateItemTotal(item);
                     final discountAmount = item.itemWiseDiscount != null
                         ? itemTotal * (item.itemWiseDiscount / 100)
                         : 0.0;
@@ -101,7 +105,9 @@ class SelectedItemsDialog extends StatelessWidget {
                       curve: Curves.easeInOut,
                       margin: const EdgeInsets.symmetric(vertical: 6),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(16),
@@ -143,19 +149,41 @@ class SelectedItemsDialog extends StatelessWidget {
                                   ),
                                 ),
                                 const SizedBox(height: 4),
-                                Text(
-                                  '${item.quantity} ${item.uom} × ₹${item.pricePerKg.toStringAsFixed(2)}',
-                                  style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.grey.shade600),
+                                Builder(
+                                  builder: (_) {
+                                    String priceDescription;
+                                    if (item.uom == 'Kg' || item.uom == 'Kgs') {
+                                      final weight = item.weight ?? 0;
+                                      if (weight >= 1) {
+                                        priceDescription =
+                                            '${weight.toStringAsFixed(2)} kg × Rs.${item.pricePerKg.toStringAsFixed(0)}/kg';
+                                      } else {
+                                        priceDescription =
+                                            '${(weight * 1000).toStringAsFixed(0)} grams × Rs.${item.pricePerKg.toStringAsFixed(0)}/kg';
+                                      }
+                                    } else {
+                                      priceDescription =
+                                          '${item.quantity.toStringAsFixed(0)} ${item.uom} × Rs.${item.pricePerKg.toStringAsFixed(0)}/${item.uom}';
+                                    }
+
+                                    return Text(
+                                      priceDescription,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    );
+                                  },
                                 ),
-                                if (item.itemWiseDiscount != null)
+                                if (item.itemWiseDiscount != null &&
+                                    item.itemWiseDiscount != 0)
                                   Text(
                                     'Discount: ${item.itemWiseDiscount.toStringAsFixed(0)}%',
                                     style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.red.shade600,
-                                        fontWeight: FontWeight.w500),
+                                      fontSize: 12,
+                                      color: Colors.red.shade600,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
                               ],
                             ),
@@ -174,17 +202,19 @@ class SelectedItemsDialog extends StatelessWidget {
                                 Text(
                                   '-₹${discountAmount.toStringAsFixed(2)}',
                                   style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.red.shade700,
-                                      fontWeight: FontWeight.w600),
+                                    fontSize: 13,
+                                    color: Colors.red.shade700,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               if (discountAmount > 0)
                                 Text(
                                   '₹${discounted.toStringAsFixed(2)}',
                                   style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.green.shade700),
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green.shade700,
+                                  ),
                                 ),
                             ],
                           ),
@@ -204,11 +234,17 @@ class SelectedItemsDialog extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Column(
                 children: [
-                  _buildTotalRow('Normal Total:', normalTotal,
-                      badgeColor: Colors.grey.shade700),
+                  _buildTotalRow(
+                    'Normal Total:',
+                    normalTotal,
+                    badgeColor: Colors.grey.shade700,
+                  ),
                   const SizedBox(height: 6),
-                  _buildTotalRow('Discounted Total:', discountedTotal,
-                      badgeColor: Colors.green.shade700),
+                  _buildTotalRow(
+                    'Discounted Total:',
+                    discountedTotal,
+                    badgeColor: Colors.green.shade700,
+                  ),
                 ],
               ),
             ),
@@ -223,8 +259,10 @@ class SelectedItemsDialog extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.indigo.shade600,
                 foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 14,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -240,16 +278,32 @@ class SelectedItemsDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildTotalRow(String label, double value,
-      {required Color badgeColor}) {
+  // Helper function to calculate item total based on UOM
+  double _calculateItemTotal(dynamic item) {
+    if (item.finalPrice != null) {
+      return item.finalPrice!;
+    } else {
+      final uom = item.uom.toString().toLowerCase();
+      if (uom == 'kg' || uom == 'kgs') {
+        return (item.weight ?? 1) * item.quantity * item.pricePerKg;
+      } else {
+        return item.quantity.toDouble() * item.pricePerKg;
+      }
+    }
+  }
+
+  Widget _buildTotalRow(
+    String label,
+    double value, {
+    required Color badgeColor,
+  }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 15,
-            )),
+        Text(
+          label,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+        ),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(

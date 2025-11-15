@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:yenpos/Global/globals_data.dart';
 
-
 /// PROVIDER: Handles active keyboard state
 /// PROVIDER: Handles active keyboard state & controller mapping
 class KeyboardProvider with ChangeNotifier {
@@ -28,8 +27,8 @@ class KeyboardProvider with ChangeNotifier {
 
   TextEditingController? get activeController =>
       _activeIndex >= 0 && _activeIndex < controllers.length
-          ? controllers[_activeIndex]
-          : null;
+      ? controllers[_activeIndex]
+      : null;
 
   void registerController(TextEditingController controller) {
     if (!controllers.contains(controller)) {
@@ -114,11 +113,11 @@ class CustomKeyboardWidgetAll2 extends StatelessWidget {
 
   /// Numeric Keyboard Layout
   List<List<String>> get _numericLayout => [
-        ['1', '2', '3'],
-        ['4', '5', '6'],
-        ['7', '8', '9'],
-        ['ABC', '0', '⌫'],
-      ];
+    ['1', '2', '3'],
+    ['4', '5', '6'],
+    ['7', '8', '9'],
+    ['ABC', '0', '⌫'],
+  ];
 
   /// Alphabetic Keyboard Layout
   List<List<String>> _alphaLayout(bool upper) {
@@ -129,17 +128,24 @@ class CustomKeyboardWidgetAll2 extends StatelessWidget {
       ['123', 'SPACE'],
     ];
     return base
-        .map((row) => row
-            .map((k) => RegExp(r'^[a-zA-Z]$').hasMatch(k) && upper
-                ? k.toUpperCase()
-                : k)
-            .toList())
+        .map(
+          (row) => row
+              .map(
+                (k) => RegExp(r'^[a-zA-Z]$').hasMatch(k) && upper
+                    ? k.toUpperCase()
+                    : k,
+              )
+              .toList(),
+        )
         .toList();
   }
 
   /// UI: Build single key
   Widget _buildKeyContainer(
-      BuildContext context, String keyLabel, bool isPressed) {
+    BuildContext context,
+    String keyLabel,
+    bool isPressed,
+  ) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 100),
       margin: const EdgeInsets.all(4),
@@ -147,7 +153,7 @@ class CustomKeyboardWidgetAll2 extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: isPressed
             ? LinearGradient(
-                colors: [Colors.amber.shade300, Colors.orange.shade400],
+                colors: [Colors.blue.shade400, Colors.blue.shade600],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               )
@@ -170,28 +176,30 @@ class CustomKeyboardWidgetAll2 extends StatelessWidget {
           ),
         ],
       ),
-      child: _buildLabel(keyLabel),
+      child: _buildLabel(keyLabel, isPressed),
     );
   }
 
   /// UI: Label or icon for key
-  Widget _buildLabel(String k) {
+  Widget _buildLabel(String k, bool isPressed) {
+    final color = isPressed ? Colors.white : Colors.black87;
+
     switch (k) {
       case '⌫':
-        return const Icon(Icons.backspace, color: Colors.black87, size: 24);
+        return Icon(Icons.backspace, color: color, size: 24);
       case '✖':
-        return const Icon(Icons.close, color: Colors.black87, size: 24);
+        return Icon(Icons.close, color: color, size: 24);
       case 'SPACE':
-        return const Icon(Icons.space_bar, color: Colors.black87, size: 24);
+        return Icon(Icons.space_bar, color: color, size: 24);
       case '⇧':
-        return const Icon(Icons.arrow_upward, color: Colors.black87, size: 24);
+        return Icon(Icons.arrow_upward, color: color, size: 24);
       default:
         return Text(
           k,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w600,
-            color: Colors.black87,
+            color: color,
           ),
         );
     }
@@ -235,15 +243,21 @@ class CustomKeyboardWidgetAll2 extends StatelessWidget {
                             onTap: () {
                               provider.setPressedKey(key);
                               _handleKey(context, key);
-                              Future.delayed(const Duration(milliseconds: 80),
-                                  () {
-                                provider.setPressedKey(null);
-                              });
+                              Future.delayed(
+                                const Duration(milliseconds: 80),
+                                () {
+                                  provider.setPressedKey(null);
+                                },
+                              );
                             },
-                            onLongPress:
-                                key == '⌫' ? () => controller.clear() : null,
+                            onLongPress: key == '⌫'
+                                ? () => controller.clear()
+                                : null,
                             child: _buildKeyContainer(
-                                context, key, provider.pressedKey == key),
+                              context,
+                              key,
+                              provider.pressedKey == key,
+                            ),
                           ),
                         ),
                     ],

@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:dio/dio.dart';
 import 'package:yenpos/Global/Provider/branchwise_item_fetch.dart';
+import 'package:yenpos/Hive_Manager/hive_manager_saleOrder.dart';
 import 'package:yenpos/Server_Client/stockupdateService.dart';
 
 class SyncService {
@@ -20,44 +21,76 @@ class SyncService {
   static const String salesOrderApi = "https://yenerp.com/fastapi/salesorders/";
 
   // ====== Hive Box Names ======
-  static const String salesOrdersBoxName =
-      'saleOrderBox'; // (sales orders only)
+  static const String salesOrdersBoxName = 'saleOrderBox';
   static const _offlineBoxName = 'pendingInvoices';
 
   bool _isSyncing = false;
   bool isOnline = false;
 
-  List<Function> syncQueue = [];
+  final List<Function> syncQueue = [];
 
+  // ====== Constructor ======
   SyncService() {
+    _log("🚀 SyncService initialized", "INIT");
+
     _monitorConnectivity();
 
-    Timer.periodic(const Duration(minutes: 10), (timer) {
+    Connectivity().checkConnectivity().then((result) {
+      isOnline = result != ConnectivityResult.none;
+      _log(
+        "Initial connectivity: ${isOnline ? "✅ ONLINE" : "❌ OFFLINE"}",
+        "NET",
+      );
+
       if (isOnline) {
+        _log("🌐 Device online — starting sync cycle...", "SYNC");
+        processSyncQueue();
         syncUnsyncedSaleOrders();
         syncUnsyncedInvoices();
         syncUnsyncedHoldOrders();
-      } else {}
+        syncPendingPatches();
+      } else {
+        _log("📴 Device offline — will wait for reconnection", "NET");
+      }
     });
   }
 
   /// Process all queued sync tasks when online
   Future<void> processSyncQueue() async {
-    while (syncQueue.isNotEmpty && isOnline) {
-      var task = syncQueue.removeAt(0);
-      try {
-        await task();
-      } catch (e, stack) {}
+    if (_isSyncing) {
+      _log("⚠️ Already syncing, skipping duplicate trigger", "SYNC");
+      return;
     }
+
+    _isSyncing = true;
+    _log("🔄 Processing sync queue (${syncQueue.length} tasks)...", "SYNC");
+
+    while (syncQueue.isNotEmpty && isOnline) {
+      final task = syncQueue.removeAt(0);
+      try {
+        _log("➡️ Running sync task (${syncQueue.length} remaining)...", "TASK");
+        await task();
+        _log("✅ Task completed successfully", "TASK");
+      } catch (e, stack) {
+        _log("❌ Error in sync task: $e\n$stack", "ERROR");
+      }
+    }
+
+    _isSyncing = false;
+    _log("✅ All queued tasks processed", "SYNC");
   }
 
   /// Add a task to the queue
   void queueSync(Function syncTask) {
+    _log("🧩 New task added to sync queue", "QUEUE");
     syncQueue.add(syncTask);
 
     if (isOnline) {
+      _log("🌐 Online — starting queue processing immediately", "QUEUE");
       processSyncQueue();
-    } else {}
+    } else {
+      _log("📴 Offline — queued task will run later", "QUEUE");
+    }
   }
 
   /// Monitor network connectivity
@@ -69,12 +102,22 @@ class SyncService {
           ? results.first
           : ConnectivityResult.none;
 
+      final wasOnline = isOnline;
       isOnline = result != ConnectivityResult.none;
 
-      if (isOnline) {
+      if (isOnline && !wasOnline) {
+        _log("📶 Network reconnected — syncing pending tasks", "NET");
         processSyncQueue();
-      } else {}
+      } else if (!isOnline && wasOnline) {
+        _log("🔌 Network disconnected — pausing sync operations", "NET");
+      }
     });
+  }
+
+  // ===== Helper: Logging with tag =====
+  void _log(String message, String tag) {
+    final now = DateTime.now().toIso8601String();
+    debugPrint("[$now] [$tag] $message");
   }
 
   Future<void> saveKotInvoiceToHive(Map<String, dynamic> invoice) async {
@@ -114,8 +157,8 @@ class SyncService {
 
     await invoiceBox.add(invoice);
 
-    // Check connectivity and try to sync after saving locally
-    await syncUnsyncedInvoices();
+    // // Check connectivity and try to sync after saving locally
+    // await syncUnsyncedInvoices();
   }
 
   Future<void> saveHoldToHive(
@@ -161,17 +204,41 @@ class SyncService {
     if (_isSyncing) return;
     _isSyncing = true;
 
-    var orderBox = await Hive.openBox('saleOrderBox');
+    var orderBox = HiveManager.salesOrderBox;
+
+    // Keep track of saleOrderNos that are already posted
+    Set<String> postedOrders = {};
+
     for (int i = 0; i < orderBox.length; i++) {
       var orderData = orderBox.getAt(i);
+
       if (orderData is String) {
         orderData = jsonDecode(orderData) as Map<String, dynamic>;
       }
 
       if (orderData is Map<String, dynamic> && orderData['sync'] == 'No') {
-        queueSync(() => postSalesOrder(orderData));
+        // Extract saleOrderNo safely
+        String? saleOrderNo = orderData['saleOrderNo']?.toString().trim();
+
+        if (saleOrderNo == null || saleOrderNo.isEmpty) {
+          continue;
+        }
+
+        // Skip if already posted in this sync run
+        if (postedOrders.contains(saleOrderNo)) {
+          continue;
+        }
+
+        bool posted = await postSalesOrder(orderData);
+
+        if (posted) {
+          orderData["sync"] = "Yes";
+          await HiveManager.salesOrderBox.put(saleOrderNo, orderData);
+          postedOrders.add(saleOrderNo);
+        } else {}
       }
     }
+
     _isSyncing = false;
   }
 
@@ -198,71 +265,77 @@ class SyncService {
   }
 
   Future<void> savePosSaleorderToHive(Map<String, dynamic> invoice) async {
-    var invoiceBox = await Hive.openBox('saleOrderBox');
+    print("\n💾 [SAVE TO HIVE - SYNC SERVICE] --- START ---");
 
-    invoice['sync'] = 'No';
-    invoice['edit'] = 'No'; // Initialize edit field
+    try {
+      var invoiceBox = await Hive.openBox('saleOrderBox');
+      print("📦 Hive Box opened: ${invoiceBox.name}");
 
-    await invoiceBox.add(invoice);
+      invoice['sync'] = 'No';
+      invoice['edit'] = 'No';
 
-    // Check connectivity and try to sync after saving locally
-    await syncUnsyncedSaleOrders();
+      print("📝 Adding order to Hive...");
+      await invoiceBox.add(invoice);
+      print("✅ Successfully added order to Hive.");
+    } catch (e, st) {
+      print("❌ [SAVE TO HIVE - SYNC SERVICE] Exception: $e");
+      print("🧾 StackTrace:\n$st");
+    }
+
+    print("💾 [SAVE TO HIVE - SYNC SERVICE] --- END ---\n");
   }
 
   Future<bool> postSalesOrder(Map<String, dynamic> salesOrder) async {
     const String salesOrderApi = "https://yenerp.com/fastapi/salesorders/";
-    // Print the payload and URL for debugging
 
     try {
-      if (!isOnline) {
-        queueSync(() => postSalesOrder(salesOrder));
-        return false;
-      }
-
-      // Send the POST request
       final response = await http.post(
         Uri.parse(salesOrderApi),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(salesOrder),
       );
 
-      // Debug response details
-
-      if (response.statusCode == 201 || response.statusCode == 200) {
+      if (response.statusCode == 200 || response.statusCode == 201) {
         return true;
       } else {
         return false;
       }
-    } catch (e) {
+    } catch (e, st) {
       return false;
     }
   }
 
   Future<bool> postInvoiceOrder(Map<String, dynamic> salesOrder) async {
     const String salesOrderApi = "https://yenerp.com/fastapi/invoices/";
-    // Print the payload and URL for debugging
+
+    print("🌍 Posting invoice to API: $salesOrderApi");
+    print("📦 Payload: ${jsonEncode(salesOrder)}");
 
     try {
       if (!isOnline) {
+        print("📴 Device offline — queuing for later sync...");
         queueSync(() => postInvoiceOrder(salesOrder));
         return false;
       }
 
-      // Send the POST request
       final response = await http.post(
         Uri.parse(salesOrderApi),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(salesOrder),
       );
 
-      // Debug response details
+      print("🔁 API Response Code: ${response.statusCode}");
+      print("📨 API Response Body: ${response.body}");
 
       if (response.statusCode == 201 || response.statusCode == 200) {
+        print("✅ Invoice successfully posted to API.");
         return true;
       } else {
+        print("⚠️ Failed to post invoice. Status: ${response.statusCode}");
         return false;
       }
     } catch (e) {
+      print("❌ Exception while posting invoice: $e");
       return false;
     }
   }
@@ -273,7 +346,7 @@ class SyncService {
 
     try {
       if (!isOnline) {
-        queueSync(() => postSalesOrder(salesOrder));
+        queueSync(() => postModifyOrder(salesOrder));
         return false;
       }
 
@@ -411,6 +484,37 @@ class SyncService {
         return false;
       }
     } catch (e) {
+      return false;
+    }
+  }
+
+  Future<bool> patchToHoldOrder(
+    String holdOrderId,
+    Map<String, dynamic> payload,
+  ) async {
+    final String baseUrl = "https://yenerp.com/fastapi/heldorders/holdOrder/";
+
+    try {
+      if (!isOnline) {
+        queueSync(() => patchToHoldOrder(holdOrderId, payload));
+        return false;
+      }
+
+      // ✅ Send only the inner data map
+      final patchBody = payload['data'] ?? {};
+
+      final response = await http.patch(
+        Uri.parse('$baseUrl$holdOrderId'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(patchBody),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return true;
+      } else {
+        return false;
+      }
+    } catch (e, st) {
       return false;
     }
   }

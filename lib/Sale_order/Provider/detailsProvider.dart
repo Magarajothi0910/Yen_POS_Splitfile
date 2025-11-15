@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart' as http;
 
-
 class DetailsProvider extends ChangeNotifier {
   DetailsProvider() {
     fetchVariances();
@@ -49,7 +48,7 @@ class DetailsProvider extends ChangeNotifier {
   // List<String> filteredItems = [];
   Future<void> fetchVariances() async {
     final url = 'https://yenerp.com/fastapi/branchwiseitems/';
-    
+
     try {
       final response = await http.get(Uri.parse(url));
 
@@ -61,8 +60,10 @@ class DetailsProvider extends ChangeNotifier {
           List<Map<String, dynamic>> fetchedVariances = [];
 
           // Parse each item in data
-          (responseBody['data'] as Map<String, dynamic>)
-              .forEach((itemKey, itemValue) {
+          (responseBody['data'] as Map<String, dynamic>).forEach((
+            itemKey,
+            itemValue,
+          ) {
             final item = itemValue['item'] ?? {};
             final variances = itemValue['variance'] ?? {};
 
@@ -70,8 +71,10 @@ class DetailsProvider extends ChangeNotifier {
             final category = item['category'] ?? '';
 
             // Parse each variance under the item
-            (variances as Map<String, dynamic>)
-                .forEach((varianceKey, varianceValue) {
+            (variances as Map<String, dynamic>).forEach((
+              varianceKey,
+              varianceValue,
+            ) {
               final branches = varianceValue['branchwise'] ?? {};
 
               fetchedVariances.add({
@@ -83,7 +86,7 @@ class DetailsProvider extends ChangeNotifier {
                 'variancePrice': varianceValue['variance_Defaultprice'] ?? 0,
                 'varianceUom': varianceValue['variance_Uom'] ?? '',
                 'varianceitemCode': varianceValue['varianceitemCode'] ?? '',
-                'branches': branches
+                'branches': branches,
               });
             });
           });
@@ -92,17 +95,9 @@ class DetailsProvider extends ChangeNotifier {
           _variances = fetchedVariances;
 
           notifyListeners();
-        } else {
-          debugPrint(
-              "Error: Response body is null or not a valid JSON object.");
-        }
-      } else {
-        debugPrint(
-            'Failed to load variances. Status code: ${response.statusCode}');
-      }
-    } catch (e) {
-      debugPrint('Error fetching variances: $e');
-    }
+        } else {}
+      } else {}
+    } catch (e) {}
   }
 
   List<Map<String, dynamic>> get filteredItems1 => _filteredItems;
@@ -127,19 +122,20 @@ class DetailsProvider extends ChangeNotifier {
     if (query.isEmpty) {
       _filteredItems = _variances; // Show all items if the query is empty
     } else {
-      final exactMatches = _variances.where((item) =>
-          (item['varianceName'] ?? '').toLowerCase() == query.toLowerCase());
-      final partialMatches = _variances.where((item) =>
-          (item['varianceName'] ?? '')
-              .toLowerCase()
-              .contains(query.toLowerCase()) &&
-          (item['varianceName'] ?? '').toLowerCase() != query.toLowerCase());
+      final exactMatches = _variances.where(
+        (item) =>
+            (item['varianceName'] ?? '').toLowerCase() == query.toLowerCase(),
+      );
+      final partialMatches = _variances.where(
+        (item) =>
+            (item['varianceName'] ?? '').toLowerCase().contains(
+              query.toLowerCase(),
+            ) &&
+            (item['varianceName'] ?? '').toLowerCase() != query.toLowerCase(),
+      );
 
       // Combine exact matches first, followed by partial matches
-      _filteredItems = [
-        ...exactMatches,
-        ...partialMatches,
-      ];
+      _filteredItems = [...exactMatches, ...partialMatches];
     }
     notifyListeners(); // Notify listeners about the update
   }
@@ -156,16 +152,19 @@ class DetailsProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final box = await Hive.openBox('employeeBox'); // Open the employeeBox
+      final box = await Hive.openBox('employeeBox'); // Open Hive box
       final cachedData = box.get('employees'); // Get the cached data
-      // Check the data type
 
       if (cachedData != null && cachedData is List<dynamic>) {
-        _employeeNames = cachedData
-            .map((employee) => employee['firstName']?.toString() ?? 'Unknown')
-            .toList();
-        _filteredEmployeeFirstNames =
-            List<String>.from(_employeeNames); // Cloning the list
+        // Build combined "employeeNumber - firstName" list
+        _employeeNames = cachedData.map((employee) {
+          final empNumber = employee['employeeNumber']?.toString() ?? 'Unknown';
+          final firstName = employee['firstName']?.toString() ?? 'Unknown';
+          return '$empNumber - $firstName';
+        }).toList();
+
+        // Clone the list for filtering
+        _filteredEmployeeFirstNames = List<String>.from(_employeeNames);
       } else {
         throw Exception('No employee names found in Hive');
       }
@@ -182,7 +181,8 @@ class DetailsProvider extends ChangeNotifier {
     _searchQuery = value;
     _filteredEmployeeFirstNames = _employeeNames
         .where(
-            (name) => name.toLowerCase().contains(_searchQuery.toLowerCase()))
+          (name) => name.toLowerCase().contains(_searchQuery.toLowerCase()),
+        )
         .toList();
     notifyListeners();
   }

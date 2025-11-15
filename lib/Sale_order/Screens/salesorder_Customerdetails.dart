@@ -14,6 +14,7 @@ import 'package:yenpos/Sale_order/Provider/customerScreen_provider.dart';
 import 'package:yenpos/Sale_order/Provider/detailsProvider.dart';
 import 'package:yenpos/Sale_order/Provider/get_sales_order_service.dart';
 import 'package:yenpos/Sale_order/Screens/all_orders.dart';
+import 'package:yenpos/Sale_order/Screens/approval_order_status_data.dart';
 import 'package:yenpos/Sale_order/Widgets/customAll_keyboard.dart';
 import 'package:yenpos/Sale_order/Widgets/employee_selection.dart';
 import 'package:yenpos/Sale_order/Widgets/hold_order_status_file.dart';
@@ -39,37 +40,36 @@ class _CustomerDetailsState extends State<CustomerDetails> {
   final _formKey = GlobalKey<FormState>();
   bool _isFormValid = false;
 
-  String _customerType = 'Normal';
   int? _selectedRadioValue = 0; // The selected radio button value
   // String? audioPlayerId;
 
-  String? holdId;
   List<Map<String, String>> suggestions = [];
   bool isSuggestionsVisible = false;
   TextEditingController controller123 = TextEditingController();
-  // void _loadStoredImages() {
-  //   final box = Hive.box('imagesBox');
-  //   String? imagePath1 = box.get('image1');
-  //   String? imagePath2 = box.get('image2');
-  //   setState(() {
-  //     final customerScreenProvider = Provider.of<CustomerScreenProvider>(
-  //       context,
-  //       listen: false,
-  //     );
-  //     customerScreenProvider.pickedImage1 = imagePath1 != null
-  //         ? File(imagePath1)
-  //         : null;
-  //     customerScreenProvider.pickedImage2 = imagePath2 != null
-  //         ? File(imagePath2)
-  //         : null;
-  //   });
-  // }
+  void _loadStoredImages() {
+    final box = Hive.box('imagesBox');
+    String? imagePath1 = box.get('image1');
+    String? imagePath2 = box.get('image2');
+    setState(() {
+      final customerScreenProvider = Provider.of<CustomerScreenProvider>(
+        context,
+        listen: false,
+      );
+      customerScreenProvider.pickedImage1 = imagePath1 != null
+          ? File(imagePath1)
+          : null;
+      customerScreenProvider.pickedImage2 = imagePath2 != null
+          ? File(imagePath2)
+          : null;
+    });
+  }
 
   final _remarkFocus = FocusNode();
   final _addressFocus = FocusNode();
   final _landMarkFocus = FocusNode();
   final FocusNode _otherEventFocus = FocusNode();
-  void showToast(String message) {
+  void showToast(String message, BuildContext context) {
+    if (!mounted) return; // ✅ avoid calling if widget disposed
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
@@ -91,44 +91,47 @@ class _CustomerDetailsState extends State<CustomerDetails> {
     if (mobile.isEmpty ||
         mobile.length != 10 ||
         !RegExp(r'^\d{10}$').hasMatch(mobile)) {
-      showToast('Please enter a valid 10-digit customer mobile number');
+      showToast(
+        'Please enter a valid 10-digit customer mobile number',
+        context,
+      );
       return false;
     }
 
     if (event.isEmpty) {
-      showToast('Please select an event');
+      showToast('Please select an event', context);
       return false;
     }
 
     if (event == 'Others' &&
         (customerScreenProvider.otherEventController.text.isEmpty)) {
-      showToast('Please enter the event name');
+      showToast('Please enter the event name', context);
       return false;
     }
 
     if ((event != 'Others') &&
         (customerScreenProvider.birthdaydateController.text.isEmpty)) {
-      showToast('Please select event date');
+      showToast('Please select event date', context);
       return false;
     }
 
     if (deliveryDate.isEmpty || deliveryTime.isEmpty) {
-      showToast('Please select delivery date and time');
+      showToast('Please select delivery date and time', context);
       return false;
     }
 
     if (deliveryType.isEmpty) {
-      showToast('Please select delivery type');
+      showToast('Please select delivery type', context);
       return false;
     }
 
     if (salesPerson.isEmpty) {
-      showToast('Please select a salesperson');
+      showToast('Please select a salesperson', context);
       return false;
     }
 
     if (globals.cartItems.isEmpty) {
-      showToast('Please add at least one item to cart');
+      showToast('Please add at least one item to cart', context);
       return false;
     }
 
@@ -145,18 +148,19 @@ class _CustomerDetailsState extends State<CustomerDetails> {
       listen: false,
     );
 
+    // Validate salesperson
     String selectedSalesperson = customerScreenProvider.searchController.text
         .trim();
+    if (!detailsProvider.employeeNames.contains(selectedSalesperson)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Add a valid salesperson.')));
+      return false;
+    }
+
+    // Validate mobile number
     String enteredMobileNumber = customerScreenProvider.mobileNoController.text
         .trim();
-
-    // if (!detailsProvider.employeeNames.contains(selectedSalesperson)) {
-    //   ScaffoldMessenger.of(context).showSnackBar(
-    //     const SnackBar(content: Text('Add a valid salesperson.')),
-    //   );
-    //   return false;
-    // }
-
     if (enteredMobileNumber.isEmpty ||
         enteredMobileNumber.length != 10 ||
         !RegExp(r'^\d{10}$').hasMatch(enteredMobileNumber)) {
@@ -168,9 +172,16 @@ class _CustomerDetailsState extends State<CustomerDetails> {
       return false;
     }
 
-    bool hasInvalidBoxItems = globals.cartItems.any(
-      (item) => item.isBoxItem == 'yes' && item.quantity <= 0,
-    );
+    // Validate box items
+    bool hasInvalidBoxItems = globals.cartItems.any((item) {
+      if (item.isBoxItem.toString().toLowerCase() == 'yes') {
+        int boxQty = item.boxQuantity ?? 0; // treat null as 0
+        int quantity = item.quantity ?? 0; // treat null as 0
+        return boxQty <= 0 || quantity <= 0; // either invalid
+      }
+      return false;
+    });
+
     if (hasInvalidBoxItems) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -190,7 +201,7 @@ class _CustomerDetailsState extends State<CustomerDetails> {
   @override
   void initState() {
     super.initState();
-    // _loadStoredImages();
+    _loadStoredImages();
     Provider.of<CustomerScreenProvider>(
       context,
       listen: false,
@@ -216,6 +227,7 @@ class _CustomerDetailsState extends State<CustomerDetails> {
   @override
   Widget build(BuildContext context) {
     final cartProvider = Provider.of<CartProvider>(context);
+
     final audioprovider = Provider.of<AudioProvider>(context, listen: false);
     final customerScreenProvider = Provider.of<CustomerScreenProvider>(context);
     final apiSalesprovider = Provider.of<ApiServiceSalesOrderProvider>(context);
@@ -280,7 +292,7 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                     onChanged: (int? value) {
                       setState(() {
                         _selectedRadioValue = value;
-                        _customerType = 'Normal';
+                        customerScreenProvider.customerType = 'Normal';
                         customerScreenProvider.clearControllers();
                       });
                     },
@@ -314,7 +326,7 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                           color: Colors.red,
                         ),
                       ),
-                      onPressed: () => _showDiscountStatus(context),
+                      onPressed: () => showDiscountStatus(context),
                     ),
                   ),
                 ],
@@ -337,21 +349,47 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                       ),
                       onPressed: () {
                         setState(() {
-                          showHoldOrdersSheet(context, customerScreenProvider);
+                          customerScreenProvider.fetchHolderFromHive();
+
+                          // Check for invalid cart items
+                          if (customerScreenProvider.hasInvalidCartItems()) {
+                            showDialog(
+                              context: context,
+                              builder: (context) {
+                                return AlertDialog(
+                                  title: const Text("Error"),
+                                  content: const Text(
+                                    "Some items in the cart are invalid or cannot be processed.",
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(),
+                                      child: const Text("OK"),
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                          } else {
+                            // If all good, show held orders sheet
+                            showHoldOrdersSheet(
+                              context,
+                              customerScreenProvider,
+                            );
+                          }
                         });
                       },
                     ),
 
                     // Badge
-                    if (customerScreenProvider
-                        .hiveholdSalesOrders
-                        .isNotEmpty) // show only if there are held orders
+                    if (customerScreenProvider.hiveholdSalesOrders.isNotEmpty)
                       Positioned(
                         right: -4,
                         top: -4,
                         child: Container(
                           padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                             color: Colors.red,
                             shape: BoxShape.circle,
                           ),
@@ -360,7 +398,7 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                             minHeight: 16,
                           ),
                           child: Text(
-                            '${customerScreenProvider.hiveholdSalesOrders.length}', // badge count
+                            '${customerScreenProvider.hiveholdSalesOrders.length}',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 10,
@@ -851,8 +889,9 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                     Row(
                       children: [
                         const Padding(padding: EdgeInsets.all(5)),
-                        if (_customerType == 'Normal' ||
-                            _customerType == 'Company') ...[
+                        if (customerScreenProvider.customerType == 'Normal' ||
+                            customerScreenProvider.customerType ==
+                                'Company') ...[
                           Expanded(
                             child: DropdownButtonFormField<String>(
                               autovalidateMode:
@@ -1161,16 +1200,19 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                     Row(
                       children: [
                         // if (customerScreenProvider.selectedEvent == 'Birthday')
-                        if (_customerType != 'Normal' ||
-                            _customerType != 'Company') ...[
+                        if (customerScreenProvider.customerType != 'Normal' ||
+                            customerScreenProvider.customerType !=
+                                'Company') ...[
                           const SizedBox(),
                         ],
 
-                        if (_customerType == 'Normal' ||
-                            _customerType == 'Company') ...[
+                        if (customerScreenProvider.customerType == 'Normal' ||
+                            customerScreenProvider.customerType ==
+                                'Company') ...[
                           const Padding(padding: EdgeInsets.all(5)),
                         ],
-                        if (_customerType == 'Credit Customer') ...[
+                        if (customerScreenProvider.customerType ==
+                            'Credit Customer') ...[
                           const Padding(padding: EdgeInsets.all(5)),
                         ],
 
@@ -1250,6 +1292,7 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                               readOnly: true,
                               onTap: () {
                                 ActiveField.activate(
+                                  context: context,
                                   ctrl:
                                       customerScreenProvider.landmarkController,
                                   node: _landMarkFocus,
@@ -1274,13 +1317,6 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                 fontSize: 14,
                                 color: Colors.black,
                               ),
-                              // validator: (value) {
-                              //   if (_isFormValid &&
-                              //       (value == null || value.isEmpty)) {
-                              //     return 'Landmark is required';
-                              //   }
-                              //   return null;
-                              // },
                             ),
                           ),
                           const Padding(padding: EdgeInsets.all(5)),
@@ -1304,6 +1340,7 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                               ),
                               onTap: () {
                                 ActiveField.activate(
+                                  context: context,
                                   ctrl:
                                       customerScreenProvider.addressController,
                                   node: _addressFocus,
@@ -1316,24 +1353,6 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                       ),
                     ],
 
-                    // if (_customerType == 'Company')
-                    //   Row(children: [
-                    //     // const Padding(padding: EdgeInsets.all(5)),
-                    //     Expanded(
-                    //       child: customerScreenProvider
-                    //           .buildCompanyInputFields(context),
-                    //     )
-                    //   ]),
-
-                    // if (_customerType == 'Credit Customer')
-                    //   Row(children: [
-                    //     // const Padding(padding: EdgeInsets.all(5)),
-                    //     Expanded(
-                    //         child:
-                    //             //  customerScreenProvider
-                    //             //     .buildCustomerInputFieldsforcredit(context),
-                    //             CreditCustomerSearchDropdown())
-                    //   ]),
                     Padding(
                       padding: const EdgeInsets.all(8.0),
                       child: SizedBox(
@@ -1356,6 +1375,7 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                           ),
                           onTap: () {
                             ActiveField.activate(
+                              context: context,
                               ctrl: customerScreenProvider.remarkController,
                               node: _remarkFocus,
                             );
@@ -1415,64 +1435,66 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                     : 'Place Order',
                                 onPressed: globals.cartItems.isNotEmpty
                                     ? () async {
-                                        if (_validateOrderDetails() &&
-                                            _validateFullOrderForm()) {
-                                          final filePaths =
-                                              await FileStorageManager.saveFiles(
-                                                recordedFilePath:
-                                                    customerScreenProvider
-                                                        .recordedFilePath,
-                                                pickedImage1:
-                                                    customerScreenProvider
-                                                        .pickedImage1,
-                                                pickedImage2:
-                                                    customerScreenProvider
-                                                        .pickedImage2,
-                                              );
+                                        if (!mounted) return; // ✅ add here
+                                        if (!_validateOrderDetails() ||
+                                            !_validateFullOrderForm())
+                                          return;
 
-                                          if (_requiresApproval()) {
-                                            customerScreenProvider
-                                                .submitForApproval(
-                                                  context,
-                                                  cartSelectionProvider,
-                                                  cartProvider,
+                                        // Capture safe context
+                                        final currentContext = context;
+
+                                        final filePaths =
+                                            await FileStorageManager.saveFiles(
+                                              recordedFilePath:
                                                   customerScreenProvider
                                                       .recordedFilePath,
-                                                  apiSalesprovider,
+                                              pickedImage1:
                                                   customerScreenProvider
                                                       .pickedImage1,
+                                              pickedImage2:
                                                   customerScreenProvider
                                                       .pickedImage2,
-                                                  _customerType,
-                                                );
-                                          } else {
+                                            );
+
+                                        // Check if widget is still in tree
+                                        if (!mounted) return;
+
+                                        if (_requiresApproval()) {
+                                          customerScreenProvider.submitForApproval(
+                                            currentContext, // use safe context
+                                            cartSelectionProvider,
+                                            cartProvider,
                                             customerScreenProvider
-                                                .showAdvancePaymentPopup(
-                                                  context,
-                                                  cartSelectionProvider,
-                                                  cartProvider,
-                                                  filePaths['audioPath'],
-                                                  apiSalesprovider,
-                                                  filePaths['imagePath1'] !=
-                                                          null
-                                                      ? File(
-                                                          filePaths['imagePath1']!,
-                                                        )
-                                                      : null,
-                                                  filePaths['imagePath2'] !=
-                                                          null
-                                                      ? File(
-                                                          filePaths['imagePath2']!,
-                                                        )
-                                                      : null,
-                                                  _customerType,
-                                                  customerScreenProvider
-                                                      .audioPlayer,
-                                                  holdId,
-                                                );
-                                            customerScreenProvider
-                                                .clikedThePaymentButton();
-                                          }
+                                                .recordedFilePath,
+                                            apiSalesprovider,
+                                            customerScreenProvider.pickedImage1,
+                                            customerScreenProvider.pickedImage2,
+                                            customerScreenProvider.customerType,
+                                          );
+                                        } else {
+                                          customerScreenProvider
+                                              .showAdvancePaymentPopup(
+                                                currentContext, // use safe context
+
+                                                cartProvider,
+                                                filePaths['audioPath'],
+                                                apiSalesprovider,
+                                                filePaths['imagePath1'] != null
+                                                    ? File(
+                                                        filePaths['imagePath1']!,
+                                                      )
+                                                    : null,
+                                                filePaths['imagePath2'] != null
+                                                    ? File(
+                                                        filePaths['imagePath2']!,
+                                                      )
+                                                    : null,
+                                                customerScreenProvider
+                                                    .customerType,
+                                                customerScreenProvider
+                                                    .audioPlayer,
+                                                customerScreenProvider.holdId,
+                                              );
                                         }
                                       }
                                     : () {},
@@ -1490,8 +1512,8 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                               ),
                             ),
 
-                            // 🔹 Hold Order
-                            if (_customerType == 'Normal')
+                            // 🔹 Hold Order button
+                            if (customerScreenProvider.customerType == 'Normal')
                               Container(
                                 height: 50,
                                 margin: const EdgeInsets.symmetric(
@@ -1500,70 +1522,56 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                 child: CustomButton(
                                   text: 'Hold Order',
                                   onPressed: globals.cartItems.isNotEmpty
-                                      ? () {
-                                          print('🟢 Hold Order Button Clicked');
-                                          if (_formKey.currentState!
-                                              .validate()) {
-                                            print('✅ Form validation passed.');
-                                            customerScreenProvider.holdOrers(
-                                              cartProvider,
-                                              customerScreenProvider
-                                                  .recordedFilePath,
-                                              apiSalesprovider,
-                                              customerScreenProvider
-                                                  .pickedImage1,
-                                              customerScreenProvider
-                                                  .pickedImage2,
-                                            );
-                                            ScaffoldMessenger.of(
-                                              context,
-                                            ).showSnackBar(
-                                              SnackBar(
-                                                content: Row(
-                                                  children: const [
-                                                    Icon(
-                                                      Icons
-                                                          .check_circle_outline,
-                                                      color: Colors.white,
-                                                    ),
-                                                    SizedBox(width: 12),
-                                                    Expanded(
-                                                      child: Text(
-                                                        'Order data saved successfully!',
-                                                        style: TextStyle(
-                                                          fontSize: 16,
-                                                          fontWeight:
-                                                              FontWeight.w500,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                                backgroundColor:
-                                                    Colors.green[600],
-                                                behavior:
-                                                    SnackBarBehavior.floating,
-                                                margin: const EdgeInsets.all(
-                                                  16,
-                                                ),
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(12),
-                                                ),
-                                                duration: const Duration(
-                                                  seconds: 3,
-                                                ),
-                                              ),
-                                            );
-                                          } else {
-                                            print('❌ Form validation failed.');
-                                          }
-                                        }
-                                      : () {
-                                          print(
-                                            '⚠️ Hold Order Button Disabled - No items in cart.',
+                                      ? () async {
+                                          if (!_formKey.currentState!
+                                              .validate())
+                                            return;
+
+                                          final currentContext = context;
+
+                                          final filePaths =
+                                              await FileStorageManager.saveFiles(
+                                                recordedFilePath:
+                                                    customerScreenProvider
+                                                        .recordedFilePath,
+                                                pickedImage1:
+                                                    customerScreenProvider
+                                                        .pickedImage1,
+                                                pickedImage2:
+                                                    customerScreenProvider
+                                                        .pickedImage2,
+                                              );
+
+                                          if (!mounted) return;
+
+                                          await customerScreenProvider.heldrder(
+                                            cartProvider,
+                                            cartSelectionProvider,
+                                            customerScreenProvider.totalAdvance,
+                                            customerScreenProvider.orderAmount,
+                                            customerScreenProvider.discount,
+                                            customerScreenProvider
+                                                .deductedAmount,
+                                            customerScreenProvider.totalAmount,
+                                            customerScreenProvider
+                                                .remarkController
+                                                .text,
+                                            filePaths['audioPath'],
+                                            apiSalesprovider,
+                                            filePaths['imagePath1'] != null
+                                                ? File(filePaths['imagePath1']!)
+                                                : null,
+                                            filePaths['imagePath2'] != null
+                                                ? File(filePaths['imagePath2']!)
+                                                : null,
+                                            customerScreenProvider
+                                                .patchHoldOrderId,
+                                            customerScreenProvider
+                                                .selectedStoreType,
+                                            currentContext,
                                           );
-                                        },
+                                        }
+                                      : () {},
                                   backgroundColor: globals.cartItems.isNotEmpty
                                       ? Colors.lightBlue
                                       : Colors.grey,
@@ -1607,356 +1615,6 @@ class _CustomerDetailsState extends State<CustomerDetails> {
           ),
         ),
       ),
-    );
-  }
-
-  void _showDiscountStatus(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (BuildContext context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.7,
-          maxChildSize: 0.9,
-          minChildSize: 0.5,
-          expand: false,
-          builder: (context, scrollController) {
-            return Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(24),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 10,
-                    spreadRadius: 5,
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  _buildApproveOrdersHeader(),
-                  Expanded(
-                    child: _buildApproveOrdersList(context, scrollController),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildApproveOrdersHeader() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.blue.shade600,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        children: [
-          const Center(
-            child: Text(
-              "Approval Orders Status",
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<List<HeldOrder>> fetchApproveOrdersFromHive() async {
-    var approveOrderBox = await Hive.openBox('salesApprovalOrder');
-
-    if (approveOrderBox.isEmpty) {
-      return [];
-    }
-
-    List<HeldOrder> approveOrders = [];
-
-    for (var i = 0; i < approveOrderBox.length; i++) {
-      var order = approveOrderBox.getAt(i);
-
-      if (order != null && order is Map) {
-        var orderMap = order.map(
-          (key, value) => MapEntry(key.toString(), value),
-        );
-
-        // 📝 FULL PRINT
-        orderMap.forEach((k, v) {
-          if (v is Map) {
-            v.forEach((subKey, subValue) {});
-          } else if (v is List) {
-          } else {}
-        });
-
-        // ✅ Get approval details from inside data.approvalDetails
-        String? approvalType;
-        String? approvalStatus;
-
-        if (orderMap['data'] is Map &&
-            orderMap['data']['approvalDetails'] is List &&
-            orderMap['data']['approvalDetails'].isNotEmpty) {
-          var firstDetail = orderMap['data']['approvalDetails'][0];
-          if (firstDetail is Map) {
-            approvalType = firstDetail['approvalType']?.toString();
-            approvalStatus = firstDetail['approvalStatus']?.toString();
-          }
-        }
-
-        String? status = orderMap['data']?['status']?.toString();
-
-        // ✅ Filter
-        if (approvalType == 'Cheque' ||
-            approvalType == 'Discount' ||
-            status == 'Waiting for Approval') {
-          try {
-            // Flatten "data" into a single map
-            Map<String, dynamic> flatMap = {};
-            if (orderMap['data'] is Map) {
-              flatMap = Map<String, dynamic>.from(orderMap['data']);
-            }
-            // Add any other root-level fields if needed
-            flatMap['salesOrderId'] = orderMap['salesOrderId'] ?? '';
-            flatMap['approvalDetails'] = flatMap['approvalDetails'] ?? [];
-
-            HeldOrder heldOrder = HeldOrder.fromMap(flatMap);
-            approveOrders.add(heldOrder);
-          } catch (e, stackTrace) {}
-        } else {}
-      }
-    }
-
-    return approveOrders;
-  }
-
-  Widget _buildApproveOrdersList(
-    BuildContext context,
-    ScrollController scrollController,
-  ) {
-    return FutureBuilder<List<HeldOrder>>(
-      future: fetchApproveOrdersFromHive(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        } else if (snapshot.hasError) {
-          return Center(
-            child: Text(
-              'Error: ${snapshot.error}',
-              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-            ),
-          );
-        } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(
-            child: Text(
-              'No approve orders available',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-            ),
-          );
-        }
-        final orders = snapshot.data!;
-        return ListView.builder(
-          controller: scrollController,
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-          itemCount: orders.length,
-          itemBuilder: (context, index) {
-            return _buildApproveOrderListItem(context, orders[index]);
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildApproveOrderListItem(BuildContext context, HeldOrder order) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOutCubic,
-      child: Card(
-        color: Colors.white.withOpacity(0.8),
-        elevation: 6,
-        shadowColor: Colors.black.withOpacity(0.08),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: () => restoreHeldOrderData(context, order),
-          splashColor: Colors.blue.withOpacity(0.05),
-          highlightColor: Colors.blueAccent.withOpacity(0.1),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              gradient: LinearGradient(
-                colors: [
-                  Colors.white.withOpacity(0.95),
-                  Colors.blueGrey.withOpacity(0.02),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            padding: const EdgeInsets.all(12), // reduced padding
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                /// Header Row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        order.customerName ?? "Unknown Customer",
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 17, // reduced from 20
-                          color: Colors.black87,
-                          letterSpacing: 0.3,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    _buildStatusChip(order.status),
-                  ],
-                ),
-                const SizedBox(height: 4), // reduced from 6
-                Container(
-                  height: 2,
-                  width: 40,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Colors.blueAccent, Colors.lightBlueAccent],
-                    ),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 8), // reduced from 14
-                /// Delivery Info
-                _buildInfoRow(
-                  Icons.calendar_month_rounded,
-                  "Delivery Date: ${order.deliveryDate ?? '--'}",
-                  iconColor: Colors.deepPurpleAccent,
-                ),
-                const SizedBox(height: 6), // reduced from 10
-                _buildInfoRow(
-                  Icons.access_time_filled_rounded,
-                  "Delivery Time: ${order.deliveryTime ?? '--'}",
-                  iconColor: Colors.orangeAccent,
-                ),
-                const SizedBox(height: 6),
-                _buildInfoRow(
-                  Icons.verified_rounded,
-                  "Approval Status: ${order.approvalDetails?.isNotEmpty == true ? order.approvalDetails!.last.approvalStatus ?? 'Unknown' : 'Unknown'}",
-                  iconColor: Colors.green,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusChip(String? status) {
-    Color bgColor;
-    switch (status?.toLowerCase()) {
-      case 'approved':
-        bgColor = Colors.green;
-        break;
-      case 'pending':
-        bgColor = Colors.orange;
-        break;
-      case 'rejected':
-        bgColor = Colors.redAccent;
-        break;
-      default:
-        bgColor = Colors.grey;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 4,
-      ), // smaller chip
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [bgColor.withOpacity(0.9), bgColor.withOpacity(0.7)],
-        ),
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: bgColor.withOpacity(0.3),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.circle, size: 8, color: Colors.white), // smaller dot
-          const SizedBox(width: 4),
-          Text(
-            status ?? 'Unknown',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-              fontSize: 12, // reduced from 14
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(
-    IconData icon,
-    String text, {
-    Color iconColor = Colors.blueGrey,
-  }) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(4), // reduced from 6
-          decoration: BoxDecoration(
-            color: iconColor.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, size: 16, color: iconColor), // smaller icon
-        ),
-        const SizedBox(width: 8), // reduced from 12
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              fontSize: 13, // reduced from 15
-              color: Colors.black87,
-              fontWeight: FontWeight.w500,
-              letterSpacing: 0.2,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

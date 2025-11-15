@@ -1,14 +1,17 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:yenpos/Global/globals_data.dart';
 
 final List<Map<String, dynamic>> _receivedData = [];
 
 Future<void> handleNewClientConnected(
-    Map<String, dynamic> data, WebSocketChannel channel) async {
+  Map<String, dynamic> data,
+  WebSocketChannel channel,
+) async {
   final deviceCode = data['deviceCode'];
-
 
   // Store the device information in Hive
   var deviceBox = await Hive.openBox('deviceData');
@@ -16,7 +19,6 @@ Future<void> handleNewClientConnected(
     'connectedAt': DateTime.now().toIso8601String(),
     'status': 'active',
   });
-
 
   await sendReceivedDataToNewClient(channel);
 
@@ -65,40 +67,52 @@ Future<void> sendReceivedDataToNewClient(WebSocketChannel channel) async {
       // If data doesn't match, print a message for debugging
     }
   }
-
 }
 
+/// Sends data safely to all connected WebSocketChannel clients
 void sendDataToClients(
-    Map<String, dynamic> data, Set<WebSocketChannel> clients) {
-  final jsonData = jsonEncode(data);
+  Map<String, dynamic> data,
+  Set<WebSocketChannel> clients, {
+  WebSocketChannel? sender,
+}) {
+  final message = jsonEncode(data);
+  print("📤 [Server] Broadcasting to ${clients.length} clients");
+
+  final List<WebSocketChannel> disconnected = [];
 
   for (var client in clients) {
-    bool success = false;
-    int retryCount = 0;
-
-    while (!success && retryCount < 3) {
-      try {
-        client.sink.add(jsonData);
-        success = true;
-      } catch (e) {
-        retryCount++;
-      }
-    }
-
-    if (!success) {
-      clients.remove(client);
+    try {
+      client.sink.add(message);
+      print("✅ Sent message to client: ${client.hashCode}");
+    } catch (e) {
+      print("❌ Error sending to client ${client.hashCode}: $e");
+      disconnected.add(client);
     }
   }
+
+  // cleanup
+  if (disconnected.isNotEmpty) {
+    for (var dead in disconnected) {
+      clients.remove(dead);
+      print("🗑️ Removed disconnected client: ${dead.hashCode}");
+    }
+  }
+
+  print("📦 Broadcast done. Active clients: ${clients.length}");
 }
 
 void handleRemovePrinter(
-    Map<String, dynamic> data, Set<WebSocketChannel> clients) async {
+  Map<String, dynamic> data,
+  Set<WebSocketChannel> clients,
+) async {
   final printerName = data['printerName'];
 
   if (printerName != null) {
     // Update the local _receivedData by removing the printer with the matching name
-    _receivedData.removeWhere((entry) =>
-        entry['action'] == 'printerDetails' && entry['name'] == printerName);
+    _receivedData.removeWhere(
+      (entry) =>
+          entry['action'] == 'printerDetails' && entry['name'] == printerName,
+    );
 
     // Save the updated printer list to Hive
     var printerBox = await Hive.openBox('printerData');
@@ -116,7 +130,5 @@ void handleRemovePrinter(
       'action': 'allPrinterDetails',
       'printers': updatedPrinters,
     }, clients);
-
-  } else {
-  }
+  } else {}
 }

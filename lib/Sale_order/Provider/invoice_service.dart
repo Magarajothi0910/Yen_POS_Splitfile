@@ -10,12 +10,11 @@ class InvoiceService {
   /// Generate a shorter HiveInvoiceId
   String generateShortHiveInvoiceId() {
     final random = Random();
-    final timestamp = DateTime.now()
-        .millisecondsSinceEpoch
+    final timestamp = DateTime.now().millisecondsSinceEpoch
         .toString()
         .substring(6); // Shortened timestamp
     const characters =
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123334419'; // Alphanumeric characters
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZ0125678989'; // Alphanumeric characters
     final randomId =
         List<int>.generate(6, (_) => random.nextInt(characters.length))
             .map((index) => characters[index])
@@ -30,7 +29,8 @@ class InvoiceService {
 
   /// Post the invoice to FastAPI
   Future<http.Response> postInvoiceToFastAPI(
-      Map<String, dynamic> invoiceData) async {
+    Map<String, dynamic> invoiceData,
+  ) async {
     var response = await http.post(
       Uri.parse(apiUrl),
       headers: <String, String>{

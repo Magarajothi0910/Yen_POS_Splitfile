@@ -1,291 +1,259 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import 'package:yenpos/more_page/providers/customer_provider.dart';
+import 'package:yenpos/more_page/screen/customer_ledger_screen.dart';
 
-class CustomerManagementPage extends StatefulWidget {
-  const CustomerManagementPage({Key? key}) : super(key: key);
-
-  @override
-  _CustomerManagementPageState createState() => _CustomerManagementPageState();
-}
-
-class _CustomerManagementPageState extends State<CustomerManagementPage> {
-  List<Map<String, dynamic>> customers = [];
-  final TextEditingController nameController = TextEditingController();
-  final TextEditingController phoneController = TextEditingController();
+class CustomerManagementPage extends StatelessWidget {
+  const CustomerManagementPage({super.key});
 
   @override
-  void initState() {
-    super.initState();
-    fetchCustomers();
-  }
+  Widget build(BuildContext context) {
+    final provider = context.watch<CustomerProvider>();
+    final searchController = TextEditingController();
 
-  Future<void> fetchCustomers() async {
-    const url = 'https://yenerp.com/fastapi/customers/';
-    try {
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode == 200) {
-        setState(() {
-          customers =
-              List<Map<String, dynamic>>.from(json.decode(response.body))
-                  .reversed
-                  .toList();
-        });
-      } else {
-        throw Exception('Failed to load customers');
+    // Fetch customers after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (provider.customers.isEmpty && !provider.isLoading) {
+        provider.fetchCustomers();
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
-    }
-  }
+    });
 
-  Future<void> _addCustomer(BuildContext context) async {
-    if (nameController.text.isEmpty || phoneController.text.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Name or phone cannot be empty!')),
-        );
-      }
-      return;
-    }
-
-    const url = 'https://yenerp.com/fastapi/customers/';
-    try {
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'customerName': nameController.text,
-          'customerPhoneNumber': phoneController.text,
-          'status': '1', // Assuming status is required
-        }),
-      );
-      if (response.statusCode == 200) {
-        fetchCustomers(); // Refresh the list after adding
-      } else {
-        throw Exception('Failed to add customer');
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
-        );
-      }
-    }
-  }
-
-  Future<void> _editCustomer(
-      BuildContext context, Map<String, dynamic> customer, int index) async {
-    nameController.text = customer['customerName'];
-    phoneController.text = customer['customerPhoneNumber'];
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text("Edit Customer"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
+    return Scaffold(
+      backgroundColor: Colors.grey.shade100,
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: const Text(
+          "Customer Management",
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+        ),
+        backgroundColor: Colors.blue.shade800,
+        elevation: 8,
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: Colors.indigo.shade700,
+        child: const Icon(Icons.add, color: Colors.white),
+        onPressed: () {
+          _showCustomerDialog(context, provider);
+        },
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
           children: [
+            // Search field
             TextField(
-              controller: nameController,
+              controller: searchController,
               decoration: InputDecoration(
-                labelText: 'Customer Name',
-                border: OutlineInputBorder(),
+                labelText: 'Search by Phone',
+                prefixIcon: const Icon(Icons.search),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                suffixIcon: provider.isSearching
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : null,
               ),
+              onChanged: (value) => provider.searchCustomer(value),
             ),
-            SizedBox(height: 8),
-            TextField(
-              controller: phoneController,
-              keyboardType: TextInputType.phone,
-              decoration: InputDecoration(
-                labelText: 'Phone Number',
-                border: OutlineInputBorder(),
-              ),
+            const SizedBox(height: 16),
+            // Customer list
+            Expanded(
+              child: provider.isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : (provider.customers.isEmpty &&
+                        searchController.text.isEmpty)
+                  ? const Center(child: Text("No customers available"))
+                  : ListView.builder(
+                      itemCount: searchController.text.isNotEmpty
+                          ? provider.searchResults.length
+                          : provider.customers.length,
+                      itemBuilder: (context, index) {
+                        final customer = searchController.text.isNotEmpty
+                            ? provider.searchResults[index]
+                            : provider.customers[index];
+
+                        return _buildCustomerCard(
+                          context,
+                          provider,
+                          customer,
+                          index,
+                        );
+                      },
+                    ),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              await _updateCustomer(context, customer['customerId']);
-              Navigator.of(context).pop();
-            },
-            child: Text('Save'),
-          ),
-        ],
       ),
     );
   }
 
-  Future<void> _updateCustomer(BuildContext context, String customerId) async {
-    if (nameController.text.isEmpty || phoneController.text.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Name or phone number cannot be empty!')),
-        );
-      }
-      return;
-    }
-
-    const String baseUrl = 'https://yenerp.com/fastapi/customers/';
-    final String url = '$baseUrl$customerId'; // Append customer ID to URL
-
-    try {
-      final response = await http.patch(
-        Uri.parse(url),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'customerName': nameController.text,
-          'customerPhoneNumber': phoneController.text,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        fetchCustomers(); // Refresh the list after updating
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Customer updated successfully!')),
-          );
-        }
-      } else {
-        throw Exception('Failed to update customer');
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
-        );
-      }
-    } finally {
-      nameController.clear();
-      phoneController.clear();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        automaticallyImplyLeading: false,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 20),
-            child: TextButton(
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: Text("Add New Customer"),
-                    content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextField(
-                          controller: nameController,
-                          decoration: InputDecoration(
-                            labelText: 'Customer Name',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        TextField(
-                          controller: phoneController,
-                          keyboardType: TextInputType.phone,
-                          decoration: InputDecoration(
-                            labelText: 'Phone Number',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                      ],
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: Text('Cancel'),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          _addCustomer(context);
-                          fetchCustomers();
-                          nameController.clear();
-                          phoneController.clear();
-                          Navigator.of(context).pop();
-                        },
-                        child: Text('Save'),
-                      ),
-                    ],
-                  ),
-                );
-              },
-              child: Text('Add New Customer',
-                  style: TextStyle(color: Colors.blue)),
-              style: TextButton.styleFrom(
-                backgroundColor: Colors.blueAccent.withOpacity(0.1),
-                foregroundColor: Colors.blueAccent,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
+  Widget _buildCustomerCard(
+    BuildContext context,
+    CustomerProvider provider,
+    Map<String, dynamic> customer,
+    int index,
+  ) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [Colors.indigo.shade50, Colors.white]),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 8,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(10.0),
-        child: Column(
+      child: ListTile(
+        contentPadding: const EdgeInsets.all(16),
+        leading: CircleAvatar(
+          backgroundColor: Colors.indigo.shade200,
+          child: Text(
+            "${index + 1}",
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        title: Text(
+          customer['customerName'] ?? 'N/A',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(
+          customer['customerPhoneNumber'] ?? 'N/A',
+          style: const TextStyle(color: Colors.grey),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: customers.isNotEmpty
-                  ? ListView(
-                      children: [
-                        DataTable(
-                          columns: const [
-                            DataColumn(label: Text('S.No')),
-                            DataColumn(label: Text('Customer Name')),
-                            DataColumn(label: Text('Customer Phone Number')),
-                            DataColumn(label: Text('Actions')),
-                          ],
-                          rows: List<DataRow>.generate(
-                            customers.length,
-                            (index) => DataRow(cells: [
-                              DataCell(Text('${index + 1}')),
-                              DataCell(Text(customers[index]['customerName'])),
-                              DataCell(Text(
-                                  customers[index]['customerPhoneNumber'])),
-                              DataCell(
-                                IconButton(
-                                  icon: const Icon(Icons.edit),
-                                  onPressed: () => _editCustomer(
-                                      context, customers[index], index),
-                                ),
-                              ),
-                            ]),
-                          ),
-                        ),
-                      ],
-                    )
-                  : Center(
-                      child: Text(
-                        "No data available",
-                        style: TextStyle(
-                          fontSize: 18.0,
-                          color: Colors.grey,
-                        ),
-                      ),
+            IconButton(
+              icon: const Icon(Icons.receipt_long, color: Colors.green),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => CustomerLedgerScreen(
+                      customerPhoneNumber: customer['customerPhoneNumber'],
+                      customerName: customer['customerName'],
                     ),
+                  ),
+                );
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.edit, color: Colors.indigo),
+              onPressed: () {
+                _showCustomerDialog(context, provider, customer: customer);
+              },
             ),
           ],
         ),
       ),
+    );
+  }
+
+  void _showCustomerDialog(
+    BuildContext context,
+    CustomerProvider provider, {
+    Map<String, dynamic>? customer,
+  }) {
+    final nameController = TextEditingController(
+      text: customer?['customerName'] ?? '',
+    );
+    final phoneController = TextEditingController(
+      text: customer?['customerPhoneNumber'] ?? '',
+    );
+    final isEdit = customer != null;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  isEdit ? "Edit Customer" : "Add Customer",
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.indigo,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: nameController,
+                  decoration: InputDecoration(
+                    labelText: 'Name',
+                    prefixIcon: const Icon(Icons.person_outline),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: phoneController,
+                  keyboardType: TextInputType.phone,
+                  decoration: InputDecoration(
+                    labelText: 'Phone',
+                    prefixIcon: const Icon(Icons.phone_outlined),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        if (isEdit) {
+                          provider.updateCustomer(
+                            customer!['customerId'],
+                            nameController.text,
+                            phoneController.text,
+                          );
+                        } else {
+                          provider.addCustomer(
+                            nameController.text,
+                            phoneController.text,
+                          );
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.indigo,
+                      ),
+                      child: Text(isEdit ? 'Update' : 'Save'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

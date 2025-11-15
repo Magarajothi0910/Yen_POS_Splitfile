@@ -4,8 +4,6 @@ import 'package:yenpos/Global/globals_data.dart';
 import 'package:yenpos/Sale_order/Widgets/bank_search_dropdown.dart';
 import 'package:yenpos/Sale_order/Widgets/paymentDetail_keybaord.dart';
 
-
-
 class ChequeDetails extends StatefulWidget {
   final TextEditingController chequeNumberController;
   final TextEditingController chequeAmountController;
@@ -19,7 +17,6 @@ class ChequeDetails extends StatefulWidget {
 
   final void Function(int) onFocusChanged;
 
-
   const ChequeDetails({
     super.key,
     required this.chequeNumberController,
@@ -31,7 +28,6 @@ class ChequeDetails extends StatefulWidget {
     required this.chequeNameFocus,
     required this.chequeDateFocus,
     required this.onFocusChanged,
-
   });
 
   @override
@@ -45,8 +41,10 @@ class _ChequeDetailsState extends State<ChequeDetails> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     // ✅ Safe to access provider here
-    customKeyboardProvider =
-        Provider.of<PaymentDetailKeyboardProvider>(context, listen: false);
+    customKeyboardProvider = Provider.of<PaymentDetailKeyboardProvider>(
+      context,
+      listen: false,
+    );
   }
 
   @override
@@ -67,7 +65,10 @@ class _ChequeDetailsState extends State<ChequeDetails> {
   }
 
   void _handleTap(
-      FocusNode node, TextEditingController controller, String type) {
+    FocusNode node,
+    TextEditingController controller,
+    String type,
+  ) {
     final index = customKeyboardProvider!.controllers.indexOf(controller);
     if (index != -1) {
       // Update the input type in the keyboard's internal list
@@ -125,9 +126,7 @@ class _ChequeDetailsState extends State<ChequeDetails> {
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    Expanded(
-                      child: _buildDateField(width: fieldWidth),
-                    ),
+                    Expanded(child: _buildDateField(width: fieldWidth)),
                     const SizedBox(width: 10),
                     Expanded(
                       child: _buildChequeField(
@@ -144,13 +143,7 @@ class _ChequeDetailsState extends State<ChequeDetails> {
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    Expanded(
-                      child: SizedBox(
-                        child: BankSearchDropdown(
-           
-                        ),
-                      ),
-                    ),
+                    Expanded(child: SizedBox(child: BankSearchDropdown())),
                   ],
                 ),
               ],
@@ -180,8 +173,10 @@ class _ChequeDetailsState extends State<ChequeDetails> {
         decoration: InputDecoration(
           labelText: label,
           isDense: true,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 12,
+          ),
           prefixIcon: Icon(icon, size: 20),
           prefixText: prefixText,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
@@ -189,6 +184,7 @@ class _ChequeDetailsState extends State<ChequeDetails> {
         onTap: () {
           // 👉 activate custom keyboard properly
           ActiveField.activate(
+            context: context,
             ctrl: controller,
             node: focusNode,
             numeric: inputType == 'numeric',
@@ -217,14 +213,19 @@ class _ChequeDetailsState extends State<ChequeDetails> {
         decoration: InputDecoration(
           labelText: 'Cheque Date',
           isDense: true,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 12,
+          ),
           prefixIcon: const Icon(Icons.calendar_today, size: 20),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
         ),
         onTap: () async {
           _handleTap(
-              widget.chequeDateFocus, widget.chequeDateController, 'text');
+            widget.chequeDateFocus,
+            widget.chequeDateController,
+            'text',
+          );
 
           final picked = await showDatePicker(
             context: context,

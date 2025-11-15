@@ -1,9 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 import 'package:yenpos/Global/globals_data.dart';
+import 'package:yenpos/Sale_order/Models/sales_order_display_model.dart';
 import 'package:yenpos/Sale_order/Print_Receipt/allorderprint.dart';
 import 'package:yenpos/Sale_order/Provider/cartProvider.dart';
 import 'package:yenpos/Sale_order/Provider/cart_selection_provider.dart';
@@ -14,6 +17,8 @@ import 'package:yenpos/Sale_order/Provider/get_sales_order_service.dart';
 import 'package:yenpos/Sale_order/Widgets/cheque_details.dart';
 import 'package:yenpos/Sale_order/Widgets/paymentDetail_keybaord.dart';
 import 'package:yenpos/Sale_order/Widgets/top_message.dart';
+import 'package:yenpos/invoice_pay_and_print_page.dart/provider/payment_provider.dart';
+import 'package:yenpos/invoice_pay_and_print_page.dart/provider/razorpay_provider.dart';
 
 class PlaceOrderPaymentPrint extends StatefulWidget {
   final double totalAmount;
@@ -26,8 +31,7 @@ class PlaceOrderPaymentPrint extends StatefulWidget {
   final double deductedAmount;
   final double customCharge;
   final String selectedStoreType;
-  // 🔹 Extra fields you wanted
-  final CartSelectionProvider cartSelectionProvider;
+
   final CartProvider cartProvider;
   final String? path;
   final ApiServiceSalesOrderProvider apiprovider;
@@ -39,6 +43,7 @@ class PlaceOrderPaymentPrint extends StatefulWidget {
 
   const PlaceOrderPaymentPrint({
     super.key,
+
     required this.totalAmount,
     required this.totalAdvance,
     required this.deductedAmount,
@@ -46,7 +51,7 @@ class PlaceOrderPaymentPrint extends StatefulWidget {
     required this.holdBillId,
     required this.orderId,
     required this.discount,
-    required this.cartSelectionProvider,
+
     required this.cartProvider,
     required this.apiprovider,
     required this.customerType,
@@ -81,9 +86,8 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
   double _originalAmount = 0.0;
   double _upiAndCashAmount = 0.0;
 
-  bool _isPrintButtonEnabled = true;
   late salesInvoiceReceiptPrinter receiptPrinter;
-
+  bool _isCompleteButtonEnabled = true; // default enabled
   final TextEditingController _customUpiController = TextEditingController();
   final TextEditingController _customCardController = TextEditingController();
   String selectedPaymentMethod = 'Cash';
@@ -132,10 +136,6 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
     _originalAmount = widget.totalAmount;
     _upiAndCashAmount = widget.totalAmount;
     _balanceAmount = widget.totalAmount;
-
-    _employeeNumberController.addListener(_validateForm);
-    _customerNumberController.addListener(_validateForm);
-    _customAmountController.addListener(_validateForm);
 
     controllers = [
       _cashController,
@@ -252,29 +252,196 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
     return "0";
   }
 
+  void _showUpiQrDialog(double amount) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<RazorpayQRProvider>(context, listen: false).createQR(amount);
+    });
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.qr_code, color: Colors.blue),
+              SizedBox(width: 8),
+              Text(
+                'UPI QR Code',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            height: 600,
+            width: 285,
+            child: Consumer<RazorpayQRProvider>(
+              builder: (context, qrProvider, _) {
+                if (qrProvider.isLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                } else if (qrProvider.errorMessage != null) {
+                  // Send error message to client
+                  // _sendState(
+                  //   type: 'upi_payment_error',
+                  //   extraData: {'message': qrProvider.errorMessage},
+                  // );
+                  return Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error, color: Colors.red, size: 48),
+                      const SizedBox(height: 8),
+                      Text(
+                        qrProvider.errorMessage!,
+                        style: const TextStyle(color: Colors.red, fontSize: 16),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.close),
+                        label: const Text("Close"),
+                        onPressed: () {
+                          qrProvider.disconnectWebSocket();
+                          Navigator.pop(context);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color.fromARGB(
+                            255,
+                            6,
+                            62,
+                            247,
+                          ),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                } else if (qrProvider.paymentSuccess) {
+                  Provider.of<SalesInvoiceState>(
+                    context,
+                    listen: false,
+                  ).updateIsUpiPaid(true);
+                  //_sendState(type: 'upi_payment_success');
+                  return Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Lottie.asset(
+                        'assets/Payment Successful.json',
+                        repeat: false,
+                        height: 580,
+                        //height: double.infinity,
+                        width: double.infinity,
+                        fit: BoxFit.contain,
+                        onLoaded: (composition) {
+                          Future.delayed(
+                            composition.duration + const Duration(seconds: 2),
+                            () {
+                              if (mounted) {
+                                Navigator.pop(context);
+                              }
+                            },
+                          );
+                        },
+                      ),
+                      const Text(
+                        'UPI Payment Successful!',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  );
+                } else if (qrProvider.qrImageUrl != null) {
+                  // _sendState(type: 'show_upi_qr', extraData: {'qrUrl': qrProvider.qrImageUrl, 'amount': amount});
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.network(
+                        qrProvider.qrImageUrl!,
+                        height: 535,
+                        //height: double.infinity,
+                        width: double.infinity,
+                        fit: BoxFit.fill,
+                        errorBuilder: (context, error, stackTrace) {
+                          // _sendState(
+                          //   type: 'upi_payment_error',
+                          //   extraData: {'message': 'Failed to load QR code'},
+                          // );
+                          return const Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.error, color: Colors.red, size: 48),
+                              SizedBox(height: 8),
+                              Text(
+                                'Failed to load QR code',
+                                style: TextStyle(
+                                  color: Colors.red,
+                                  fontSize: 16,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              icon: const Icon(Icons.close),
+                              label: const Text("Close"),
+                              onPressed: () {
+                                qrProvider.disconnectWebSocket();
+                                Navigator.pop(context);
+                                //_sendState(type: 'upi_payment_cancelled');
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color.fromARGB(
+                                  255,
+                                  6,
+                                  62,
+                                  247,
+                                ),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(7),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                } else {
+                  // _sendState(
+                  //   type: 'upi_payment_error',
+                  //   extraData: {'message': 'No QR code generated'},
+                  // );
+                  return const Center(child: Text('No QR generated'));
+                }
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _updateBalance() {
     setState(() {
-      final cash =
-          double.tryParse(
-            _cashController.text.isNotEmpty
-                ? _cashController.text
-                : _customCashController.text,
-          ) ??
-          0;
-      final upi =
-          double.tryParse(
-            _upiController.text.isNotEmpty
-                ? _upiController.text
-                : _customUpiController.text,
-          ) ??
-          0;
-      final card =
-          double.tryParse(
-            _cardController.text.isNotEmpty
-                ? _cardController.text
-                : _customCardController.text,
-          ) ??
-          0;
+      final cash = double.tryParse(_cashController.text) ?? 0;
+      final upi = double.tryParse(_upiController.text) ?? 0;
+      final card = double.tryParse(_cardController.text) ?? 0;
       final cheque = double.tryParse(chequeAmountController.text) ?? 0;
 
       _cashAmount = cash.toInt();
@@ -282,9 +449,30 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
       _cardAmount = card.toInt();
       _chequeAmount = cheque.toInt();
 
-      // ✅ Use discounted totalAmount instead of widget.totalAmount
-      _balanceAmount = totalAmount - (cash + upi + card + cheque);
+      final totalPaid = cash + upi + card + cheque;
 
+      // Balance calculation
+      _balanceAmount = totalAmount - totalPaid;
+
+      // ✅ Always enabled unless overpaid
+      if (totalPaid > totalAmount) {
+        _isCompleteButtonEnabled = false;
+
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Total payment exceeds total amount ₹${totalAmount.toStringAsFixed(0)}',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        });
+      } else {
+        _isCompleteButtonEnabled = true;
+      }
+
+      // Optional: auto-detect main payment type
       if (cash == totalAmount && upi == 0 && card == 0 && cheque == 0) {
         _activePaymentMethod = "Cash";
       } else if (upi == totalAmount && cash == 0 && card == 0 && cheque == 0) {
@@ -299,11 +487,69 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
     });
   }
 
+  void _handleCardPayment() {
+    final qrProvider = Provider.of<RazorpayQRProvider>(context, listen: false);
+    final stateProvider = Provider.of<SalesInvoiceState>(
+      context,
+      listen: false,
+    );
+    final cardAmountStr = _cardController.text;
+
+    if (cardAmountStr.isNotEmpty) {
+      final cardAmount = double.tryParse(cardAmountStr);
+      if (cardAmount != null && cardAmount > 0) {
+        qrProvider.createOrderAndPay(cardAmount, (
+          String type,
+          Map<String, dynamic>? extraData,
+        ) {
+          //  _sendState(type: type, extraData: extraData);
+          if (type == 'card_payment_success') {
+            stateProvider.updateIsCardPaid(true);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Card payment successful!'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          } else if (type == 'card_payment_error') {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Card payment failed: ${extraData?['message'] ?? 'Unknown error'}',
+                ),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enter a valid card amount greater than 0.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a card amount first.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  }
+
   Widget _buildPaymentEntry(
     String method,
     TextEditingController controller,
     FocusNode focus,
   ) {
+    final stateProvider = Provider.of<SalesInvoiceState>(
+      context,
+      listen: false,
+    );
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
       padding: const EdgeInsets.all(10),
@@ -378,8 +624,8 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
             child: TextField(
               controller: controller,
               focusNode: focus,
-              readOnly: true, // ❌ Prevent system keyboard
-              showCursor: true, // ✅ Show blinking cursor
+              readOnly: true, // Prevent system keyboard
+              showCursor: true, // Show blinking cursor
               decoration: InputDecoration(
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -395,21 +641,71 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
               ),
               onTap: () {
                 ActiveField.activate(
+                  context: context,
                   ctrl: controller,
                   node: focus,
                   numeric: true,
                 );
               },
+              onChanged: (value) {
+                _updateBalance();
+              },
             ),
           ),
+
+          // UPI/Card Payment Icon
+          if (method == 'UPI' || method == 'Card')
+            Consumer<RazorpayQRProvider>(
+              builder: (context, qrProvider, _) {
+                return IconButton(
+                  icon: Icon(
+                    method == 'UPI' ? Icons.qr_code : Icons.credit_card,
+                    color: method == 'UPI' ? Colors.black : Colors.blue,
+                    size: 24,
+                  ),
+                  onPressed:
+                      isPaymentEnabled &&
+                          !(method == 'UPI'
+                              ? stateProvider.isUpiPaid
+                              : qrProvider.isCardPaid)
+                      ? () {
+                          final amountStr = controller.text;
+                          if (amountStr.isNotEmpty) {
+                            final amount = double.tryParse(amountStr);
+                            if (amount != null && amount > 0) {
+                              if (method == 'UPI') {
+                                _showUpiQrDialog(amount);
+                              } else {
+                                _handleCardPayment();
+                              }
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Please enter a valid $method amount greater than 0.',
+                                  ),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Please enter a $method amount first.',
+                                ),
+                                backgroundColor: Colors.orange,
+                              ),
+                            );
+                          }
+                        }
+                      : null,
+                );
+              },
+            ),
         ],
       ),
     );
-  }
-
-  void _validateForm() {
-    _isPrintButtonEnabled = true;
-    setState(() {});
   }
 
   String _getItemWiseDiscountText() {
@@ -481,14 +777,17 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
       totalAmount = _originalAmount + customCharge - deductedAmount;
 
       if (discount > globaldiscount.globalDiscountPercentage) {
-        _discountController.text = "";
+        // Don't clear, just mark for approval
         TopMessage.show(
           context,
-          message: 'Discount exceeds allowed limit. Please send for approval.',
+          message: 'Discount exceeds allowed limit. Sending for approval.',
           backgroundColor: Colors.orangeAccent,
         );
-      }
 
+        setState(() {
+          selectedPaymentMethod = "Approval"; // 👈 Custom state trigger
+        });
+      }
       _updateBalance();
     });
   }
@@ -591,6 +890,7 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
                               onTap: () {
                                 if (!_isDiscountDisabled) {
                                   ActiveField.activate(
+                                    context: context,
                                     ctrl: _discountController,
                                     node: FocusNode(),
                                     numeric: true,
@@ -767,60 +1067,40 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
               child: Row(
                 children: [
                   // 🔹 Right Section: Keyboard
-                  Expanded(
-                    flex: 1,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.black12),
-                      ),
-                      child: SizedBox(
-                        height: double.infinity,
-                        child: ValueListenableBuilder<TextEditingController?>(
-                          valueListenable: ActiveField.controller,
-                          builder: (_, ctrl, __) {
-                            return PaymentDetailCustomKeyboardWidgetAll2(
-                              controller: ctrl ?? TextEditingController(),
-                              onChanged: _updateBalance,
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
+
                   // 🔹 Left Section: Total/Balance/Buttons\
-                  const SizedBox(width: 12),
                   Expanded(
                     flex: 1,
                     child: Column(
                       children: [
-                        // Total and Balance Cards
                         Row(
                           children: [
                             Expanded(
-                              child: _buildMiniCard(
+                              child: _buildPremiumCardElegant(
                                 title: "Total",
                                 value: '₹${totalAmount.toStringAsFixed(0)}',
-                                gradient: [
-                                  Colors.green[100]!,
-                                  Colors.green[300]!,
+                                icon: Icons.attach_money,
+                                gradientColors: [
+                                  Colors.green.shade400,
+                                  Colors.green.shade700,
                                 ],
                               ),
                             ),
                             const SizedBox(width: 8),
                             Expanded(
-                              child: _buildMiniCard(
+                              child: _buildPremiumCardElegant(
                                 title: "Balance",
                                 value: '₹${_balanceAmount.toStringAsFixed(0)}',
-                                gradient: [
-                                  Colors.orange[100]!,
-                                  Colors.orange[300]!,
+                                icon: Icons.account_balance_wallet,
+                                gradientColors: [
+                                  Colors.blue.shade400,
+                                  Colors.blue.shade700,
                                 ],
                               ),
                             ),
                           ],
                         ),
+
                         const SizedBox(height: 12),
                         // Cancel & Complete Buttons
                         Row(
@@ -848,144 +1128,165 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
                             const SizedBox(width: 8),
                             Expanded(
                               child: ElevatedButton(
-                                onPressed: () async {
-                                  Map<String, double> payments = {};
-                                  if (_cashController.text.isNotEmpty) {
-                                    payments["Cash"] =
-                                        double.tryParse(_cashController.text) ??
-                                        0.0;
-                                  }
-                                  if (_cardController.text.isNotEmpty) {
-                                    payments["Card"] =
-                                        double.tryParse(_cardController.text) ??
-                                        0.0;
-                                  }
-                                  if (_upiController.text.isNotEmpty) {
-                                    payments["UPI"] =
-                                        double.tryParse(_upiController.text) ??
-                                        0.0;
-                                  }
-                                  if (chequeAmountController.text.isNotEmpty) {
-                                    payments["Cheque"] =
-                                        double.tryParse(
-                                          chequeAmountController.text,
-                                        ) ??
-                                        0.0;
-                                  }
-                                  Navigator.pop(context);
-                                  if (selectedPaymentMethod == 'Cheque') {
-                                    await customerScreenProvider
-                                        .sendForApproval(
-                                          cartProvider,
-                                          widget.totalAdvance,
-                                          widget.orderAmount,
-                                          discount,
-                                          deductedAmount,
-                                          widget.customCharge,
-                                          totalAmount,
-                                          widget.remark,
-                                          widget.path,
-                                          widget.apiprovider,
-                                          widget.img1,
-                                          widget.img2,
-                                          widget.audioOrderId,
-                                          widget.holdId,
-                                          "Cheque",
-                                          context,
-                                          payments, // 👈 pass payments map
-                                        );
-                                    return;
-                                  }
-
-                                  showDialog(
-                                    barrierDismissible: false,
-                                    context: context,
-                                    builder: (BuildContext context) {
-                                      return AlertDialog(
-                                        backgroundColor: Colors.white,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            15,
-                                          ),
-                                        ),
-                                        title: Row(
-                                          children: const [
-                                            Icon(
-                                              Icons.check_circle,
-                                              color: Colors.green,
-                                              size: 24,
-                                            ),
-                                            SizedBox(width: 10),
-                                            Text(
-                                              'Confirm Order',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 18,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        content: const Text(
-                                          'Are you sure you want to complete the order?',
-                                          style: TextStyle(fontSize: 14),
-                                        ),
-                                        actions: [
-                                          OutlinedButton(
-                                            onPressed: () {
-                                              Navigator.pop(context);
-                                            },
-                                            style: OutlinedButton.styleFrom(
-                                              foregroundColor: Colors.red,
-                                              side: const BorderSide(
-                                                color: Colors.red,
-                                              ),
-                                            ),
-                                            child: const Text('Cancel'),
-                                          ),
-                                          ElevatedButton(
-                                            onPressed: () async {
-                                              await customerScreenProvider
-                                                  .saveOrder(
-                                                    cartProvider,
-                                                    widget
-                                                        .cartSelectionProvider,
-                                                    widget.totalAdvance,
-                                                    widget.orderAmount,
-                                                    discount,
-                                                    deductedAmount,
-                                                    totalAmount,
-                                                    widget.remark,
-                                                    widget.path,
-                                                    widget.apiprovider,
-                                                    widget.img1,
-                                                    widget.img2,
-                                                    widget.audioOrderId,
-                                                    widget.holdId,
-                                                    widget.selectedStoreType,
-                                                    context,
-                                                    payments, // 👈 pass payments map
-                                                  );
-
-                                              // Clear UI and provider data
-
-                                              Navigator.pop(
+                                onPressed: _isCompleteButtonEnabled
+                                    ? () async {
+                                        Map<String, double> payments = {};
+                                        if (_cashController.text.isNotEmpty) {
+                                          payments["Cash"] =
+                                              double.tryParse(
+                                                _cashController.text,
+                                              ) ??
+                                              0.0;
+                                        }
+                                        if (_cardController.text.isNotEmpty) {
+                                          payments["Card"] =
+                                              double.tryParse(
+                                                _cardController.text,
+                                              ) ??
+                                              0.0;
+                                        }
+                                        if (_upiController.text.isNotEmpty) {
+                                          payments["UPI"] =
+                                              double.tryParse(
+                                                _upiController.text,
+                                              ) ??
+                                              0.0;
+                                        }
+                                        if (chequeAmountController
+                                            .text
+                                            .isNotEmpty) {
+                                          payments["Cheque"] =
+                                              double.tryParse(
+                                                chequeAmountController.text,
+                                              ) ??
+                                              0.0;
+                                        }
+                                        Navigator.pop(context);
+                                        if (selectedPaymentMethod == 'Cheque' ||
+                                            selectedPaymentMethod ==
+                                                'Approval') {
+                                          await customerScreenProvider
+                                              .sendForApproval(
+                                                cartProvider,
+                                                widget.totalAdvance,
+                                                widget.orderAmount,
+                                                discount,
+                                                deductedAmount,
+                                                widget.customCharge,
+                                                totalAmount,
+                                                widget.remark,
+                                                widget.path,
+                                                widget.apiprovider,
+                                                widget.img1,
+                                                widget.img2,
+                                                widget.audioOrderId,
+                                                widget.holdId,
+                                                selectedPaymentMethod ==
+                                                        'Cheque'
+                                                    ? "Cheque"
+                                                    : "Discount", // label reason
                                                 context,
-                                              ); // Close dialog
-                                            },
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor:
-                                                  Colors.blueAccent,
-                                              foregroundColor: Colors.white,
-                                            ),
-                                            child: const Text('Confirm'),
-                                          ),
-                                        ],
-                                      );
-                                    },
-                                  );
-                                },
+                                                payments, // 👈 pass payments map
+                                              );
+                                          return;
+                                        }
+
+                                        showDialog(
+                                          barrierDismissible: false,
+                                          context: context,
+                                          builder: (BuildContext context) {
+                                            return AlertDialog(
+                                              backgroundColor: Colors.white,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(15),
+                                              ),
+                                              title: Row(
+                                                children: const [
+                                                  Icon(
+                                                    Icons.check_circle,
+                                                    color: Colors.green,
+                                                    size: 24,
+                                                  ),
+                                                  SizedBox(width: 10),
+                                                  Text(
+                                                    'Confirm Order',
+                                                    style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 18,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              content: const Text(
+                                                'Are you sure you want to complete the order?',
+                                                style: TextStyle(fontSize: 14),
+                                              ),
+                                              actions: [
+                                                OutlinedButton(
+                                                  onPressed: () {
+                                                    Navigator.pop(context);
+                                                  },
+                                                  style:
+                                                      OutlinedButton.styleFrom(
+                                                        foregroundColor:
+                                                            Colors.red,
+                                                        side: const BorderSide(
+                                                          color: Colors.red,
+                                                        ),
+                                                      ),
+                                                  child: const Text('Cancel'),
+                                                ),
+                                                ElevatedButton(
+                                                  onPressed: () async {
+                                                    await customerScreenProvider
+                                                        .saveOrder(
+                                                          cartProvider,
+
+                                                          widget.totalAdvance,
+                                                          widget.orderAmount,
+                                                          discount,
+                                                          deductedAmount,
+                                                          totalAmount,
+                                                          widget.remark,
+                                                          widget.path,
+                                                          widget.apiprovider,
+                                                          widget.img1,
+                                                          widget.img2,
+                                                          widget.audioOrderId,
+                                                          widget.holdId,
+                                                          widget
+                                                              .selectedStoreType,
+                                                          context,
+                                                          payments, // 👈 pass payments map
+                                                        );
+
+                                                    // Clear UI and provider data
+
+                                                    Navigator.pop(
+                                                      context,
+                                                    ); // Close dialog
+                                                  },
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                        backgroundColor:
+                                                            Colors.blueAccent,
+                                                        foregroundColor:
+                                                            Colors.white,
+                                                      ),
+                                                  child: const Text('Confirm'),
+                                                ),
+                                              ],
+                                            );
+                                          },
+                                        );
+                                      }
+                                    : null,
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.blue.shade700,
+                                  backgroundColor: _isCompleteButtonEnabled
+                                      ? Colors.blue.shade700
+                                      : Colors.grey,
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 12,
                                   ),
@@ -994,7 +1295,8 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
                                   ),
                                 ),
                                 child: Text(
-                                  selectedPaymentMethod == 'Cheque'
+                                  selectedPaymentMethod == 'Cheque' ||
+                                          selectedPaymentMethod == 'Approval'
                                       ? 'Send to Approval'
                                       : 'Complete Order',
                                   style: const TextStyle(color: Colors.white),
@@ -1006,6 +1308,29 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
                       ],
                     ),
                   ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 1,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.black12),
+                      ),
+                      child: SizedBox(
+                        height: double.infinity,
+                        child: ValueListenableBuilder<TextEditingController?>(
+                          valueListenable: ActiveField.controller,
+                          builder: (_, ctrl, __) {
+                            return PaymentDetailCustomKeyboardWidgetAll2(
+                              controller: ctrl ?? TextEditingController(),
+                              onChanged: _updateBalance,
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1015,66 +1340,69 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
     );
   }
 
-  Widget _buildMiniCard({
+  Widget _buildPremiumCardElegant({
     required String title,
     required String value,
-    required List<Color> gradient,
+    required IconData icon,
+    required List<Color> gradientColors,
   }) {
-    return Expanded(
-      child: Container(
-        height: 80,
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: gradient,
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey[400]!,
-              offset: const Offset(2, 2),
-              blurRadius: 6,
-            ),
-            const BoxShadow(
-              color: Colors.white,
-              offset: Offset(-2, -2),
-              blurRadius: 6,
-            ),
-          ],
+    return Container(
+      height: 100,
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: gradientColors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        padding: const EdgeInsets.all(8),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                title,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: gradientColors.last.withOpacity(0.4),
+            offset: const Offset(0, 8),
+            blurRadius: 12,
+          ),
+          BoxShadow(
+            color: Colors.black12,
+            offset: const Offset(0, 2),
+            blurRadius: 6,
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Column(
+            children: [
+              Text(
+                title.toUpperCase(),
                 style: const TextStyle(
+                  color: Colors.white70,
                   fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black87,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.2,
                 ),
-                overflow: TextOverflow.ellipsis,
               ),
-            ),
-            const SizedBox(height: 4),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
+              const SizedBox(height: 6),
+              Text(
                 value,
                 style: const TextStyle(
-                  fontSize: 20,
+                  color: Colors.white,
+                  fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black38,
+                      offset: Offset(1, 1),
+                      blurRadius: 2,
+                    ),
+                  ],
                 ),
-                overflow: TextOverflow.ellipsis,
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
     );
   }

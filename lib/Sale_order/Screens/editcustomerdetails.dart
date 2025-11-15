@@ -1,8 +1,10 @@
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 // import 'package:yenposapp/screens/sale_order_screen.dart';
 import 'package:flutter/material.dart';
 // import 'package:outletmanager/widgets/common_layout.dart';
 import 'package:provider/provider.dart';
+import 'package:yenpos/Global/globals_data.dart';
 import 'package:yenpos/Sale_order/Models/sales_order_display_model.dart';
 import 'package:yenpos/Sale_order/Provider/detailsProvider.dart';
 import 'package:yenpos/Sale_order/Provider/editcustomerscreenProvider.dart';
@@ -18,18 +20,17 @@ import '../../../../Global/Audio Player/audio_screen.dart';
 
 import 'editsalesperson_dropdown.dart';
 
-
 class EditCustomerDetails extends StatefulWidget {
   final SalesOrderDisplay? selectedOrder;
   final bool isEditing;
   final String? orderType;
 
-  const EditCustomerDetails(
-      {super.key,
-      this.selectedOrder,
-      this.isEditing = false,
-      this.orderType,
-});
+  const EditCustomerDetails({
+    super.key,
+    this.selectedOrder,
+    this.isEditing = false,
+    this.orderType,
+  });
   @override
   _EditCustomerDetailsState createState() => _EditCustomerDetailsState();
 }
@@ -75,27 +76,30 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
   }
 
   void _populateFields() {
-    final customerScreenProvider =
-        Provider.of<EditCustomerScreenProvider>(context, listen: false);
+    final customerScreenProvider = Provider.of<EditCustomerScreenProvider>(
+      context,
+      listen: false,
+    );
 
     if (widget.selectedOrder != null) {
       String deliveryDate = widget.selectedOrder!.deliveryDate;
       customerScreenProvider.dateController.text = deliveryDate;
 
       String formattedEventDate = widget.selectedOrder!.eventDate ?? '';
-   
 
       customerScreenProvider.birthdaydateController.text = formattedEventDate;
-     
+
       customerScreenProvider.timeController.text =
           widget.selectedOrder!.deliveryTime ?? '';
       customerScreenProvider.selectedOrderType =
           widget.selectedOrder!.orderType ?? '';
-      customerScreenProvider
-          .setSelectedEvent(widget.selectedOrder!.event ?? '');
+      customerScreenProvider.setSelectedEvent(
+        widget.selectedOrder!.event ?? '',
+      );
 
-      customerScreenProvider
-          .setSelectedDeliveryType(widget.selectedOrder!.deliveryType ?? '');
+      customerScreenProvider.setSelectedDeliveryType(
+        widget.selectedOrder!.deliveryType ?? '',
+      );
 
       if (widget.selectedOrder!.deliveryType == 'Door Delivery') {
         customerScreenProvider.landmarkController.text =
@@ -106,7 +110,11 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
 
       customerScreenProvider.customerNameController.text =
           widget.selectedOrder!.customerName ?? '';
+      customerScreenProvider.customChargeController.text =
+          (widget.selectedOrder!.customCharge ?? '').toString();
 
+      customerScreenProvider.selectedChargeType =
+          widget.selectedOrder!.customChargeType ?? '';
       customerScreenProvider.mobileNoController.text =
           widget.selectedOrder!.customerNumber ?? '';
 
@@ -122,8 +130,9 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
   Widget build(BuildContext context) {
     final detailsProvider = Provider.of<DetailsProvider>(context);
     // final cartProvider = Provider.of<CartProvider>(context);
-    final customerScreenProvider =
-        Provider.of<EditCustomerScreenProvider>(context);
+    final customerScreenProvider = Provider.of<EditCustomerScreenProvider>(
+      context,
+    );
 
     final audioprovider = Provider.of<AudioProvider>(context, listen: false);
 
@@ -139,8 +148,9 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
               actions: <Widget>[
                 TextButton(
                   onPressed: () {
-                    Navigator.of(context)
-                        .pop(false); // User does not want to exit
+                    Navigator.of(
+                      context,
+                    ).pop(false); // User does not want to exit
                   },
                   child: const Text('No'),
                 ),
@@ -159,11 +169,7 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
         if (shouldExit == true) {
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (context) => AllOrdersPage(
-
-              ),
-            ),
+            MaterialPageRoute(builder: (context) => AllOrdersPage()),
           );
         }
         // If the user dismisses the dialog, default behavior is not to exit
@@ -171,19 +177,7 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
       },
       child: Scaffold(
         backgroundColor: Colors.white,
-        appBar: AppBar(
-          automaticallyImplyLeading: false,
-          backgroundColor: Colors.white,
-          centerTitle: true, // Centers the title
-          title: Text(
-            "Customer Details",
-            style: TextStyle(
-              color: Colors.black,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
+
         body: Column(
           children: [
             Expanded(
@@ -205,12 +199,16 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                         AutovalidateMode.onUserInteraction,
                                     value: customerScreenProvider
                                         .selectedOrderType,
-                                    hint: const Text('Select Order Type',
-                                        style: TextStyle(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.bold)),
-                                    items: ['In House', 'Warehouse']
-                                        .map((String type) {
+                                    hint: const Text(
+                                      'Select Order Type',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    items: ['In House', 'Warehouse'].map((
+                                      String type,
+                                    ) {
                                       return DropdownMenuItem<String>(
                                         value: type,
                                         child: Text(type),
@@ -226,15 +224,19 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                       border: OutlineInputBorder(),
                                       labelText: "Order Type",
                                       labelStyle: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold),
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                       contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 20, vertical: 10),
+                                        horizontal: 20,
+                                        vertical: 10,
+                                      ),
                                     ),
                                     style: TextStyle(
-                                        fontSize: 18,
-                                        color: Colors.black,
-                                        fontWeight: FontWeight.bold),
+                                      fontSize: 18,
+                                      color: Colors.black,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                     validator: (value) {
                                       if (value == null || value.isEmpty) {
                                         return 'Please select an order type';
@@ -253,21 +255,20 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                         ],
                       ),
 
-                      const SizedBox(height: 10),
-                      Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.spaceBetween, // Centers the text
-                        children: [
-                          Text(
-                            'saleOrderNo :${widget.selectedOrder!.saleOrderNo}',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.black,
-                            ),
-                          ),
-                        ],
-                      ),
-
+                      // const SizedBox(height: 10),
+                      // Row(
+                      //   mainAxisAlignment:
+                      //       MainAxisAlignment.spaceBetween, // Centers the text
+                      //   children: [
+                      //     Text(
+                      //       'saleOrderNo :${widget.selectedOrder!.saleOrderNo}',
+                      //       style: TextStyle(
+                      //         fontSize: 16,
+                      //         color: Colors.black,
+                      //       ),
+                      //     ),
+                      //   ],
+                      // ),
                       SizedBox(height: 10),
                       // Row for Date and Time
                       Row(
@@ -285,8 +286,9 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                 labelStyle: TextStyle(fontSize: 14),
                                 isDense: false, // Makes the field more compact
                                 contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 10), // Reduced padding
+                                  horizontal: 20,
+                                  vertical: 10,
+                                ), // Reduced padding
                               ),
                               style: TextStyle(fontSize: 14),
                               readOnly: _isEditing,
@@ -299,9 +301,9 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                   lastDate: now.add(const Duration(days: 180)),
                                 );
                                 if (pickedDate != null) {
-                                  String formattedDate =
-                                      DateFormat('dd-MM-yyyy')
-                                          .format(pickedDate);
+                                  String formattedDate = DateFormat(
+                                    'dd-MM-yyyy',
+                                  ).format(pickedDate);
                                   customerScreenProvider.dateController.text =
                                       formattedDate;
                                 }
@@ -328,25 +330,31 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                 labelStyle: TextStyle(fontSize: 14),
                                 isDense: false, // Makes the field more compact
                                 contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 20, vertical: 10),
+                                  horizontal: 20,
+                                  vertical: 10,
+                                ),
                               ),
                               style: TextStyle(fontSize: 14),
                               onTap: () async {
                                 DateTime now = DateTime.now();
                                 TimeOfDay time = TimeOfDay.now();
-                                DateTime selectedDate = DateFormat('dd-MM-yyyy')
-                                    .parse(customerScreenProvider
-                                        .dateController.text);
-                                bool isToday = selectedDate.year == now.year &&
+                                DateTime
+                                selectedDate = DateFormat('dd-MM-yyyy').parse(
+                                  customerScreenProvider.dateController.text,
+                                );
+                                bool isToday =
+                                    selectedDate.year == now.year &&
                                     selectedDate.month == now.month &&
                                     selectedDate.day == now.day;
-                                FocusScope.of(context)
-                                    .requestFocus(FocusNode());
+                                FocusScope.of(
+                                  context,
+                                ).requestFocus(FocusNode());
                                 TimeOfDay? pickedTime = await showTimePicker(
                                   context: context,
                                   initialTime: isToday
                                       ? TimeOfDay.fromDateTime(
-                                          now.add(const Duration(minutes: 1)))
+                                          now.add(const Duration(minutes: 1)),
+                                        )
                                       : const TimeOfDay(hour: 0, minute: 0),
                                 );
 
@@ -359,7 +367,8 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
                                         content: Text(
-                                            'Delivery time must be in the future'),
+                                          'Delivery time must be in the future',
+                                        ),
                                       ),
                                     );
                                   } else {
@@ -394,27 +403,31 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                 autovalidateMode:
                                     AutovalidateMode.onUserInteraction,
                                 value: customerScreenProvider.selectedEvent,
-                                hint: const Text('Select Event',
-                                    style: TextStyle(fontSize: 14)),
-                                items: [
-                                  'Birthday',
-                                  'Anniversary',
-                                  'Wedding',
-                                  'Others'
-                                ].map((String event) {
-                                  return DropdownMenuItem<String>(
-                                    value: event,
-                                    child: Text(event),
-                                  );
-                                }).toList(),
+                                hint: const Text(
+                                  'Select Event',
+                                  style: TextStyle(fontSize: 14),
+                                ),
+                                items:
+                                    [
+                                      'Birthday',
+                                      'Anniversary',
+                                      'Wedding',
+                                      'Others',
+                                    ].map((String event) {
+                                      return DropdownMenuItem<String>(
+                                        value: event,
+                                        child: Text(event),
+                                      );
+                                    }).toList(),
+
                                 // onChanged: (String? newValue) {
                                 //   customerScreenProvider
                                 //       .setSelectedEvent(newValue);
-
                                 onChanged: _isEditing
                                     ? (String? newValue) {
-                                        customerScreenProvider
-                                            .setSelectedEvent(newValue);
+                                        customerScreenProvider.setSelectedEvent(
+                                          newValue,
+                                        );
                                       }
                                     : null, //
                                 decoration: InputDecoration(
@@ -424,10 +437,14 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                   isDense:
                                       false, // Makes the field more compact
                                   contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 8),
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
                                 ),
                                 style: TextStyle(
-                                    fontSize: 14, color: Colors.black),
+                                  fontSize: 14,
+                                  color: Colors.black,
+                                ),
                                 dropdownColor: Colors.white,
                                 validator: (value) {
                                   if (_isFormValid &&
@@ -443,7 +460,8 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                             // Show date field only if an event is selected and it's not "Others"
                             if (customerScreenProvider.selectedEvent != null &&
                                 customerScreenProvider
-                                    .selectedEvent!.isNotEmpty &&
+                                    .selectedEvent!
+                                    .isNotEmpty &&
                                 customerScreenProvider.selectedEvent !=
                                     "Others")
                               Expanded(
@@ -461,8 +479,9 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                     isDense:
                                         false, // Makes the field more compact
                                     contentPadding: EdgeInsets.symmetric(
-                                        horizontal: 20,
-                                        vertical: 10), // Reduced padding
+                                      horizontal: 20,
+                                      vertical: 10,
+                                    ), // Reduced padding
                                   ),
                                   style: TextStyle(fontSize: 14),
                                   readOnly: true,
@@ -472,16 +491,18 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                       context: context,
                                       initialDate: DateTime.now(),
                                       firstDate: DateTime.now(),
-                                      lastDate:
-                                          now.add(const Duration(days: 180)),
+                                      lastDate: now.add(
+                                        const Duration(days: 180),
+                                      ),
                                     );
                                     if (pickedDate != null) {
-                                      String formattedDate =
-                                          DateFormat('dd-MM-yyyy')
-                                              .format(pickedDate);
+                                      String formattedDate = DateFormat(
+                                        'dd-MM-yyyy',
+                                      ).format(pickedDate);
                                       customerScreenProvider
-                                          .birthdaydateController
-                                          .text = formattedDate;
+                                              .birthdaydateController
+                                              .text =
+                                          formattedDate;
                                     }
                                   },
                                   validator: (value) {
@@ -500,12 +521,13 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
 
                       // const Padding(padding: EdgeInsets.all(5)),
                       //   ],
-
                       const Padding(padding: EdgeInsets.all(5)),
                       Row(
                         children: [
                           if (_customerType != 'Normal' ||
-                              _customerType != 'Company') ...[const SizedBox()],
+                              _customerType != 'Company') ...[
+                            const SizedBox(),
+                          ],
                           if (_customerType == 'Normal' ||
                               _customerType == 'Company') ...[
                             const Padding(padding: EdgeInsets.all(5)),
@@ -516,17 +538,18 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                   AutovalidateMode.onUserInteraction,
                               value:
                                   customerScreenProvider.selectedDeliveryType,
-                              hint: const Text('Delivery Type',
-                                  style: TextStyle(fontSize: 11)),
-                              items: [
-                                'Pickup by Customer',
-                                'Door Delivery',
-                              ].map((String type) {
-                                return DropdownMenuItem<String>(
-                                  value: type,
-                                  child: Text(type),
-                                );
-                              }).toList(),
+                              hint: const Text(
+                                'Delivery Type',
+                                style: TextStyle(fontSize: 11),
+                              ),
+                              items: ['Pickup by Customer', 'Door Delivery']
+                                  .map((String type) {
+                                    return DropdownMenuItem<String>(
+                                      value: type,
+                                      child: Text(type),
+                                    );
+                                  })
+                                  .toList(),
                               // onChanged: (String? newValue) {
                               //   customerScreenProvider
                               //       .setSelectedDeliveryType(newValue);
@@ -545,10 +568,14 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                 labelStyle: TextStyle(fontSize: 11),
                                 isDense: false, // Makes the field more compact
                                 contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 13, vertical: 8),
+                                  horizontal: 13,
+                                  vertical: 8,
+                                ),
                               ),
-                              style:
-                                  TextStyle(fontSize: 13, color: Colors.black),
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.black,
+                              ),
                               dropdownColor: Colors.white,
                               validator: (value) {
                                 if (_isFormValid &&
@@ -561,8 +588,10 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                           ),
                           const Padding(padding: EdgeInsets.all(5)),
                           Expanded(
-                              child: EditEmployeeSearchDropdown(
-                                  modifyMode: _isEditing)),
+                            child: EditEmployeeSearchDropdown(
+                              modifyMode: _isEditing,
+                            ),
+                          ),
                           const Padding(padding: EdgeInsets.all(5)),
                         ],
                       ),
@@ -590,7 +619,9 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                   isDense:
                                       false, // Makes the field more compact
                                   contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 20, vertical: 10),
+                                    horizontal: 20,
+                                    vertical: 10,
+                                  ),
                                   hintText:
                                       'e.g., Near ABC Park, Opposite XYZ Mall',
                                   hintStyle: TextStyle(color: Colors.grey),
@@ -621,7 +652,9 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                   isDense:
                                       false, // Makes the field more compact
                                   contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 20, vertical: 10),
+                                    horizontal: 20,
+                                    vertical: 10,
+                                  ),
                                   hintText:
                                       'e.g., 1234 Main Street, Apartment 12',
                                   hintStyle: TextStyle(color: Colors.grey),
@@ -641,29 +674,187 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                       ],
 
                       if (_customerType == 'Company')
-                        Row(children: [
-                          // const Padding(padding: EdgeInsets.all(5)),
-                          Expanded(
-                            child: customerScreenProvider
-                                .buildCompanyInputFields(context),
-                          )
-                        ]),
+                        Row(
+                          children: [
+                            // const Padding(padding: EdgeInsets.all(5)),
+                            Expanded(
+                              child: customerScreenProvider
+                                  .buildCompanyInputFields(context),
+                            ),
+                          ],
+                        ),
                       const Padding(padding: EdgeInsets.all(5)),
 
-                      Row(children: [
-                        // const Padding(padding: EdgeInsets.all(5)),
-                        Expanded(
-                          child:
-                              //  customerScreenProvider
-                              //     .buildCustomerInputFields(context, _isEditing),
-
-                              EditCustomerSearchDropdown(
-                            isModifyMode: _isEditing,
+                      Row(
+                        children: [
+                          // const Padding(padding: EdgeInsets.all(5)),
+                          Expanded(
+                            child:
+                                //  customerScreenProvider
+                                //     .buildCustomerInputFields(context, _isEditing),
+                                EditCustomerSearchDropdown(
+                                  isModifyMode: _isEditing,
+                                ),
                           ),
-                        )
-                      ]),
+                        ],
+                      ),
 
                       const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          const Padding(padding: EdgeInsets.all(5)),
+                          if (_customerType == 'Normal' ||
+                              _customerType == 'Company') ...[
+                            // ========================= LEFT DROPDOWN + INPUT ==========================
+                            Expanded(
+                              flex: 4,
+                              child: Container(
+                                height: 50,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: Colors.blueAccent,
+                                    width: 1,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      offset: const Offset(0, 2),
+                                      blurRadius: 6,
+                                    ),
+                                  ],
+                                ),
+                                child: StatefulBuilder(
+                                  builder: (context, setState) {
+                                    return Row(
+                                      children: [
+                                        // ---------------------- Dropdown -----------------------
+                                        Expanded(
+                                          flex: 5,
+                                          child: DropdownButtonHideUnderline(
+                                            child: DropdownButton<String>(
+                                              value: customerScreenProvider
+                                                  .selectedChargeType,
+                                              isExpanded: true,
+
+                                              dropdownColor: Colors.white,
+                                              icon: const Icon(
+                                                Icons.arrow_drop_down_rounded,
+                                                size: 22,
+                                              ),
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.black87,
+                                              ),
+                                              items: customerScreenProvider.chargeTypes.map((
+                                                value,
+                                              ) {
+                                                return DropdownMenuItem(
+                                                  value: value,
+                                                  child: Row(
+                                                    children: [
+                                                      Icon(
+                                                        value == "Custom Charge"
+                                                            ? Icons
+                                                                  .price_change_rounded
+                                                            : value ==
+                                                                  "Delivery Charge"
+                                                            ? Icons
+                                                                  .local_shipping_rounded
+                                                            : Icons
+                                                                  .attach_money_rounded,
+                                                        size: 18,
+                                                        color:
+                                                            Colors.blueAccent,
+                                                      ),
+                                                      const SizedBox(width: 6),
+                                                      Text(value),
+                                                    ],
+                                                  ),
+                                                );
+                                              }).toList(),
+                                              onChanged: _isEditing
+                                                  ? (String? newValue) {
+                                                      customerScreenProvider
+                                                          .setSelectedCustomChargeType(
+                                                            newValue,
+                                                          );
+                                                    }
+                                                  : null, //
+                                            ),
+                                          ),
+                                        ),
+
+                                        const SizedBox(width: 10),
+
+                                        // ---------------------- Input Field -----------------------
+                                        Expanded(
+                                          flex: 3,
+                                          child: TextFormField(
+                                            showCursor: true,
+                                            controller: customerScreenProvider
+                                                .customChargeController,
+                                            enabled: _isEditing,
+                                            focusNode: customerScreenProvider
+                                                .customChargeFocus,
+                                            keyboardType: TextInputType.number,
+                                            inputFormatters: [
+                                              FilteringTextInputFormatter
+                                                  .digitsOnly,
+                                              LengthLimitingTextInputFormatter(
+                                                5,
+                                              ),
+                                            ],
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                            decoration: InputDecoration(
+                                              isDense: true,
+                                              filled: true,
+                                              fillColor: Colors.grey.shade100,
+                                              contentPadding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 6,
+                                                  ),
+                                              border: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                                borderSide: BorderSide(
+                                                  color: Colors.blue.shade300,
+                                                  width: 1,
+                                                ),
+                                              ),
+                                            ),
+                                            onTap: () {
+                                              ActiveField.activate(
+                                                context: context,
+                                                ctrl: customerScreenProvider
+                                                    .customChargeController,
+                                                node: customerScreenProvider
+                                                    .customChargeFocus,
+                                                numeric: true,
+                                                customCharge: true,
+                                                fieldType: "custom charge",
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -688,7 +879,6 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                   // if (customerScreenProvider.audioPlayerId == null ||
                   //     audioprovider.state.error != null ||
                   //     customerScreenProvider.audioPlayerId != null)
-
                   if (widget.selectedOrder!.audio == null ||
                       audioprovider.state.error != null ||
                       widget.selectedOrder!.audio != null)
@@ -726,8 +916,10 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                 _showMinusButtonforaudio &&
                                 customerScreenProvider.audioPlayerId != null)
                               IconButton(
-                                icon: const Icon(Icons.remove_circle,
-                                    color: Colors.red),
+                                icon: const Icon(
+                                  Icons.remove_circle,
+                                  color: Colors.red,
+                                ),
                                 onPressed: () {
                                   setState(() {
                                     customerScreenProvider.previousAudioId =
@@ -754,9 +946,7 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                   ),
                                 ),
                               ),
-                            SizedBox(
-                              width: 40,
-                            ),
+                            SizedBox(width: 40),
                             // Photo Screen
                             if (customerScreenProvider.photoScreenId != null)
                               Flexible(
@@ -786,8 +976,10 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                 _showMinusButtonforimage &&
                                 customerScreenProvider.photoScreenId != null)
                               IconButton(
-                                icon: const Icon(Icons.remove_circle,
-                                    color: Colors.red),
+                                icon: const Icon(
+                                  Icons.remove_circle,
+                                  color: Colors.red,
+                                ),
                                 onPressed: () {
                                   setState(() {
                                     customerScreenProvider.previousImageId =

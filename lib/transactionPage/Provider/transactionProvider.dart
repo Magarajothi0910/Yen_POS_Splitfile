@@ -1,104 +1,109 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
+import 'package:yenpos/Hive_Manager/hive_manager_kot.dart';
 import 'package:yenpos/Hive_Manager/hive_manager_saleOrder.dart';
 
 class TransactionProvider with ChangeNotifier {
   List<Map<String, dynamic>> _invoices = [];
-  List<Map<String, dynamic>> get invoices => _invoices;
   List<Map<String, dynamic>> _rawInvoiceOrders = [];
-  List<Map<String, dynamic>> get rawInvoiceOrders => _rawInvoiceOrders;
-
   List<Map<String, dynamic>> _invoiceList = [];
+
+  int selectedIndex = 0;
+  int? _selectedTransactionIndex;
+  final TextEditingController searchController = TextEditingController();
+
+  int? get selectedTransactionIndex => _selectedTransactionIndex;
+  set selectedTransactionIndex(int? index) {
+    _selectedTransactionIndex = index;
+    notifyListeners();
+  }
+
+  List<Map<String, dynamic>> get invoices => _invoices;
+  List<Map<String, dynamic>> get rawInvoiceOrders => _rawInvoiceOrders;
   List<Map<String, dynamic>> get invoiceList => _invoiceList;
-  // ✅ Use the central HiveManager box
+
   Box get invoiceBox => HiveManager.invoiceBox;
 
   TransactionProvider() {
-    // loadInvoices();
     getInvoicesFromHive();
   }
+
+  /// Fetch invoices safely from Hive
   Future<void> getInvoicesFromHive() async {
+    print("🟢 [getInvoicesFromHive] STARTED");
     try {
-      final invoiceBox = await HiveManager.invoiceBox;
+      final invoiceBox = HiveManager.invoiceBox;
+      final invoiceKOTBox = await HiveManagerKot().invoicesBox;
+      print("🟢 Hive box opened. Total entries: ${invoiceKOTBox.length}");
+      print("🟢 Hive box opened. Total entries: ${invoiceBox.length}");
 
       // Extract invoices safely
       List<Map<String, dynamic>> hiveInvoices = invoiceBox.values
           .where((entry) => entry is Map)
           .map((entry) => Map<String, dynamic>.from(entry as Map))
-          .map(
-            (invoice) =>
-                Map<String, dynamic>.from(invoice['salesOrderId'] ?? {}),
-          )
+          .map((invoice) {
+            final salesOrder = invoice['salesOrderId'];
+            if (salesOrder is Map<String, dynamic>) {
+              return Map<String, dynamic>.from(salesOrder);
+            } else {
+              print("⚠️ Skipping invalid salesOrderId: $salesOrder");
+              return null;
+            }
+          })
+          .whereType<Map<String, dynamic>>()
+          .toList();
+      List<Map<String, dynamic>> hiveInvoicesKOT = invoiceKOTBox.values
+          .where((entry) => entry is Map)
+          .map((entry) => Map<String, dynamic>.from(entry as Map))
+          // .map((invoice) {
+          //   final salesOrder = invoice['salesOrderId'];
+          //   if (salesOrder is Map<String, dynamic>) {
+          //     return Map<String, dynamic>.from(salesOrder);
+          //   } else {
+          //     print("⚠️ Skipping invalid salesOrderId: $salesOrder");
+          //     return null;
+          //   }
+          // })
+          .whereType<Map<String, dynamic>>()
           .toList();
 
+      print("🟢 Extracted ${hiveInvoices.length} valid invoices from Hive");
 
-      // ✅ Filter duplicates based on orderInvoiceNo
+      // Filter duplicates by invoiceNo
       final Set<String> seen = {};
-      final uniqueInvoices = <Map<String, dynamic>>[];
-
+      final List<Map<String, dynamic>> uniqueInvoices = [];
       for (var invoice in hiveInvoices) {
-        final orderInvoiceNo = invoice['orderInvoiceNo']?.toString();
-        if (orderInvoiceNo != null && orderInvoiceNo.isNotEmpty) {
-          if (!seen.contains(orderInvoiceNo)) {
-            seen.add(orderInvoiceNo);
-            uniqueInvoices.add(invoice);
-          } else {
-          }
+        final invoiceNo = invoice['invoiceNo']?.toString();
+        if (invoiceNo != null &&
+            invoiceNo.isNotEmpty &&
+            !seen.contains(invoiceNo)) {
+          seen.add(invoiceNo);
+          uniqueInvoices.add(invoice);
+        } else if (invoiceNo != null) {
+          print("⚠️ Duplicate invoice skipped: $invoiceNo");
+        } else {
+          print("⚠️ Invoice missing invoiceNo skipped: $invoice");
         }
       }
 
-
       _rawInvoiceOrders = uniqueInvoices;
       _invoiceList = List.from(_rawInvoiceOrders);
-
+      print(
+        "🟢 Updated local invoice lists. Count: ${_rawInvoiceOrders.length}",
+      );
 
       notifyListeners();
-    } catch (e) {
+      print("🟢 Listeners notified");
+    } catch (e, st) {
+      print("❌ Error in getInvoicesFromHive: $e\n$st");
     }
-  }
-
-  /// Load invoices from Hive into local state
-  Future<void> loadInvoices() async {
-    if (!invoiceBox.isOpen) {
-      return;
-    }
-
-    _invoices = invoiceBox.values
-        .where((entry) => entry is Map)
-        .map((entry) => Map<String, dynamic>.from(entry as Map))
-        .toList();
-
-    for (int i = 0; i < _invoices.length; i++) {
-      _invoices[i].forEach((key, value) {
-      });
-    }
-
-    notifyListeners();
-  }
-
-  /// Add or update invoice (unique by hiveInvoiceId)
-  Future<void> addInvoice(Map<String, dynamic> invoice) async {
-    if (!invoiceBox.isOpen) {
-      return;
-    }
-
-    final hiveInvoiceId = invoice['hiveInvoiceId'];
-    if (hiveInvoiceId == null) {
-      return;
-    }
-
-    if (!invoiceBox.containsKey(hiveInvoiceId)) {
-    } else {
-    }
-
-    await invoiceBox.put(hiveInvoiceId, invoice);
-
-    await loadInvoices();
+    print("🟢 [getInvoicesFromHive] FINISHED");
   }
 
   @override
   void dispose() {
+    searchController.dispose();
     super.dispose();
   }
 }

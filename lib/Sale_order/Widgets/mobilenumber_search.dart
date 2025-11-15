@@ -8,7 +8,6 @@ import 'package:yenpos/Global/globals_data.dart';
 import 'package:yenpos/Sale_order/Provider/customerScreen_provider.dart';
 import 'package:yenpos/Sale_order/Provider/customer_search_provider.dart';
 
-
 class CustomerSearchDropdown extends StatefulWidget {
   const CustomerSearchDropdown({Key? key}) : super(key: key);
 
@@ -26,28 +25,36 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
   @override
   void initState() {
     super.initState();
-    final customerProvider =
-        Provider.of<CustomerScreenProvider>(context, listen: false);
+    final customerProvider = Provider.of<CustomerScreenProvider>(
+      context,
+      listen: false,
+    );
 
     // Initial update
     _updateCombinedController(customerProvider);
 
     // Listener attach
-    customerProvider.customerCombinedController
-        .addListener(_combinedControllerListener);
+    customerProvider.customerCombinedController.addListener(
+      _combinedControllerListener,
+    );
 
-    final customerSearchProvider =
-        Provider.of<CustomerSearchProvider>(context, listen: false);
-    customerSearchProvider
-        .fetchSuggestions(customerProvider.customerCombinedController.text);
+    final customerSearchProvider = Provider.of<CustomerSearchProvider>(
+      context,
+      listen: false,
+    );
+    customerSearchProvider.fetchSuggestions(
+      customerProvider.customerCombinedController.text,
+    );
 
     customerSearchProvider.refreshCustomersFromHive();
   }
 
   /// Listener wrapper
   void _combinedControllerListener() {
-    final customerProvider =
-        Provider.of<CustomerScreenProvider>(context, listen: false);
+    final customerProvider = Provider.of<CustomerScreenProvider>(
+      context,
+      listen: false,
+    );
     _onMobileNumberChanged(customerProvider.customerCombinedController.text);
   }
 
@@ -57,18 +64,18 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
     final name = customerProvider.customerNameController.text;
     customerProvider.customerCombinedController.text =
         (mobile.isNotEmpty && name.isNotEmpty)
-            ? '$mobile - $name'
-            : mobile.isNotEmpty
-                ? mobile
-                : '';
+        ? '$mobile - $name'
+        : mobile.isNotEmpty
+        ? mobile
+        : '';
   }
 
   void _onMobileNumberChanged(String value) async {
-    if (_isAddingCustomer) return;
-    final customerProvider =
-        Provider.of<CustomerScreenProvider>(context, listen: false);
+    final customerProvider = Provider.of<CustomerScreenProvider>(
+      context,
+      listen: false,
+    );
     final mobile = value.split(' - ').first.replaceAll(RegExp(r'[^0-9]'), '');
-
     customerProvider.mobileNoController.text = mobile;
 
     if (mobile.length < 10) {
@@ -81,10 +88,19 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
 
     if (provider.suggestions.isEmpty) {
       _removeSuggestionsOverlay();
+
+      // Only show add customer dialog if not already showing
       if (!_isAddingCustomer) {
         _isAddingCustomer = true;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _showAddCustomerDialog(customerProvider);
+
+        // Delay dialog to ensure UI is ready
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          if (!mounted) return;
+
+          await _showAddCustomerDialog(customerProvider);
+
+          // Reset flag after dialog is dismissed
+          if (mounted) _isAddingCustomer = false;
         });
       }
     } else {
@@ -104,14 +120,19 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
   }
 
   OverlayEntry _createOverlayEntry() {
-    final customerProvider =
-        Provider.of<CustomerScreenProvider>(context, listen: false);
+    final customerProvider = Provider.of<CustomerScreenProvider>(
+      context,
+      listen: false,
+    );
     RenderBox renderBox = context.findRenderObject() as RenderBox;
     var size = renderBox.size;
-    final customerSearchProvider =
-        Provider.of<CustomerSearchProvider>(context, listen: false);
-    customerSearchProvider
-        .fetchSuggestions(customerProvider.mobileNoController.text);
+    final customerSearchProvider = Provider.of<CustomerSearchProvider>(
+      context,
+      listen: false,
+    );
+    customerSearchProvider.fetchSuggestions(
+      customerProvider.mobileNoController.text,
+    );
     return OverlayEntry(
       builder: (context) => Positioned(
         width: size.width,
@@ -135,7 +156,7 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
                   ),
                 ],
               ),
-              constraints: const BoxConstraints(maxHeight: 300),
+              constraints: const BoxConstraints(maxHeight: 180),
               child: ListView.builder(
                 padding: EdgeInsets.zero,
                 itemCount: customerSearchProvider.suggestions.length + 1,
@@ -178,8 +199,9 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
     searchProvider.clearSuggestions();
 
     // Temporarily remove listener to prevent unwanted triggers
-    customerProvider.customerCombinedController
-        .removeListener(_combinedControllerListener);
+    customerProvider.customerCombinedController.removeListener(
+      _combinedControllerListener,
+    );
 
     // Update fields
     final mobile = suggestion['mobile'] ?? '';
@@ -189,30 +211,36 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
     customerProvider.customerNameController.text = name;
 
     // ✅ Correctly update combined controller text to include both mobile + name
-    customerProvider.customerCombinedController.text =
-        name.isNotEmpty ? '$mobile - $name' : mobile;
+    customerProvider.customerCombinedController.text = name.isNotEmpty
+        ? '$mobile - $name'
+        : mobile;
 
     // Re-attach listener
-    customerProvider.customerCombinedController
-        .addListener(_combinedControllerListener);
+    customerProvider.customerCombinedController.addListener(
+      _combinedControllerListener,
+    );
 
     FocusScope.of(context).unfocus();
     setState(() {});
   }
 
   Future<bool> _checkCustomerExists(
-      String mobile, CustomerScreenProvider provider) async {
+    String mobile,
+    CustomerScreenProvider provider,
+  ) async {
     try {
       final box = await Hive.openBox('customerBox');
-      final existsInHive =
-          box.values.any((c) => c['mobile']?.toString() == mobile);
+      final existsInHive = box.values.any(
+        (c) => c['mobile']?.toString() == mobile,
+      );
       if (existsInHive) return true;
     } catch (_) {}
 
     try {
       final response = await http.get(
         Uri.parse(
-            "https://yenerp.com/fastapi/customers/by-customer?customerPhoneNumber=$mobile"),
+          "https://yenerp.com/fastapi/customers/by-customer?customerPhoneNumber=$mobile",
+        ),
       );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -224,13 +252,15 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
     return false;
   }
 
-  void _showAddCustomerDialog(CustomerScreenProvider customerProvider) {
-    final TextEditingController mobileController =
-        TextEditingController(text: customerProvider.mobileNoController.text);
+  Future<void> _showAddCustomerDialog(
+    CustomerScreenProvider customerProvider,
+  ) async {
+    final TextEditingController mobileController = TextEditingController(
+      text: customerProvider.mobileNoController.text,
+    );
     final TextEditingController customerNameController =
         TextEditingController();
-
-    showDialog(
+    await showDialog(
       barrierDismissible: false,
       context: context,
       builder: (BuildContext context) {
@@ -242,8 +272,10 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
             children: [
               Icon(Icons.person_add, color: Colors.blue),
               SizedBox(width: 8),
-              Text('Add Customer',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              Text(
+                'Add Customer',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
             ],
           ),
           content: Form(
@@ -298,9 +330,13 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
                 Navigator.pop(context);
                 _isAddingCustomer = false;
               },
-              child: const Text('Cancel',
-                  style: TextStyle(
-                      color: Colors.red, fontWeight: FontWeight.bold)),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -312,8 +348,10 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
                 if (mobile.length == 10 &&
                     RegExp(r'^\d+$').hasMatch(mobile) &&
                     name.isNotEmpty) {
-                  final exists =
-                      await _checkCustomerExists(mobile, customerProvider);
+                  final exists = await _checkCustomerExists(
+                    mobile,
+                    customerProvider,
+                  );
 
                   if (exists) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -339,15 +377,18 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
 
                   Navigator.pop(context);
                   final customerSearchProvider =
-                      Provider.of<CustomerSearchProvider>(context,
-                          listen: false);
+                      Provider.of<CustomerSearchProvider>(
+                        context,
+                        listen: false,
+                      );
                   await customerSearchProvider.refreshCustomersFromHive();
                   _isAddingCustomer = false;
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content:
-                          Text('Please enter a valid mobile number and name.'),
+                      content: Text(
+                        'Please enter a valid mobile number and name.',
+                      ),
                       backgroundColor: Colors.orange,
                     ),
                   );
@@ -364,18 +405,23 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
   @override
   void dispose() {
     _mobileFocusNode.dispose();
-    final customerProvider =
-        Provider.of<CustomerScreenProvider>(context, listen: false);
-    customerProvider.customerCombinedController
-        .removeListener(_combinedControllerListener);
+    final customerProvider = Provider.of<CustomerScreenProvider>(
+      context,
+      listen: false,
+    );
+    customerProvider.customerCombinedController.removeListener(
+      _combinedControllerListener,
+    );
     _overlayEntry?.remove();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final customerProvider =
-        Provider.of<CustomerScreenProvider>(context, listen: false);
+    final customerProvider = Provider.of<CustomerScreenProvider>(
+      context,
+      listen: false,
+    );
     return GestureDetector(
       onTap: () {
         FocusScope.of(context).unfocus();
@@ -386,42 +432,47 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
           CompositedTransformTarget(
             link: _layerLink,
             child: TextField(
-                readOnly: true,
-                showCursor: true,
-                controller: customerProvider.customerCombinedController,
-                focusNode: _mobileFocusNode,
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(
-                      RegExp(r'^[0-9\s\-a-zA-Z]*$')),
-                  LengthLimitingTextInputFormatter(50),
-                ],
-                keyboardType: TextInputType.text,
-                decoration: InputDecoration(
-                  border: const OutlineInputBorder(),
-                  labelText: 'Customer Mobile & Name',
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () {
-                      customerProvider.mobileNoController.clear();
-                      customerProvider.customerNameController.clear();
-                      customerProvider.customerCombinedController.clear();
-                      _removeSuggestionsOverlay();
-                      FocusScope.of(context).unfocus();
-                    },
-                  ),
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              readOnly: true,
+              showCursor: true,
+              controller: customerProvider.customerCombinedController,
+              focusNode: _mobileFocusNode,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(
+                  RegExp(r'^[0-9\s\-a-zA-Z]*$'),
                 ),
-                style: const TextStyle(fontSize: 14),
-                onChanged: _onMobileNumberChanged,
-                onTap: () {
-                  ActiveField.activate(
-                    ctrl: customerProvider.customerCombinedController,
-                    node: _mobileFocusNode,
-                    numeric: true,
-                    fieldType: "customer number",
-                  );
-                }),
+                LengthLimitingTextInputFormatter(50),
+              ],
+              keyboardType: TextInputType.text,
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                labelText: 'Customer Mobile & Name',
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () {
+                    customerProvider.mobileNoController.clear();
+                    customerProvider.customerNameController.clear();
+                    customerProvider.customerCombinedController.clear();
+                    _removeSuggestionsOverlay();
+                    FocusScope.of(context).unfocus();
+                  },
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+              ),
+              style: const TextStyle(fontSize: 14),
+              onChanged: _onMobileNumberChanged,
+              onTap: () {
+                ActiveField.activate(
+                  context: context,
+                  ctrl: customerProvider.customerCombinedController,
+                  node: _mobileFocusNode,
+                  numeric: true,
+                  fieldType: "customer number",
+                );
+              },
+            ),
           ),
         ],
       ),

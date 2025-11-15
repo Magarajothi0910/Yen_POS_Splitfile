@@ -83,6 +83,16 @@ dependencies:
   dio: ^5.9.0
   flex_color_scheme: ^8.2.0
   google_fonts: ^6.3.1
+  package_info_plus: ^9.0.0
+  device_info_plus: ^12.2.0
+  flutter_bluetooth_serial: ^0.4.0
+  lottie: ^3.3.0
+  audioplayers: ^5.2.1
+  flutter_local_notifications: ^19.5.0
+  lucide_icons: ^0.257.0
+  share_plus: ^12.0.1
+  open_filex: ^4.7.0
+  pdf: ^3.8.4
 
 dev_dependencies:
   flutter_test:
@@ -110,6 +120,12 @@ flutter:
   assets:
     - assets/bestmummy.png
     - assets/posbilling.png
+    - assets/beep.mp3
+    - assets/cakes.png
+    - assets/Payment Successful.json
+    - assets/BMlogo.png
+    - assets/loading.gif
+
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

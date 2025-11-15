@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:yenpos/Global/pos_detector.dart';
 
-
 class SmartSearchField extends StatefulWidget {
   final TextEditingController controller;
   final Function(String) onSearch;
@@ -73,9 +72,7 @@ class _SmartSearchFieldState extends State<SmartSearchField> {
         context: context,
         isScrollControlled: true,
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(16.0),
-          ),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16.0)),
         ),
         builder: (context) {
           return Padding(
@@ -88,8 +85,10 @@ class _SmartSearchFieldState extends State<SmartSearchField> {
                 children: [
                   const Text(
                     'Scan QR/Barcode',
-                    style:
-                        TextStyle(fontSize: 18.0, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 18.0,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 16.0),
                   Expanded(
@@ -130,11 +129,13 @@ class _SmartSearchFieldState extends State<SmartSearchField> {
       controller: widget.controller,
       focusNode: _focusNode,
       onChanged: (value) {
-        widget.controller.text = value;
-        widget.controller.selection = TextSelection.fromPosition(
-          TextPosition(offset: widget.controller.text.length),
-        );
-        widget.onSearch(value);
+        setState(() {
+          widget.controller.text = value;
+          widget.controller.selection = TextSelection.fromPosition(
+            TextPosition(offset: widget.controller.text.length),
+          );
+          widget.onSearch(value);
+        });
       },
       onSubmitted: (value) {
         setState(() {
@@ -156,9 +157,7 @@ class _SmartSearchFieldState extends State<SmartSearchField> {
           onPressed: _handleScanAction,
           tooltip: _isPOSMode ? 'Use hardware scanner' : 'Scan QR/Barcode',
         ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8.0),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
       ),
     );
   }

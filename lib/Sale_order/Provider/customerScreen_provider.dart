@@ -22,26 +22,21 @@ import 'package:yenpos/Sale_order/Models/sales_invoicemodel.dart';
 import 'package:yenpos/Sale_order/Models/sales_order_display_model.dart';
 import 'package:yenpos/Sale_order/Print_Receipt/allorderprint.dart';
 import 'package:yenpos/Sale_order/Print_Receipt/invoicePrint.dart';
+import 'package:yenpos/Sale_order/Print_Receipt/op_placeorder_payment.dart';
 import 'package:yenpos/Sale_order/Print_Receipt/salesOrder_print.dart';
 import 'package:yenpos/Sale_order/Print_Receipt/so_placeorder_payment_print.dart';
 import 'package:yenpos/Sale_order/Provider/cart_selection_provider.dart';
 import 'package:yenpos/Sale_order/Provider/get_sales_order_service.dart';
 import 'package:yenpos/Sale_order/Provider/saveAudioandImageFile.dart';
 import 'package:yenpos/Sale_order/Screens/create_sales_order.dart';
+import 'package:yenpos/Sale_order/Widgets/Send_data_to_server.dart';
 import 'package:yenpos/Sale_order/Widgets/storetype_selection_dialogue.dart';
-import 'package:yenpos/Server_Client/websocketService.dart';
-
-// import 'package:yenpos/screens/take_away_orders/screens/create_salesOrder.dart/create_sales_order.dart';
+import 'package:yenpos/Server_Client/handlers/webscoket_messgae_handler.dart';
 import '../../Global/Provider/branchSelection_provider.dart';
-
 import 'cartProvider.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
-import 'package:http_parser/http_parser.dart';
-
 import 'package:http/http.dart' as http;
-import 'package:mime/mime.dart';
 import '../../../Global/globals_data.dart' as globalbranch;
-import 'modifyOrderProvider.dart';
 
 class CustomerScreenProvider with ChangeNotifier {
   late salesOrderReceiptPrinter receiptPrinter;
@@ -81,6 +76,7 @@ class CustomerScreenProvider with ChangeNotifier {
       totalAmount2: 0.0,
       finalPrice: 0.0,
       discountAmount: 0.0,
+      editAbout: '',
       // currentPatchId: '',
     );
 
@@ -98,38 +94,21 @@ class CustomerScreenProvider with ChangeNotifier {
       deliveryTimeprint: '',
       customAmountController: TextEditingController(),
       selectedPaymentOption: '',
+      cashAmount: 0.0,
+      cardAmount: 0.0,
+      upiAmount: 0.0,
+      invoiceNo: '',
     );
 
     storedBranch = branchProvider.getStoredBranch(globalbranch.branchName);
-
-    _initWebSocket();
   }
 
   TextEditingController otherEventController = TextEditingController();
   TextEditingController combinedController = TextEditingController();
 
-  late WebSocketChannel _channel;
+  String? holdId;
+
   final Razorpay _razorpay = Razorpay();
-  void _initWebSocket() {
-    // Replace these with your actual server IP and port defined in globals.
-    _channel = WebSocketChannel.connect(
-      Uri.parse('ws://${globals.serverip}:${globals.port}'),
-    );
-    // Listen for messages from the server.
-    _channel.stream.listen(
-      (data) {
-        // print('Received dataCustomerProvider: $data');
-        // WebSocketService();
-        WebSocketService(
-          CustomerScreenProvider(),
-          SalesInvoiceReceiptPrinter(),
-        ).handleMessage(data);
-      },
-      onError: (error) {
-        // print('WebSocket error: $error');
-      },
-    );
-  }
 
   void onImagesSelected(File? image1, File? image2) async {
     if (image1 != null && image2 != null) {
@@ -143,12 +122,15 @@ class CustomerScreenProvider with ChangeNotifier {
     }
   }
 
+  TextEditingController allBoxQtyController = TextEditingController();
+  TextEditingController bulkDiscountController = TextEditingController();
   String _selectedStoreType = 'Warehouse';
   bool _isStoreTypeSelected = false;
 
   String get selectedStoreType => _selectedStoreType;
   bool get isStoreTypeSelected => _isStoreTypeSelected;
 
+  String customerType = 'Normal';
   List<Map<String, dynamic>> _hiveholdSalesOrders = [];
   List<Map<String, dynamic>> get hiveholdSalesOrders => _hiveholdSalesOrders;
   List<Map<String, dynamic>> _rawOrders = [];
@@ -164,6 +146,7 @@ class CustomerScreenProvider with ChangeNotifier {
   String? previousAudioId;
   String? previousImageId;
   String? audioPlayer;
+  String selectedChargeType = "Custom Charge";
   String? photoScreen;
   Future<void> saveStoreType(String type) async {
     final prefs = await SharedPreferences.getInstance();
@@ -177,23 +160,6 @@ class CustomerScreenProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> sendPaymentDataToServer(Map<String, dynamic> paymentData) async {
-    try {
-      final jsonData = jsonEncode(paymentData);
-      _channel.sink.add(jsonData);
-    } catch (e) {}
-  }
-
-  void clikedThePaymentButton() {
-    Map<String, dynamic> paymentData = {
-      "type": "placeOrderCliked",
-      "cliked ": "Yes",
-    };
-
-    // Call your API service method here
-    sendClikedThePaymentButtonServer(paymentData);
-  }
-
   /// Sends the brand‑new customer to the back‑end so every device sees it.
   Future<void> sendNewCustomer(String mobile, String name) async {
     final Map<String, dynamic> cutomerPayload = {
@@ -205,57 +171,37 @@ class CustomerScreenProvider with ChangeNotifier {
     };
 
     try {
-      sendSoAddNewCustomerServer(cutomerPayload);
+      sendataToServer(cutomerPayload);
     } catch (e) {}
   }
 
-  Future<void> sendClikedThePaymentButtonServer(
-    Map<String, dynamic> paymentData,
-  ) async {
-    try {
-      final jsonData = jsonEncode(paymentData);
-      _channel.sink.add(jsonData);
-    } catch (e) {}
-  }
+  List<Map<String, dynamic>> cartItems = []; // your cart items list
 
-  Future<void> sendSoAddNewCustomerServer(
-    Map<String, dynamic> customerdata,
-  ) async {
-    try {
-      final jsonData = jsonEncode(customerdata);
-      _channel.sink.add(jsonData);
-    } catch (e) {}
+  // Add this method
+  bool hasInvalidCartItems() {
+    // Example condition: item quantity <= 0 or item is null
+    for (var item in cartItems) {
+      if (item['quantity'] == null || item['quantity'] <= 0) {
+        return true;
+      }
+      // Add any other validation you need
+      // e.g., if(item['price'] == null || item['price'] <= 0) return true;
+    }
+    return false; // no invalid items
   }
 
   Future<List<Map<String, dynamic>>> fetchHolderFromHive() async {
     try {
-      print('🚀 Starting fetchHolderFromHive()...');
-
-      // Step 1: Initialize WebSocketService
-      print('🔧 Initializing WebSocketService...');
-      WebSocketService webSocketService = WebSocketService(
-        CustomerScreenProvider(),
-        SalesInvoiceReceiptPrinter(),
-      );
-      print('✅ WebSocketService initialized successfully.');
-
       // Step 2: Fetch all saved hold orders from Hive
-      print('📦 Fetching all saved hold orders from Hive...');
-      List<Map<String, dynamic>> hiveOrders = await webSocketService
-          .getSavedHoldOrders();
+      List<Map<String, dynamic>> hiveOrders = await getSavedHoldOrders();
 
-      print('📥 Total raw orders fetched from Hive: ${hiveOrders.length}');
       if (hiveOrders.isEmpty) {
-        print('⚠️ No orders found in Hive.');
         return [];
       }
 
-      for (int i = 0; i < hiveOrders.length; i++) {
-        print('   🔹 Order[$i]: ${hiveOrders[i]}');
-      }
+      for (int i = 0; i < hiveOrders.length; i++) {}
 
       // Step 3: Filter orders with status = "Hold Order"
-      print('🧮 Filtering only "Hold Order" records...');
       List<Map<String, dynamic>> holdOrders = hiveOrders.where((order) {
         // Extract the nested "data" map safely
         final data = order['data'] ?? {};
@@ -263,13 +209,9 @@ class CustomerScreenProvider with ChangeNotifier {
         return status == 'hold order';
       }).toList();
 
-      print('✅ Total Hold Orders filtered: ${holdOrders.length}');
       if (holdOrders.isEmpty) {
-        print('⚠️ No hold orders found after filtering.');
       } else {
-        for (int i = 0; i < holdOrders.length; i++) {
-          print('   🛒 Hold Order[$i]: ${holdOrders[i]}');
-        }
+        for (int i = 0; i < holdOrders.length; i++) {}
       }
 
       // ✅ Optional Step: Flatten data for easier UI access
@@ -279,23 +221,14 @@ class CustomerScreenProvider with ChangeNotifier {
           .toList();
 
       // Step 4: Assign to internal variables
-      print('🧩 Assigning filtered hold orders to internal lists...');
       _rawOrders = flattenedHoldOrders;
       _hiveholdSalesOrders = List.from(_rawOrders);
-      print(
-        '✅ Assignment complete. Total stored hold orders: ${_hiveholdSalesOrders.length}',
-      );
 
       // Step 5: Notify listeners for UI updates
-      print('🔔 Notifying listeners...');
       notifyListeners();
-      print('✅ Listeners notified successfully.');
 
-      print('🎯 fetchHolderFromHive() completed successfully.');
       return _hiveholdSalesOrders;
     } catch (e, stacktrace) {
-      print('❌ ERROR in fetchHolderFromHive(): $e');
-      print('📄 Stacktrace:\n$stacktrace');
       return [];
     }
   }
@@ -402,6 +335,7 @@ class CustomerScreenProvider with ChangeNotifier {
     receiptPrinter.balanceAmount = (data['balanceAmount'] ?? 0.0).toDouble();
 
     receiptPrinter.customerType = data['customerType'] ?? '';
+    receiptPrinter.editAbout = orderData['editAbout'] ?? '';
 
     receiptPrinter.deliveryDateprint = data['deliveryDate'] ?? '';
     receiptPrinter.deliveryTimeprint = data['deliveryTime'] ?? '';
@@ -637,31 +571,6 @@ class CustomerScreenProvider with ChangeNotifier {
     notifyListeners(); // Trigger UI rebuild
   }
 
-  int _sendInvoiceCallCount = 0;
-
-  Future<void> sendSalesOrderDataToServer(
-    Map<String, dynamic> salesOrderData,
-  ) async {
-    _sendInvoiceCallCount++;
-    try {
-      final jsonData = jsonEncode(salesOrderData);
-      _channel.sink.add(jsonData);
-    } catch (e) {
-      throw e;
-    }
-  }
-
-  Future<void> sendApprovalDataToServer(
-    Map<String, dynamic> approvalData,
-  ) async {
-    _sendInvoiceCallCount++;
-
-    try {
-      final jsonData = jsonEncode(approvalData);
-      _channel.sink.add(jsonData);
-    } catch (e) {}
-  }
-
   List<String>? advanceDateTime;
   List<String>? advancePaymentType;
   Timer? _debounce;
@@ -680,794 +589,11 @@ class CustomerScreenProvider with ChangeNotifier {
         'data': payload,
       };
 
-      // Step 2: Increase invoice call counter
-      _sendInvoiceCallCount++;
-
-      // Step 3: Encode to JSON
-      final jsonData = jsonEncode(cancelOrderData);
-
-      // Step 4: Send to WebSocket
-      _channel.sink.add(jsonData);
+      await sendataToServer(cancelOrderData);
     } catch (e, stackTrace) {
       // Step 5: Error handling
       // Optional: show user error message here
     }
-  }
-
-  Future<void> cancelOrderAccounts(
-    String salesOrderId,
-    Map<String, dynamic> payload,
-  ) async {
-    try {
-      // Add the salesOrderId to the payload if needed
-      final cancelOrderData = {
-        'action': 'cancelOrder', // Add an action identifier for the server
-        'salesOrderId': salesOrderId,
-        'payload': payload,
-      };
-
-      final jsonData = jsonEncode(cancelOrderData);
-      _channel.sink.add(jsonData);
-    } catch (e) {
-      // You might want to show an error to the user here
-    }
-  }
-
-  Future<void> sendInvoiceDataToServer(Map<String, dynamic> invoiceData) async {
-    _sendInvoiceCallCount++;
-
-    try {
-      final jsonData = jsonEncode(invoiceData);
-      _channel.sink.add(jsonData);
-    } catch (e) {}
-  }
-
-  void showOutletAdvancePaymentPopup(
-    BuildContext context,
-    SalesOrderDisplay salesOrder,
-    CartProvider cartProvider,
-  ) {
-    bool hasItemLevelDiscount = cartProvider.cartItems.any(
-      (item) => item.itemWiseDiscount != null && item.itemWiseDiscount! > 0,
-    );
-    double orderAmount = salesOrder.totalAmount;
-    double discount = 0;
-    double customCharge = 0;
-    double totalAdvance = 0;
-    double deductedAmount = 0;
-    double totalAmount = orderAmount + customCharge - deductedAmount;
-
-    TextEditingController advanceController = TextEditingController();
-    TextEditingController remarkController = TextEditingController();
-
-    String selectedPaymentMethod = 'Cash'; // Default payment method
-
-    advanceController.clear();
-
-    showDialog(
-      barrierDismissible: false,
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return Dialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              elevation: 10,
-              child: Container(
-                width: MediaQuery.of(context).size.width * 0.6,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Colors.white, Colors.white],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.blue.withOpacity(0.2),
-                      blurRadius: 15,
-                      offset: const Offset(0, 5),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Header
-                    Container(
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Colors.blue.shade200, Colors.blue.shade600],
-                        ),
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(20),
-                          topRight: Radius.circular(20),
-                        ),
-                      ),
-                      child: Center(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.payment_rounded,
-                              color: Colors.white,
-                              size: 28,
-                            ),
-                            const SizedBox(width: 10),
-                            const Text(
-                              'Payment Details',
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    // Content
-                    Flexible(
-                      child: SingleChildScrollView(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Column(
-                              //   crossAxisAlignment: CrossAxisAlignment.start,
-                              //   children: [
-                              //     // Section Title
-                              //     Text(
-                              //       'Payment Method',
-                              //       style: TextStyle(
-                              //         fontSize: 18,
-                              //         fontWeight: FontWeight.bold,
-                              //         color: Colors.black87,
-                              //       ),
-                              //     ),
-                              //     const SizedBox(height: 10),
-
-                              //     // Payment Methods Container
-                              //     Container(
-                              //       padding: const EdgeInsets.all(15),
-                              //       decoration: BoxDecoration(
-                              //         color: Colors.white,
-                              //         borderRadius: BorderRadius.circular(15),
-                              //         border: Border.all(
-                              //           color: Colors.grey.shade300,
-                              //         ),
-                              //         boxShadow: [
-                              //           BoxShadow(
-                              //             color: Colors.grey.withOpacity(0.1),
-                              //             blurRadius: 8,
-                              //             offset: const Offset(0, 3),
-                              //           ),
-                              //         ],
-                              //       ),
-                              //       child: Wrap(
-                              //         spacing: 15,
-                              //         runSpacing: 15,
-                              //         children: [
-                              //           _buildPaymentMethodTile(
-                              //             context,
-                              //             'Cash',
-                              //             Icons.money,
-                              //             selectedPaymentMethod,
-                              //             (value) {
-                              //               setState(() {
-                              //                 selectedPaymentMethod = value!;
-                              //                 updatePaymentData();
-                              //               }
-                              //                   // () =>
-
-                              //                   );
-                              //             },
-                              //           ),
-                              //           _buildPaymentMethodTile(
-                              //             context,
-                              //             'Card',
-                              //             Icons.credit_card,
-                              //             selectedPaymentMethod,
-                              //             (value) {
-                              //               setState(() {
-                              //                 selectedPaymentMethod = value!;
-                              //                 updatePaymentData();
-                              //               });
-                              //             },
-                              //           ),
-                              //           _buildPaymentMethodTile(
-                              //             context,
-                              //             'UPI',
-                              //             Icons.phone_android,
-                              //             selectedPaymentMethod,
-                              //             (value) {
-                              //               setState(() {
-                              //                 selectedPaymentMethod = value!;
-                              //                 updatePaymentData();
-                              //               });
-                              //             },
-                              //           ),
-                              //           _buildPaymentMethodTile(
-                              //             context,
-                              //             'Cheque',
-                              //             Icons.account_balance_wallet,
-                              //             selectedPaymentMethod,
-                              //             (value) {
-                              //               setState(() {
-                              //                 selectedPaymentMethod = value!;
-                              //                 if (value == 'Cheque' &&
-                              //                     advanceController
-                              //                         .text.isNotEmpty) {
-                              //                   chequeAmountController.text =
-                              //                       advanceController.text;
-                              //                 }
-                              //               });
-                              //             },
-                              //           ),
-                              //           _buildPaymentMethodTile(
-                              //             context,
-                              //             'Others',
-                              //             Icons.more_horiz,
-                              //             selectedPaymentMethod,
-                              //             (value) {
-                              //               setState(() {
-                              //                 selectedPaymentMethod = value!;
-                              //                 updatePaymentData();
-                              //               });
-                              //             },
-                              //           ),
-                              //         ],
-                              //       ),
-                              //     ),
-
-                              //     // Advance Amount Input (Visible only for Cash Payment)
-                              //     if (selectedPaymentMethod == 'Cash')
-                              //       Padding(
-                              //         padding: const EdgeInsets.only(top: 20),
-                              //         child: TextFormField(
-                              //           controller: advanceController,
-                              //           keyboardType: TextInputType.number,
-                              //           decoration: InputDecoration(
-                              //             labelText: 'Advance Amount',
-                              //             labelStyle: TextStyle(
-                              //               color: Colors.black87,
-                              //             ),
-                              //             filled: true,
-                              //             fillColor: Colors.white,
-                              //             prefixIcon: Icon(
-                              //               Icons.payment,
-                              //               color: Colors.grey.shade600,
-                              //             ),
-                              //             prefixText: '₹ ',
-                              //             enabledBorder: OutlineInputBorder(
-                              //               borderRadius: BorderRadius.circular(
-                              //                 12,
-                              //               ),
-                              //               borderSide: BorderSide(
-                              //                 color: Colors.grey.shade300,
-                              //               ),
-                              //             ),
-                              //             focusedBorder: OutlineInputBorder(
-                              //               borderRadius: BorderRadius.circular(
-                              //                 12,
-                              //               ),
-                              //               borderSide: BorderSide(
-                              //                 color: Colors.black87,
-                              //                 width: 2,
-                              //               ),
-                              //             ),
-                              //             hintText: 'Enter advance amount',
-                              //           ),
-                              //           onChanged: (value) {
-                              //             setState(() {
-                              //               double enteredValue =
-                              //                   double.tryParse(value) ?? 0;
-                              //               if (enteredValue > totalAmount) {
-                              //                 advanceController.text =
-                              //                     totalAmount
-                              //                         .toStringAsFixed(0);
-                              //                 advanceController.selection =
-                              //                     TextSelection.fromPosition(
-                              //                   TextPosition(
-                              //                     offset: advanceController
-                              //                         .text.length,
-                              //                   ),
-                              //                 );
-                              //                 totalAdvance = totalAmount;
-                              //               } else {
-                              //                 totalAdvance = enteredValue;
-                              //               }
-                              //               updatePaymentData();
-                              //               if (selectedPaymentMethod ==
-                              //                   'Cheque') {
-                              //                 chequeAmountController.text =
-                              //                     advanceController.text;
-                              //               }
-                              //             });
-                              //           },
-                              //         ),
-                              //       ),
-
-                              //     // Cheque Details Section (Visible only when Cheque is selected)
-                              //     if (selectedPaymentMethod == 'Cheque')
-                              //       if (selectedPaymentMethod == 'Cash')
-                              //         Padding(
-                              //           padding: const EdgeInsets.only(top: 20),
-                              //           child: Card(
-                              //             elevation: 3,
-                              //             shape: RoundedRectangleBorder(
-                              //               borderRadius: BorderRadius.circular(
-                              //                 12,
-                              //               ),
-                              //             ),
-                              //             child: Padding(
-                              //               padding: const EdgeInsets.symmetric(
-                              //                 horizontal: 15,
-                              //                 vertical: 10,
-                              //               ),
-                              //               child: TextFormField(
-                              //                 controller: advanceController,
-                              //                 keyboardType:
-                              //                     TextInputType.number,
-                              //                 decoration: InputDecoration(
-                              //                   labelText: 'Advance Amount',
-                              //                   labelStyle: TextStyle(
-                              //                     color: Colors.black87,
-                              //                     fontSize: 16,
-                              //                   ),
-                              //                   filled: true,
-                              //                   fillColor: Colors.white,
-                              //                   prefixIcon: Icon(
-                              //                     Icons.payment,
-                              //                     color: Colors.black54,
-                              //                   ),
-                              //                   prefixText: '₹ ',
-                              //                   enabledBorder:
-                              //                       OutlineInputBorder(
-                              //                     borderRadius:
-                              //                         BorderRadius.circular(
-                              //                       12,
-                              //                     ),
-                              //                     borderSide: BorderSide(
-                              //                       color: Colors.grey.shade300,
-                              //                     ),
-                              //                   ),
-                              //                   focusedBorder:
-                              //                       OutlineInputBorder(
-                              //                     borderRadius:
-                              //                         BorderRadius.circular(
-                              //                       12,
-                              //                     ),
-                              //                     borderSide: BorderSide(
-                              //                       color: Colors.black87,
-                              //                       width: 2,
-                              //                     ),
-                              //                   ),
-                              //                   hintText:
-                              //                       'Enter advance amount',
-                              //                 ),
-                              //                 onChanged: (value) {
-                              //                   setState(() {
-                              //                     double enteredValue =
-                              //                         double.tryParse(value) ??
-                              //                             0;
-                              //                     if (enteredValue >
-                              //                         totalAmount) {
-                              //                       advanceController.text =
-                              //                           totalAmount
-                              //                               .toStringAsFixed(0);
-                              //                       advanceController
-                              //                               .selection =
-                              //                           TextSelection
-                              //                               .fromPosition(
-                              //                         TextPosition(
-                              //                           offset:
-                              //                               advanceController
-                              //                                   .text.length,
-                              //                         ),
-                              //                       );
-                              //                       totalAdvance = totalAmount;
-                              //                     } else {
-                              //                       totalAdvance = enteredValue;
-                              //                     }
-
-                              //                     if (selectedPaymentMethod ==
-                              //                         'Cheque') {
-                              //                       chequeAmountController
-                              //                               .text =
-                              //                           advanceController.text;
-                              //                     }
-                              //                   });
-                              //                 },
-                              //               ),
-                              //             ),
-                              //           ),
-                              //         ),
-
-                              //     if (selectedPaymentMethod == 'Cheque')
-                              //       Padding(
-                              //         padding: const EdgeInsets.symmetric(
-                              //           vertical: 3,
-                              //           horizontal: 15,
-                              //         ),
-                              //         child: Card(
-                              //           color: Colors.white,
-                              //           elevation: 3,
-                              //           shape: RoundedRectangleBorder(
-                              //             borderRadius: BorderRadius.circular(
-                              //               12,
-                              //             ),
-                              //           ),
-                              //           child: Padding(
-                              //             padding: const EdgeInsets.all(15),
-                              //             child: Column(
-                              //               crossAxisAlignment:
-                              //                   CrossAxisAlignment.start,
-                              //               children: [
-                              //                 // Section Header
-                              //                 Row(
-                              //                   children: [
-                              //                     Icon(
-                              //                       Icons.description,
-                              //                       color: Colors.blueAccent,
-                              //                       size: 26,
-                              //                     ),
-                              //                     const SizedBox(width: 10),
-                              //                     Text(
-                              //                       'Cheque Details',
-                              //                       style: TextStyle(
-                              //                         color: Colors.black87,
-                              //                         fontWeight:
-                              //                             FontWeight.w600,
-                              //                         fontSize: 20,
-                              //                       ),
-                              //                     ),
-                              //                   ],
-                              //                 ),
-                              //                 const Divider(
-                              //                   thickness: 1.5,
-                              //                   height: 20,
-                              //                 ),
-
-                              //                 // Row 1: Cheque Number, Cheque Amount, Holder Name
-                              //                 Row(
-                              //                   children: [
-                              //                     Expanded(
-                              //                       child:
-                              //                           _buildStyledFormField(
-                              //                         controller:
-                              //                             chequeNumberController,
-                              //                         labelText:
-                              //                             'Cheque Number',
-                              //                         icon: Icons.numbers,
-                              //                         hintText:
-                              //                             'Enter cheque number',
-                              //                         keyboardType:
-                              //                             TextInputType.number,
-                              //                       ),
-                              //                     ),
-                              //                     const SizedBox(width: 15),
-                              //                     Expanded(
-                              //                       child:
-                              //                           _buildStyledFormField(
-                              //                         controller:
-                              //                             chequeAmountController,
-                              //                         labelText:
-                              //                             'Cheque Amount',
-                              //                         icon:
-                              //                             Icons.currency_rupee,
-                              //                         hintText: 'Enter amount',
-                              //                         keyboardType:
-                              //                             TextInputType.number,
-                              //                         prefixText: '₹ ',
-                              //                       ),
-                              //                     ),
-                              //                     const SizedBox(width: 15),
-                              //                     Expanded(
-                              //                       child: GestureDetector(
-                              //                         onTap: () async {
-                              //                           final DateTime? picked =
-                              //                               await showDatePicker(
-                              //                             context: context,
-                              //                             initialDate:
-                              //                                 DateTime.now(),
-                              //                             firstDate: DateTime(
-                              //                               2000,
-                              //                             ),
-                              //                             lastDate: DateTime(
-                              //                               2100,
-                              //                             ),
-                              //                             builder: (
-                              //                               context,
-                              //                               child,
-                              //                             ) {
-                              //                               return Theme(
-                              //                                 data: Theme.of(
-                              //                                   context,
-                              //                                 ).copyWith(
-                              //                                   colorScheme:
-                              //                                       ColorScheme
-                              //                                           .light(
-                              //                                     primary: Colors
-                              //                                         .blueAccent,
-                              //                                     onPrimary:
-                              //                                         Colors
-                              //                                             .white,
-                              //                                     onSurface:
-                              //                                         Colors
-                              //                                             .black,
-                              //                                   ),
-                              //                                 ),
-                              //                                 child: child!,
-                              //                               );
-                              //                             },
-                              //                           );
-                              //                           if (picked != null) {
-                              //                             setState(() {
-                              //                               chequeDateController
-                              //                                       .text =
-                              //                                   "${picked.day}/${picked.month}/${picked.year}";
-                              //                             });
-                              //                           }
-                              //                         },
-                              //                         child:
-                              //                             _buildStyledFormField(
-                              //                           controller:
-                              //                               chequeDateController,
-                              //                           labelText:
-                              //                               'Cheque Date',
-                              //                           icon: Icons
-                              //                               .calendar_today,
-                              //                           hintText: 'Select date',
-                              //                           readOnly: true,
-                              //                         ),
-                              //                       ),
-                              //                     ),
-                              //                   ],
-                              //                 ),
-                              //                 const SizedBox(height: 10),
-
-                              //                 // Row 2: Cheque Date, Bank Name
-                              //                 Row(
-                              //                   children: [
-                              //                     Expanded(
-                              //                       child:
-                              //                           _buildStyledFormField(
-                              //                         controller:
-                              //                             chequeNameController,
-                              //                         labelText:
-                              //                             'Cheque Holder Name',
-                              //                         icon: Icons.person,
-                              //                         hintText:
-                              //                             'Enter name on cheque',
-                              //                       ),
-                              //                     ),
-                              //                     const SizedBox(width: 15),
-                              //                     Expanded(
-                              //                       child: BankSearchDropdown(
-                              //
-                              //                       ), // Dropdown for bank selection
-                              //                     ),
-                              //                   ],
-                              //                 ),
-                              //               ],
-                              //             ),
-                              //           ),
-                              //         ),
-                              //       ),
-                              //   ],
-                              // ),
-                              SizedBox(height: 25),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 20,
-                                  horizontal: 16,
-                                ),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      Colors.blue.shade600,
-                                      Colors.blue.shade800,
-                                    ],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  borderRadius: BorderRadius.circular(15),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.blue.withOpacity(0.3),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 5),
-                                    ),
-                                  ],
-                                ),
-                                child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceAround,
-                                  children: [
-                                    _buildAmountInfo('Advance', totalAdvance),
-                                    _buildSeparator(),
-                                    _buildAmountInfo('Total', totalAmount),
-                                    _buildSeparator(),
-                                    _buildAmountInfo(
-                                      'Balance',
-                                      totalAmount - totalAdvance,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // Footer Actions
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: const BorderRadius.only(
-                          bottomLeft: Radius.circular(20),
-                          bottomRight: Radius.circular(20),
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.blue.withOpacity(0.1),
-                            blurRadius: 10,
-                            offset: const Offset(0, -3),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          // Cancel Button
-                          OutlinedButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                            },
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 12,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              side: BorderSide(color: Colors.blue.shade400),
-                            ),
-                            child: Text(
-                              'Cancel',
-                              style: TextStyle(color: Colors.blue.shade700),
-                            ),
-                          ),
-                          const SizedBox(width: 15),
-
-                          // Complete/Approve Order Button
-                          ElevatedButton(
-                            onPressed: () async {
-                              Navigator.pop(context);
-                              // Validate cheque details if Cheque is selected
-                              if (selectedPaymentMethod == 'Cheque') {
-                                // Call the sendToApproval function if payment type is Cheque
-                                await OutletSendForApproval(
-                                  salesOrder,
-                                  totalAdvance,
-                                  orderAmount,
-                                  discount,
-                                  deductedAmount,
-                                  customCharge,
-                                  totalAmount,
-                                  remarkController.text,
-                                  "Cheque",
-                                  context,
-                                );
-                                return;
-                              }
-
-                              showDialog(
-                                barrierDismissible: false,
-                                context: context,
-                                builder: (BuildContext context) {
-                                  return StatefulBuilder(
-                                    builder: (context, setState) {
-                                      return AlertDialog(
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            15,
-                                          ),
-                                        ),
-                                        title: Row(
-                                          children: [
-                                            const Icon(
-                                              Icons.check_circle,
-                                              color: Colors.green,
-                                            ),
-                                            const SizedBox(width: 10),
-                                            const Text('Confirm Order'),
-                                          ],
-                                        ),
-                                        content: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            const Text(
-                                              'Are you sure you want to complete the order?',
-                                            ),
-                                            const SizedBox(height: 20),
-                                            // Radio buttons for order option
-                                          ],
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () {
-                                              Navigator.pop(context);
-                                            },
-                                            child: const Text('Cancel'),
-                                          ),
-                                          ElevatedButton(
-                                            onPressed: () async {
-                                              await outletSaveOrder(
-                                                salesOrder,
-                                                totalAdvance,
-                                                orderAmount,
-                                                discount,
-                                                deductedAmount,
-                                                totalAmount,
-                                                customCharge,
-                                                remarkController.text,
-                                                selectedStoreType,
-                                                context,
-                                              );
-
-                                              cartProvider.clearCart();
-
-                                              // SalesOrderScreenState()
-                                              //     .clearCartAndResetState;
-                                            },
-                                            child: const Text('Confirm'),
-                                          ),
-                                        ],
-                                      );
-                                    },
-                                  );
-                                },
-                              );
-                            },
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 12,
-                              ),
-                              backgroundColor: Colors.blue.shade700,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child: Text(
-                              selectedPaymentMethod == 'Cheque'
-                                  ? 'Send to Approval'
-                                  : 'Complete Order',
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
   }
 
   Future<void> outletSaveOrder(
@@ -1508,48 +634,48 @@ class CustomerScreenProvider with ChangeNotifier {
     String saleOrderNo = generateSaleOrderNo();
     // Common sales order data
     Map<String, dynamic> orderData = {
-      "itemName": saleOrders.itemName,
-      "varianceName":
-          saleOrders.varianceName, // Assuming saleOrders.varianceName is a list
-      "itemCode": saleOrders.itemCode, // Assuming saleOrders.itemCode is a list
-      "qty": saleOrders.qty, // Assuming saleOrders.qty is a list
-      "tax": saleOrders.tax, // Assuming saleOrders.tax is a list
-      "uom": saleOrders.uom, // Assuming saleOrders.uom is a list
-      "amount": saleOrders.amount, // Assuming saleOrders.amount is a list
-      "branchId": saleOrders.branchId,
-      "branchName": saleOrders.branchName,
-      "price": saleOrders.price, // Assuming saleOrders.price is a list
-      "weight": saleOrders.weight, // Assuming saleOrders.weight is a list
-      "deliveryDate": saleOrders.deliveryDate,
-      "deliveryTime": saleOrders.deliveryTime,
-      "event": saleOrders.event,
-      "customerNumber": saleOrders.customerNumber,
-      "customerName": saleOrders.customerName,
-      "deliveryType": saleOrders.deliveryType,
-      "address": saleOrders.address,
-      "landmark": saleOrders.landmark,
-      "discountAmount": discount,
+      // "itemName": saleOrders.itemName,
+      // "varianceName":
+      //     saleOrders.varianceName, // Assuming saleOrders.varianceName is a list
+      // "itemCode": saleOrders.itemCode, // Assuming saleOrders.itemCode is a list
+      // "qty": saleOrders.qty, // Assuming saleOrders.qty is a list
+      // "tax": saleOrders.tax, // Assuming saleOrders.tax is a list
+      // "uom": saleOrders.uom, // Assuming saleOrders.uom is a list
+      // "amount": saleOrders.amount, // Assuming saleOrders.amount is a list
+      // "branchId": saleOrders.branchId,
+      // "branchName": saleOrders.branchName,
+      // "price": saleOrders.price, // Assuming saleOrders.price is a list
+      // "weight": saleOrders.weight, // Assuming saleOrders.weight is a list
+      // "deliveryDate": saleOrders.deliveryDate,
+      // "deliveryTime": saleOrders.deliveryTime,
+      // "event": saleOrders.event,
+      // "customerNumber": saleOrders.customerNumber,
+      // "customerName": saleOrders.customerName,
+      // "deliveryType": saleOrders.deliveryType,
+      // "address": saleOrders.address,
+      // "landmark": saleOrders.landmark,
+      // "discountAmount": discount,
 
-      "orderDate": saleOrders.orderDate,
-      "orderTime": saleOrders.orderTime,
-      "employeeName": saleOrders.employeeName,
+      // "orderDate": saleOrders.orderDate,
+      // "orderTime": saleOrders.orderTime,
+      // "employeeName": saleOrders.employeeName,
       "status": "Confirm Order",
-      "orderType": saleOrders.orderType,
-      "eventDate": saleOrders.eventDate,
-      "itemWiseDiscount": saleOrders.itemWiseDiscount,
-      "itemWiseDiscountAmount": saleOrders.itemWiseDiscountAmount,
-      "boxQty": saleOrders.boxQty,
-      "totalAmount": totalAmount,
-      "remark": remark,
-      "customCharge": customCharge,
-      "deductedAmount": deductedAmount,
-      "orderAmount": orderAmount,
-      "advanceAmount": [totalAdvance],
-      "advancePaymentType": advancePaymentType,
-      "advanceDateTime": advanceDateTime,
-      "balanceAmount": balanceAmount,
+      // "orderType": saleOrders.orderType,
+      // "eventDate": saleOrders.eventDate,
+      // "itemWiseDiscount": saleOrders.itemWiseDiscount,
+      // "itemWiseDiscountAmount": saleOrders.itemWiseDiscountAmount,
+      // "boxQty": saleOrders.boxQty,
+      // "totalAmount": totalAmount,
+      // "remark": remark,
+      // "customCharge": customCharge,
+      // "deductedAmount": deductedAmount,
+      // "orderAmount": orderAmount,
+      // "advanceAmount": [totalAdvance],
+      // "advancePaymentType": advancePaymentType,
+      // "advanceDateTime": advanceDateTime,
+      // "balanceAmount": balanceAmount,
 
-      "discount": discount,
+      // "discount": discount,
     };
 
     try {
@@ -1561,7 +687,7 @@ class CustomerScreenProvider with ChangeNotifier {
         "edit": "No",
       });
 
-      await sendInvoiceDataToServer(jsonDecode(jsonadvanceSalesOrder));
+      await sendataToServer(jsonDecode(jsonadvanceSalesOrder));
       // Full Sales Order POST
 
       await Future.delayed(Duration(milliseconds: 500)); // small delay
@@ -1577,70 +703,6 @@ class CustomerScreenProvider with ChangeNotifier {
       advancePaymentType?.clear();
       notifyListeners();
     }
-  }
-
-  Widget _buildMiniCard({
-    required String title,
-    required String value,
-    required List<Color> gradient,
-  }) {
-    return Expanded(
-      child: Container(
-        height: 80,
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: gradient,
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey[400]!,
-              offset: const Offset(2, 2),
-              blurRadius: 6,
-            ),
-            const BoxShadow(
-              color: Colors.white,
-              offset: Offset(-2, -2),
-              blurRadius: 6,
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.all(8),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black87,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(height: 4),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Future<void> OutletSendForApproval(
@@ -1758,29 +820,13 @@ class CustomerScreenProvider with ChangeNotifier {
         'waitingForApprovalResult': 'Yes',
         "saleOrderNo": saleOrders.saleOrderNo,
       });
-      // initializeReceiptPrinter(
-      //   deliveryTime: timeController.text,
-      //   deliverydateprint: dateController.text,
-      //   employeeNameController: searchController,
-      //   customerNumberController: mobileNoController,
-      //   discountController: deductedAmount,
-      //   customChargeController: customCharge,
-      //   selectedPaymentOptionValue: selectedPaymentMethod,
-      //   totalAmount: totalAmount,
-      //   advanceAmount: totalAdvance,
-      //   balanceAmount: balanceAmount,
-      //   customerType: 'SalesOrder',
-      //   // context: context,
-      //   customAmountController: mobileNoController,
-      //   selectedPaymentOption: selectedPaymentMethod,
-      //   // saveInvoiceToHiveAndPrint: () {}
-      // );
-      await sendApprovalDataToServer(jsonDecode(jsonSalesOrder));
+
+      await sendataToServer(jsonDecode(jsonSalesOrder));
       // Check if it reaches here
 
       final patchData = jsonEncode(orderData); // Use the single orderData map
       final url = Uri.parse(
-        'http://192.168.1.130:8888/fastapi/salesorders/${saleOrders.salesOrderId}',
+        'https://yenerp.com/fastapi/salesorders/${saleOrders.salesOrderId}',
       );
 
       final response = await http.patch(
@@ -1848,6 +894,7 @@ class CustomerScreenProvider with ChangeNotifier {
   String? selectedDeliveryType = 'Pickup by Customer';
   void setSelectedEvent(String? event) {
     _selectedEvent = event;
+    notifyListeners();
   }
 
   void setSelectedHoldOrderId(String? holdOrderId) {
@@ -1857,6 +904,7 @@ class CustomerScreenProvider with ChangeNotifier {
 
   void setSelectedDeliveryType(String? newValue) {
     selectedDeliveryType = newValue;
+    notifyListeners();
   }
 
   void selectEmployee(String employee) {
@@ -1866,10 +914,6 @@ class CustomerScreenProvider with ChangeNotifier {
   }
 
   // -------------------- FUNCTION -------------------- //
-  void holdOrers(cartProvider, path, apiProvider, img1, img2) {
-    print('📦 holdOrers() called');
-    _heldOrder(cartProvider, path, apiProvider, img1, img2);
-  }
 
   void clearControllers() {
     dateController.clear();
@@ -1889,6 +933,7 @@ class CustomerScreenProvider with ChangeNotifier {
     timeController.clear();
     mobileNoController.clear();
     customerCombinedController.clear();
+    cartItems.clear();
     CartProvider().clearCart();
 
     notifyListeners();
@@ -1929,14 +974,12 @@ class CustomerScreenProvider with ChangeNotifier {
 
     try {
       _razorpay.open(options);
-    } catch (e) {
-      debugPrint('Error: $e');
-    }
+    } catch (e) {}
   }
 
   void showAdvancePaymentPopup(
     BuildContext context,
-    CartSelectionProvider cartSelectionProvider,
+
     CartProvider cartProvider,
     String? path,
     ApiServiceSalesOrderProvider apiprovider,
@@ -1996,9 +1039,7 @@ class CustomerScreenProvider with ChangeNotifier {
                     Container(
                       padding: const EdgeInsets.symmetric(vertical: 15),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Colors.blue.shade200, Colors.blue.shade600],
-                        ),
+                        color: Colors.blue,
                         borderRadius: const BorderRadius.only(
                           topLeft: Radius.circular(20),
                           topRight: Radius.circular(20),
@@ -2044,7 +1085,7 @@ class CustomerScreenProvider with ChangeNotifier {
                         orderId: salesOrderId ?? '',
                         discount: discount,
                         totalAdvance: totalAdvance,
-                        cartSelectionProvider: cartSelectionProvider,
+
                         cartProvider: cartProvider,
                         apiprovider: apiprovider,
                         customCharge: customCharge,
@@ -2070,41 +1111,138 @@ class CustomerScreenProvider with ChangeNotifier {
     );
   }
 
-  Widget _buildSeparator() {
-    return Container(
-      height: 50,
-      width: 1.5,
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.4),
-        borderRadius: BorderRadius.circular(1),
-      ),
+  void showOPAdvancePaymentPopup(
+    BuildContext context,
+    SalesOrderDisplay salesOrder,
+    CartProvider cartProvider,
+    String? path,
+    ApiServiceSalesOrderProvider apiprovider,
+    File? img1,
+    File? img2,
+    String customerType,
+    String? audioOrderId,
+    String? holdId,
+  ) {
+    bool hasItemLevelDiscount = cartProvider.cartItems.any(
+      (item) => item.itemWiseDiscount != null && item.itemWiseDiscount! > 0,
     );
-  }
+    orderAmount = cartProvider.getTotalAmount();
+    discount = 0;
+    customCharge = 0;
+    totalAdvance = 0;
+    deductedAmount = 0;
+    totalAmount = salesOrder.totalAmount;
+    TextEditingController advanceController = TextEditingController();
 
-  Widget _buildAmountInfo(String title, double amount) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.blue.shade50,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '₹${amount.toStringAsFixed(2)}',
-            style: const TextStyle(
-              fontSize: 18,
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
+    advanceController.clear();
+
+    showDialog(
+      barrierDismissible: false,
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            double padding = MediaQuery.of(context).size.width * 0.04;
+
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              elevation: 10,
+              child: Container(
+                width: MediaQuery.of(context).size.width * 0.6,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Colors.white, Colors.white],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.blue.withOpacity(0.2),
+                      blurRadius: 15,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Header
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      decoration: BoxDecoration(
+                        color: Colors.blue,
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(20),
+                          topRight: Radius.circular(20),
+                        ),
+                      ),
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.payment_rounded,
+                                    color: Colors.white,
+                                    size: 28,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  const Text(
+                                    'Payment Details',
+                                    style: TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    // 🔹 Scrollable Payment Section
+                    // Replace "Select Payment Method" section with your class
+                    SizedBox(
+                      height: 600,
+                      child: OpPlaceOrderPaymentPrint(
+                        salesOrder: salesOrder,
+                        totalAmount: totalAmount,
+                        holdBillId: holdId ?? '',
+                        orderId: salesOrderId ?? '',
+                        discount: discount,
+                        totalAdvance: totalAdvance,
+
+                        cartProvider: cartProvider,
+                        apiprovider: apiprovider,
+                        customCharge: customCharge,
+                        selectedStoreType: selectedStoreType,
+                        orderAmount: orderAmount,
+                        remark: remarkController.text,
+                        deductedAmount: deductedAmount,
+                        customerType: customerType,
+                        path: path,
+                        img1: img1,
+                        img2: img2,
+                        audioOrderId: audioOrderId,
+                        holdId: holdId,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -2133,7 +1271,6 @@ class CustomerScreenProvider with ChangeNotifier {
 
   Future<void> saveOrder(
     CartProvider cartProvider,
-    CartSelectionProvider cartSelectionProvider,
     double totalAdvance,
     double orderAmount,
     double discount,
@@ -2150,12 +1287,10 @@ class CustomerScreenProvider with ChangeNotifier {
     BuildContext context,
     Map<String, double> payments,
   ) async {
-    print('🟢 [saveOrder] Triggered...');
-    print('--------------------------------------------------');
+    // =====================================================
+    // STEP 1: PAYMENT PROCESSING
+    // =====================================================
 
-    // ========================
-    //  PAYMENT PROCESSING
-    // ========================
     final List<double> advanceAmount = [];
     final List<List<String>> advancePaymentType = [];
     final List<List<double>> modeWiseAmount = [];
@@ -2165,9 +1300,13 @@ class CustomerScreenProvider with ChangeNotifier {
       final filtered = Map.fromEntries(
         payMap.entries.where((e) => e.value > 0),
       );
-      if (filtered.isEmpty) return;
+
+      if (filtered.isEmpty) {
+        return;
+      }
 
       final total = filtered.values.fold<double>(0, (a, b) => a + b);
+
       advanceAmount.add(total);
       advancePaymentType.add(filtered.keys.toList(growable: false));
       modeWiseAmount.add(filtered.values.toList(growable: false));
@@ -2176,16 +1315,17 @@ class CustomerScreenProvider with ChangeNotifier {
 
     if (payments.isNotEmpty) {
       addAdvancePayment(payments);
-    }
+    } else {}
 
     final double computedTotalAdvance = advanceAmount.fold<double>(
       0,
       (a, b) => a + b,
     );
 
-    // ========================
-    //  CART ITEM DETAILS
-    // ========================
+    // =====================================================
+    // STEP 2: CART ITEM DETAILS
+    // =====================================================
+
     final List<String> itemNames = globals.cartItems
         .map((e) => e.itemName)
         .toList();
@@ -2206,9 +1346,8 @@ class CustomerScreenProvider with ChangeNotifier {
     final List<int> prices = globals.cartItems
         .map((e) => e.pricePerKg)
         .toList();
-    final List<int> boxQuantities = globals.cartItems
-        .map((e) => e.boxQuantity ?? 0)
-        .toList();
+    final int boxQuantities = globals.cartItems.first.boxQuantity ?? 0;
+
     final List<String> isBoxItem = globals.cartItems
         .map((e) => e.isBoxItem ?? '')
         .toList();
@@ -2227,7 +1366,8 @@ class CustomerScreenProvider with ChangeNotifier {
           ? (item.pricePerKg * item.quantity).toDouble()
           : (item.weight * item.quantity * item.pricePerKg);
       final disc = (item.itemWiseDiscountAmount ?? 0.0);
-      return base - disc;
+      final total = base - disc;
+      return total;
     }).toList();
 
     final double itemTotal = amounts.fold<double>(0, (a, b) => a + b);
@@ -2235,19 +1375,22 @@ class CustomerScreenProvider with ChangeNotifier {
     final double finalPrice = itemTotal + customCharge - deductedAmount;
     final double balanceAmount = finalPrice - computedTotalAdvance;
 
-    // ========================
-    //  ORDER METADATA
-    // ========================
+    // =====================================================
+    // STEP 3: ORDER METADATA
+    // =====================================================
+
     final String saleOrderNo = generateSaleOrderNo();
     final String formattedTime = DateFormat('hh:mm a').format(DateTime.now());
     const String deviceName = "POS1";
 
     Directory? orderDir = await createOrderDir(saleOrderNo);
+
     final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
 
-    // ========================
-    //  FILE SAVING (AUDIO/IMG)
-    // ========================
+    // =====================================================
+    // STEP 4: FILE SAVING (AUDIO/IMAGES)
+    // =====================================================
+
     String? savedAudioPath;
     String? savedImg1Path;
     String? savedImg2Path;
@@ -2259,6 +1402,7 @@ class CustomerScreenProvider with ChangeNotifier {
         '${saleOrderNo}_${timestamp}_audio',
       );
     }
+
     if (img1 != null && orderDir != null) {
       savedImg1Path = await saveFile(
         img1,
@@ -2266,6 +1410,7 @@ class CustomerScreenProvider with ChangeNotifier {
         '${saleOrderNo}_${timestamp}_img1',
       );
     }
+
     if (img2 != null && orderDir != null) {
       savedImg2Path = await saveFile(
         img2,
@@ -2276,9 +1421,10 @@ class CustomerScreenProvider with ChangeNotifier {
 
     storedBranch = branchProvider.getStoredBranch(globalbranch.branchName);
 
-    // ========================
-    //  BUILD SALES ORDER OBJECT
-    // ========================
+    // =====================================================
+    // STEP 5: BUILD SALES ORDER OBJECT
+    // =====================================================
+
     final salesOrder = SalesOrder(
       itemName: itemNames,
       varianceName: varianceNames,
@@ -2307,7 +1453,7 @@ class CustomerScreenProvider with ChangeNotifier {
       discount: discount,
       discountAmount: deductedAmount,
       remark: remark,
-      shiftId: globalsData.shiftId.value,
+      shiftId: [globalsData.shiftId.value],
       customCharge: customCharge,
       advanceAmount: advanceAmount,
       advancePaymentType: advancePaymentType,
@@ -2332,18 +1478,14 @@ class CustomerScreenProvider with ChangeNotifier {
       itemWiseDiscountAmount: itemWiseDiscountAmounts,
       holdOrderId: patchHoldOrderId,
       approvalOrderId: approvalOrderId,
+      customChargeType: selectedChargeType,
     );
 
-    try {
-      // ========================
-      //  SAVE TO HIVE
-      // ========================
-      final salesOrderBox = HiveManager.salesOrderBox;
-      await salesOrderBox.put(saleOrderNo, salesOrder.toJson());
+    // =====================================================
+    // STEP 6: SAVE & SYNC DATA
+    // =====================================================
 
-      // ========================
-      //  SEND SALES ORDER TO SERVER
-      // ========================
+    try {
       final postData = {
         "data": salesOrder.toJson(),
         "type": "salesOrder",
@@ -2353,15 +1495,10 @@ class CustomerScreenProvider with ChangeNotifier {
         "edit": "No",
       };
 
-      await sendSalesOrderDataToServer(postData);
+      await sendataToServer(postData);
 
-      // ========================
-      //  PATCH HOLD ORDER (CONVERT)
-      // ========================
       if (patchHoldOrderId.isNotEmpty) {
-        print('🔁 [HoldOrder] Converting Hold Order → Sale Order...');
         Map<String, dynamic> requestBody = {"status": "HoldOrder Converted"};
-
         final patchData = {
           "data": requestBody,
           "type": "patchHoldOrder",
@@ -2370,67 +1507,23 @@ class CustomerScreenProvider with ChangeNotifier {
           "holdOrderId": patchHoldOrderId,
           "deviceName": deviceName,
         };
-
-        print('📦 [patchHoldOrder] Sending data: ${jsonEncode(patchData)}');
-        await sendSalesOrderDataToServer(patchData);
-        print('✅ Hold Order converted and patched successfully.');
+        await sendataToServer(patchData);
         await fetchHolderFromHive();
         notifyListeners();
       }
+      isSubmitting = false;
 
-      // ========================
-      //  CLEANUP AFTER SUCCESS
-      // ========================
-      try {
-        if (savedAudioPath != null && await File(savedAudioPath).exists()) {
-          await File(savedAudioPath).delete();
-        }
-        if (savedImg1Path != null && await File(savedImg1Path).exists()) {
-          await File(savedImg1Path).delete();
-        }
-        if (savedImg2Path != null && await File(savedImg2Path).exists()) {
-          await File(savedImg2Path).delete();
-        }
-
-        photoScreen = null;
-        audioPlayer = null;
-        savedAudioPath = null;
-        savedImg1Path = null;
-        savedImg2Path = null;
-
-        clearControllers();
-        CartProvider().clearCart();
-        cartSelectionProvider.clearSelections();
-        advanceDateTime.clear();
-        advancePaymentType.clear();
-        modeWiseAmount.clear();
-        advanceAmount.clear();
-        cartProvider.customChargeController.clear();
-
-        isSubmitting = false;
-        showAudioandImage = false;
-        pickedImage1 = null;
-        pickedImage2 = null;
-        recordedFilePath = '';
-
-        print('✅ [Cleanup] Temporary data cleared.');
-      } catch (e) {
-        print('⚠️ [Cleanup Warning] $e');
-      }
-
-      print('✅ [saveOrder] Completed Successfully!');
-    } catch (e, st) {
-      print('❌ [saveOrder] Error: $e');
-      print(st);
-      rethrow;
-    } finally {
-      cartSelectionProvider.clearSelections();
+      clearControllers();
+      cartProvider.clearCart();
+      cartProvider.cartItems.clear();
+      globals.cartItems.clear();
+      print("globals.cartitem: ${globals.cartItems.length}");
       advanceDateTime.clear();
       advancePaymentType.clear();
       modeWiseAmount.clear();
       advanceAmount.clear();
       cartProvider.customChargeController.clear();
-
+      patchHoldOrderId = "";
       isSubmitting = false;
       showAudioandImage = false;
       pickedImage1 = null;
@@ -2443,6 +1536,8 @@ class CustomerScreenProvider with ChangeNotifier {
       img2 = null;
 
       notifyListeners();
+    } catch (e, st) {
+      rethrow;
     }
   }
 
@@ -2463,15 +1558,15 @@ class CustomerScreenProvider with ChangeNotifier {
     String customerType,
   ) async {
     try {
-      // 🔹 Multi-advance data structures
+      isSubmitting = true;
 
-      // Step 1: Initial values
+      // 🔹 Step 1: Initial values
       double totalAdvance = 0.0;
       double balanceAmount = cartProvider.getTotalAmount();
       List<double> advanceAmountList = [0.0];
       List<String> advanceDateTime = [DateTime.now().toIso8601String()];
 
-      // Step 2: Collect cart item details
+      // 🔹 Step 2: Collect cart item details
       List<String> itemNames = globals.cartItems
           .map((item) => item.itemName)
           .toList();
@@ -2495,15 +1590,19 @@ class CustomerScreenProvider with ChangeNotifier {
           .map((item) => item.pricePerKg)
           .toList();
 
-      // Step 3: Calculate amounts
+      // 🔹 Step 3: Calculate amounts
       List<double> amounts = globals.cartItems.map((item) {
         double amt = (item.uom == 'Pcs' || item.uom == 'Pkt')
             ? item.pricePerKg * item.quantity.toDouble()
             : item.weight * item.quantity * item.pricePerKg;
         return amt;
       }).toList();
+
+      // Generate IDs
       approvalOrderId = generateApprovalOrderId();
-      // Step 4: Create SalesOrder object
+      String saleOrderNo = generateSaleOrderNo();
+
+      // 🔹 Step 4: Create SalesOrder object
       SalesOrder approvalOrder = SalesOrder(
         itemName: itemNames,
         varianceName: varianceNames,
@@ -2525,7 +1624,7 @@ class CustomerScreenProvider with ChangeNotifier {
         customerName: customerNameController.text,
         deliveryType: selectedDeliveryType.toString(),
         address: addressController.text,
-        shiftId: globalsData.shiftId.toString(),
+        shiftId: [globalsData.shiftId.value],
         landmark: landmarkController.text,
         discount: 0.0,
         discountAmount: 0.0,
@@ -2533,7 +1632,7 @@ class CustomerScreenProvider with ChangeNotifier {
         advanceAmount: advanceAmountList,
         finalPrice: cartProvider.getTotalAmount(),
         balanceAmount: balanceAmount,
-        saleOrderNo: generateSaleOrderNo(),
+        saleOrderNo: saleOrderNo,
         orderDate: DateTime.now().toIso8601String(),
         orderTime: DateFormat('hh:mm a').format(DateTime.now()),
         employeeName: searchController.text,
@@ -2543,6 +1642,7 @@ class CustomerScreenProvider with ChangeNotifier {
         companyAddress: companyAddressController.text,
         companyGST: companygstNumberController.text,
         orderType: selectedOrderOption,
+        eventDate: birthdaydateController.text,
         holdOrderId: patchHoldOrderId,
         approvalOrderId: approvalOrderId,
         approvalDetails: [
@@ -2553,9 +1653,10 @@ class CustomerScreenProvider with ChangeNotifier {
             summary: 'No',
           ),
         ],
+        customChargeType: selectedChargeType,
       );
 
-      // Step 5: Encode and send
+      // 🔹 Step 5: Encode to JSON
       String jsonApprovalOrder = jsonEncode({
         "data": approvalOrder.toJson(),
         "type": "salesApprovalOrder",
@@ -2564,10 +1665,10 @@ class CustomerScreenProvider with ChangeNotifier {
         'approvalStatusChanged': 'No',
       });
 
-      // Step 6: Send to server
-      await sendApprovalDataToServer(jsonDecode(jsonApprovalOrder));
+      // 🔹 Step 6: Send to server
+      await sendataToServer(jsonDecode(jsonApprovalOrder));
 
-      // Show success snackbar
+      // 🔹 Step 7: Success feedback
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Order submitted for approval successfully!'),
@@ -2575,10 +1676,13 @@ class CustomerScreenProvider with ChangeNotifier {
           duration: Duration(seconds: 2),
         ),
       );
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error submitting approval: $e')));
+    } catch (e, stacktrace) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error submitting approval: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     } finally {
       isSubmitting = false;
       clearControllers();
@@ -2586,20 +1690,9 @@ class CustomerScreenProvider with ChangeNotifier {
       cartSelectionProvider.clearSelections();
       advanceDateTime?.clear();
       advancePaymentType?.clear();
-      isSubmitting = false;
       showAudioandImage = false;
-
       notifyListeners();
     }
-  }
-
-  Future<void> sendHoldDataToServer(Map<String, dynamic> holdData) async {
-    _sendInvoiceCallCount++;
-
-    try {
-      final jsonData = jsonEncode(holdData);
-      _channel.sink.add(jsonData);
-    } catch (e) {}
   }
 
   Future<void> sendForApproval(
@@ -2717,7 +1810,7 @@ class CustomerScreenProvider with ChangeNotifier {
       remark: remark,
       customCharge: customCharge,
       advanceAmount: advanceAmountList,
-      shiftId: globalsData.shiftId.toString(),
+      shiftId: [globalsData.shiftId.value],
       finalPrice: orderAmount,
       balanceAmount: balanceAmount,
       saleOrderNo: saleOrderNo,
@@ -2735,11 +1828,12 @@ class CustomerScreenProvider with ChangeNotifier {
       approvalDetails: [
         ApprovalOrderDetail(
           approvalType: approvalType,
-          // approvalStatus: approvalStatus,
-          // approvalDate: DateTime.now().toIso8601String(),
+          approvalStatus: approvalStatus,
+          approvalDate: DateTime.now().toIso8601String(),
           summary: 'No',
         ),
       ],
+      customChargeType: selectedChargeType,
       // cash: cashAdvance,
       // card: cardAdvance,
       // upi: upiAdvance,
@@ -2757,7 +1851,7 @@ class CustomerScreenProvider with ChangeNotifier {
         "saleOrderNo": salesOrder.saleOrderNo,
       });
 
-      await sendApprovalDataToServer(jsonDecode(jsonSalesOrder));
+      await sendataToServer(jsonDecode(jsonSalesOrder));
       // Check if it reaches here
     } catch (e) {
       // Catches any errors during the request
@@ -2776,41 +1870,36 @@ class CustomerScreenProvider with ChangeNotifier {
 
   Future<void> deleteHoldOrderFromHive(String holdOrderId) async {
     try {
-      print('🟢 Attempting to delete hold order: $holdOrderId');
+      final box = await HiveManager.holdOrderBox;
 
-      final box = HiveManager.holdOrderBox;
-      print('📦 Hive box contains ${box.keys.length} keys before deletion');
-
-      // Check inside 'data'
+      // Find the key that matches the holdOrderId inside 'data' map
       final keyToDelete = box.keys.firstWhere(
-        (key) => box.get(key)?['data']?['holdOrderId'] == holdOrderId,
-        orElse: () => null,
+        (key) {
+          final order = box.get(key);
+          final holdId = order?['data']?['holdOrderId']; // access nested map
+          return holdId == holdOrderId;
+        },
+        orElse: () {
+          return null;
+        },
       );
-      print("keyToDelete: $keyToDelete");
 
       if (keyToDelete != null) {
-        print(
-          '✅ Found key $keyToDelete for hold order $holdOrderId. Deleting...',
-        );
+        // Delete from Hive
         await box.delete(keyToDelete);
 
-        // Remove from the in-memory list
+        // Delete from in-memory list
         final removedCount = _hiveholdSalesOrders.removeWhere(
           (order) => order['data']?['holdOrderId'] == holdOrderId,
         );
-        // print('🗑️ Removed $removedCount order(s) from in-memory list');
-        fetchHolderFromHive();
-        notifyListeners();
-        print('🎉 Hold order $holdOrderId deleted successfully');
-      } else {
-        print('⚠️ Hold order $holdOrderId not found in Hive');
-      }
+        // print('📝 Removed $removedCount entries from in-memory list');
 
-      print('📦 Hive box now contains ${box.keys.length} keys after deletion');
-    } catch (e, stackTrace) {
-      print('❌ Failed to delete hold order: $e');
-      print(stackTrace);
-    }
+        notifyListeners();
+
+        // Refresh provider list
+        await fetchHolderFromHive();
+      }
+    } catch (e, stackTrace) {}
   }
 
   int _holdOrderCounter = 0;
@@ -2821,16 +1910,41 @@ class CustomerScreenProvider with ChangeNotifier {
     return 'HOLD${_holdOrderCounter.toString().padLeft(2, '0')}';
   }
 
-  Future<void> _heldOrder(
+  Future<void> heldrder(
     CartProvider cartProvider,
-    String path,
+    CartSelectionProvider cartSelectionProvider,
+    double totalAdvance,
+    double orderAmount,
+    double discount,
+    double deductedAmount,
+    double totalAmount,
+    String remark,
+    String? path,
     ApiServiceSalesOrderProvider apiProvider,
     File? img1,
     File? img2,
-  ) async {
-    print("✅ Step 1: Start _heldOrder function");
 
-    print('🛒 [Cart] Collecting cart item details...');
+    String? holdOrderId,
+    String? selectedOrderOption,
+    BuildContext context,
+  ) async {
+    // =====================================================
+    // STEP 1: PAYMENT PROCESSING
+    // =====================================================
+    final List<double> advanceAmount = [];
+    final List<List<String>> advancePaymentType = [];
+    final List<List<double>> modeWiseAmount = [];
+    final List<String> advanceDateTime = [];
+
+    final double computedTotalAdvance = advanceAmount.fold<double>(
+      0,
+      (a, b) => a + b,
+    );
+
+    // =====================================================
+    // STEP 2: CART ITEM DETAILS
+    // =====================================================
+
     final List<String> itemNames = globals.cartItems
         .map((e) => e.itemName)
         .toList();
@@ -2851,9 +1965,7 @@ class CustomerScreenProvider with ChangeNotifier {
     final List<int> prices = globals.cartItems
         .map((e) => e.pricePerKg)
         .toList();
-    final List<int> boxQuantities = globals.cartItems
-        .map((e) => e.boxQuantity ?? 0)
-        .toList();
+    final int boxQuantities = globals.cartItems.first.boxQuantity ?? 0;
     final List<String> isBoxItem = globals.cartItems
         .map((e) => e.isBoxItem ?? '')
         .toList();
@@ -2864,47 +1976,36 @@ class CustomerScreenProvider with ChangeNotifier {
         .map((e) => e.itemWiseDiscountAmount ?? 0.0)
         .toList();
 
-    print('✅ [Cart] ${globals.cartItems.length} items found.');
-
     final double customCharge =
         double.tryParse(cartProvider.customChargeController.text) ?? 0;
-    print('⚙️ Custom Charge: $customCharge');
 
     final List<double> amounts = globals.cartItems.map((item) {
       final base = (item.uom == 'Pcs' || item.uom == 'Pkt')
           ? (item.pricePerKg * item.quantity).toDouble()
           : (item.weight * item.quantity * item.pricePerKg);
       final disc = (item.itemWiseDiscountAmount ?? 0.0);
-      final result = base - disc;
-      print(
-        '🧮 Item "${item.itemName}" | Base: $base | Discount: $disc | Final: $result',
-      );
-      return result;
+      final total = base - disc;
+      return total;
     }).toList();
 
     final double itemTotal = amounts.fold<double>(0, (a, b) => a + b);
     final double totalAmount2 = itemTotal + customCharge;
     final double finalPrice = itemTotal + customCharge - deductedAmount;
+    final double balanceAmount = finalPrice - computedTotalAdvance;
 
-    print('🧾 Totals:');
-    print('   🔹 Item Total: $itemTotal');
-    print('   🔹 Total + Custom Charge: $totalAmount2');
-    print('   🔹 Final Price: $finalPrice');
-
+    // =====================================================
+    // STEP 3: ORDER METADATA
+    // =====================================================
     final String saleOrderNo = generateSaleOrderNo();
     final String formattedTime = DateFormat('hh:mm a').format(DateTime.now());
     const String deviceName = "POS1";
 
-    print('🆔 Generated Sale Order No: $saleOrderNo');
-    print('🕒 Time: $formattedTime');
-    print('💻 Device: $deviceName');
-
     Directory? orderDir = await createOrderDir(saleOrderNo);
     final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
-    print('📂 Order Directory: $orderDir');
-    print('⏱ Timestamp: $timestamp');
 
-    // 🔹 Save Files
+    // =====================================================
+    // STEP 4: FILE SAVING (AUDIO/IMAGES)
+    // =====================================================
     String? savedAudioPath;
     String? savedImg1Path;
     String? savedImg2Path;
@@ -2915,7 +2016,6 @@ class CustomerScreenProvider with ChangeNotifier {
         orderDir,
         '${saleOrderNo}_${timestamp}_audio',
       );
-      print('🎧 Audio File Saved: $savedAudioPath');
     }
 
     if (img1 != null && orderDir != null) {
@@ -2924,7 +2024,6 @@ class CustomerScreenProvider with ChangeNotifier {
         orderDir,
         '${saleOrderNo}_${timestamp}_img1',
       );
-      print('🖼️ Image1 File Saved: $savedImg1Path');
     }
 
     if (img2 != null && orderDir != null) {
@@ -2933,16 +2032,15 @@ class CustomerScreenProvider with ChangeNotifier {
         orderDir,
         '${saleOrderNo}_${timestamp}_img2',
       );
-      print('🖼️ Image2 File Saved: $savedImg2Path');
     }
     String holdOrderId = generateHoldOrderId();
-    storedBranch = branchProvider.getStoredBranch(globalbranch.branchName);
-    print('🏢 Branch Info: ${storedBranch?.branchName ?? "Unknown"}');
 
-    // Construct the HeldOrder object
-    print("📋 Creating HeldOrder object...");
-    HeldOrder holdsalesOrder = HeldOrder(
-      salesOrderId: '',
+    storedBranch = branchProvider.getStoredBranch(globalbranch.branchName);
+
+    // =====================================================
+    // STEP 5: BUILD SALES ORDER OBJECT
+    // =====================================================
+    final hodOrders = HeldOrder(
       itemName: itemNames,
       varianceName: varianceNames,
       qty: quantities,
@@ -2969,12 +2067,12 @@ class CustomerScreenProvider with ChangeNotifier {
       landmark: landmarkController.text,
       discount: discount,
       discountAmount: deductedAmount,
-      remark: remarkController.text,
+      remark: remark,
       shiftId: globalsData.shiftId.value,
       customCharge: customCharge,
 
       finalPrice: finalPrice,
-
+      balanceAmount: balanceAmount,
       saleOrderNo: saleOrderNo,
       orderDate: DateTime.now().toIso8601String(),
       orderTime: formattedTime,
@@ -2993,36 +2091,69 @@ class CustomerScreenProvider with ChangeNotifier {
       itemWiseDiscountAmount: itemWiseDiscountAmounts,
       holdOrderId: holdOrderId,
       approvalOrderId: approvalOrderId,
+      salesOrderId: '',
     );
 
-    print("✅ HeldOrder object created successfully.");
-
-    print("🧾 Converting HeldOrder to JSON...");
-    // Prepare JSON
-    print("holdsalesOrder.toJson(): ${holdsalesOrder.toJson()}");
-    print("hold order data : ${[holdsalesOrder.toJson()]}");
-    String jsonHoldSalesOrder = jsonEncode({
-      "data": holdsalesOrder.toJson(),
-      "type": "holdOrder",
-      'sync': "No",
-      'edit': 'No',
-    });
-    await sendHoldDataToServer(jsonDecode(jsonHoldSalesOrder));
-    print("final data: ${jsonDecode(jsonHoldSalesOrder)}");
-    print('📤 Final Hold Order JSON: $jsonHoldSalesOrder');
-    await fetchHolderFromHive();
-    // 🧹 [CLEANUP AFTER SUCCESSFUL SERVER SYNC]
+    // =====================================================
+    // STEP 6: SAVE & SYNC DATA
+    // =====================================================
     try {
-      photoScreen = null;
-      audioPlayer = null;
+      final postData = {
+        "data": hodOrders.toJson(),
+        "type": "holdOrder",
+        "deviceName": deviceName,
+        "sync": "No",
+        "WaitingForDiscountApproval": "No",
+        "edit": "No",
+      };
 
-      img1 = null;
-      img2 = null;
+      await sendataToServer(postData);
 
-      // Clear temp selections, inputs, and UI state
+      // PATCH HOLD ORDER
+
+      globals.cartItems.clear();
       clearControllers();
-      CartProvider().clearCart();
 
+      notifyListeners();
+      // =====================================================
+      // STEP 7: CLEANUP
+      // =====================================================
+      try {
+        if (savedAudioPath != null && await File(savedAudioPath).exists()) {
+          await File(savedAudioPath).delete();
+        }
+        if (savedImg1Path != null && await File(savedImg1Path).exists()) {
+          await File(savedImg1Path).delete();
+        }
+        if (savedImg2Path != null && await File(savedImg2Path).exists()) {
+          await File(savedImg2Path).delete();
+        }
+
+        cartSelectionProvider.clearSelections();
+
+        advanceDateTime.clear();
+        advancePaymentType.clear();
+        modeWiseAmount.clear();
+        advanceAmount.clear();
+        cartProvider.customChargeController.clear();
+
+        isSubmitting = false;
+        showAudioandImage = false;
+        pickedImage1 = null;
+        pickedImage2 = null;
+        recordedFilePath = '';
+        photoScreen = null;
+        audioPlayer = null;
+      } catch (e) {}
+    } catch (e, st) {
+      rethrow;
+    } finally {
+      cartProvider.clearCart();
+      cartSelectionProvider.clearSelections();
+      advanceDateTime.clear();
+      advancePaymentType.clear();
+      modeWiseAmount.clear();
+      advanceAmount.clear();
       cartProvider.customChargeController.clear();
 
       isSubmitting = false;
@@ -3030,40 +2161,13 @@ class CustomerScreenProvider with ChangeNotifier {
       pickedImage1 = null;
       pickedImage2 = null;
       recordedFilePath = '';
+      audioPlayer = null;
+      photoScreen = null;
+      path = null;
+      img1 = null;
+      img2 = null;
 
       notifyListeners();
-      print("✅ [Cleanup] All media and temp data cleared successfully.");
-    } catch (e) {
-      print("⚠️ [Cleanup Warning] Post-upload cleanup failed: $e");
-    }
-
-    notifyListeners();
-    // 🧩 Clear references (local variables)
-    path = '';
-    img1 = null;
-    img2 = null;
-
-    print("✅ [Cleanup] Cleared local and global media references.");
-
-    notifyListeners();
-    // Send via WebSocket or API
-    try {
-      print("🌐 Sending hold order data to server...");
-
-      print("✅ Hold data sent successfully.");
-    } catch (e) {
-      print('❌ Error while posting order: $e');
-    } finally {
-      print("🧹 Clearing inputs and resetting state...");
-      clearControllers();
-      cartProvider.clearCart();
-      isSubmitting = false;
-      showAudioandImage = false;
-      advanceDateTime?.clear();
-      advancePaymentType?.clear();
-      print("✅ Hold order flow completed.");
     }
   }
-
-  //
 }

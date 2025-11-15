@@ -22,7 +22,7 @@ class DeviceProvider with ChangeNotifier {
   }
 
   Future<void> fetchAndStoreDeviceData(String deviceCode) async {
-    const String url = 'https://yenerp.com//fastapi/devicecodes';
+    const String url = 'https://yenerp.com/fastapi/devicecode';
 
     try {
       final response = await http.get(Uri.parse(url));
@@ -30,7 +30,8 @@ class DeviceProvider with ChangeNotifier {
         final List<dynamic> devices = json.decode(response.body);
         final device = devices.firstWhere(
           (device) =>
-              device['deviceCode'] == deviceCode && device['status'] == '1',
+              device['deviceCode'] == deviceCode &&
+              device['status'] == 'active',
           orElse: () => null,
         );
 
@@ -67,9 +68,9 @@ class DeviceProvider with ChangeNotifier {
 
       // Save the deviceCode, branchName, and deviceCodeId in Hive
       await box.put('deviceCode', deviceCode);
-      await box.put('branchName', branchName);
+      await box.put('aliasName', branchName);
       await box.put('deviceCodeId', deviceCodeId);
-      await box.put('status', '1'); // Assuming you're storing the status
+      await box.put('status', 'active'); // Assuming you're storing the status
 
       // Update the state
       _deviceCode = deviceCode;
@@ -80,7 +81,7 @@ class DeviceProvider with ChangeNotifier {
       notifyListeners();
 
       // Patch the device status as 0
-      await patchDeviceStatus(deviceCodeId);
+      //await patchDeviceStatus(deviceCodeId);
     } catch (e) {}
   }
 
@@ -101,7 +102,7 @@ class DeviceProvider with ChangeNotifier {
   Future<void> patchDeviceStatus(String deviceCodeId) async {
     final String url = 'https://yenerp.com/fastapi/devicecode/$deviceCodeId';
     final Map<String, dynamic> patchData = {
-      'status': '0', // Set the status to 0
+      //'status': 'active', // Set the status to 0
     };
 
     try {

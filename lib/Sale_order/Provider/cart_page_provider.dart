@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:yenpos/Sale_order/Widgets/sales_caculate.dart';
 
-
 class CurrentSaleProvider with ChangeNotifier {
-  late SaleCalculator _saleCalculator =
-      SaleCalculator([]); // Initialize with an empty list
+  late SaleCalculator _saleCalculator = SaleCalculator(
+    [],
+  ); // Initialize with an empty list
 
   List<Map<String, dynamic>> _currentSaleItems = [];
   final double _discountPercentage = 0.0; // Initial discount percentage
@@ -70,10 +70,12 @@ class CurrentSaleProvider with ChangeNotifier {
   }
 
   void addItemToCart(Map<String, dynamic> newItem) async {
-    bool exists = _currentSaleItems.any((item) =>
-        item['itemData']['itemId'] == newItem['itemData']['itemId'] &&
-        item['varianceData']['varianceName'] ==
-            newItem['varianceData']['varianceName']);
+    bool exists = _currentSaleItems.any(
+      (item) =>
+          item['itemData']['itemId'] == newItem['itemData']['itemId'] &&
+          item['varianceData']['varianceName'] ==
+              newItem['varianceData']['varianceName'],
+    );
 
     if (exists) {
       // Update quantity for existing item
@@ -100,10 +102,12 @@ class CurrentSaleProvider with ChangeNotifier {
   }
 
   void addItemToCartExpressMode(Map<String, dynamic> newItem) async {
-    bool exists = _currentSaleItems.any((item) =>
-        item['itemData']['itemId'] == newItem['itemData']['itemId'] &&
-        item['varianceData']['varianceName'] ==
-            newItem['varianceData']['varianceName']);
+    bool exists = _currentSaleItems.any(
+      (item) =>
+          item['itemData']['itemId'] == newItem['itemData']['itemId'] &&
+          item['varianceData']['varianceName'] ==
+              newItem['varianceData']['varianceName'],
+    );
 
     if (exists) {
       // Update quantity for existing item
@@ -131,10 +135,12 @@ class CurrentSaleProvider with ChangeNotifier {
 
   void addItemsToCurrentSale(List<Map<String, dynamic>> newItems) {
     for (var newItem in newItems) {
-      bool exists = _currentSaleItems.any((item) =>
-          item['itemData']['itemId'] == newItem['itemData']['itemId'] &&
-          item['varianceData']['varianceName'] ==
-              newItem['varianceData']['varianceName']);
+      bool exists = _currentSaleItems.any(
+        (item) =>
+            item['itemData']['itemId'] == newItem['itemData']['itemId'] &&
+            item['varianceData']['varianceName'] ==
+                newItem['varianceData']['varianceName'],
+      );
 
       if (exists) {
         // If the item already exists, update its quantity
@@ -167,8 +173,11 @@ class CurrentSaleProvider with ChangeNotifier {
     notifyListeners(); // Notify UI to rebuild
   }
 
-  void loadItemsFromBill(List<dynamic>? items,
-      {bool merge = false, String? holdId}) {
+  void loadItemsFromBill(
+    List<dynamic>? items, {
+    bool merge = false,
+    String? holdId,
+  }) {
     if (items == null || items.isEmpty) {
       return;
     }
@@ -184,10 +193,12 @@ class CurrentSaleProvider with ChangeNotifier {
         continue;
       }
 
-      bool exists = _currentSaleItems.any((item) =>
-          item['itemData']['itemId'] == newItem['itemData']['itemId'] &&
-          item['varianceData']['varianceName'] ==
-              newItem['varianceData']['varianceName']);
+      bool exists = _currentSaleItems.any(
+        (item) =>
+            item['itemData']['itemId'] == newItem['itemData']['itemId'] &&
+            item['varianceData']['varianceName'] ==
+                newItem['varianceData']['varianceName'],
+      );
 
       if (!exists) {
         _currentSaleItems.add(newItem);
@@ -232,38 +243,6 @@ class CurrentSaleProvider with ChangeNotifier {
     return _saleCalculator.buildQuantityPriceDisplay(item);
   }
 
-  // String buildQuantityPriceDisplay(Map<String, dynamic> item) {
-  //   final String uom = item['varianceData']['variance_Uom'].toLowerCase();
-  //   final double price = item['varianceData']['variance_Defaultprice']
-  //       .toDouble(); // Ensure price is a double
-  //   final double quantity =
-  //       (item['quantity'] ?? 1).toDouble(); // Ensure quantity is a double
-
-  //   String quantityDisplay = '';
-  //   String weightQuantityDidpay = '';
-  //   // Check if the unit of measure is in kilograms or grams
-  //   if (uom == 'kg' || uom == 'kgs') {
-  //     if (quantity >= 1) {
-  //       quantityDisplay = '${quantity.toStringAsFixed(1)} kg'; // Display in kg
-  //     } else {
-  //       // If quantity is less than 1 kg, convert to grams
-  //       double grams = quantity * 1000;
-  //       quantityDisplay = '${grams.toStringAsFixed(1)} g'; // Display in grams
-  //     }
-  //   } else {
-  //     // For other units, assume the quantity is in pieces or count
-  //     quantityDisplay = '${quantity.toInt()} $uom';
-  //   }
-
-  //   // Print the result in the console
-  //   print(s
-  //       'Quantity: $quantityDisplay x ₹ ${price.toStringAsFixed(2)} per $uom');
-  //   print('Quantity: $quantityDisplay');
-
-  //   // Return the formatted string for UI or other purposes
-  //   return '$quantityDisplay';
-  // }
-
   double calculateItemTotal(Map<String, dynamic> item) {
     return _saleCalculator.calculateItemTotal(item);
   }
@@ -271,7 +250,8 @@ class CurrentSaleProvider with ChangeNotifier {
   void updateItemQuantity(int index, dynamic newQuantity) async {
     _currentSaleItems[index]['quantity'] = newQuantity;
     _saleCalculator = SaleCalculator(
-        _currentSaleItems); // Update SaleCalculator with the new items
+      _currentSaleItems,
+    ); // Update SaleCalculator with the new items
     var box = await Hive.openBox('cartBox');
     await box.put('cartItems', _currentSaleItems);
     notifyListeners(); // Notify listeners after updating the item quantity
@@ -284,8 +264,9 @@ class CurrentSaleProvider with ChangeNotifier {
     }
 
     var box = await Hive.openBox('cartBox');
-    List<Map<String, dynamic>> itemsWithStatus =
-        _currentSaleItems.map((item) => {...item, 'status': 'hold'}).toList();
+    List<Map<String, dynamic>> itemsWithStatus = _currentSaleItems
+        .map((item) => {...item, 'status': 'hold'})
+        .toList();
 
     var randomId = generatetheholdrandomId();
 
@@ -312,14 +293,16 @@ class CurrentSaleProvider with ChangeNotifier {
           .map((item) => item['varianceData']['variance_Uom'] ?? "")
           .toList(),
       "price": itemsWithStatus
-          .map((item) =>
-              item['varianceData']['variance_Defaultprice'].toString())
+          .map(
+            (item) => item['varianceData']['variance_Defaultprice'].toString(),
+          )
           .toList(),
       "category": itemsWithStatus
           .map((item) => item['itemData']['category'] ?? "")
           .toList(),
-      "qty":
-          itemsWithStatus.map((item) => item['quantity'].toString()).toList(),
+      "qty": itemsWithStatus
+          .map((item) => item['quantity'].toString())
+          .toList(),
       "amount": itemsWithStatus
           .map((item) => calculateItemTotal(item).toString())
           .toList(),
@@ -374,67 +357,16 @@ class CurrentSaleProvider with ChangeNotifier {
       "deliveryLocation": "",
       "preinvoiceId": "",
       "ticketType": "",
-      "ticketName": ""
+      "ticketName": "",
     };
 
-    // Post the bill data to the FastAPI endpoint
-    // try {
-    //   final url = Uri.parse('https://yenerp.com/fastapi/holds/');
-    //   final response = await http.post(
-    //     url,
-    //     headers: {'Content-Type': 'application/json'},
-    //     body: jsonEncode(hivedatpostsapledata),
-    //   );
-
-    //   if (response.statusCode == 200 || response.statusCode == 201) {
-    //     // Show success message
-    //     ScaffoldMessenger.of(context).showSnackBar(
-    //       SnackBar(
-    //         content: Text(
-    //           'Bill saved as hold (Hold ID: $randomId)',
-    //           style: TextStyle(fontWeight: FontWeight.bold),
-    //         ),
-    //         backgroundColor: Colors.green,
-    //         duration: const Duration(seconds: 2),
-    //         behavior: SnackBarBehavior.floating,
-    //         margin: const EdgeInsets.only(left: 20, bottom: 20, right: 680),
-    //         shape: RoundedRectangleBorder(
-    //           borderRadius: BorderRadius.circular(10),
-    //         ),
-    //       ),
-    //     );
-    //   } else {
-    //     // Handle server errors
-    //     print('Failed to post data to server: ${response.statusCode}');
-    //     ScaffoldMessenger.of(context).showSnackBar(
-    //       SnackBar(
-    //         content: Text(
-    //           'Failed to post data to server: ${response.statusCode}',
-    //           style: TextStyle(fontWeight: FontWeight.bold),
-    //         ),
-    //         backgroundColor: Colors.red,
-    //         duration: Duration(seconds: 2),
-    //       ),
-    //     );
-    //   }
-    // } catch (error) {
-    //   // Handle network errors
-    //   print('Network error: $error');
-    //   ScaffoldMessenger.of(context).showSnackBar(
-    //     SnackBar(
-    //       content: Text(
-    //         'Network error: $error',
-    //         style: TextStyle(fontWeight: FontWeight.bold),
-    //       ),
-    //       backgroundColor: Colors.red,
-    //       duration: Duration(seconds: 2),
-    //     ),
-    //   );
-    // }
 
     await box.add(billData);
     _showSnackBar(
-        context, 'Bill saved as hold (Hold ID: $randomId)', Colors.green);
+      context,
+      'Bill saved as hold (Hold ID: $randomId)',
+      Colors.green,
+    );
     clearItems();
   }
 
@@ -447,10 +379,7 @@ class CurrentSaleProvider with ChangeNotifier {
   void _showSnackBar(BuildContext context, String message, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          message,
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        content: Text(message, style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: color,
         duration: const Duration(seconds: 2),
       ),
@@ -458,9 +387,10 @@ class CurrentSaleProvider with ChangeNotifier {
   }
 
   Future<void> saveBillsplitBill(
-      BuildContext context,
-      List<List<Map<String, dynamic>>> tickets,
-      List<String> ticketTitles) async {
+    BuildContext context,
+    List<List<Map<String, dynamic>>> tickets,
+    List<String> ticketTitles,
+  ) async {
     if (tickets.isEmpty || tickets.every((ticket) => ticket.isEmpty)) {
       _showSnackBar(context, 'No items to save!', Colors.red);
       return;
@@ -471,10 +401,7 @@ class CurrentSaleProvider with ChangeNotifier {
     for (int i = 0; i < tickets.length; i++) {
       // 🔹 Prepare Items for Hive Storage
       List<Map<String, dynamic>> itemsWithStatus = tickets[i]
-          .map((item) => {
-                ...item,
-                'status': 'hold',
-              })
+          .map((item) => {...item, 'status': 'hold'})
           .toList();
 
       // 🔹 Generate unique Hold ID
@@ -490,7 +417,7 @@ class CurrentSaleProvider with ChangeNotifier {
         'total': calculateTotal2(itemsWithStatus), // Calculate per ticket total
         'status': 'hold',
         "ticketType": ticketType,
-        "ticketName": ticketName
+        "ticketName": ticketName,
       };
 
       // ✅ Save in Hive
@@ -513,14 +440,17 @@ class CurrentSaleProvider with ChangeNotifier {
             .map((item) => item['varianceData']['variance_Uom'] ?? "")
             .toList(),
         "price": itemsWithStatus
-            .map((item) =>
-                item['varianceData']['variance_Defaultprice'].toString())
+            .map(
+              (item) =>
+                  item['varianceData']['variance_Defaultprice'].toString(),
+            )
             .toList(),
         "category": itemsWithStatus
             .map((item) => item['itemData']['category'] ?? "")
             .toList(),
-        "qty":
-            itemsWithStatus.map((item) => item['quantity'].toString()).toList(),
+        "qty": itemsWithStatus
+            .map((item) => item['quantity'].toString())
+            .toList(),
         "amount": itemsWithStatus
             .map((item) => calculateItemTotal(item).toString())
             .toList(),
@@ -544,7 +474,6 @@ class CurrentSaleProvider with ChangeNotifier {
         "phoneNumber": "0",
         "paymentType": "",
       };
-
     }
 
     // ✅ Clear current items after saving split bills

@@ -9,35 +9,29 @@ class HiveManagerKot {
 
   // Box members that will be shared across your app.
   late Box ordersBox;
-  late Box invoiceBox;
+  late Box invoicesBox;
   late Box holdOrdersBox;
-  late Box userBox;
-  late Box serverBox;
-  late Box canceled_orderBox;
-  late Box configBox;
+  late Box cancelledOrderBox;
+
 
   /// Call this method during app initialization (for example, in main())
   Future<void> init() async {
     // Initialize Hive (if not done already in main)
     await Hive.initFlutter();
-    invoiceBox = await Hive.openBox('invoices');
+    invoicesBox = await Hive.openBox('invoicesKOT');
 
     // Open all the boxes you need only once
     ordersBox = await Hive.openBox('orders');
-    holdOrdersBox = await Hive.openBox('holdOrders');
-    userBox = await Hive.openBox('userBox');
-    serverBox = await Hive.openBox('serverBox'); // New line for serverBox
-    canceled_orderBox =
-        await Hive.openBox('canceled_orderBox'); // New line for serverBox
-    configBox = await Hive.openBox('config');
+    holdOrdersBox = await Hive.openBox('holdOrdersKOT'); // New line for serverBox
+    cancelledOrderBox =
+        await Hive.openBox('cancelledOrderBox'); // New line for serverBox
   }
 
   /// When appropriate (typically at app shutdown), close all boxes.
   Future<void> closeBoxes() async {
     await ordersBox.close();
-    await invoiceBox.close();
+    await invoicesBox.close();
     await holdOrdersBox.close();
-    await userBox.close();
-    await configBox.close();
+
   }
 }

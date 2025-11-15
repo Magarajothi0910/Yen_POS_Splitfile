@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:yenpos/Mode_page/Express_mode/bottom_navigaton_bar_for_expressMode.dart';
+import 'package:yenpos/Mode_page/bottomNavigation_Regular_Page/bottom_navigation_bar_regular_mode.dart';
 import '../Global/Widget/custom_sized_box.dart';
 
 class ChooseModePage extends StatelessWidget {
@@ -7,7 +8,6 @@ class ChooseModePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       backgroundColor: Colors.white,
       body: Container(
@@ -39,8 +39,7 @@ class ChooseModePage extends StatelessWidget {
                             return BottomNavigationPageExpressModeScreen();
                           },
                         ),
-                      ).then((_) {
-                      });
+                      ).then((_) {});
                     },
                     style: ElevatedButton.styleFrom(
                       foregroundColor: Colors.black,
@@ -67,11 +66,10 @@ class ChooseModePage extends StatelessWidget {
                         context,
                         MaterialPageRoute(
                           builder: (context) {
-                            return BottomNavigationPageExpressModeScreen();
+                            return BottomNavigationPageRegularModeScreen();
                           },
                         ),
-                      ).then((_) {
-                      });
+                      ).then((_) {});
                     },
                     style: ElevatedButton.styleFrom(
                       foregroundColor: Colors.black,

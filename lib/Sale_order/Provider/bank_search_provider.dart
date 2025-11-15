@@ -4,8 +4,6 @@ import 'dart:convert';
 
 import 'package:yenpos/Hive_Manager/hiveProvider.dart';
 
-
-
 class BankSearchProvider extends ChangeNotifier {
   List<Map<String, dynamic>> suggestions = [];
   final HiveProvider hiveProvider;

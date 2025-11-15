@@ -1,177 +1,264 @@
 import 'dart:convert';
-import 'package:flutter/material.dart';
 
 class Transaction {
-  final String holdId;
-  final String date;
-  final double total;
-  final String status;
-  final String hiveInvoiceId;
+  final String invoiceId;
+  final List<String> varianceitemCode;
   final List<String> itemName;
   final List<String> varianceName;
   final List<int> price;
+  final List<int> sellingPrice;
+  final List<int> sellingAmount;
   final List<double> weight;
   final List<double> qty;
   final List<double> amount;
   final List<double> tax;
   final List<String> uom;
-  final String employeeName;
-  final String customerPhoneNumber;
-  final double discountPercentage;
-  final double customCharge;
+
+  // 💰 Financial fields
   final double totalAmount;
-  final double totalAmount2;
-  final String invoiceDate;
-  final String branchId;
+  final double netAmount;
+  final double grossAmount; // ✅ renamed from crossAmount
+  final double customCharge;
+  final double? discountAmount;
+  final double discountPercentage;
+
+  // 🧾 GST details
+  final List<String>? gst;
+  final List<double>? gstValue;
+
+  // 📦 Order info
+  final String status;
   final String salesType;
+  final String customerPhoneNumber;
+
+  // 👨‍💼 Staff and branch info
+  final String? salesPersonId;
+  final String salesPersonName;
+  final String branchId;
   final String branchName;
-  final String paymentType;
-  final String invoiceTime;
+  final String aliasName;
+
+  // 💳 Payment info
+  final String? paymentType;
+  final double cash;
+  final double? card;
+  final double? upi;
+  final double? others;
+
+  // 🕓 Metadata
+  final DateTime? invoiceDateTime;
+  final int? shiftNumber;
+  final String shiftId;
   final String invoiceNo;
-  final String sync;
-  final String uniqueIdentifier;
+  final int? deviceNumber;
+  final String? deviceCode;
+  final List<String>? kotaddOns;
+  final String? createdById;
+  final String? createdByName;
+  final DateTime? syncDateTime;
 
   Transaction({
-    required this.holdId,
-    required this.date,
-    required this.total,
-    required this.status,
-    required this.hiveInvoiceId,
+    required this.invoiceId,
+    required this.varianceitemCode,
     required this.itemName,
     required this.varianceName,
     required this.price,
+    required this.sellingPrice,
+    required this.sellingAmount,
     required this.weight,
     required this.qty,
     required this.amount,
     required this.tax,
     required this.uom,
-    required this.employeeName,
-    required this.customerPhoneNumber,
-    required this.discountPercentage,
-    required this.customCharge,
     required this.totalAmount,
-    required this.totalAmount2,
-    required this.invoiceDate,
-    required this.branchId,
+    required this.netAmount,
+    required this.grossAmount,
+    required this.status,
     required this.salesType,
+    required this.customerPhoneNumber,
+    this.salesPersonId,
+    required this.salesPersonName,
+    required this.branchId,
     required this.branchName,
-    required this.paymentType,
-    required this.invoiceTime,
+    required this.aliasName,
+    this.paymentType,
+    required this.cash,
+    this.card,
+    this.upi,
+    this.others,
+    this.invoiceDateTime,
+    this.shiftNumber,
+    required this.shiftId,
     required this.invoiceNo,
-    required this.sync,
-    required this.uniqueIdentifier,
+    this.deviceNumber,
+    required this.customCharge,
+    this.discountAmount,
+    required this.discountPercentage,
+    this.deviceCode,
+    this.kotaddOns,
+    this.createdById,
+    this.createdByName,
+    this.syncDateTime,
+    this.gst,
+    this.gstValue,
   });
 
   factory Transaction.fromMap(Map<String, dynamic> map) {
-    final orderMap = map.containsKey('data') && map['data'] is Map
-        ? Map<String, dynamic>.from(map['data'])
-        : map;
-
-    // Helper to parse list fields safely
-    List<T> parseList<T>(
-        dynamic input, T Function(dynamic) parser, T defaultValue) {
-      if (input == null) return <T>[];
-      if (input is List) {
-        return input.map((v) {
-          try {
-            return parser(v);
-          } catch (_) {
-            return defaultValue;
-          }
-        }).toList();
-      }
+    DateTime? parseDate(dynamic value) {
+      if (value == null) return null;
       try {
-        return [parser(input)];
-      } catch (e) {
-        debugPrint('❌ Failed to parse input: $input, error: $e');
-        return <T>[];
+        return DateTime.parse(value.toString());
+      } catch (_) {
+        return null;
       }
     }
 
+    List<T> parseList<T>(dynamic input, T Function(dynamic) parser) {
+      if (input == null) return [];
+      if (input is List) return input.map(parser).toList();
+      return [parser(input)];
+    }
+
     return Transaction(
-      itemName:
-          parseList<String>(orderMap['itemName'], (v) => v.toString(), 'N/A'),
-      varianceName: parseList<String>(
-          orderMap['varianceName'], (v) => v.toString(), 'N/A'),
-      qty: parseList<double>(
-          orderMap['qty'], (v) => double.tryParse(v.toString()) ?? 0.0, 0.0),
+      invoiceId: map['invoiceId']?.toString() ?? '',
+      varianceitemCode: parseList<String>(
+        map['varianceitemCode'],
+        (v) => v.toString(),
+      ),
+      itemName: parseList<String>(map['itemName'], (v) => v.toString()),
+      varianceName: parseList<String>(map['varianceName'], (v) => v.toString()),
       price: parseList<int>(
-          orderMap['price'], (v) => int.tryParse(v.toString()) ?? 0, 0),
+        map['price'],
+        (v) => int.tryParse(v.toString()) ?? 0,
+      ),
+      sellingPrice: parseList<int>(
+        map['sellingPrice'],
+        (v) => int.tryParse(v.toString()) ?? 0,
+      ),
+      sellingAmount: parseList<int>(
+        map['sellingAmount'],
+        (v) => int.tryParse(v.toString()) ?? 0,
+      ),
       weight: parseList<double>(
-          orderMap['weight'], (v) => double.tryParse(v.toString()) ?? 0.0, 0.0),
+        map['weight'],
+        (v) => double.tryParse(v.toString()) ?? 0,
+      ),
+      qty: parseList<double>(
+        map['qty'],
+        (v) => double.tryParse(v.toString()) ?? 0,
+      ),
       amount: parseList<double>(
-          orderMap['amount'], (v) => double.tryParse(v.toString()) ?? 0.0, 0.0),
-      tax: (orderMap['tax'] as List<dynamic>?)
-              ?.map((e) => double.tryParse(e.toString()) ?? 0.0)
-              .toList() ??
-          [],
-      uom: (orderMap['uom'] as List<dynamic>?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          [],
-      totalAmount:
-          double.tryParse(orderMap['totalAmount']?.toString() ?? '0') ?? 0.0,
-      totalAmount2:
-          double.tryParse(orderMap['totalAmount2']?.toString() ?? '0') ?? 0.0,
+        map['amount'],
+        (v) => double.tryParse(v.toString()) ?? 0,
+      ),
+      tax: parseList<double>(
+        map['tax'],
+        (v) => double.tryParse(v.toString()) ?? 0,
+      ),
+      uom: parseList<String>(map['uom'], (v) => v.toString()),
+
+      totalAmount: double.tryParse(map['totalAmount']?.toString() ?? '0') ?? 0,
+      netAmount: double.tryParse(map['netAmount']?.toString() ?? '0') ?? 0,
+      grossAmount: double.tryParse(map['grossAmount']?.toString() ?? '0') ?? 0,
       customCharge:
-          double.tryParse(orderMap['customCharge']?.toString() ?? '0') ?? 0.0,
+          double.tryParse(map['customCharge']?.toString() ?? '0') ?? 0,
+      discountAmount: map['discountAmount'] != null
+          ? double.tryParse(map['discountAmount'].toString())
+          : null,
       discountPercentage:
-          double.tryParse(orderMap['discountPercentage']?.toString() ?? '0') ??
-              0.0,
-      total: double.tryParse(orderMap['total']?.toString() ?? '0') ?? 0.0,
-      branchId: orderMap['branchId']?.toString() ?? '',
-      branchName: orderMap['branchName']?.toString() ?? '',
-      invoiceDate: orderMap['invoiceDate']?.toString() ?? '',
-      paymentType: orderMap['paymentType']?.toString() ?? '',
-      employeeName: orderMap['employeeName']?.toString() ?? '',
-      status: orderMap['status']?.toString() ?? '',
-      holdId: orderMap['holdId']?.toString() ?? '',
-      date: orderMap['date']?.toString() ?? '',
-      hiveInvoiceId: orderMap['hiveInvoiceId']?.toString() ?? '',
-      customerPhoneNumber: orderMap['customerPhoneNumber']?.toString() ?? '',
-      salesType: orderMap['salesType']?.toString() ?? '',
-      invoiceTime: orderMap['invoiceTime']?.toString() ?? '',
-      invoiceNo: orderMap['orderInvoiceNo']?.toString() ?? '',
-      sync: orderMap['sync']?.toString() ?? '',
-      uniqueIdentifier: orderMap['uniqueIdentifier']?.toString() ?? '',
+          double.tryParse(map['discountPercentage']?.toString() ?? '0') ?? 0,
+
+      gst: parseList<String>(map['gst'], (v) => v.toString()),
+      gstValue: parseList<double>(
+        map['gstValue'],
+        (v) => double.tryParse(v.toString()) ?? 0,
+      ),
+
+      status: map['status']?.toString() ?? '',
+      salesType: map['salesType']?.toString() ?? '',
+      customerPhoneNumber: map['customerPhoneNumber']?.toString() ?? '',
+
+      salesPersonId: map['salesPersonId']?.toString(),
+      salesPersonName: map['salesPersonName']?.toString() ?? '',
+      branchId: map['branchId']?.toString() ?? '',
+      branchName: map['branchName']?.toString() ?? '',
+      aliasName: map['aliasName']?.toString() ?? '',
+
+      paymentType: map['paymentType']?.toString(),
+      cash: double.tryParse(map['cash']?.toString() ?? '0') ?? 0,
+      card: map['card'] != null
+          ? double.tryParse(map['card'].toString())
+          : null,
+      upi: map['upi'] != null ? double.tryParse(map['upi'].toString()) : null,
+      others: map['others'] != null
+          ? double.tryParse(map['others'].toString())
+          : null,
+
+      invoiceDateTime: parseDate(map['invoiceDateTime']),
+      shiftNumber: map['shiftNumber'] is int
+          ? map['shiftNumber']
+          : int.tryParse(map['shiftNumber']?.toString() ?? '0'),
+      shiftId: map['shiftId']?.toString() ?? '',
+      invoiceNo: map['invoiceNo']?.toString() ?? '',
+      deviceNumber: map['deviceNumber'] is int
+          ? map['deviceNumber']
+          : int.tryParse(map['deviceNumber']?.toString() ?? '0'),
+      deviceCode: map['deviceCode']?.toString(),
+      kotaddOns: parseList<String>(map['kotaddOns'], (v) => v.toString()),
+      createdById: map['createdById']?.toString(),
+      createdByName: map['createdByName']?.toString(),
+      syncDateTime: parseDate(map['syncDateTime']),
     );
   }
 
-  /// 🔥 Convert Transaction to Map
   Map<String, dynamic> toMap() {
     return {
-      'holdId': holdId,
-      'date': date,
-      'total': total,
-      'status': status,
-      'hiveInvoiceId': hiveInvoiceId,
-      'itemName': itemName,
-      'varianceName': varianceName,
-      'price': price,
-      'weight': weight,
-      'qty': qty,
-      'amount': amount,
-      'tax': tax,
-      'uom': uom,
-      'employeeName': employeeName,
-      'customerPhoneNumber': customerPhoneNumber,
-      'discountPercentage': discountPercentage,
-      'customCharge': customCharge,
-      'totalAmount': totalAmount,
-      'totalAmount2': totalAmount2,
-      'invoiceDate': invoiceDate,
-      'branchId': branchId,
-      'salesType': salesType,
-      'branchName': branchName,
-      'paymentType': paymentType,
-      'invoiceTime': invoiceTime,
-      'invoiceNo': invoiceNo,
-      'sync': sync,
-      'uniqueIdentifier': uniqueIdentifier,
+      "invoiceId": invoiceId,
+      "varianceitemCode": varianceitemCode,
+      "itemName": itemName,
+      "varianceName": varianceName,
+      "price": price,
+      "sellingPrice": sellingPrice,
+      "sellingAmount": sellingAmount,
+      "weight": weight,
+      "qty": qty,
+      "amount": amount,
+      "tax": tax,
+      "uom": uom,
+      "totalAmount": totalAmount,
+      "netAmount": netAmount,
+      "grossAmount": grossAmount,
+      "customCharge": customCharge,
+      "discountAmount": discountAmount,
+      "discountPercentage": discountPercentage,
+      "gst": gst,
+      "gstValue": gstValue,
+      "status": status,
+      "salesType": salesType,
+      "customerPhoneNumber": customerPhoneNumber,
+      "salesPersonId": salesPersonId,
+      "salesPersonName": salesPersonName,
+      "branchId": branchId,
+      "branchName": branchName,
+      "aliasName": aliasName,
+      "paymentType": paymentType,
+      "cash": cash,
+      "card": card,
+      "upi": upi,
+      "others": others,
+      "invoiceDateTime": invoiceDateTime?.toIso8601String(),
+      "shiftNumber": shiftNumber,
+      "shiftId": shiftId,
+      "invoiceNo": invoiceNo,
+      "deviceNumber": deviceNumber,
+      "deviceCode": deviceCode,
+      "kotaddOns": kotaddOns,
+      "createdById": createdById,
+      "createdByName": createdByName,
+      "syncDateTime": syncDateTime?.toIso8601String(),
     };
   }
 
-  /// 🔥 Pretty print when using `print(transaction)`
   @override
   String toString() => jsonEncode(toMap());
 }

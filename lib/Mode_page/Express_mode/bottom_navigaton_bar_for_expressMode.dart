@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:yenpos/Mode_page/Express_mode/takeorderNavigator.dart';
+import 'package:yenpos/birthday_cakes_screen/screen/birthday_cakes_screen.dart';
+import 'package:yenpos/express_mode_page/express_mode.dart';
+import 'package:yenpos/kotpreinvoice/screens/table_screen.dart';
 import 'package:yenpos/transactionPage/Screen/transaction_page.dart';
 
 import '../../more_page/more_page.dart';
@@ -20,17 +23,17 @@ class _BottomNavigationPageExpressModeScreenState
   late Box _invoiceBox;
   bool _isHiveInitialized = false; // Loading state
   late final List<Widget> _pages = [
-    // const ExpressModeScreen(),
-    // const BirthdayCakesScreen(),
-    // // const PreInvoiceScreen(),
-    // const TableScreen(),
-    // // const CurrentOrdersP
-    // // const CurrentOrdersPage(),
+    const ExpressModeScreen(),
+    const BirthdayCakesScreen(),
+    // const PreInvoiceScreen(),
+     const TableScreen(),
+    // const CurrentOrdersP
+    // const CurrentOrdersPage(),
     TakeAwayOrdersNavigator(),
     TransactionPage(),
-    // MorePage(
+    MorePage(
 
-    // ),
+    ),
   ];
 
   @override
@@ -41,7 +44,7 @@ class _BottomNavigationPageExpressModeScreenState
 
   Future<void> _initializeHive() async {
     await Hive.initFlutter();
-    _invoiceBox = await Hive.openBox('invoiceBox');
+    _invoiceBox = await Hive.openBox('invoices');
     setState(() {
       _isHiveInitialized = true; // Set loading state to complete
     });
@@ -63,8 +66,8 @@ class _BottomNavigationPageExpressModeScreenState
           child: ValueListenableBuilder(
             valueListenable: _invoiceBox.listenable(),
             builder: (context, box, widget) {
-              int transactionCount = box.values
-                  .where((item) => item['status'] == 'active')
+               int transactionCount = box.values
+                  .where((item) => item is Map && item['status'] == 'active')
                   .length; // Corrected access to the 'status' property
 
               return BottomNavigationBar(
@@ -85,18 +88,18 @@ class _BottomNavigationPageExpressModeScreenState
                   fontWeight: FontWeight.bold,
                 ),
                 items: [
-                  // const BottomNavigationBarItem(
-                  //   icon: Icon(Icons.grid_view),
-                  //   label: 'Take Away',
-                  // ),
-                  // const BottomNavigationBarItem(
-                  //   icon: Icon(Icons.cake),
-                  //   label: 'Birth Day Cakes',
-                  // ),
-                  // const BottomNavigationBarItem(
-                  //   icon: Icon(Icons.table_restaurant_outlined),
-                  //   label: 'Dine in',
-                  // ),
+                  const BottomNavigationBarItem(
+                    icon: Icon(Icons.grid_view),
+                    label: 'Take Away',
+                  ),
+                  const BottomNavigationBarItem(
+                    icon: Icon(Icons.cake),
+                    label: 'Birth Day Cakes',
+                  ),
+                  const BottomNavigationBarItem(
+                    icon: Icon(Icons.table_restaurant_outlined),
+                    label: 'Dine in',
+                  ),
                   const BottomNavigationBarItem(
                     icon: Icon(Icons.chrome_reader_mode),
                     label: 'Order Management',
@@ -133,10 +136,10 @@ class _BottomNavigationPageExpressModeScreenState
                     ),
                     label: 'Transactions',
                   ),
-                  // const BottomNavigationBarItem(
-                  //   icon: Icon(Icons.more_horiz),
-                  //   label: 'More',
-                  // ),
+                  const BottomNavigationBarItem(
+                    icon: Icon(Icons.more_horiz),
+                    label: 'More',
+                  ),
                 ],
                 selectedItemColor: Colors.blue,
                 unselectedItemColor: Colors.black,

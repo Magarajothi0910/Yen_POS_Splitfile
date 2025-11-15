@@ -1,14 +1,24 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hive/hive.dart';
 
 import 'package:intl/intl.dart';
+import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 import 'package:yenpos/Global/globals_data.dart';
+import 'package:yenpos/Global/globals_data.dart' as globalsData;
+import 'package:yenpos/Global/globals_data.dart' as globals;
 import 'package:yenpos/Sale_order/Models/sales_order_display_model.dart';
 import 'package:yenpos/Sale_order/Print_Receipt/allorderprint.dart';
+import 'package:yenpos/Sale_order/Widgets/Send_data_to_server.dart';
+import 'package:yenpos/Sale_order/Widgets/advance_amount_payment_keybaord.dart';
 import 'package:yenpos/Sale_order/Widgets/cheque_details.dart';
 import 'package:yenpos/Sale_order/Widgets/customAll_keyboard.dart';
+import 'package:yenpos/Sale_order/Widgets/top_message.dart';
+import 'package:yenpos/invoice_pay_and_print_page.dart/provider/payment_provider.dart';
+import 'package:yenpos/invoice_pay_and_print_page.dart/provider/razorpay_provider.dart';
 
 import '../../../Global/salesorder_websocket_service.dart';
 
@@ -58,7 +68,7 @@ class _OrderManagementPayandPrintState
 
   bool _isPrintButtonEnabled = true;
   late salesInvoiceReceiptPrinter receiptPrinter;
-
+  bool _isCompleteButtonEnabled = false; // default enabled
   final TextEditingController _customUpiController = TextEditingController();
   final TextEditingController _customCardController = TextEditingController();
   String selectedPaymentMethod = 'Cash';
@@ -68,9 +78,6 @@ class _OrderManagementPayandPrintState
   final TextEditingController chequeBankController = TextEditingController();
   final TextEditingController chequeDateController = TextEditingController();
   OverlayEntry? _overlayEntry;
-  final GlobalSOWebSocketService _salesorder_webSocketService =
-      GlobalSOWebSocketService();
-
 
   late final List<TextEditingController> controllers;
   final FocusNode _customCashFocusNode = FocusNode();
@@ -83,7 +90,7 @@ class _OrderManagementPayandPrintState
   final FocusNode _chequeNameFocus = FocusNode();
   final FocusNode _chequeDateFocus = FocusNode();
   //from kot payment variable
-  final TextEditingController _discountController = TextEditingController();
+
   final TextEditingController _customChargeController = TextEditingController();
   final TextEditingController _customCashController = TextEditingController();
 
@@ -107,38 +114,32 @@ class _OrderManagementPayandPrintState
     _customerNumberController.addListener(_validateForm);
     _customAmountController.addListener(_validateForm);
 
-    controllers = [
-      _cashController,
-      _upiController,
-      _cardController,
-      chequeNumberController,
-      chequeAmountController,
-      chequeNameController,
-      chequeBankController,
-      chequeDateController,
-    ];
-
-    _customCashController.addListener(() {
-      _cashAmount = int.tryParse(_customCashController.text) ?? 0;
-      _updateBalance();
+    _cashController.addListener(() {
+      _cashAmount = int.tryParse(_cashController.text) ?? 0;
+      _validateAmount(_cashController, "Cash");
+      _validateForm();
     });
 
-    _customUpiController.addListener(() {
-      _upiAmount = int.tryParse(_customUpiController.text) ?? 0;
-      _updateBalance();
+    // 🔹 UPI validation
+    _upiController.addListener(() {
+      _upiAmount = int.tryParse(_upiController.text) ?? 0;
+      _validateAmount(_upiController, "UPI");
+      _validateForm();
     });
 
-    _customCardController.addListener(() {
-      _cardAmount = int.tryParse(_customCardController.text) ?? 0;
-      _updateBalance();
+    // 🔹 Card validation
+    _cardController.addListener(() {
+      _cardAmount = int.tryParse(_cardController.text) ?? 0;
+      _validateAmount(_cardController, "Card");
+      _validateForm();
     });
 
+    // 🔹 Cheque validation
     chequeAmountController.addListener(() {
       _chequeAmount = int.tryParse(chequeAmountController.text) ?? 0;
-      _updateBalance();
+      _validateAmount(chequeAmountController, "Cheque");
+      _validateForm();
     });
-
-    _salesorder_webSocketService.initialize();
   }
 
   @override
@@ -146,7 +147,7 @@ class _OrderManagementPayandPrintState
     _customAmountController.dispose();
     _employeeNumberController.dispose();
     _customerNumberController.dispose();
-    _discountController.dispose();
+
     _customChargeController.dispose();
     _customCashController.dispose();
     _customUpiController.dispose();
@@ -183,29 +184,109 @@ class _OrderManagementPayandPrintState
     return "0";
   }
 
+  void _validateForm() {
+    final cash = double.tryParse(_cashController.text) ?? 0;
+    final upi = double.tryParse(_upiController.text) ?? 0;
+    final card = double.tryParse(_cardController.text) ?? 0;
+    final cheque = double.tryParse(chequeAmountController.text) ?? 0;
+
+    final totalEntered = cash + upi + card + cheque;
+    final totalAmount = widget.totalAmount;
+
+    setState(() {
+      // ✅ Enable Pay button only when entered amount == total
+      _isCompleteButtonEnabled = (totalEntered == totalAmount);
+    });
+  }
+
+  void _validateAmount(TextEditingController controller, String method) {
+    double entered = double.tryParse(controller.text) ?? 0;
+
+    double alreadyPaid =
+        widget.salesOrder.advanceAmount?.fold(0.0, (sum, e) => sum! + e) ?? 0.0;
+
+    double otherPayments = 0.0;
+
+    if (method != "Cash")
+      otherPayments += double.tryParse(_cashController.text) ?? 0;
+    if (method != "UPI")
+      otherPayments += double.tryParse(_upiController.text) ?? 0;
+    if (method != "Card")
+      otherPayments += double.tryParse(_cardController.text) ?? 0;
+    if (method != "Cheque")
+      otherPayments += double.tryParse(chequeAmountController.text) ?? 0;
+
+    double remainingBalance =
+        widget.salesOrder.totalAmount - alreadyPaid - otherPayments;
+
+    if (entered > remainingBalance) {
+      controller.text = remainingBalance.toStringAsFixed(0);
+      controller.selection = TextSelection.fromPosition(
+        TextPosition(offset: controller.text.length),
+      );
+
+      TopMessage.show(
+        context,
+        message:
+            "Entered $method amount exceeds remaining balance. Max allowed: ₹${remainingBalance.toStringAsFixed(0)}",
+        backgroundColor: Colors.redAccent,
+        textColor: Colors.white,
+        duration: const Duration(seconds: 2),
+      );
+    }
+
+    _updateBalance(); // update balance after validation
+    _validateForm(); // update button state
+  }
+
   void _updateBalance() {
     setState(() {
       final cash = double.tryParse(_cashController.text) ?? 0;
       final upi = double.tryParse(_upiController.text) ?? 0;
       final card = double.tryParse(_cardController.text) ?? 0;
+      final cheque = double.tryParse(chequeAmountController.text) ?? 0;
 
-      _cashAmount = cash.toInt();
-      _upiAmount = upi.toInt();
-      _cardAmount = card.toInt();
+      final totalEntered = cash + upi + card + cheque;
+      _balanceAmount = widget.totalAmount - totalEntered;
 
-      _balanceAmount = widget.totalAmount - (cash + upi + card);
-
-      // Detect if one method equals total amount and others are empty
-      if (cash == widget.totalAmount && upi == 0 && card == 0) {
+      // Detect single active method
+      if (cash == widget.totalAmount && upi == 0 && card == 0 && cheque == 0) {
         _activePaymentMethod = "Cash";
-      } else if (upi == widget.totalAmount && cash == 0 && card == 0) {
+      } else if (upi == widget.totalAmount &&
+          cash == 0 &&
+          card == 0 &&
+          cheque == 0) {
         _activePaymentMethod = "UPI";
-      } else if (card == widget.totalAmount && cash == 0 && upi == 0) {
+      } else if (card == widget.totalAmount &&
+          cash == 0 &&
+          upi == 0 &&
+          cheque == 0) {
         _activePaymentMethod = "Card";
+      } else if (cheque == widget.totalAmount &&
+          cash == 0 &&
+          upi == 0 &&
+          card == 0) {
+        _activePaymentMethod = "Cheque";
       } else {
-        _activePaymentMethod = null; // split payment or not exact
+        _activePaymentMethod = null;
+      }
+
+      // ✅ Validation rule:
+      // Only enable Pay button if totalEntered == totalAmount (no less or more)
+      // Disable if totalEntered < totalAmount OR > totalAmount
+      _isPrintButtonEnabled = (totalEntered == widget.totalAmount);
+      if (totalEntered > widget.totalAmount) {
+        TopMessage.show(
+          context,
+          message:
+              "Entered amount ₹${totalEntered.toStringAsFixed(0)} exceeds total ₹${widget.totalAmount.toStringAsFixed(0)}",
+          backgroundColor: Colors.redAccent,
+          textColor: Colors.white,
+          duration: const Duration(seconds: 2),
+        );
       }
     });
+    _validateForm();
   }
 
   Widget _buildPaymentEntry(
@@ -213,6 +294,11 @@ class _OrderManagementPayandPrintState
     TextEditingController controller,
     FocusNode focus,
   ) {
+    final stateProvider = Provider.of<SalesInvoiceState>(
+      context,
+      listen: false,
+    );
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
       padding: const EdgeInsets.all(10),
@@ -287,8 +373,8 @@ class _OrderManagementPayandPrintState
             child: TextField(
               controller: controller,
               focusNode: focus,
-              readOnly: true, // ❌ Prevent system keyboard
-              showCursor: true, // ✅ Show blinking cursor
+              readOnly: true, // Prevent system keyboard
+              showCursor: true, // Show blinking cursor
               decoration: InputDecoration(
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -302,16 +388,311 @@ class _OrderManagementPayandPrintState
                   borderSide: BorderSide.none,
                 ),
               ),
+              onTap: () {
+                ActiveField.activate(
+                  context: context,
+                  ctrl: controller,
+                  node: focus,
+                  numeric: true,
+                );
+              },
+              onChanged: (value) {
+                _updateBalance();
+              },
             ),
           ),
+
+          // UPI/Card Payment Icon
+          if (method == 'UPI' || method == 'Card')
+            Consumer<RazorpayQRProvider>(
+              builder: (context, qrProvider, _) {
+                return IconButton(
+                  icon: Icon(
+                    method == 'UPI' ? Icons.qr_code : Icons.credit_card,
+                    color: method == 'UPI' ? Colors.black : Colors.blue,
+                    size: 24,
+                  ),
+                  onPressed:
+                      isPaymentEnabled &&
+                          !(method == 'UPI'
+                              ? stateProvider.isUpiPaid
+                              : qrProvider.isCardPaid)
+                      ? () {
+                          final amountStr = controller.text;
+                          if (amountStr.isNotEmpty) {
+                            final amount = double.tryParse(amountStr);
+                            if (amount != null && amount > 0) {
+                              if (method == 'UPI') {
+                                _showUpiQrDialog(amount);
+                              } else {
+                                _handleCardPayment();
+                              }
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Please enter a valid $method amount greater than 0.',
+                                  ),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Please enter a $method amount first.',
+                                ),
+                                backgroundColor: Colors.orange,
+                              ),
+                            );
+                          }
+                        }
+                      : null,
+                );
+              },
+            ),
         ],
       ),
     );
   }
 
-  void _validateForm() {
-    _isPrintButtonEnabled = true;
-    setState(() {});
+  void _handleCardPayment() {
+    final qrProvider = Provider.of<RazorpayQRProvider>(context, listen: false);
+    final stateProvider = Provider.of<SalesInvoiceState>(
+      context,
+      listen: false,
+    );
+    final cardAmountStr = _cardController.text;
+
+    if (cardAmountStr.isNotEmpty) {
+      final cardAmount = double.tryParse(cardAmountStr);
+      if (cardAmount != null && cardAmount > 0) {
+        qrProvider.createOrderAndPay(cardAmount, (
+          String type,
+          Map<String, dynamic>? extraData,
+        ) {
+          //  _sendState(type: type, extraData: extraData);
+          if (type == 'card_payment_success') {
+            stateProvider.updateIsCardPaid(true);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Card payment successful!'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          } else if (type == 'card_payment_error') {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Card payment failed: ${extraData?['message'] ?? 'Unknown error'}',
+                ),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enter a valid card amount greater than 0.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a card amount first.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  }
+
+  void _showUpiQrDialog(double amount) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<RazorpayQRProvider>(context, listen: false).createQR(amount);
+    });
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.qr_code, color: Colors.blue),
+              SizedBox(width: 8),
+              Text(
+                'UPI QR Code',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            height: 600,
+            width: 285,
+            child: Consumer<RazorpayQRProvider>(
+              builder: (context, qrProvider, _) {
+                if (qrProvider.isLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                } else if (qrProvider.errorMessage != null) {
+                  // Send error message to client
+                  // _sendState(
+                  //   type: 'upi_payment_error',
+                  //   extraData: {'message': qrProvider.errorMessage},
+                  // );
+                  return Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error, color: Colors.red, size: 48),
+                      const SizedBox(height: 8),
+                      Text(
+                        qrProvider.errorMessage!,
+                        style: const TextStyle(color: Colors.red, fontSize: 16),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.close),
+                        label: const Text("Close"),
+                        onPressed: () {
+                          qrProvider.disconnectWebSocket();
+                          Navigator.pop(context);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color.fromARGB(
+                            255,
+                            6,
+                            62,
+                            247,
+                          ),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                } else if (qrProvider.paymentSuccess) {
+                  Provider.of<SalesInvoiceState>(
+                    context,
+                    listen: false,
+                  ).updateIsUpiPaid(true);
+                  //_sendState(type: 'upi_payment_success');
+                  return Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Lottie.asset(
+                        'assets/Payment Successful.json',
+                        repeat: false,
+                        height: 580,
+                        //height: double.infinity,
+                        width: double.infinity,
+                        fit: BoxFit.contain,
+                        onLoaded: (composition) {
+                          Future.delayed(
+                            composition.duration + const Duration(seconds: 2),
+                            () {
+                              if (mounted) {
+                                Navigator.pop(context);
+                              }
+                            },
+                          );
+                        },
+                      ),
+                      const Text(
+                        'UPI Payment Successful!',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  );
+                } else if (qrProvider.qrImageUrl != null) {
+                  // _sendState(type: 'show_upi_qr', extraData: {'qrUrl': qrProvider.qrImageUrl, 'amount': amount});
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.network(
+                        qrProvider.qrImageUrl!,
+                        height: 535,
+                        //height: double.infinity,
+                        width: double.infinity,
+                        fit: BoxFit.fill,
+                        errorBuilder: (context, error, stackTrace) {
+                          // _sendState(
+                          //   type: 'upi_payment_error',
+                          //   extraData: {'message': 'Failed to load QR code'},
+                          // );
+                          return const Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.error, color: Colors.red, size: 48),
+                              SizedBox(height: 8),
+                              Text(
+                                'Failed to load QR code',
+                                style: TextStyle(
+                                  color: Colors.red,
+                                  fontSize: 16,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              icon: const Icon(Icons.close),
+                              label: const Text("Close"),
+                              onPressed: () {
+                                qrProvider.disconnectWebSocket();
+                                Navigator.pop(context);
+                                //_sendState(type: 'upi_payment_cancelled');
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color.fromARGB(
+                                  255,
+                                  6,
+                                  62,
+                                  247,
+                                ),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(7),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                } else {
+                  // _sendState(
+                  //   type: 'upi_payment_error',
+                  //   extraData: {'message': 'No QR code generated'},
+                  // );
+                  return const Center(child: Text('No QR generated'));
+                }
+              },
+            ),
+          ),
+        );
+      },
+    );
   }
 
   List<String> _generateCashOptions(double amount) {
@@ -339,11 +720,11 @@ class _OrderManagementPayandPrintState
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        backgroundColor: Colors.indigoAccent.shade700,
+        backgroundColor: Colors.blue,
         elevation: 3,
         centerTitle: true,
         title: const Text(
-          "Sales Order",
+          "Invoice",
           style: TextStyle(
             color: Colors.white,
             fontSize: 20,
@@ -480,7 +861,6 @@ class _OrderManagementPayandPrintState
                         chequeNameFocus: _chequeNameFocus,
                         chequeDateFocus: _chequeDateFocus,
                         onFocusChanged: (index) {},
-                     
                       ),
                     ],
                   ],
@@ -488,129 +868,157 @@ class _OrderManagementPayandPrintState
               ),
             ),
 
-            // 🔹 Static Footer Section (not scrollable)
             Container(
-              padding: EdgeInsets.fromLTRB(padding, 12, padding, 12),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(16),
+                  top: Radius.circular(24),
                 ),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.grey.withOpacity(0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, -2),
+                    blurRadius: 12,
+                    offset: const Offset(0, -3),
                   ),
                 ],
               ),
-              child: Column(
+              height: 220,
+              child: Row(
                 children: [
-                  // 🔹 Total & Balance Row
-                  Row(
-                    children: [
-                      _buildMiniCard(
-                        title: "Total",
-                        value: '₹${widget.totalAmount.toStringAsFixed(0)}',
-                        gradient: [Colors.green[100]!, Colors.green[300]!],
-                      ),
-                      const SizedBox(width: 12),
-                      _buildMiniCard(
-                        title: "Balance",
-                        value: '₹${_balanceAmount.toStringAsFixed(0)}',
-                        gradient: [Colors.orange[100]!, Colors.orange[300]!],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // 🔹 Action Buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          onPressed: () {
-                            Navigator.pop(context);
-                          },
-                          child: const Text(
-                            "Cancel",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green[400],
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          onPressed: (isSubmitting || _balanceAmount > 0)
-                              ? null
-                              : () async {
-                                  setState(() => isSubmitting = true);
-                                  try {
-                                    markOrderAsCompleted(salesOrderId);
-                                  } catch (e) {
-                                  } finally {
-                                    setState(() => isSubmitting = false);
-                                  }
-                                },
-                          child: Text(
-                            isSubmitting ? "Processing..." : "Print Receipt",
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            // 🔹 Always visible Custom Keyboard
-            Container(
-              height: 170, // slightly compact
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                border: const Border(
-                  top: BorderSide(color: Colors.black12, width: 1),
-                ),
-              ),
-
-              child: SizedBox(
-                height: 210,
-                child: ValueListenableBuilder<TextEditingController?>(
-                  valueListenable: ActiveField.controller,
-                  builder: (_, ctrl, __) {
-                    return Column(
+                  Expanded(
+                    flex: 1,
+                    child: Column(
                       children: [
-                        const SizedBox(height: 8),
-                        Expanded(
-                          child: CustomKeyboardWidgetAll2(
-                            controller: ctrl ?? TextEditingController(),
-                          ),
+                        // 🔹 Total & Balance Row
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildPremiumCardElegant(
+                                title: "Total",
+                                value:
+                                    '₹${widget.totalAmount.toStringAsFixed(0)}',
+                                icon: Icons.attach_money,
+                                gradientColors: [
+                                  Colors.green.shade400,
+                                  Colors.green.shade700,
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _buildPremiumCardElegant(
+                                title: "Balance",
+                                value: '₹${_balanceAmount.toStringAsFixed(0)}',
+                                icon: Icons.account_balance_wallet,
+                                gradientColors: [
+                                  Colors.blue.shade400,
+                                  Colors.blue.shade700,
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                },
+                                child: const Text(
+                                  "Cancel",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _isCompleteButtonEnabled
+                                      ? Colors.blue.shade700
+                                      : Colors.grey,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                onPressed: _isCompleteButtonEnabled
+                                    ? () async {
+                                        setState(() => isSubmitting = true);
+                                        try {
+                                          markOrderAsCompleted(salesOrderId);
+                                        } catch (e) {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                'Payment failed: $e',
+                                              ),
+                                            ),
+                                          );
+                                        } finally {
+                                          setState(() => isSubmitting = false);
+                                        }
+                                      }
+                                    : null,
+                                child: Text(
+                                  "Pay",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: _isCompleteButtonEnabled
+                                        ? Colors.white
+                                        : Colors.black,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
-                    );
-                  },
-                ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 1,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.black12),
+                      ),
+                      child: SizedBox(
+                        height: double.infinity,
+                        child: ValueListenableBuilder<TextEditingController?>(
+                          valueListenable: ActiveField.controller,
+                          builder: (_, ctrl, __) {
+                            return AdvanceAmountKeyboardWidgetAll2(
+                              controller: ctrl ?? TextEditingController(),
+                              onChanged: _updateBalance,
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -619,94 +1027,99 @@ class _OrderManagementPayandPrintState
     );
   }
 
-  Widget _buildMiniCard({
+  Widget _buildPremiumCardElegant({
     required String title,
     required String value,
-    required List<Color> gradient,
+    required IconData icon,
+    required List<Color> gradientColors,
   }) {
-    return Expanded(
-      child: Container(
-        height: 80,
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: gradient,
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey[400]!,
-              offset: const Offset(2, 2),
-              blurRadius: 6,
-            ),
-            const BoxShadow(
-              color: Colors.white,
-              offset: Offset(-2, -2),
-              blurRadius: 6,
-            ),
-          ],
+    return Container(
+      height: 100,
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: gradientColors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        padding: const EdgeInsets.all(8),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                title,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: gradientColors.last.withOpacity(0.4),
+            offset: const Offset(0, 8),
+            blurRadius: 12,
+          ),
+          BoxShadow(
+            color: Colors.black12,
+            offset: const Offset(0, 2),
+            blurRadius: 6,
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Column(
+            children: [
+              Text(
+                title.toUpperCase(),
                 style: const TextStyle(
+                  color: Colors.white70,
                   fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black87,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.2,
                 ),
-                overflow: TextOverflow.ellipsis,
               ),
-            ),
-            const SizedBox(height: 4),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
+              const SizedBox(height: 6),
+              Text(
                 value,
                 style: const TextStyle(
-                  fontSize: 20,
+                  color: Colors.white,
+                  fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black38,
+                      offset: Offset(1, 1),
+                      blurRadius: 2,
+                    ),
+                  ],
                 ),
-                overflow: TextOverflow.ellipsis,
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
   void markOrderAsCompleted(String salesOrderId) async {
-    final invoiceDate = DateFormat('dd-MM-yyyy').format(DateTime.now());
-    final now = DateTime.now();
+    final invoiceDate = DateTime.now().toIso8601String();
+    final invoiceTime = DateTime.now().toIso8601String();
 
-    final invoiceTime = DateFormat('hh:mm a').format(now); // e.g., 01:07 PM
     final so = widget.salesOrder;
 
-    // Calculate total advance amount
-    final totalAdvanceAmount = widget.salesOrder.advanceAmount!.fold<double>(
-      0.0,
-      (sum, value) => sum + value,
+    // 🧮 Calculate total advance
+    final totalAdvanceAmount =
+        so.advanceAmount?.fold<double>(0.0, (sum, value) => sum + value) ?? 0.0;
+
+    print(
+      "🟢 [markOrderAsCompleted] STARTED for Sales Order ID: $salesOrderId",
     );
+    print("🟢 Invoice Date: $invoiceDate, Invoice Time: $invoiceTime");
+    print("🟢 Total Advance Amount: $totalAdvanceAmount");
 
     try {
-      // Patch body
+      // 🔹 Patch order status
       final patchBody = {
         "salesOrderId": so.salesOrderId,
         "status": "Sales Completed",
         "invoiceDate": invoiceDate,
-        "invoiceTime": invoiceTime, // <-- added
+        "invoiceTime": invoiceTime,
       };
 
-      // Wrap patch into JSON
-      final patchJson = jsonEncode({
+      await sendataToServer({
         "data": patchBody,
         "saleOrderNo": so.saleOrderNo,
         "type": "patchSaleOrder",
@@ -714,44 +1127,99 @@ class _OrderManagementPayandPrintState
         "edit": "No",
       });
 
-      await _salesorder_webSocketService.sendData(jsonDecode(patchJson));
+      print("✅ Patch request sent successfully for $salesOrderId");
 
-      // Prepare full invoice body
-      // ✅ 3️⃣ Prepare the full invoice body (all fields included)
+      // 🧮 Initialize totals
+      double totalItemTotal = 0.0; // total after discount + tax
+      double totalNet = 0.0; // total before tax
+      double totalCross = 0.0; // gross total (if any extra charges)
+      List<double> sellingPrices = [];
+      List<double> sellingAmounts = [];
+      List<String> gstRates = [];
+      List<String> gstValues = [];
+      double discount_perc = so.discount.toDouble();
+      double customCharge = _customChargeController.text.isNotEmpty
+          ? double.tryParse(_customChargeController.text) ?? 0.0
+          : 0.0;
+      double totalDiscountAmount = 0.0;
+
+      for (int i = 0; i < so.itemName.length; i++) {
+        final itemQty = (so.qty.length > i ? so.qty[i] : 0);
+        final itemPrice = (so.price.length > i ? so.price[i].toDouble() : 0.0);
+        final itemTax = (so.tax.length > i ? so.tax[i].toDouble() : 0.0);
+        final itemAmount = (so.amount.length > i
+            ? so.amount[i].toDouble()
+            : 0.0);
+
+        final discountedPrice = itemPrice * (1 - discount_perc / 100);
+        final subtotal = discountedPrice * itemQty;
+        final taxAmount = subtotal * (itemTax / 100);
+        final totalWithTax = subtotal + taxAmount;
+
+        double itemDiscountAmt = itemAmount * (discount_perc / 100);
+        double discountedGross = itemAmount - itemDiscountAmt;
+
+        double taxRate = itemTax / 100.0;
+        double netExclusive = itemTax > 0
+            ? discountedGross / (1 + taxRate)
+            : discountedGross;
+        double gstAmount = discountedGross - netExclusive;
+
+        totalDiscountAmount += itemDiscountAmt;
+        totalItemTotal += discountedGross;
+        totalNet += netExclusive;
+
+        gstRates.add(itemTax.toStringAsFixed(1));
+        gstValues.add(gstAmount.toStringAsFixed(2));
+
+        sellingPrices.add(discountedPrice);
+        sellingAmounts.add(discountedGross);
+      }
+
+      // 🔹 Build invoice body
       final fullInvoiceBody = {
         "itemName": so.itemName,
         "varianceName": so.varianceName,
         "varianceitemCode": so.itemCode,
+        "sellingPrice": sellingPrices,
+        "sellingAmount": sellingAmounts,
         "price": so.price,
         "weight": so.weight,
         "qty": so.qty,
         "amount": so.amount,
         "tax": so.tax,
         "uom": so.uom,
-        "totalAmount": so.totalAmount,
+        "totalAmount": totalItemTotal,
         "advanceAmount": totalAdvanceAmount,
         "advanceDate": invoiceDate,
         "advanceTime": invoiceTime,
         "status": "Sales Completed",
         "salesType": "Sales Order",
+        "netAmount": totalNet.toStringAsFixed(2),
+        "crossAmount": totalCross.toStringAsFixed(2),
         "customerPhoneNumber": so.customerNumber,
-        "salesPerson": so.employeeName,
-        "branchId": so.branchId,
-        "branchName": so.branchName,
-        "aliasName": so.aliasName,
-        "cash": so.cash ?? 0,
-        "card": so.card ?? 0,
-        "upi": so.upi ?? 0,
-        "invoiceDate": invoiceDate,
-        "invoiceTime": invoiceTime,
-        "shiftId": so.shiftId,
+        "salesPersonName": so.employeeName,
+        "branchId": globals.branchId,
+        "branchName": globals.branchName,
+        "aliasName": globals.aliasname,
+        "cash": _cashAmount,
+        "card": _cardAmount,
+        "upi": _upiAmount,
+        "invoiceNo": so.orderInvoiceNo,
+        "invoiceDateTime": DateTime.now().toIso8601String(),
+        "shiftId": globalsData.shiftId.value,
         "customCharge": so.customCharge,
-        "discountAmount": so.discountAmount,
-        "discountPercentage": so.discount,
+        "discountAmount": (totalNet * (discount_perc / 100)).toStringAsFixed(
+          2,
+        ), // total discount value
+        "discountPercentage": discount_perc,
         "salesOrderId": so.salesOrderId,
         "advanceDateTime": so.advanceDateTime,
+        'gst': gstRates,
+        'gstValue': gstValues,
       };
-      // Wrap invoice into JSON
+
+      print("🟢 Full Invoice Body: $fullInvoiceBody");
       final invoiceJson = jsonEncode({
         "salesOrderId": fullInvoiceBody,
         "type": "posInvoice",
@@ -759,9 +1227,32 @@ class _OrderManagementPayandPrintState
         "edit": "No",
       });
 
-      await _salesorder_webSocketService.sendData(jsonDecode(invoiceJson));
-    } catch (e, stack) {}
+      await sendataToServer(jsonDecode(invoiceJson));
+      // 🔹 Send invoice
+      DateTime billDate = DateTime.now();
+      String formattedDate = DateFormat('dd-MM-yyyy').format(billDate);
+      String formattedTime = DateFormat('hh:mm a').format(billDate);
+      String uniqueIdentifier = '$formattedDate';
 
+      var box = await Hive.openBox('invoices');
+      bool exists = box.values.any(
+        (invoice) =>
+            invoice is Map<String, dynamic> && invoice[' '] == uniqueIdentifier,
+      );
+      if (!exists) {
+        await box.add(fullInvoiceBody);
+        developer.log('Invoice saved to Hive:', error: fullInvoiceBody);
+      }
+
+      print("✅ Invoice request sent successfully for $salesOrderId");
+    } catch (e, stack) {
+      print("❌ Error in markOrderAsCompleted: $e");
+      print("❌ StackTrace: $stack");
+    }
+
+    print(
+      "🟢 [markOrderAsCompleted] FINISHED for Sales Order ID: $salesOrderId",
+    );
     Navigator.pop(context);
   }
 }

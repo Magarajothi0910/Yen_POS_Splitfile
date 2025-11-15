@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:yenpos/Global/globals_data.dart';
 
-
-
 class PaymentDetailKeyboardProvider with ChangeNotifier {
   bool isNumeric = ActiveField.isNumeric.value;
   bool isUpperCase = true;
@@ -15,8 +13,10 @@ class PaymentDetailKeyboardProvider with ChangeNotifier {
 
   int get activeIndex => _activeIndex;
 
-  void registerController(TextEditingController controller,
-      {String inputType = 'text'}) {
+  void registerController(
+    TextEditingController controller, {
+    String inputType = 'text',
+  }) {
     if (!controllers.contains(controller)) {
       controllers.add(controller);
       inputTypes.add(inputType);
@@ -143,18 +143,18 @@ class PaymentDetailCustomKeyboardWidgetAll2 extends StatelessWidget {
   }
 
   List<List<String>> get _numeric => [
-        ['1', '2', '3'],
-        ['4', '5', '6'],
-        ['7', '8', '9'],
-        ['.', '0', '⌫'],
-      ];
+    ['1', '2', '3'],
+    ['4', '5', '6'],
+    ['7', '8', '9'],
+    ['.', '0', '⌫'],
+  ];
 
   List<List<String>> get _numericLocked => [
-        ['1', '2', '3'],
-        ['4', '5', '6'],
-        ['7', '8', '9'],
-        ['0', '⌫'],
-      ];
+    ['1', '2', '3'],
+    ['4', '5', '6'],
+    ['7', '8', '9'],
+    ['0', '⌫'],
+  ];
 
   List<List<String>> _alpha(bool upper) {
     const base = [
@@ -164,11 +164,15 @@ class PaymentDetailCustomKeyboardWidgetAll2 extends StatelessWidget {
       ['123', 'SPACE'],
     ];
     return base
-        .map((row) => row
-            .map((k) => RegExp(r'^[a-zA-Z]$').hasMatch(k) && upper
-                ? k.toUpperCase()
-                : k)
-            .toList())
+        .map(
+          (row) => row
+              .map(
+                (k) => RegExp(r'^[a-zA-Z]$').hasMatch(k) && upper
+                    ? k.toUpperCase()
+                    : k,
+              )
+              .toList(),
+        )
         .toList();
   }
 
@@ -198,8 +202,9 @@ class PaymentDetailCustomKeyboardWidgetAll2 extends StatelessWidget {
                               () => provider.setPressedKey(null),
                             );
                           },
-                          onLongPress:
-                              key == '⌫' ? () => controller.clear() : null,
+                          onLongPress: key == '⌫'
+                              ? () => controller.clear()
+                              : null,
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 120),
                             margin: const EdgeInsets.all(6),

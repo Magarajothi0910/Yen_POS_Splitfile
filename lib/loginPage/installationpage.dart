@@ -12,8 +12,7 @@ import 'package:yenpos/Server_Client/serverScreen.dart';
 import 'provider/deviceProvider.dart';
 
 class InstallPOSApp extends StatefulWidget {
-
-  const InstallPOSApp({super.key, });
+  const InstallPOSApp({super.key});
   @override
   _InstallKOTAppState createState() => _InstallKOTAppState();
 }
@@ -29,33 +28,37 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
   }
 
   Future<void> checkForStoredDeviceCode() async {
-
     try {
       var box = await Hive.openBox('deviceData');
 
       final storedDeviceCode = box.get('deviceCode');
+      final storedBranchName = box.get('branchName');
 
-      if (storedDeviceCode != null && storedDeviceCode.isNotEmpty) {
-        if (!mounted) {
-          return;
-        }
+      // ✅ If both device code and branch name exist
+      if (storedDeviceCode != null &&
+          storedDeviceCode.isNotEmpty &&
+          storedBranchName != null &&
+          storedBranchName.isNotEmpty) {
+        // Set global alias name
+        globals.aliasname = storedBranchName;
 
+        if (!mounted) return;
+
+        // Navigate to login directly
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(
-            builder: (context) => LoginScreen(),
-          ),
+          MaterialPageRoute(builder: (context) => LoginScreen()),
         );
       } else {
-        if (!mounted) {
-          return;
-        }
+        // No stored data → show device code dialog
+        if (!mounted) return;
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
           showDeviceCodeDialog();
         });
       }
     } catch (e, stackTrace) {
+      debugPrint("Error checking stored device data: $e");
     }
   }
 
@@ -262,7 +265,7 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
             deviceData = device;
           });
 
-          if (device['status'] == '1') {
+          if (device['status'] == 'active') {
             if (!mounted) return;
             showConfirmationDialog(device['branchName']);
           } else {
@@ -415,12 +418,11 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
                                     listen: false,
                                   );
                               try {
-
-                                globals.aliasname = deviceData!['branchName'];
+                                globals.aliasname = deviceData!['aliasName'];
                                 // Store the device data
                                 await deviceProvider.storeDeviceData(
                                   deviceData!['deviceCode'],
-                                  deviceData!['branchName'],
+                                  deviceData!['aliasName'],
                                   deviceData!['deviceCodeId'],
                                 );
 

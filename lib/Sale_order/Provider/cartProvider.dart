@@ -44,7 +44,7 @@ class CartItem {
 
 class CartProvider extends ChangeNotifier {
   final List<CartItem> _closingStockItems = []; // Closing stock cart
-  late Box _cartBox;
+
   final List<List<CartItem>> _savedBills = [];
   int? _currentBillIndex; // Tracks the index of the currently loaded bill
   List<bool> itemSelections = [];
@@ -102,7 +102,6 @@ class CartProvider extends ChangeNotifier {
   }
 
   void addItemToCart(CartItem newItem) {
-    // Check if an item with the same name and UOM exists but with different attributes
     int existingItemIndex = globals.cartItems.indexWhere(
       (item) =>
           item.varianceName == newItem.varianceName &&
@@ -110,20 +109,14 @@ class CartProvider extends ChangeNotifier {
           item.uom == newItem.uom &&
           item.weight == newItem.weight,
     );
-    globals.cartItemCount = 2;
 
     if (existingItemIndex != -1) {
-      // Update quantity for identical items
       globals.cartItems[existingItemIndex].quantity += newItem.quantity;
-      _cartItems = globals.cartItems;
-      notifyListeners();
     } else {
-      // Add a new entry for items with different weights or attributes
       globals.cartItems.add(newItem);
-      _cartItems = globals.cartItems;
-      notifyListeners();
     }
 
+    _cartItems = globals.cartItems;
     notifyListeners();
   }
 
@@ -143,7 +136,7 @@ class CartProvider extends ChangeNotifier {
 
   void clearCart() async {
     globals.cartItems.clear();
-
+    _cartItems.clear();
     customChargeController.clear();
     notifyListeners();
   }
@@ -237,15 +230,10 @@ class CartProvider extends ChangeNotifier {
       totalAmount += itemTotal;
     }
 
-    notifyListeners();
-
-    // Adding custom charge
     final customCharge = double.tryParse(customChargeController.text) ?? 0;
     totalAmount += customCharge;
-
     notifyListeners();
-
-    return totalAmount;
+    return totalAmount; // ✅ No notifyListeners here
   }
 
   void updateCart() {
@@ -254,7 +242,7 @@ class CartProvider extends ChangeNotifier {
 
   void setCustomChargeValue(String value) {
     customChargeController.text = value;
-    notifyListeners(); // this triggers UI rebuild
+    notifyListeners(); // ✅ only call here, not in the getter
   }
 
   double calculateSubtotal() {

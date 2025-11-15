@@ -360,41 +360,31 @@ class ItemProvider with ChangeNotifier {
     return 'Alias Not Found';
   }
 
-  Future<String?> getBranchNameFromAlias(String aliasName) async {
-    // Step 1: Validate input
+  Future<Map<String, String>?> getBranchInfoFromAlias(String aliasName) async {
     if (aliasName.trim().isEmpty) {
-      return 'Invalid alias name';
+      return null;
     }
 
-    // Step 2: Check if branches list exists
     final branchesData = GlobalDataManager().branches;
-    if (branchesData == null) {
-      return 'Branches list not available';
+    if (branchesData == null || branchesData is! List) {
+      return null;
     }
 
-    if (branchesData is! List) {
-      return 'Invalid branches format';
-    }
-
-    final branches = branchesData as List;
-
-    // Step 3: Print all available aliases (for debugging visibility)
-    for (int i = 0; i < branches.length; i++) {}
-
-    // Step 4: Search for branch by alias name (case-insensitive match for robustness)
-    final branch = branches.firstWhere(
+    final branch = (branchesData as List).firstWhere(
       (b) =>
           (b['aliasName']?.toString().trim().toLowerCase() ?? '') ==
           aliasName.trim().toLowerCase(),
       orElse: () => null,
     );
 
-    // Step 5: Handle result
     if (branch != null) {
-      final branchName = branch['branchName']?.toString() ?? 'Unknown Branch';
-      return branchName;
+      return {
+        'branchName': branch['branchName'].toString() ?? 'Unknown Branch',
+        'address': branch['address'].toString() ?? 'Address Not Available',
+        'phone': branch['phoneNumber'].toString() ?? 'Phone Not Available',
+      };
     } else {
-      return 'Branch Not Found';
+      return null;
     }
   }
 

@@ -8,16 +8,102 @@ import 'package:hive_flutter/hive_flutter.dart';
 // import '../../model/sales_order_model.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
+import 'package:yenpos/Notification/notification_service.dart';
+import 'package:yenpos/Notification/websocket_service.dart';
 import 'package:yenpos/Sale_order/Models/sales_order_display_model.dart';
 import 'package:yenpos/Sale_order/Print_Receipt/allorderprint.dart';
+import 'package:yenpos/Sale_order/Widgets/Send_data_to_server.dart';
+import 'package:yenpos/Server_Client/handlers/webscoket_messgae_handler.dart';
 import 'package:yenpos/Server_Client/websocketService.dart';
 import 'package:yenpos/transactionPage/Model/transaction_model.dart';
 
 class ApiServiceSalesOrderProvider extends ChangeNotifier {
-  ApiServiceSalesOrderProvider({required this.webSocketService}) {
-    fetchOrdersFromHive();
+  final NotificationWebSocketService _wsService =
+      NotificationWebSocketService();
+  final String _wsUrl = 'wss://yenerp.com/fastapi/salesorders/ws';
+  bool _isDisposed = false;
+  String _lastUpdateMessage = '';
+  String get lastUpdateMessage => _lastUpdateMessage;
 
+  ApiServiceSalesOrderProvider() {
+    fetchOrdersFromHive();
     setupHiveListener();
+
+    // Initialize notifications
+    NotificationService.init();
+
+    // Connect after short delay
+    Future.delayed(const Duration(seconds: 2), () {
+      connectWebSocket();
+    });
+  }
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    _wsService.disconnect();
+    super.dispose();
+  }
+
+  /// 🔗 Connects to WebSocket safely with auto-reconnect
+  void connectWebSocket() {
+    if (_isDisposed) return;
+
+    try {
+      _wsService.connect(_wsUrl);
+
+      _wsService.channel?.stream.listen(
+        _handleWebSocketMessage,
+        onError: (error) {
+          print("⚠️ WebSocket error: $error. Reconnecting in 5s...");
+          _reconnect();
+        },
+        onDone: () {
+          print("⚠️ WebSocket closed. Reconnecting in 5s...");
+          _reconnect();
+        },
+        cancelOnError: true,
+      );
+    } catch (e) {
+      print("❌ WebSocket connect exception: $e");
+      _reconnect();
+    }
+  }
+
+  void _reconnect() {
+    if (_isDisposed) return;
+    _wsService.disconnect();
+    Future.delayed(const Duration(seconds: 5), () {
+      if (!_isDisposed) connectWebSocket();
+    });
+  }
+
+  Future<void> _handleWebSocketMessage(dynamic rawMessage) async {
+    try {
+      final data = jsonDecode(rawMessage);
+      final type = data['type'];
+      final messageText = data['message'] ?? 'Update received';
+      final payload = data['data'] ?? {};
+
+      print("📩 WebSocket message → $data");
+      if (type == 'salesOrder_updated' || type == 'dispatch_received') {
+        _lastUpdateMessage = messageText;
+        notifyListeners();
+
+        // Show notification
+        await NotificationService.showNotification(
+          type == 'salesOrder_updated'
+              ? 'Sale Order Updated'
+              : 'Dispatch Received',
+          messageText,
+        );
+
+        // Sync updated data to server
+        await sendataToServer({"type": type, "data": payload});
+      }
+    } catch (e) {
+      print("❌ Failed to parse WebSocket message: $rawMessage | Error: $e");
+    }
   }
 
   late salesInvoiceReceiptPrinter receiptPrinter;
@@ -36,8 +122,7 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
   /// ✅ Fetch Orders
   Future<void> fetchOrdersFromHive() async {
     try {
-      List<Map<String, dynamic>> hiveOrders = await webSocketService
-          .getSavedSalesOrders();
+      List<Map<String, dynamic>> hiveOrders = await getSavedSalesOrders();
 
       for (var order in hiveOrders) {}
 
@@ -84,31 +169,58 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
   }
 
   void filterOrdersByStatus(String selectedFilter) {
+    print("🔹 [FILTER] Requested filter: $selectedFilter");
+
+    // Step 1: Handle "All Order" case
     if (selectedFilter == "All Order") {
       _hivefilteredAllOrders = List.from(_rawOrders);
+      print(
+        "✅ [FILTER] Showing all orders. Total: ${_hivefilteredAllOrders.length}",
+      );
     } else {
+      // Step 2: Map display name to actual status string
       String targetStatus = selectedFilter;
 
-      // Handle special mapping
       if (selectedFilter == "Cancel") {
         targetStatus = "Cancel Order";
       } else if (selectedFilter == "Confirm") {
-        targetStatus = "Confirm Order"; // Map "Confirm" to actual status
+        targetStatus = "Confirm Order";
       } else if (selectedFilter == "Pending") {
-        targetStatus = "Waiting for approval"; // Map "Confirm" to actual status
+        targetStatus = "Waiting for approval";
       }
 
+      print("🧭 [FILTER] Mapped '$selectedFilter' → '$targetStatus'");
+
+      // Step 3: Filter the list
       _hivefilteredAllOrders = _rawOrders.where((order) {
+        // Check if order has a valid data structure
         if (order.containsKey("data") && order["data"].containsKey("status")) {
-          String orderStatus = order["data"]["status"].toString();
-          return orderStatus.toLowerCase() == targetStatus.toLowerCase();
+          final orderStatus = order["data"]["status"].toString();
+          final isMatch =
+              orderStatus.toLowerCase() == targetStatus.toLowerCase();
+
+          // Detailed per-item debug
+          print(
+            "🔍 Checking order ID: ${order['data']['id'] ?? 'N/A'} "
+            "| Status: $orderStatus | Match: $isMatch",
+          );
+
+          return isMatch;
         } else {
+          print(
+            "⚠️ Skipping invalid order entry: Missing 'data' or 'status' field",
+          );
           return false;
         }
       }).toList();
+
+      print("📊 [FILTER] Matched orders: ${_hivefilteredAllOrders.length}");
     }
 
-    // Notify UI
+    // Step 4: Update UI
+    print(
+      "🔁 [FILTER] UI notified to refresh with ${_hivefilteredAllOrders.length} items.",
+    );
     notifyListeners();
   }
 
@@ -171,7 +283,6 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
   bool isLoadingMore = false;
   int currentPage = 1;
   final int pageSize = 10;
-  final WebSocketService webSocketService;
 
   List<SalesOrderDisplay> _salesOrders = [];
   List<SalesOrderDisplay> get salesOrders => _salesOrders;
@@ -223,9 +334,7 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
     try {
       // Fetch original sales orders
       final salesOrderResponse = await http.get(
-        Uri.parse(
-          'http://192.168.29.246:8881/fastapi/salesorders/withoutpagination/',
-        ),
+        Uri.parse('https://yenerp.com/fastapi/salesorders/withoutpagination/'),
       );
 
       if (salesOrderResponse.statusCode == 200) {
@@ -264,7 +373,7 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
 
       // Fetch modified orders
       final modifiedOrderResponse = await http.get(
-        Uri.parse('http://192.168.29.246:8881/fastapi/modify/'),
+        Uri.parse('https://yenerp.com/fastapi/modify/'),
       );
       if (modifiedOrderResponse.statusCode == 200) {
         final modifiedOrderData =
@@ -278,7 +387,7 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
 
       // Fetch toApprove orders
       final toApproveResponse = await http.get(
-        Uri.parse('http://192.168.29.246:8881/fastapi/toapprove/'),
+        Uri.parse('https://yenerp.com/fastapi/toapprove/'),
       );
       if (toApproveResponse.statusCode == 200) {
         final toApproveData = jsonDecode(toApproveResponse.body) as List;
@@ -417,45 +526,160 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
   }
 
   void searchOrders(String query) {
-    final trimmedQuery = query.trim().toLowerCase();
+    print("🔍 searchOrders called with query: '$query'");
 
-    // Print full raw orders before filtering
-    for (var i = 0; i < _rawOrders.length; i++) {}
+    try {
+      final trimmedQuery = query.trim().toLowerCase();
+      print("📏 Trimmed Query: '$trimmedQuery'");
 
-    if (trimmedQuery.isEmpty) {
-      _hivefilteredAllOrders = List.from(_rawOrders);
-    } else {
-      _hivefilteredAllOrders = _rawOrders.where((order) {
-        if (order is Map) {
-          // Convert to Map<String, dynamic> safely
-          final data = order['data'] != null
-              ? Map<String, dynamic>.from(order['data'] as Map)
-              : <String, dynamic>{};
+      // Function to filter a list of orders
+      List<Map<String, dynamic>> filterOrders(
+        List<Map<String, dynamic>> orders,
+      ) {
+        if (trimmedQuery.isEmpty) return List.from(orders);
 
-          String customerName =
-              data['customerName']?.toString().toLowerCase() ?? '';
-          String customerNumber =
-              data['customerNumber']?.toString().toLowerCase() ?? '';
-          String salesOrderId =
-              data['saleOrderNo']?.toString().toLowerCase() ?? '';
-          String event = data['event']?.toString().toLowerCase() ?? '';
+        return orders.where((order) {
+          if (order is Map) {
+            final data = order['data'] != null
+                ? Map<String, dynamic>.from(order['data'] as Map)
+                : <String, dynamic>{};
 
-          bool match =
-              customerName.contains(trimmedQuery) ||
-              customerNumber.contains(trimmedQuery) ||
-              salesOrderId.contains(trimmedQuery) ||
-              event.contains(trimmedQuery);
+            final customerName =
+                data['customerName']?.toString().toLowerCase() ?? '';
+            final customerNumber =
+                data['customerNumber']?.toString().toLowerCase() ?? '';
+            final salesOrderId =
+                data['saleOrderNo']?.toString().toLowerCase() ?? '';
+            final event = data['event']?.toString().toLowerCase() ?? '';
 
-          return match;
-        }
-        return false;
-      }).toList();
+            final match =
+                customerName.contains(trimmedQuery) ||
+                customerNumber.contains(trimmedQuery) ||
+                salesOrderId.contains(trimmedQuery) ||
+                event.contains(trimmedQuery);
+
+            if (match) {
+              print(
+                "✅ Match found: customer=$customerName, number=$customerNumber, orderNo=$salesOrderId, event=$event",
+              );
+            }
+
+            return match;
+          } else {
+            print("⚠️ Skipping non-Map order: $order");
+            return false;
+          }
+        }).toList();
+      }
+
+      // Apply filter to both lists
+      _hivefilteredOrders = filterOrders(_rawOrders);
+      _hivefilteredAllOrders = filterOrders(_rawOrders);
+
+      print("🔎 Filtered current orders count: ${_hivefilteredOrders.length}");
+      print("🔎 Filtered all orders count: ${_hivefilteredAllOrders.length}");
+
+      // Notify listeners
+      if (hasListeners) {
+        notifyListeners();
+      }
+    } catch (e, st) {
+      print("❌ Error in searchOrders: $e");
+      print("📜 Stack trace:\n$st");
     }
 
-    // Print filtered orders after filtering
-    for (var i = 0; i < _hivefilteredAllOrders.length; i++) {}
+    print("✅ searchOrders completed.\n");
+  }
 
-    notifyListeners();
+  // 🔍 Search only hivefilteredOrders
+  void searchHiveFilteredOrders(String query) {
+    print("🔍 searchHiveFilteredOrders called with query: '$query'");
+
+    try {
+      final trimmedQuery = query.trim().toLowerCase();
+      print("📏 Trimmed Query: '$trimmedQuery'");
+
+      List<Map<String, dynamic>> filterOrders(
+        List<Map<String, dynamic>> orders,
+      ) {
+        if (trimmedQuery.isEmpty) return List.from(orders);
+
+        return orders.where((order) {
+          if (order is Map) {
+            final data = order['data'] != null
+                ? Map<String, dynamic>.from(order['data'] as Map)
+                : <String, dynamic>{};
+
+            final customerName =
+                data['customerName']?.toString().toLowerCase() ?? '';
+            final customerNumber =
+                data['customerNumber']?.toString().toLowerCase() ?? '';
+            final salesOrderId =
+                data['saleOrderNo']?.toString().toLowerCase() ?? '';
+            final event = data['event']?.toString().toLowerCase() ?? '';
+
+            return customerName.contains(trimmedQuery) ||
+                customerNumber.contains(trimmedQuery) ||
+                salesOrderId.contains(trimmedQuery) ||
+                event.contains(trimmedQuery);
+          }
+          return false;
+        }).toList();
+      }
+
+      _hivefilteredOrders = filterOrders(_rawOrders);
+      print("✅ hivefilteredOrders count: ${_hivefilteredOrders.length}");
+
+      if (hasListeners) notifyListeners();
+    } catch (e, st) {
+      print("❌ Error in searchHiveFilteredOrders: $e");
+      print(st);
+    }
+  }
+
+  void searchHiveFilteredAllOrders(String query) {
+    print("🔍 searchHiveFilteredAllOrders called with query: '$query'");
+
+    try {
+      final trimmedQuery = query.trim().toLowerCase();
+      print("📏 Trimmed Query: '$trimmedQuery'");
+
+      List<Map<String, dynamic>> filterOrders(
+        List<Map<String, dynamic>> orders,
+      ) {
+        if (trimmedQuery.isEmpty) return List.from(orders);
+
+        return orders.where((order) {
+          if (order is Map) {
+            final data = order['data'] != null
+                ? Map<String, dynamic>.from(order['data'] as Map)
+                : <String, dynamic>{};
+
+            final customerName =
+                data['customerName']?.toString().toLowerCase() ?? '';
+            final customerNumber =
+                data['customerNumber']?.toString().toLowerCase() ?? '';
+            final salesOrderId =
+                data['saleOrderNo']?.toString().toLowerCase() ?? '';
+            final event = data['event']?.toString().toLowerCase() ?? '';
+
+            return customerName.contains(trimmedQuery) ||
+                customerNumber.contains(trimmedQuery) ||
+                salesOrderId.contains(trimmedQuery) ||
+                event.contains(trimmedQuery);
+          }
+          return false;
+        }).toList();
+      }
+
+      _hivefilteredAllOrders = filterOrders(_rawOrders);
+      print("✅ hivefilteredAllOrders count: ${_hivefilteredAllOrders.length}");
+
+      if (hasListeners) notifyListeners();
+    } catch (e, st) {
+      print("❌ Error in searchHiveFilteredAllOrders: $e");
+      print(st);
+    }
   }
 
   // bool _isLoading = false;

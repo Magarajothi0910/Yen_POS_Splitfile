@@ -36,6 +36,7 @@ class salesOrderReceiptPrinter {
   List<double> advanceAmount;
   double balanceAmount;
   String customerType;
+  String editAbout;
 
   // final BuildContext context;
   final TextEditingController customAmountController;
@@ -60,6 +61,7 @@ class salesOrderReceiptPrinter {
     required this.advanceAmount,
     required this.saleOrderNo,
     required this.balanceAmount,
+    required this.editAbout,
 
     // required this.context,
     required this.customerType,
@@ -69,8 +71,6 @@ class salesOrderReceiptPrinter {
 
     // required this.saveInvoiceToHiveAndPrint,
   });
-  // ✅ Correct (store patchId as String)
-  final Map<String, bool> _printedOrders = {};
 
   Future<void> patchprintReceiptDetails() async {
     String employeeName = employeeNameController.text;
@@ -90,19 +90,30 @@ class salesOrderReceiptPrinter {
     } else {
       paymentAmount = 'Rs ${totalAmount.toStringAsFixed(0)}';
     }
+    // 🔹 Dynamically decide the receipt header based on editAbout
+    String receiptTitle;
 
-    // ✅ Check if this order was already printed
-    if (_printedOrders[salesOrderNumber] == true) {
-      return; // exit early, don't print again
+    switch (editAbout.trim().toLowerCase()) {
+      case 'add advance':
+        receiptTitle = 'Advance Added Receipt';
+        break;
+      case 'edit order':
+        receiptTitle = 'Order Edited Receipt';
+        break;
+      case 'cancel order':
+        receiptTitle = 'Order Cancelled Receipt';
+        break;
+      default:
+        receiptTitle = 'Modified Order Receipt';
     }
-
-    // Mark this SaleOrder as printed
-    _printedOrders[salesOrderNumber] = true;
-
+    String fullEmployeeName = employeeNameController.text.trim();
+    String employeeDisplayName = fullEmployeeName.contains('-')
+        ? fullEmployeeName.split('-').last.trim()
+        : fullEmployeeName;
     var cartItems = globals.cartItems ?? [];
 
     // Printer connection
-    String printerIp = '192.168.1.87';
+    String printerIp = '192.168.1.90';
 
     final profile = await CapabilityProfile.load();
 
@@ -115,33 +126,70 @@ class salesOrderReceiptPrinter {
       final generator = Generator(PaperSize.mm80, profile);
 
       bytes = []; // Reset bytes for each copy
+      bytes = []; // Reset bytes for each copy
+      try {
+        final box = Hive.box('logo');
+        final Uint8List? imageBytes = box.get('BMlogo_bytes');
+        final String? logoName = box.get('BMlogo_name');
+
+        if (imageBytes != null) {
+          final img.Image? logo = img.decodeImage(imageBytes);
+
+          if (logo != null) {
+            final img.Image whiteBg = img.Image(logo.width, logo.height);
+            img.fill(whiteBg, img.getColor(255, 255, 255));
+            img.copyInto(whiteBg, logo, blend: true);
+
+            final img.Image gray = img.grayscale(whiteBg);
+            img.Image binaryThreshold(img.Image src, int threshold) {
+              final out = img.Image.from(src);
+              for (int y = 0; y < out.height; y++) {
+                for (int x = 0; x < out.width; x++) {
+                  final int p = out.getPixel(x, y);
+                  final int r = img.getRed(p);
+                  final int g = img.getGreen(p);
+                  final int b = img.getBlue(p);
+                  final int lum = ((r * 299 + g * 587 + b * 114) ~/ 1000);
+                  if (lum < threshold) {
+                    out.setPixelRgba(x, y, 0, 0, 0, 255);
+                  } else {
+                    out.setPixelRgba(x, y, 255, 255, 255, 255);
+                  }
+                }
+              }
+              return out;
+            }
+
+            final img.Image thresholded = binaryThreshold(gray, 180);
+            final img.Image resized = img.copyResize(thresholded, width: 250);
+            final int remainder = resized.height % 8;
+            img.Image aligned = resized;
+            if (remainder != 0) {
+              final int newHeight = resized.height + (8 - remainder);
+              aligned = img.Image(resized.width, newHeight);
+              img.fill(aligned, img.getColor(255, 255, 255));
+              img.copyInto(aligned, resized, dstY: 0);
+            }
+
+            bytes += generator.image(aligned, align: PosAlign.center);
+          }
+        } else {}
+      } catch (e, st) {}
 
       bytes += generator.row([
         createPosColumn(
           width: 12,
-          text: 'BestMummy',
+          text: receiptTitle,
           styles: createPosStyles(
             align: PosAlign.center,
-            height: PosTextSize.size1,
-            width: PosTextSize.size1,
             codeTable: 'CP1252',
-          ),
-        ),
-      ]);
-      bytes += generator.row([
-        createPosColumn(
-          width: 12,
-          text: 'Sweets & Cakes',
-          styles: createPosStyles(
-            align: PosAlign.center,
-            height: PosTextSize.size1,
-            width: PosTextSize.size1,
-            codeTable: 'CP1252',
+            height: PosTextSize.size2,
+            width: PosTextSize.size2,
+            bold: true,
           ),
         ),
       ]);
       bytes += generator.feed(1);
-
       // Sale Order Number (just below, bold)
       bytes += generator.row([
         createPosColumn(
@@ -150,7 +198,7 @@ class salesOrderReceiptPrinter {
           styles: createPosStyles(
             align: PosAlign.center,
             codeTable: 'CP1252',
-            height: PosTextSize.size2, // bigger for emphasis
+            height: PosTextSize.size1, // bigger for emphasis
             width: PosTextSize.size2,
             bold: true,
           ),
@@ -191,25 +239,7 @@ class salesOrderReceiptPrinter {
       bytes += generator.row([
         createPosColumn(
           width: 6,
-          text: 'Branch : Aranmanai',
-          styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
-        ),
-        createPosColumn(
-          width: 6,
-          text: customerType == 'SalesOrder'
-              ? 'saleOrderNo:101'
-              : 'creditBillNo:101',
-          styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
-        ),
-      ]);
-
-      bytes += generator.feed(1);
-
-      // Print Sales Person and Customer Number on the same line
-      bytes += generator.row([
-        createPosColumn(
-          width: 6,
-          text: 'SalesPerson : ${employeeNameController.text}',
+          text: 'Branch : ${globals.branchName}',
           styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
         ),
         createPosColumn(
@@ -220,6 +250,24 @@ class salesOrderReceiptPrinter {
       ]);
 
       bytes += generator.feed(1);
+
+      // Print Sales Person and Customer Number on the same line
+      bytes += generator.row([
+        createPosColumn(
+          width: 12,
+          text: 'SalesPerson : $employeeDisplayName',
+          styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
+        ),
+      ]);
+
+      bytes += generator.feed(1);
+      bytes += generator.row([
+        createPosColumn(
+          width: 12,
+          text: '----------------------------------------------',
+          styles: createPosStyles(align: PosAlign.center),
+        ),
+      ]);
 
       // Add headers for S.No, Item, Price, Qty, and Amount
       bytes += generator.row([
@@ -249,7 +297,13 @@ class salesOrderReceiptPrinter {
           styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
         ),
       ]);
-
+      bytes += generator.row([
+        createPosColumn(
+          width: 12,
+          text: '----------------------------------------------',
+          styles: createPosStyles(align: PosAlign.center),
+        ),
+      ]);
       bytes += generator.feed(1);
 
       double taxVaule = 0.0;
@@ -485,11 +539,13 @@ class salesOrderReceiptPrinter {
         ),
       ]);
 
-      // 🔹 Separator
-      bytes += generator.text(
-        "---------------------------",
-        styles: createPosStyles(align: PosAlign.center, codeTable: 'CP1252'),
-      );
+      bytes += generator.row([
+        createPosColumn(
+          width: 12,
+          text: '----------------------------------------------',
+          styles: createPosStyles(align: PosAlign.center, codeTable: 'CP1252'),
+        ),
+      ]);
 
       // 🔹 Advance Amount with Date & Time (Left) and Amount (Right)
       if (advanceAmount.isNotEmpty &&
@@ -537,30 +593,36 @@ class salesOrderReceiptPrinter {
       // Inside _printReceiptDetails function
       bytes += generator.feed(1);
 
-      const int maxLineWidth = 18;
-      List<String> addressLines = splitAddress(
-        "No.45, Raja Veethi, Aranmanai, Ramanathapuram, Tamil Nadu-623501",
-      );
+      List<String> addressLines = splitAddress(globals.branchAddress);
 
-      for (int i = 0; i < addressLines.length; i++) {
+      // Print address lines
+      for (var line in addressLines) {
         bytes += generator.row([
           createPosColumn(
             width: 12,
-            text: addressLines[i],
+            text: line,
             styles: createPosStyles(
-              align: PosAlign.center, // Center the text
+              align: PosAlign.center,
               codeTable: 'CP1252',
             ),
           ),
         ]);
       }
-      bytes += generator.row([
-        createPosColumn(
-          width: 12,
-          text: 'Phone : 9342978427',
-          styles: createPosStyles(align: PosAlign.center, codeTable: 'CP1252'),
-        ),
-      ]);
+
+      // Print phone number
+      if (globals.branchPhoneno.isNotEmpty) {
+        bytes += generator.row([
+          createPosColumn(
+            width: 12,
+            text: 'Phone : ${globals.branchPhoneno}',
+            styles: createPosStyles(
+              align: PosAlign.center,
+              codeTable: 'CP1252',
+            ),
+          ),
+        ]);
+      }
+
       bytes += generator.row([
         createPosColumn(
           width: 6,
@@ -582,7 +644,6 @@ class salesOrderReceiptPrinter {
           styles: createPosStyles(align: PosAlign.center, codeTable: 'CP1252'),
         ),
       ]);
-      bytes += generator.feed(2);
 
       bytes += generator.feed(1);
       bytes += generator.qrcode(
@@ -597,7 +658,6 @@ class salesOrderReceiptPrinter {
       ); // Send the bytes to the printer
 
       printer.disconnect();
-      _printedOrders[salesOrderNumber] = false; // Reset after printing
     } else {}
     // Navigator.of(context).pop();
     // cartProvider.clearCart();
@@ -622,30 +682,10 @@ class salesOrderReceiptPrinter {
       paymentAmount = 'Rs ${totalAmount.toStringAsFixed(0)}';
     }
 
-    // Cart items
     var cartItems = globals.cartItems ?? [];
-    // -----------------------------
-    // 1️⃣ Store the selected branch in a variable
-    // -----------------------------
-    Map<String, dynamic>? selectedBranch;
-    for (var b in GlobalDataManager().branches) {
-      if (b['branchName'] == globals.branchName) {
-        selectedBranch = b;
-        break;
-      }
-    }
 
-    // -----------------------------
-    // 2️⃣ Use the branch info if available
-    // -----------------------------
-    String branchAddress = '';
-    String branchPhone = '';
-    if (selectedBranch != null) {
-      branchAddress = selectedBranch['address'] ?? '';
-      branchPhone = selectedBranch['phoneNumber'] ?? '';
-    }
-
-    String printerIp = '192.168.1.87';
+    // Printer connection
+    String printerIp = '192.168.1.90';
 
     final profile = await CapabilityProfile.load();
 
@@ -654,9 +694,15 @@ class salesOrderReceiptPrinter {
     // Connect to printer
     final PosPrintResult res = await printer.connect(printerIp, port: 9100);
     if (res == PosPrintResult.success) {
+      print('[ERROR] Failed to connect to printer.');
+
       List<int> bytes;
       final generator = Generator(PaperSize.mm80, profile);
-
+      // Extract only the salesperson’s name (remove any code before " - ")
+      String fullEmployeeName = employeeNameController.text.trim();
+      String employeeDisplayName = fullEmployeeName.contains('-')
+          ? fullEmployeeName.split('-').last.trim()
+          : fullEmployeeName;
       for (int copy = 0; copy < 2; copy++) {
         bytes = []; // Reset bytes for each copy
         try {
@@ -705,10 +751,8 @@ class salesOrderReceiptPrinter {
 
               bytes += generator.image(aligned, align: PosAlign.center);
             }
-          } else {
-          }
-        } catch (e, st) {
-        }
+          } else {}
+        } catch (e, st) {}
 
         bytes += generator.row([
           createPosColumn(
@@ -722,6 +766,8 @@ class salesOrderReceiptPrinter {
             ),
           ),
         ]);
+        bytes += generator.feed(1);
+
         // Sale Order Number (just below, bold)
         bytes += generator.row([
           createPosColumn(
@@ -751,9 +797,9 @@ class salesOrderReceiptPrinter {
             styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
           ),
         ]);
-
         bytes += generator.feed(1);
 
+        // Delivery Date & Time
         bytes += generator.row([
           createPosColumn(
             width: 6,
@@ -762,16 +808,17 @@ class salesOrderReceiptPrinter {
           ),
           createPosColumn(
             width: 6,
-            text: 'Dl Time:$deliveryTimeprint',
+            text: 'Dl Time: $deliveryTimeprint',
             styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
           ),
         ]);
         bytes += generator.feed(1);
 
+        // Branch & Customer Number
         bytes += generator.row([
           createPosColumn(
             width: 6,
-            text: 'Branch : ${globals.branchName}',
+            text: 'Branch: ${globals.branchName}',
             styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
           ),
           createPosColumn(
@@ -780,14 +827,13 @@ class salesOrderReceiptPrinter {
             styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
           ),
         ]);
-
         bytes += generator.feed(1);
 
-        // Print Sales Person and Customer Number on the same line
+        // Salesperson (full width)
         bytes += generator.row([
           createPosColumn(
             width: 12,
-            text: 'SalesPerson : ${employeeNameController.text}',
+            text: 'SalesPerson: $employeeDisplayName',
             styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
           ),
         ]);
@@ -878,15 +924,7 @@ class salesOrderReceiptPrinter {
             priceDescription =
                 '${item.quantity.toStringAsFixed(0)} ${item.uom} × Rs.${item.pricePerKg.toStringAsFixed(0)}';
           }
-          // Split item name into lines of max 15 chars
-          List<String> itemNameLines = splitText(item.varianceName ?? '', 15);
 
-          // // Generate strike-through image for amount
-          // final imgBytes =
-          //     await textWithStrikeImage("Rs ${amount.toStringAsFixed(2)}");
-
-          // ---------------- Main row with S.No, Item Name (first line), and Amount ----------------
-          // Main row: S.No and item name
           bytes += generator.row([
             createPosColumn(
               width: 1,
@@ -1046,7 +1084,6 @@ class salesOrderReceiptPrinter {
                 ),
               ]);
             } catch (e) {
-
               // ✅ Still show advance amount even if date parsing fails
               double advAmt = (i < advanceAmount.length)
                   ? advanceAmount[i]
@@ -1132,7 +1169,7 @@ class salesOrderReceiptPrinter {
               bytes += generator.row([
                 createPosColumn(
                   width: 12,
-                  text: "Advance Paid: $advDate - $advTime",
+                  text: "Advance Paid Date: $advDate - $advTime",
                   styles: createPosStyles(align: PosAlign.left),
                 ),
               ]);
@@ -1145,7 +1182,7 @@ class salesOrderReceiptPrinter {
         bytes += generator.feed(1);
 
         const int maxLineWidth = 18;
-        List<String> addressLines = splitAddress(branchAddress);
+        List<String> addressLines = splitAddress(globals.branchAddress);
 
         // Print address lines
         for (var line in addressLines) {
@@ -1162,11 +1199,11 @@ class salesOrderReceiptPrinter {
         }
 
         // Print phone number
-        if (branchPhone.isNotEmpty) {
+        if (globals.branchPhoneno.isNotEmpty) {
           bytes += generator.row([
             createPosColumn(
               width: 12,
-              text: 'Phone : $branchPhone',
+              text: 'Phone : ${globals.branchPhoneno}',
               styles: createPosStyles(
                 align: PosAlign.center,
                 codeTable: 'CP1252',
@@ -1204,7 +1241,6 @@ class salesOrderReceiptPrinter {
             ),
           ),
         ]);
-        bytes += generator.feed(2);
 
         bytes += generator.feed(1);
         bytes += generator.qrcode(
@@ -1276,7 +1312,7 @@ class salesOrderReceiptPrinter {
         .toString()
         .substring(6); // Shortened timestamp
     const characters =
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123334419'; // Alphanumeric characters
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZ0125678989'; // Alphanumeric characters
     final randomId =
         List<int>.generate(6, (_) => random.nextInt(characters.length))
             .map((index) => characters[index])

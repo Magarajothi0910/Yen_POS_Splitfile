@@ -18,9 +18,7 @@ class AudioPlayerWidget extends StatelessWidget {
       create: (_) => AudioProvider()..loadAudio(filePath),
       builder: (context, child) {
         final provider = context.read<AudioProvider>();
-        provider.loadAudio(
-          filePath,
-        ); // Ensure the provider updates for a new ID
+        provider.loadAudio(filePath); // ⚠️ called again
         return const AudioPlayerContent();
       },
     );

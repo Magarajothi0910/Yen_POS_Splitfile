@@ -14,10 +14,14 @@ import '../../printer_screen/provider/printer_config_provider.dart';
 
 class PrintUtility {
   static Future<void> printSalesOrders(
-      BuildContext context, List<dynamic> salesOrders) async {
+    BuildContext context,
+    List<dynamic> salesOrders,
+  ) async {
     // Get printer IP from provider
-    final printerProvider =
-        Provider.of<PrinterProviderpos>(context, listen: false);
+    final printerProvider = Provider.of<PrinterProviderpos>(
+      context,
+      listen: false,
+    );
     String? printerIp = printerProvider.getOverallPrinterIp();
 
     // Load the printer profile
@@ -41,12 +45,14 @@ class PrintUtility {
     String formattedDate = "${now.day}/${now.month}/${now.year}";
 
     // Title
-    printer.setStyles(PosStyles(
-      align: PosAlign.center,
-      height: PosTextSize.size2,
-      width: PosTextSize.size2,
-      bold: true,
-    ));
+    printer.setStyles(
+      PosStyles(
+        align: PosAlign.center,
+        height: PosTextSize.size2,
+        width: PosTextSize.size2,
+        bold: true,
+      ),
+    );
     printer.text("Sales Orders");
     printer.hr();
 
@@ -71,9 +77,10 @@ class PrintUtility {
     printer.hr();
     printer.setStyles(PosStyles(align: PosAlign.center));
     printer.qrcode(
-        "Orders: ${salesOrders.length}, Total: ${_calculateTotal(salesOrders)}",
-        size: QRSize.Size8,
-        cor: QRCorrection.H);
+      "Orders: ${salesOrders.length}, Total: ${_calculateTotal(salesOrders)}",
+      size: QRSize.Size8,
+      cor: QRCorrection.H,
+    );
     printer.text("Order Summary");
     printer.text("Total Orders: ${salesOrders.length}");
     printer.text("Total Amount: ${_calculateTotal(salesOrders)}");
@@ -96,13 +103,14 @@ class PrintUtility {
     return total.toStringAsFixed(2);
   }
 
-// List<dynamic> todaySalesOrders = getTodaySalesOrders(); // Fetch today's orders
-// PrintUtility.printSalesOrders(context, todaySalesOrders);
+  // List<dynamic> todaySalesOrders = getTodaySalesOrders(); // Fetch today's orders
+  // PrintUtility.printSalesOrders(context, todaySalesOrders);
   List<dynamic> getTodaySalesOrders(dynamic allSalesOrders) {
     DateTime today = DateTime.now();
     return allSalesOrders.where((order) {
-      DateTime orderDate =
-          DateTime.parse(order.date); // Ensure date format matches
+      DateTime orderDate = DateTime.parse(
+        order.date,
+      ); // Ensure date format matches
       return orderDate.year == today.year &&
           orderDate.month == today.month &&
           orderDate.day == today.day;
@@ -112,16 +120,19 @@ class PrintUtility {
   static Future<void> printReceiptDetails(
     BuildContext context,
     List<SalesOrderDisplay>
-        salesOrder, // Ensure it's a list of SalesOrderDisplay
+    salesOrder, // Ensure it's a list of SalesOrderDisplay
   ) async {
     DateTime now = DateTime.now();
     String formattedDate = DateFormat('dd-MM-yyyy').format(now);
-    String formattedTime =
-        DateFormat('hh:mm a').format(now); // 12-hour format with AM/PM
-    final printerProvider =
-        Provider.of<PrinterProviderpos>(context, listen: false);
+    String formattedTime = DateFormat(
+      'hh:mm a',
+    ).format(now); // 12-hour format with AM/PM
+    final printerProvider = Provider.of<PrinterProviderpos>(
+      context,
+      listen: false,
+    );
     // String printerIp = printerProvider.getOverallPrinterIp().toString();
-    String printerIp = "192.168.1.87";
+    String printerIp = "192.168.1.90";
 
     final profile = await CapabilityProfile.load();
     final printer = NetworkPrinter(PaperSize.mm80, profile);
@@ -136,44 +147,54 @@ class PrintUtility {
       // Header
       bytes += generator.row([
         createPosColumn(
-            width: 12,
-            text: '                  BestMummy',
-            styles: createPosStyles(
-              align: PosAlign.center,
-              height: PosTextSize.size1,
-              width: PosTextSize.size1,
-              codeTable: 'CP1252',
-              bold: true,
-            )),
+          width: 12,
+          text: '                  BestMummy',
+          styles: createPosStyles(
+            align: PosAlign.center,
+            height: PosTextSize.size1,
+            width: PosTextSize.size1,
+            codeTable: 'CP1252',
+            bold: true,
+          ),
+        ),
       ]);
       //  bytes += generator.feed(1);
 
       bytes += generator.row([
         createPosColumn(
-            width: 12,
-            text: '                  Sweets & Cakes',
-            styles: createPosStyles(
-              align: PosAlign.center,
-              height: PosTextSize.size1,
-              width: PosTextSize.size1,
-              codeTable: 'CP1252',
-              bold: true,
-            )),
+          width: 12,
+          text: '                  Sweets & Cakes',
+          styles: createPosStyles(
+            align: PosAlign.center,
+            height: PosTextSize.size1,
+            width: PosTextSize.size1,
+            codeTable: 'CP1252',
+            bold: true,
+          ),
+        ),
       ]);
       bytes += generator.feed(2);
 
       // Print Branch and Date
       bytes += generator.row([
         createPosColumn(
-            width: 6,
-            text: 'Branch: Aranmanai',
-            styles: createPosStyles(
-                align: PosAlign.left, codeTable: 'CP1252', bold: false)),
+          width: 6,
+          text: 'Branch: Aranmanai',
+          styles: createPosStyles(
+            align: PosAlign.left,
+            codeTable: 'CP1252',
+            bold: false,
+          ),
+        ),
         createPosColumn(
-            width: 6,
-            text: '       Date: $formattedDate',
-            styles: createPosStyles(
-                align: PosAlign.left, codeTable: 'CP1252', bold: false)),
+          width: 6,
+          text: '       Date: $formattedDate',
+          styles: createPosStyles(
+            align: PosAlign.left,
+            codeTable: 'CP1252',
+            bold: false,
+          ),
+        ),
       ]);
 
       bytes += generator.feed(1);
@@ -184,15 +205,16 @@ class PrintUtility {
 
         bytes += generator.row([
           createPosColumn(
-              width: 12,
-              text: 'Sales Order No: ${orderItem.saleOrderNo}',
-              styles: createPosStyles(
-                align: PosAlign.center,
-                codeTable: 'CP1252',
-                height: PosTextSize.size2,
-                width: PosTextSize.size1,
-                bold: true,
-              )),
+            width: 12,
+            text: 'Sales Order No: ${orderItem.saleOrderNo}',
+            styles: createPosStyles(
+              align: PosAlign.center,
+              codeTable: 'CP1252',
+              height: PosTextSize.size2,
+              width: PosTextSize.size1,
+              bold: true,
+            ),
+          ),
         ]);
 
         bytes += generator.feed(1);
@@ -200,20 +222,32 @@ class PrintUtility {
         // bytes += generator.feed(1);
         bytes += generator.row([
           createPosColumn(
-              width: 3,
-              text: 'S.NO ',
-              styles: createPosStyles(
-                  align: PosAlign.left, codeTable: 'CP1255', bold: true)),
+            width: 3,
+            text: 'S.NO ',
+            styles: createPosStyles(
+              align: PosAlign.left,
+              codeTable: 'CP1255',
+              bold: true,
+            ),
+          ),
           createPosColumn(
-              width: 3,
-              text: 'ITEM',
-              styles: createPosStyles(
-                  align: PosAlign.left, codeTable: 'CP1255', bold: true)),
+            width: 3,
+            text: 'ITEM',
+            styles: createPosStyles(
+              align: PosAlign.left,
+              codeTable: 'CP1255',
+              bold: true,
+            ),
+          ),
           createPosColumn(
-              width: 6,
-              text: '                 AMOUNT',
-              styles: createPosStyles(
-                  align: PosAlign.left, codeTable: 'CP1255', bold: true)),
+            width: 6,
+            text: '                 AMOUNT',
+            styles: createPosStyles(
+              align: PosAlign.left,
+              codeTable: 'CP1255',
+              bold: true,
+            ),
+          ),
         ]);
         bytes += generator.text('--------------------------------------------');
         bytes += generator.feed(1);
@@ -250,25 +284,29 @@ class PrintUtility {
           // --- Print Item Row ---
           bytes += generator.row([
             createPosColumn(
-                width: 1,
-                text: (j + 1).toString(), // Serial No
-                styles: createPosStyles(align: PosAlign.left)),
+              width: 1,
+              text: (j + 1).toString(), // Serial No
+              styles: createPosStyles(align: PosAlign.left),
+            ),
             createPosColumn(
-                width: 7,
-                text: varianceName, // Item Name
-                styles: createPosStyles(align: PosAlign.left)),
+              width: 7,
+              text: varianceName, // Item Name
+              styles: createPosStyles(align: PosAlign.left),
+            ),
             createPosColumn(
-                width: 4,
-                text: ' ${amount.toStringAsFixed(2)}', // Amount
-                styles: createPosStyles(align: PosAlign.right)),
+              width: 4,
+              text: ' ${amount.toStringAsFixed(2)}', // Amount
+              styles: createPosStyles(align: PosAlign.right),
+            ),
           ]);
 
           // --- Print Description (Qty/UOM/Price/Tax) ---
           bytes += generator.row([
             createPosColumn(
-                width: 10,
-                text: '($priceDescription, Tax $taxRate%)',
-                styles: createPosStyles(align: PosAlign.left)),
+              width: 10,
+              text: '($priceDescription, Tax $taxRate%)',
+              styles: createPosStyles(align: PosAlign.left),
+            ),
             createPosColumn(width: 2, text: ''),
           ]);
 
@@ -277,16 +315,17 @@ class PrintUtility {
 
         bytes += generator.row([
           createPosColumn(
-              width: 12,
-              text:
-                  '                  Total Amount  =     ${orderItem.totalAmount}',
-              styles: createPosStyles(
-                align: PosAlign.center,
-                codeTable: 'CP1252',
-                width: PosTextSize.size1, // Bigger font
-                height: PosTextSize.size2, // Bigger font
-                bold: true,
-              )),
+            width: 12,
+            text:
+                '                  Total Amount  =     ${orderItem.totalAmount}',
+            styles: createPosStyles(
+              align: PosAlign.center,
+              codeTable: 'CP1252',
+              width: PosTextSize.size1, // Bigger font
+              height: PosTextSize.size2, // Bigger font
+              bold: true,
+            ),
+          ),
         ]);
 
         // Add star divider to separate orders
@@ -306,8 +345,9 @@ class PrintUtility {
         bytes += generator.feed(2); // extra spacing before next order
       }
 
-      printer
-          .rawBytes(Uint8List.fromList(bytes)); // Send the bytes to the printer
+      printer.rawBytes(
+        Uint8List.fromList(bytes),
+      ); // Send the bytes to the printer
       printer.cut(); // Cut the paper after printing
       printer.disconnect();
     } else {}
@@ -357,43 +397,61 @@ Future<void> printReceiptDetails(List<SalesOrderDisplay> salesOrders) async {
   final printer = NetworkPrinter(PaperSize.mm80, profile);
 
   const String printerIp =
-      "192.168.1.87"; // Replace with your printer's actual IP
-  final PosPrintResult connectResult =
-      await printer.connect(printerIp, port: 9100);
+      "192.168.1.90"; // Replace with your printer's actual IP
+  final PosPrintResult connectResult = await printer.connect(
+    printerIp,
+    port: 9100,
+  );
 
   if (connectResult != PosPrintResult.success) {
     return;
   }
 
-  printer.text('SALES RECEIPT',
-      styles: PosStyles(
-          align: PosAlign.center, height: PosTextSize.size2, bold: true));
+  printer.text(
+    'SALES RECEIPT',
+    styles: PosStyles(
+      align: PosAlign.center,
+      height: PosTextSize.size2,
+      bold: true,
+    ),
+  );
   printer.text('  Date: ${DateTime.now().toString().split(' ')[0]}');
   printer.hr(); // Prints a horizontal line
 
   double grandTotal = 0;
 
   for (var order in salesOrders) {
-    printer.text('Order ID: ${order.orderInvoiceNo}',
-        styles: PosStyles(bold: true));
+    printer.text(
+      'Order ID: ${order.orderInvoiceNo}',
+      styles: PosStyles(bold: true),
+    );
     printer.text('Customer: ${order.customerName}');
     printer.hr();
 
-    printer.text('Item           Qty   Price   Total',
-        styles: PosStyles(bold: true));
+    printer.text(
+      'Item           Qty   Price   Total',
+      styles: PosStyles(bold: true),
+    );
     double orderTotal = 0;
 
     grandTotal += orderTotal;
     printer.hr();
-    printer.text('Order Total: \$${orderTotal.toStringAsFixed(2)}',
-        styles: PosStyles(align: PosAlign.right, bold: true));
+    printer.text(
+      'Order Total: \$${orderTotal.toStringAsFixed(2)}',
+      styles: PosStyles(align: PosAlign.right, bold: true),
+    );
     printer.feed(1);
   }
 
   printer.hr();
-  printer.text('Grand Total: \$${grandTotal.toStringAsFixed(2)}',
-      styles: PosStyles(
-          align: PosAlign.right, height: PosTextSize.size2, bold: true));
+  printer.text(
+    'Grand Total: \$${grandTotal.toStringAsFixed(2)}',
+    styles: PosStyles(
+      align: PosAlign.right,
+      height: PosTextSize.size2,
+      bold: true,
+    ),
+  );
 
   printer.feed(2);
   printer.cut();

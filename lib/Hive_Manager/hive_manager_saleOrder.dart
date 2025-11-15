@@ -10,6 +10,8 @@ class HiveManager {
   static Box? _modifyOrderBox;
   static Box? _toApproveOrderBox;
   static Box? _holdOrderBox;
+  static Box? _salesApprovalOrder;
+  static Box? _saleOrderModifyOrders;
   late Box? userBox;
   late Box? serverBox;
   late Box configBox;
@@ -26,6 +28,9 @@ class HiveManager {
 
     _holdOrderBox = await Hive.openBox('holdOrders');
     _salesOrderNumberBox = await Hive.openBox('salesOrderNumberBox');
+
+    _salesApprovalOrder = await Hive.openBox('salesApprovalOrder');
+    _saleOrderModifyOrders = await Hive.openBox('saleOrderModifyOrders');
   }
 
   Future<void> init() async {
@@ -33,7 +38,7 @@ class HiveManager {
 
     userBox = await Hive.openBox('userBox');
     serverBox = await Hive.openBox('serverBox'); // New line for serverBox
-    configBox = await Hive.openBox('config');
+    configBox = await Hive.openBox('configBox');
   }
 
   static Box get salesOrderBox {
@@ -88,5 +93,23 @@ class HiveManager {
       );
     }
     return _salesOrderNumberBox!;
+  }
+
+  static Box get salesApprovalOrder {
+    if (_salesApprovalOrder == null) {
+      throw Exception(
+        'Hive not initialized! Call HiveManager.initialize() first',
+      );
+    }
+    return _salesApprovalOrder!;
+  }
+
+  static Box get saleOrderModifyOrders {
+    if (_saleOrderModifyOrders == null) {
+      throw Exception(
+        'Hive not initialized! Call HiveManager.initialize() first',
+      );
+    }
+    return _saleOrderModifyOrders!;
   }
 }

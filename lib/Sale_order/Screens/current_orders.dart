@@ -38,91 +38,90 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final apiService = context.read<ApiServiceSalesOrderProvider>();
+      final customerScreenProvider = context.read<EditCustomerScreenProvider>();
+      // customerScreenProvider.resetSelection();
+      if (customerScreenProvider.selectedTransactionIndex != null &&
+          customerScreenProvider.selectedTransactionIndex! >=
+              apiService.filteredAllSalesOrders.length) {
+        customerScreenProvider.resetSelection();
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final apiService = context.watch<ApiServiceSalesOrderProvider>();
-    apiService.filterOrdersByDate(apiService.selectedDate!);
-    // Print the raw hivefilteredOrders
-    debugPrint(
-      "🔹 hivefilteredOrders length => ${apiService.hivefilteredOrders.length} (Type: ${apiService.hivefilteredOrders.runtimeType})",
-    );
+    return Consumer<EditCustomerScreenProvider>(
+      builder: (context, customerScreenProvider, child) {
+        final apiService = context.watch<ApiServiceSalesOrderProvider>();
+        final filteredSalesOrders = apiService.hivefilteredOrders
+            .map((order) => SalesOrderDisplay.fromMap(order))
+            .where(
+              (order) => order.status != "Open Order",
+            ) // <-- Exclude Open Order
+            .toList();
 
-    // Convert to SalesOrderDisplay
-    final mappedOrders = apiService.hivefilteredOrders.map((order) {
-    
-      final mapped = SalesOrderDisplay.fromMap(order);
-      debugPrint(
-        "✅ Mapped SalesOrderDisplay => ${mapped.toJson()} (Type: ${mapped.runtimeType})",
-      );
-      return mapped;
-    }).toList();
+        // Use WidgetsBinding inside Consumer to delay action after build
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (customerScreenProvider.selectedTransactionIndex != null &&
+              customerScreenProvider.selectedTransactionIndex! >=
+                  filteredSalesOrders.length) {
+            customerScreenProvider.resetSelection();
+          }
+        });
 
-    // Filter out "Open Order"
-    final filteredSalesOrders = mappedOrders.where((order) {
-      debugPrint(
-        "🔎 Checking orderNo: ${order.saleOrderNo}, Status: ${order.status} (Type: ${order.status.runtimeType})",
-      );
-      return order.status != "Open Order";
-    }).toList();
-
-    // Final debug print
-    debugPrint(
-      "🎯 Final filteredSalesOrders length => ${filteredSalesOrders.length} (Type: ${filteredSalesOrders.runtimeType})",
-    );
-    for (var order in filteredSalesOrders) {
-      debugPrint(
-        "📦 Filtered Order => ${order.toJson()} (Type: ${order.runtimeType})",
-      );
-    }
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: _buildAppBar(
-        context,
-        apiService,
-        filteredSalesOrders.cast<SalesOrderDisplay>(),
-      ),
-      body: Row(
-        children: [
-          Expanded(
-            flex: 1,
-            child: _buildOrderList(
-              filteredSalesOrders.cast<SalesOrderDisplay>(),
-              apiService,
-              _selectedTransactionIndex,
-            ),
+        return Scaffold(
+          backgroundColor: Colors.white,
+          key: ValueKey("allorders_${customerScreenProvider.isModifyMode}"),
+          appBar: _buildAppBar(context, apiService, filteredSalesOrders),
+          body: Row(
+            children: [
+              Expanded(
+                flex: 1,
+                child: _buildOrderList(
+                  filteredSalesOrders,
+                  apiService,
+                  _selectedTransactionIndex,
+                ),
+              ),
+              const VerticalDivider(),
+              Expanded(
+                flex: 1,
+                child: Consumer<EditCustomerScreenProvider>(
+                  builder: (context, customerScreenProvider, child) {
+                    return filteredSalesOrders.isNotEmpty &&
+                            _selectedTransactionIndex != null
+                        ? EditCustomerDetails(
+                            key: ValueKey(
+                              '${_selectedTransactionIndex}_${customerScreenProvider.isModifyMode}',
+                            ),
+                            selectedOrder:
+                                filteredSalesOrders[_selectedTransactionIndex!],
+                            isEditing:
+                                customerScreenProvider.isModifyMode.value,
+                            orderType: 'CurrentOrder',
+                          )
+                        : _buildEmptyOrderState();
+                  },
+                ),
+              ),
+              const VerticalDivider(),
+              Expanded(
+                flex: 1,
+                child: _buildOrderDetails(
+                  filteredSalesOrders,
+                  _selectedTransactionIndex,
+                  apiService,
+                ),
+              ),
+            ],
           ),
-          // const VerticalDivider(),
-          // Expanded(flex: 1, child: EditCustomerDetails()),
-          const VerticalDivider(),
-          Expanded(
-            flex: 1,
-            child: Consumer<EditCustomerScreenProvider>(
-              builder: (context, customerScreenProvider, child) {
-                return filteredSalesOrders.isNotEmpty &&
-                        _selectedTransactionIndex != null
-                    ? EditCustomerDetails(
-                        key: ValueKey(
-                          '${_selectedTransactionIndex}_${customerScreenProvider.isModifyMode}',
-                        ),
-                        selectedOrder:
-                            filteredSalesOrders[_selectedTransactionIndex!],
-                        isEditing: customerScreenProvider.isModifyMode.value,
-                        orderType: 'CurrentOrder',
-                      )
-                    : _buildEmptyOrderState();
-              },
-            ),
-          ),
-          const VerticalDivider(),
-          Expanded(
-            flex: 1,
-            child: _buildOrderDetails(
-              filteredSalesOrders,
-              _selectedTransactionIndex,
-              apiService,
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -139,7 +138,6 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
         children: [
           Text("${hivefilteredSalesOrders.length} "),
           const Text('Current Orders', style: TextStyle(color: Colors.black)),
-          const SizedBox(width: 10),
 
           /// Previous Date Button
           IconButton(
@@ -147,16 +145,13 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
               apiService.changeDate(const Duration(days: -1));
             },
             icon: const Icon(Icons.arrow_back_ios, color: Colors.blue),
-            tooltip: "Previous Date",
           ),
-          const SizedBox(width: 10),
 
           /// Selected Date
           Text(
             DateFormat('dd-MM-yy').format(apiService.selectedDate!),
             style: const TextStyle(fontSize: 11),
           ),
-          const SizedBox(width: 10),
 
           /// Next Date Button
           IconButton(
@@ -164,9 +159,7 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
               apiService.changeDate(const Duration(days: 1));
             },
             icon: const Icon(Icons.arrow_forward_ios, color: Colors.blue),
-            tooltip: "Next Date",
           ),
-          const SizedBox(width: 4),
 
           /// Print Button
           ElevatedButton(
@@ -259,106 +252,201 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
           padding: const EdgeInsets.all(8.0),
           child: SmartSearchField(
             controller: _searchController,
-            onSearch: apiService.searchOrders,
+            onSearch: apiService.searchHiveFilteredOrders,
           ),
         ),
         Expanded(
           child: filteredSalesOrders.isEmpty
-              ? const Center(child: Text("No orders available"))
+              ? const Center(
+                  child: Text(
+                    "No orders available",
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.grey,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                )
               : ListView.builder(
                   itemCount: filteredSalesOrders.length,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   itemBuilder: (context, index) {
                     final order = filteredSalesOrders[index];
-                    return Card(
-                      color: order.status == "dispatched"
-                          ? Colors.red[200]
-                          : Colors.white,
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(10.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.indigo[200],
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    order.orderType ?? '',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                    final bool isSelected = _selectedTransactionIndex == index;
+
+                    return Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        // --- Main Card ---
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeInOut,
+                          margin: const EdgeInsets.symmetric(vertical: 8),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(18),
+                            gradient: LinearGradient(
+                              colors: order.status == "dispatched"
+                                  ? [Colors.red.shade200, Colors.red.shade100]
+                                  : [Colors.white, Colors.grey.shade100],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                             ),
-                            const SizedBox(height: 8),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    'Order ID',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.grey[700],
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Text(
-                                    'Order Taken By',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.grey[700],
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Text(
-                                    'Status',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.grey[700],
-                                    ),
-                                  ),
-                                ),
-                              ],
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.08),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                            border: Border.all(
+                              color: isSelected
+                                  ? Colors.indigo.shade300
+                                  : Colors.grey.shade300,
+                              width: isSelected ? 2 : 1,
                             ),
-                            const SizedBox(height: 4),
-                            ListTile(
-                              title: Row(
+                          ),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(18),
+                            onTap: () => setState(() {
+                              _selectedTransactionIndex = index;
+                            }),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Expanded(child: Text(order.saleOrderNo)),
-                                  Expanded(
-                                    child: Text(order.employeeName ?? 'N/A'),
+                                  const SizedBox(height: 20),
+                                  Table(
+                                    columnWidths: const {
+                                      0: FlexColumnWidth(1),
+                                      1: FlexColumnWidth(1.2),
+                                      2: FlexColumnWidth(0.5),
+                                    },
+                                    children: [
+                                      const TableRow(
+                                        children: [
+                                          Padding(
+                                            padding: EdgeInsets.only(
+                                              bottom: 6.0,
+                                            ),
+                                            child: Text(
+                                              'Order ID',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                          ),
+                                          Padding(
+                                            padding: EdgeInsets.only(
+                                              bottom: 6.0,
+                                            ),
+                                            child: Text(
+                                              'Order Taken By',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                          ),
+                                          Padding(
+                                            padding: EdgeInsets.only(
+                                              bottom: 6.0,
+                                            ),
+                                            child: Text(
+                                              'Status',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      TableRow(
+                                        children: [
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              bottom: 2.0,
+                                            ),
+                                            child: Text(
+                                              order.saleOrderNo,
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.black87,
+                                              ),
+                                            ),
+                                          ),
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              bottom: 2.0,
+                                            ),
+                                            child: Text(
+                                              // Keep only letters and spaces
+                                              (order.employeeName ?? 'N/A')
+                                                  .replaceAll(
+                                                    RegExp(r'[^a-zA-Z\s]'),
+                                                    '',
+                                                  ),
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                color: Colors.black87,
+                                              ),
+                                            ),
+                                          ),
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              bottom: 2.0,
+                                            ),
+                                            child: Text(
+                                              (order.status ?? 'N/A')
+                                                  .toUpperCase(),
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                color: Colors.black87,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
                                   ),
-                                  Expanded(child: Text(order.status)),
                                 ],
                               ),
-                              selected: selectedIndex == index,
-                              onTap: () => setState(() {
-                                _selectedTransactionIndex = index;
-                              }),
                             ),
-                          ],
+                          ),
                         ),
-                      ),
+                        Positioned(
+                          top:
+                              0, // Adjust for desired corner (top, bottom, left, right)
+                          right: 0,
+                          child: Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.blue,
+                              borderRadius: BorderRadius.only(
+                                bottomLeft: Radius.circular(
+                                  8,
+                                ), // Rounded corner for the tag
+                              ),
+                            ),
+                            child: Text(
+                              (order.orderType ?? 'ORDER').toUpperCase(),
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     );
                   },
                 ),
@@ -414,14 +502,20 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
   }
 
   Widget _buildOrderHeader(SalesOrderDisplay salesOrder) {
-    // Flatten the nested list and join as comma-separated string
+    // Flatten the nested list, remove duplicates, and join as comma-separated string
     String paymentTypes = '';
     if (salesOrder.advancePaymentType != null) {
-      paymentTypes = salesOrder.advancePaymentType!
-          .expand(
-            (innerList) => innerList,
-          ) // flatten List<List<String>> → List<String>
-          .join(', ');
+      final flattened = salesOrder.advancePaymentType!
+          .expand((innerList) => innerList)
+          .toList();
+
+      // Remove duplicates while keeping the order
+      final uniqueList = <String>{};
+      final filteredList = flattened
+          .where((item) => uniqueList.add(item))
+          .toList();
+
+      paymentTypes = filteredList.join(', ');
     }
 
     return Row(
@@ -435,9 +529,13 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
               'Payment Type',
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
             ),
-            Text(paymentTypes, style: TextStyle(fontSize: 11)),
+            Text(
+              paymentTypes.isNotEmpty ? paymentTypes : '-',
+              style: TextStyle(fontSize: 11),
+            ),
           ],
         ),
+
         // Order Number Column
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -446,10 +544,7 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
               'Order No',
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
             ),
-            Text(
-              salesOrder.saleOrderNo, // show full sale order number
-              style: TextStyle(fontSize: 11),
-            ),
+            Text(salesOrder.saleOrderNo, style: TextStyle(fontSize: 11)),
           ],
         ),
       ],
@@ -457,51 +552,39 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
   }
 
   Widget _buildOrderItemsList(SalesOrderDisplay salesOrder) {
-    // Check if isBoxItem and varianceName are not null and have the same length
-    if (salesOrder.isBoxItem == null ||
-        salesOrder.varianceName == null ||
-        salesOrder.isBoxItem!.length != salesOrder.varianceName.length) {
-      return Center(child: Text('Data is incomplete or invalid'));
-    }
-
-    // Separate box items and non-box items while maintaining original order
     List<int> boxItemIndices = [];
     List<int> nonBoxItemIndices = [];
 
-    // Populate boxItemIndices and nonBoxItemIndices
-    for (int i = 0; i < salesOrder.varianceName.length; i++) {
-      if (salesOrder.isBoxItem![i].toLowerCase() == 'yes' ?? false) {
+    final itemCount = salesOrder.varianceName?.length ?? 0;
+
+    for (int i = 0; i < itemCount; i++) {
+      final isBox =
+          (salesOrder.isBoxItem != null && salesOrder.isBoxItem!.length > i)
+          ? salesOrder.isBoxItem![i].toLowerCase() == 'yes'
+          : false;
+
+      if (isBox) {
         boxItemIndices.add(i);
       } else {
         nonBoxItemIndices.add(i);
       }
     }
 
-    // Ensure itemCount is valid; if no items, return an empty container
-    int itemCount =
-        nonBoxItemIndices.length + (boxItemIndices.isNotEmpty ? 1 : 0);
-
-    if (itemCount == 0) {
-      return SizedBox(); // Return an empty widget if no items to display
-    }
+    if (itemCount == 0) return SizedBox();
 
     return Expanded(
       child: ListView.separated(
-        itemCount: itemCount,
-        separatorBuilder: (context, index) => SizedBox(height: 8),
+        itemCount: boxItemIndices.isNotEmpty
+            ? 1 + nonBoxItemIndices.length
+            : nonBoxItemIndices.length,
+        separatorBuilder: (_, __) => SizedBox(height: 8),
         itemBuilder: (context, index) {
-          // Show box items card first if present
           if (boxItemIndices.isNotEmpty && index == 0) {
             return _buildBoxItemsCard(salesOrder, boxItemIndices);
           }
 
-          // Adjust index for non-box items
           final adjustedIndex = index - (boxItemIndices.isNotEmpty ? 1 : 0);
-
-          // Ensure the adjustedIndex is within bounds for nonBoxItemIndices
-          if (adjustedIndex >= nonBoxItemIndices.length) {
-            return SizedBox(); // Return an empty widget if index is out of bounds
-          }
+          if (adjustedIndex >= nonBoxItemIndices.length) return SizedBox();
 
           return _buildOrderItemTile(
             salesOrder,
@@ -519,103 +602,73 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
   ) {
     return Card(
       elevation: 4,
-      margin: EdgeInsets.symmetric(vertical: 0, horizontal: 0),
+      margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(color: Colors.blue.shade300, width: 1.5),
       ),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.white, Colors.blue.shade50],
-          ),
-        ),
-        child: Padding(
-          padding: EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade100.withOpacity(0.5),
-                  borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.inventory_2, size: 18, color: Colors.blue.shade700),
+                SizedBox(width: 8),
+                Text(
+                  '${salesOrder.boxQty ?? 0} ×',
+                  style: TextStyle(
+                    color: Colors.blue.shade800,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
                 ),
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.inventory_2,
-                      size: 18,
-                      color: Colors.blue.shade700,
+                SizedBox(width: 8),
+                Text(
+                  'BOX ITEMS',
+                  style: TextStyle(
+                    color: Colors.blue.shade800,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                Spacer(),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade600,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${boxIndices.length}',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
                     ),
-                    SizedBox(width: 8),
-                    // Display boxqty here
-                    Text(
-                      '${salesOrder.boxQty} ×', // Your box quantity field
-                      style: TextStyle(
-                        color: Colors.blue.shade800,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 10),
+            Column(
+              children: boxIndices
+                  .map(
+                    (i) => Padding(
+                      padding: EdgeInsets.only(
+                        bottom: i == boxIndices.last ? 0 : 8,
+                      ),
+                      child: _buildOrderItemTile(
+                        salesOrder,
+                        i,
+                        showAsBoxItem: true,
                       ),
                     ),
-                    SizedBox(width: 8),
-                    Text(
-                      'BOX ITEMS',
-                      style: TextStyle(
-                        color: Colors.blue.shade800,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    Spacer(),
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade600,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '${boxIndices.length}',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: 10),
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  children: boxIndices
-                      .map(
-                        (index) => Padding(
-                          padding: EdgeInsets.only(
-                            bottom: index == boxIndices.last ? 0 : 8,
-                          ),
-                          child: Container(
-                            child: _buildOrderItemTile(
-                              salesOrder,
-                              index,
-                              showAsBoxItem: true,
-                            ),
-                          ),
-                        ),
-                      )
-                      .toList(),
-                ),
-              ),
-            ],
-          ),
+                  )
+                  .toList(),
+            ),
+          ],
         ),
       ),
     );
@@ -626,32 +679,41 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
     int index, {
     bool showAsBoxItem = false,
   }) {
-    final uom = salesOrder.uom[index];
-    final quantity = salesOrder.qty[index].toDouble();
-    final weight = salesOrder.weight[index].toDouble();
-    final pricePerKg = salesOrder.price[index];
+    final varianceName = (salesOrder.varianceName.length > index)
+        ? salesOrder.varianceName[index]
+        : 'Unknown';
+    final uom = (salesOrder.uom.length > index) ? salesOrder.uom[index] : '';
+    final qty = (salesOrder.qty.length > index)
+        ? salesOrder.qty[index].toDouble()
+        : 0.0;
+    final weight =
+        (salesOrder.weight != null && salesOrder.weight!.length > index)
+        ? salesOrder.weight![index] ?? 0.0
+        : 0.0;
+    final price = (salesOrder.price.length > index)
+        ? salesOrder.price[index]
+        : 0.0;
+    final amount = (salesOrder.amount.length > index)
+        ? salesOrder.amount[index]
+        : 0.0;
 
-    String priceDescription = '';
-
+    String priceDescription;
     if (uom.toLowerCase() == 'kg' || uom.toLowerCase() == 'kgs') {
       if (weight >= 1) {
         priceDescription =
-            '$quantity $uom (${weight.toStringAsFixed(2)} kg) × Rs.${pricePerKg.toStringAsFixed(0)}/kg';
+            '$qty $uom (${weight.toStringAsFixed(2)} kg) × Rs.${price.toStringAsFixed(0)}/kg';
       } else {
-        // Convert to grams if < 1 kg
         priceDescription =
-            '$quantity × (${(weight * 1000).toStringAsFixed(0)} g) × Rs.${pricePerKg.toStringAsFixed(0)}/kg';
+            '$qty × ${(weight * 1000).toStringAsFixed(0)} g × Rs.${price.toStringAsFixed(0)}/kg';
       }
     } else {
-      // Pcs / Pkt / Others
-      priceDescription =
-          '${quantity.toStringAsFixed(0)} $uom × Rs.${pricePerKg.toStringAsFixed(0)}';
+      priceDescription = '$qty $uom × Rs.${price.toStringAsFixed(0)}';
     }
 
     return ListTile(
       contentPadding: EdgeInsets.zero,
       title: Text(
-        salesOrder.varianceName[index],
+        varianceName,
         style: TextStyle(
           fontSize: 12,
           color: showAsBoxItem ? Colors.blue.shade800 : Colors.grey.shade800,
@@ -659,7 +721,7 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
       ),
       subtitle: Text(priceDescription, style: const TextStyle(fontSize: 10)),
       trailing: Text(
-        '₹${salesOrder.amount[index].toStringAsFixed(2)}',
+        '₹${amount.toStringAsFixed(2)}',
         style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.bold,
@@ -672,6 +734,15 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
   Widget _buildOrderSummary(SalesOrderDisplay salesOrder) {
     final dateFormatter = DateFormat('dd-MM-yyyy');
     final timeFormatter = DateFormat('hh:mm a'); // 12-hour format
+
+    // Ensure both lists exist
+    final advanceAmounts = salesOrder.advanceAmount ?? [];
+    final advanceDates = salesOrder.advanceDateTime ?? [];
+
+    // Take the shorter list length to avoid RangeError
+    final int minLength = advanceAmounts.length < advanceDates.length
+        ? advanceAmounts.length
+        : advanceDates.length;
 
     return Align(
       alignment: Alignment.centerRight,
@@ -688,6 +759,7 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
               color: Colors.black,
             ),
           ),
+
           // Custom Charge
           if (salesOrder.customCharge > 0)
             Text(
@@ -695,18 +767,20 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
-                color: Colors.orange, // yellowish/orange for custom charge
+                color: Colors.orange,
               ),
             ),
-          // Total Amount 2
-          Text(
-            'Total Amount: ₹${salesOrder.totalAmount2!.toStringAsFixed(0)}',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
+          if (salesOrder.customCharge > 0)
+            // Total Amount 2
+            Text(
+              'Total Amount: ₹${salesOrder.totalAmount2?.toStringAsFixed(0) ?? '0'}',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
             ),
-          ),
+
           // Discount
           if (salesOrder.discount > 0)
             Text(
@@ -717,79 +791,76 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
                 color: Colors.red,
               ),
             ),
-          // Order Amount
-          Text(
-            'Order Amount: ₹${salesOrder.finalPrice}',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
+          if (salesOrder.discount > 0)
+            // Order Amount
+            Text(
+              'Order Amount: ₹${salesOrder.finalPrice.toStringAsFixed(0)}',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
             ),
-          ),
+
           // Advance Amount with Date & Time
-          if ((salesOrder.advanceAmount ?? []).isNotEmpty &&
-              (salesOrder.advanceDateTime ?? []).isNotEmpty)
-            Column(
-              children: List.generate(salesOrder.advanceAmount!.length, (
-                index,
-              ) {
-                DateTime? dt;
-                final dateStr = salesOrder.advanceDateTime![index];
+          Column(
+            children: List.generate(minLength, (index) {
+              DateTime? dt;
+              final dateStr = advanceDates[index];
 
-                // Safely parse string to DateTime
-                try {
-                  dt = DateTime.parse(dateStr);
-                } catch (e) {
-                  dt = null;
-                }
+              try {
+                dt = DateTime.tryParse(dateStr);
+              } catch (e) {
+                dt = null;
+              }
 
-                final formattedDate = dt != null
-                    ? dateFormatter.format(dt)
-                    : dateStr;
-                final formattedTime = dt != null
-                    ? timeFormatter.format(dt)
-                    : '';
+              final formattedDate = dt != null
+                  ? dateFormatter.format(dt)
+                  : dateStr;
+              final formattedTime = dt != null ? timeFormatter.format(dt) : '';
 
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Date & Time Column
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Paid on : $formattedDate - $formattedTime',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green, // advance in green
-                            ),
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Date & Time
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Paid on : $formattedDate - $formattedTime',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green,
                           ),
-                        ],
-                      ),
-                      // Advance Amount on the right
-                      Text(
-                        'Advance: ₹${salesOrder.advanceAmount![index].toStringAsFixed(0)}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green,
                         ),
+                      ],
+                    ),
+
+                    // Advance Amount
+                    Text(
+                      'Advance: ₹${advanceAmounts[index].toStringAsFixed(0)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green,
                       ),
-                    ],
-                  ),
-                );
-              }),
-            ),
-          // Balance Amount at the end
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ),
+
+          // Balance Amount
           Text(
-            'Balance Amount: ₹${salesOrder.balanceAmount.toStringAsFixed(0)}',
+            'Balance Amount: ₹${salesOrder.finalPrice.toStringAsFixed(0)}',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.bold,
-              color: Colors.blue, // balance in blue
+              color: Colors.blue,
             ),
           ),
         ],
@@ -801,8 +872,11 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
     BuildContext context,
     SalesOrderDisplay salesOrder,
   ) {
-    // Only show the button if order is not completed
-    if (salesOrder.status == "Sales Completed") {
+    // Normalize status: trim and lowercase
+    final status = salesOrder.status?.trim().toLowerCase() ?? '';
+
+    // Only show the button if status is "dispatched"
+    if (status != 'dispatched') {
       return SizedBox.shrink(); // Empty widget, button won't be shown
     }
 

@@ -7,10 +7,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:collection/collection.dart';
+import 'package:yenpos/Global/Widget/custom_button_reuse.dart';
 import 'package:yenpos/Global/Widget/custom_colors.dart';
 import 'package:yenpos/Global/Widget/custom_sized_box.dart';
 import 'package:yenpos/Global/Widget/smartsearchtextfield.dart';
-import 'package:yenpos/Global/globals_data.dart';
 import 'package:yenpos/Mode_page/Regular_mode/Provider/regular_mode_screen_provider.dart';
 import 'package:yenpos/Sale_order/Models/sales_order_display_model.dart';
 import 'package:yenpos/Sale_order/Print_Receipt/currentOrderPrint.dart';
@@ -21,12 +21,15 @@ import 'package:yenpos/Sale_order/Screens/create_sales_order.dart';
 import 'package:yenpos/Sale_order/Screens/editcustomerdetails.dart';
 import 'package:yenpos/Sale_order/Widgets/add_advance_dialogue.dart';
 import 'package:yenpos/Sale_order/Widgets/advance-dialog.dart';
+import 'package:yenpos/Sale_order/Widgets/cancel_order_dialogue.dart';
+import 'package:yenpos/Sale_order/Widgets/date_button.dart';
+import 'package:yenpos/Sale_order/Widgets/numeric_Calculator.dart';
+import 'package:yenpos/Sale_order/Widgets/top_message.dart';
 
-import '../../Global/Widget/custom_button_reuse.dart';
-
+import '../../../regular_mode_page/provider/regular_mode_screen_provider.dart'
+    hide RegularModeProvider;
 
 class AllOrdersPage extends StatefulWidget {
-
   const AllOrdersPage({super.key});
 
   @override
@@ -52,8 +55,9 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
     "Approved",
     "Cancel",
     "Rejected",
-    'Confirm'
+    'Confirm',
   ];
+  late ValueNotifier<Map<int, double>> quantityChangesNotifier;
 
   // Map<int, double> quantityChanges = {};
   @override
@@ -66,10 +70,6 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
       final apiService = context.read<ApiServiceSalesOrderProvider>();
       final customerScreenProvider = context.read<EditCustomerScreenProvider>();
       // customerScreenProvider.resetSelection();
-      apiService.fetchFilteredOrders(
-        startDate: apiService.startDate,
-        endDate: apiService.endDate,
-      );
       if (customerScreenProvider.selectedTransactionIndex != null &&
           customerScreenProvider.selectedTransactionIndex! >=
               apiService.filteredAllSalesOrders.length) {
@@ -79,19 +79,15 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
   }
 
   @override
-  void dispose() {
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Consumer<EditCustomerScreenProvider>(
       builder: (context, customerScreenProvider, child) {
         final apiService = context.watch<ApiServiceSalesOrderProvider>();
         final filteredSalesOrders = apiService.hivefilteredAllOrders
             .map((order) => SalesOrderDisplay.fromMap(order))
-            .where((order) =>
-                order.status != "Open Order") // <-- Exclude Open Order
+            .where(
+              (order) => order.status != "Open Order",
+            ) // <-- Exclude Open Order
             .toList();
         final cartProvider = Provider.of<CartProvider>(context);
 
@@ -132,19 +128,19 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                             key: ValueKey(
                               '${customerScreenProvider.selectedTransactionIndex}_${isModifyMode}',
                             ),
-                            selectedOrder: customerScreenProvider
+                            selectedOrder:
+                                customerScreenProvider
                                             .selectedTransactionIndex !=
                                         null &&
                                     customerScreenProvider
                                             .selectedTransactionIndex! <
                                         filteredSalesOrders.length
                                 ? filteredSalesOrders[customerScreenProvider
-                                    .selectedTransactionIndex!]
+                                      .selectedTransactionIndex!]
                                 : null,
                             isEditing:
                                 isModifyMode, // Pass isModifyMode to EditCustomerDetails
                             orderType: 'AllOrder',
-                          
                           )
                         : _buildEmptyOrderState();
                   },
@@ -200,18 +196,33 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                             if (!isModifyMode)
                               ElevatedButton(
                                 onPressed: () async {
-                                  double totalAdvanceAmount = salesOrder
-                                      .advanceAmount!
-                                      .fold(0.0, (sum, value) => sum + value);
+                                  _showCancelOrderDialog(context, salesOrder);
+                                  // double totalAdvanceAmount = salesOrder
+                                  //     .advanceAmount!
+                                  //     .fold(0.0, (sum, value) => sum + value);
 
-                                  final result = await AdvanceAmountDialog.show(
-                                    context,
-                                    salesOrderId: salesOrder.salesOrderId,
-                                    advanceAmount: totalAdvanceAmount,
-                                    saleOrderNo: salesOrder.saleOrderNo,
-                              
-                                  );
-                                  if (result != null) {}
+                                  // await showDialog(
+                                  //   barrierDismissible: false,
+                                  //   context: context,
+                                  //   builder: (BuildContext context) {
+                                  //     return Dialog(
+                                  //       backgroundColor: Colors.white,
+                                  //       child: SizedBox(
+                                  //         width:
+                                  //             MediaQuery.of(
+                                  //               context,
+                                  //             ).size.width *
+                                  //             0.5,
+                                  //         child: AdvanceAmountDialog(
+                                  //           salesOrderId:
+                                  //               salesOrder.salesOrderId,
+                                  //           advanceAmount: totalAdvanceAmount,
+                                  //           saleOrderNo: salesOrder.saleOrderNo,
+                                  //         ),
+                                  //       ),
+                                  //     );
+                                  //   },
+                                  // );
                                 },
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.red,
@@ -219,12 +230,16 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                                     borderRadius: BorderRadius.circular(8.0),
                                   ),
                                   padding: EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 6),
+                                    horizontal: 8,
+                                    vertical: 6,
+                                  ),
                                 ),
                                 child: Text(
                                   'Cancel Order',
                                   style: TextStyle(
-                                      color: Colors.white, fontSize: 10),
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                  ),
                                 ),
                               ),
                             if (!isModifyMode) SizedBox(width: 8),
@@ -232,12 +247,16 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                               onPressed: () {
                                 customerScreenProvider.isModifyMode.value =
                                     !isModifyMode;
+                                quantityChangesNotifier.value.clear();
                               },
                               style: ElevatedButton.styleFrom(
-                                backgroundColor:
-                                    isModifyMode ? Colors.green : Colors.blue,
+                                backgroundColor: isModifyMode
+                                    ? Colors.green
+                                    : Colors.blue,
                                 padding: EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 6),
+                                  horizontal: 8,
+                                  vertical: 6,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8.0),
                                 ),
@@ -245,37 +264,75 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                               child: Text(
                                 isModifyMode ? 'Cancel' : 'Modify Order',
                                 style: TextStyle(
-                                    color: Colors.white, fontSize: 10),
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                ),
                               ),
                             ),
-                            if (isModifyMode) SizedBox(width: 8),
-                            if (isModifyMode)
-                              ElevatedButton(
-                                onPressed: () => _showAddItemDialog(
-                                  context,
-                                  customerScreenProvider,
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.orange,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8.0),
-                                  ),
-                                  padding: EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 6),
-                                ),
-                                child: Row(
+                            ValueListenableBuilder<bool>(
+                              valueListenable:
+                                  customerScreenProvider.isModifyMode,
+                              builder: (context, isModifyMode, child) {
+                                return Row(
                                   children: [
-                                    Icon(Icons.add,
-                                        color: Colors.white, size: 14),
-                                    SizedBox(width: 4),
-                                    Text(
-                                      'Add Item',
-                                      style: TextStyle(
-                                          color: Colors.white, fontSize: 10),
-                                    ),
+                                    if (isModifyMode) SizedBox(width: 8),
+                                    if (isModifyMode)
+                                      ElevatedButton(
+                                        onPressed: () {
+                                          try {
+                                            print("Add Item button pressed.");
+
+                                            final regularModeProvider = context
+                                                .read<RegularModeProvider>();
+                                            print(
+                                              "RegularModeProvider found. originalItems length: ${regularModeProvider.originalItems.length}",
+                                            );
+
+                                            _showAddItemDialog(
+                                              context,
+                                              customerScreenProvider,
+                                              regularModeProvider,
+                                            );
+                                          } catch (e, stackTrace) {
+                                            print(
+                                              "Error accessing RegularModeProvider: $e\n$stackTrace",
+                                            );
+                                          }
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.orange,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              8.0,
+                                            ),
+                                          ),
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 6,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.add,
+                                              color: Colors.white,
+                                              size: 14,
+                                            ),
+                                            SizedBox(width: 4),
+                                            Text(
+                                              'Add Item',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 10,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
                                   ],
-                                ),
-                              ),
+                                );
+                              },
+                            ),
                           ],
                         );
                       },
@@ -411,7 +468,7 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
               ElevatedButton(
                 onPressed: () {
                   // Handle "All Orders" action if needed
-
+                  print("worked");
                   apiProvider.fetchAllOrders();
                 },
                 style: ElevatedButton.styleFrom(
@@ -429,10 +486,7 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                 onPressed: () {
                   Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(
-                        builder: (context) => SalesOrderScreen(
-               
-                            )),
+                    MaterialPageRoute(builder: (context) => SalesOrderScreen()),
                   );
                 },
                 style: ElevatedButton.styleFrom(
@@ -461,11 +515,13 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
   ) {
     final String todayDate = DateFormat('dd-MM-yyyy').format(DateTime.now());
     final ordersByDate = groupBy(
-      filteredSalesOrders.where((order) =>
-          (apiService.groupByDeliveryDate
-              ? order.deliveryDate
-              : order.orderDate) !=
-          null),
+      filteredSalesOrders.where(
+        (order) =>
+            (apiService.groupByDeliveryDate
+                ? order.deliveryDate
+                : order.orderDate) !=
+            null,
+      ),
       (SalesOrderDisplay order) => apiService.groupByDeliveryDate
           ? order.deliveryDate!
           : order.orderDate!,
@@ -487,318 +543,474 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
       children: [
         Padding(
           padding: const EdgeInsets.all(8.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SmartSearchField(
-                controller: _searchController,
-                onSearch: apiService.searchOrders,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.15),
+                  blurRadius: 12,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 🔍 Smart Search Bar
+                SmartSearchField(
+                  controller: _searchController,
+                  onSearch: apiService.searchHiveFilteredAllOrders,
+                ),
+
+                const SizedBox(height: 16),
+
+                // 📅 Date Filter & Dropdown Row
+                Row(
+                  children: [
+                    // Start Date
+                    Expanded(
+                      flex: 2,
+                      child: buildDateButton(
+                        label: "Start Date",
+                        date: apiService.startDate,
+                        onTap: () async {
+                          final selectedDate = await showDatePicker(
+                            context: context,
+                            initialDate: apiService.startDate ?? DateTime.now(),
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2100),
+                          );
+                          if (selectedDate != null) {
+                            apiService.setStartDate(selectedDate);
+                            if (apiService.endDate != null &&
+                                apiService.endDate!.isBefore(selectedDate)) {
+                              apiService.setEndDate(selectedDate);
+                            }
+                          }
+                        },
+                      ),
+                    ),
+
+                    const SizedBox(width: 10),
+
+                    // End Date
+                    Expanded(
+                      flex: 2,
+                      child: buildDateButton(
+                        label: "End Date",
+                        date: apiService.endDate,
+                        onTap: () async {
+                          final selectedDate = await showDatePicker(
+                            context: context,
+                            initialDate:
+                                apiService.endDate ??
+                                (apiService.startDate ?? DateTime.now()),
+                            firstDate: apiService.startDate ?? DateTime(2000),
+                            lastDate: DateTime(2100),
+                          );
+                          if (selectedDate != null) {
+                            apiService.setEndDate(selectedDate);
+                            apiService.fetchFilteredOrders(
+                              startDate: apiService.startDate,
+                              endDate: apiService.endDate,
+                            );
+                          }
+                        },
+                      ),
+                    ),
+
+                    const SizedBox(width: 10),
+
+                    // Filter Dropdown
+                    Expanded(
+                      flex: 3,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          color: Colors.blue.shade50,
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: DropdownButtonFormField<String>(
+                          value: _selectedFilter,
+                          decoration: InputDecoration(
+                            labelText: 'Filter Orders',
+                            labelStyle: TextStyle(
+                              color: Colors.blue.shade700,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            border: InputBorder.none,
+                          ),
+                          icon: Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: Colors.blue.shade700,
+                          ),
+                          dropdownColor: Colors.white,
+                          items: _filterOptions.map((String filter) {
+                            return DropdownMenuItem<String>(
+                              value: filter,
+                              child: Text(
+                                filter,
+                                style: const TextStyle(fontSize: 13),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (String? newFilter) {
+                            if (newFilter != null) {
+                              setState(() => _selectedFilter = newFilter);
+                              apiService.filterOrdersByStatus(newFilter);
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        Container(
+          margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withOpacity(0.12),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
               ),
-              const SizedBox(height: 10),
-              // Date Range Picker
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // 🗓 Title
               Row(
                 children: [
-                  Flexible(
-                    flex: 2,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        final selectedDate = await showDatePicker(
-                          context: context,
-                          initialDate: apiService.startDate ?? DateTime.now(),
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2100),
-                        );
-                        if (selectedDate != null) {
-                          apiService.setStartDate(selectedDate);
-
-                          // Reset end date if it's before start date
-                          if (apiService.endDate != null &&
-                              apiService.endDate!.isBefore(selectedDate)) {
-                            apiService.setEndDate(selectedDate);
-                          }
-
-                          // Fetch filtered orders after setting startDate
-                          apiService.fetchFilteredOrders(
-                            startDate: apiService.startDate,
-                            endDate: apiService.endDate,
-                          );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8.0),
-                        ),
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                        elevation: 2,
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.blue.shade400, Colors.blue.shade700],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
-                      child: Text(
-                        apiService.startDate != null
-                            ? DateFormat('dd-MM-yyyy')
-                                .format(apiService.startDate!)
-                            : 'Start Date',
-                        style:
-                            const TextStyle(fontSize: 10, color: Colors.white),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.calendar_today_rounded,
+                      size: 16,
+                      color: Colors.white,
                     ),
                   ),
-
-                  const SizedBox(width: 8),
-
-// --- End Date Button ---
-                  Flexible(
-                    flex: 2,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        final selectedDate = await showDatePicker(
-                          context: context,
-                          initialDate: apiService.endDate ??
-                              apiService.startDate ??
-                              DateTime.now(),
-                          firstDate: apiService.startDate ?? DateTime(2000),
-                          lastDate: DateTime(2100),
-                        );
-                        if (selectedDate != null) {
-                          apiService.setEndDate(selectedDate);
-
-                          // Fetch filtered orders after setting endDate
-                          apiService.fetchFilteredOrders(
-                            startDate: apiService.startDate,
-                            endDate: apiService.endDate,
-                          );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8.0),
-                        ),
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                        elevation: 2,
-                      ),
-                      child: Text(
-                        apiService.endDate != null
-                            ? DateFormat('dd-MM-yyyy')
-                                .format(apiService.endDate!)
-                            : 'End Date',
-                        style:
-                            const TextStyle(fontSize: 10, color: Colors.white),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    flex: 3,
-                    child: DropdownButtonFormField<String>(
-                      dropdownColor: Colors.white,
-                      value: _selectedFilter,
-                      decoration: InputDecoration(
-                        labelText: 'Filter Orders',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8.0),
-                        ),
-                      ),
-                      items: _filterOptions.map((String filter) {
-                        return DropdownMenuItem<String>(
-                          value: filter,
-                          child: Text(filter, overflow: TextOverflow.ellipsis),
-                        );
-                      }).toList(),
-                      onChanged: (String? newFilter) {
-                        if (newFilter != null) {
-                          setState(() {
-                            _selectedFilter = newFilter;
-                          });
-                          apiService.filterOrdersByStatus(newFilter);
-                        }
-                      },
+                  const SizedBox(width: 10),
+                  Text(
+                    apiService.groupByDeliveryDate
+                        ? 'Orders by Delivery Date'
+                        : 'Orders by Order Date',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
                     ),
                   ),
                 ],
-              )
+              ),
+
+              // 🔄 Animated Toggle Icon
+              InkWell(
+                borderRadius: BorderRadius.circular(50),
+                onTap: apiService.toggleGrouping,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeInOut,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: apiService.groupByDeliveryDate
+                          ? [Colors.indigo.shade500, Colors.indigo.shade700]
+                          : [Colors.blue.shade400, Colors.blue.shade600],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.blue.withOpacity(0.3),
+                        blurRadius: 6,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    apiService.groupByDeliveryDate
+                        ? Icons.arrow_downward_rounded
+                        : Icons.arrow_upward_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ),
+              ),
             ],
           ),
-        ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              '${apiService.groupByDeliveryDate ? 'Orders by deliverydate' : 'Orders by OrderDate'}',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey[800],
-              ),
-            ),
-            IconButton(
-              icon: Icon(
-                apiService.groupByDeliveryDate
-                    ? Icons.arrow_downward // Sorting by Delivery Date
-                    : Icons.arrow_upward, // Sorting by Order Date
-                color: Colors.blue,
-              ),
-              onPressed: () {
-                apiService.toggleGrouping();
-              },
-              tooltip: apiService.groupByDeliveryDate
-                  ? 'Sorting by Delivery Date'
-                  : 'Sorting by Order Date',
-            ),
-          ],
         ),
         Expanded(
           child: apiService.isLoading
               ? const Center(child: CircularProgressIndicator())
               : filteredSalesOrders.isEmpty
-                  ? const Center(child: Text("No orders available"))
-                  : ListView.builder(
-                      itemCount: sortedDates.length,
-                      itemBuilder: (context, index) {
-                        final date = sortedDates[index];
-                        final orders = ordersByDate[date]!;
-                        final displayDate = date == todayDate ? "Today" : date;
-                        final showDateHeader = lastDisplayedDate != date;
+              ? const Center(
+                  child: Text(
+                    "No orders available",
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.grey,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: sortedDates.length,
+                  itemBuilder: (context, index) {
+                    final date = sortedDates[index];
+                    final orders = ordersByDate[date]!;
+                    final displayDate = date == todayDate ? "Today" : date;
+                    final showDateHeader = lastDisplayedDate != date;
 
-                        if (showDateHeader) {
-                          lastDisplayedDate = date;
-                        }
-                        final currentDate = DateTime.now();
-                        final parsedDate = DateFormat('dd-MM-yyyy').parse(date);
-                        final isPastDate = parsedDate.isBefore(
-                          currentDate.subtract(Duration(days: 1)),
-                        );
+                    if (showDateHeader) {
+                      lastDisplayedDate = date;
+                    }
 
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (showDateHeader)
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 5,
+                    final currentDate = DateTime.now();
+                    final parsedDate = DateFormat('dd-MM-yyyy').parse(date);
+                    final isPastDate = parsedDate.isBefore(
+                      currentDate.subtract(Duration(days: 1)),
+                    );
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (showDateHeader)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            child: Text(
+                              displayDate,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: isPastDate ? Colors.red : Colors.black,
+                              ),
+                            ),
+                          ),
+
+                        // --- Modern card for each order ---
+                        ...orders.map((order) {
+                          final orderIndex = filteredSalesOrders.indexOf(order);
+                          final bool isSelected = selectedIndex == orderIndex;
+
+                          return Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              AnimatedContainer(
+                                duration: const Duration(milliseconds: 250),
+                                curve: Curves.easeInOut,
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
                                 ),
-                                child: Text(
-                                  displayDate,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color:
-                                        isPastDate ? Colors.red : Colors.black,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(18),
+                                  gradient: LinearGradient(
+                                    colors: order.status == "dispatched"
+                                        ? [
+                                            Colors.red.shade200,
+                                            Colors.red.shade100,
+                                          ]
+                                        : [Colors.white, Colors.grey.shade100],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.08),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? Colors.indigo.shade300
+                                        : Colors.grey.shade300,
+                                    width: isSelected ? 2 : 1,
+                                  ),
+                                ),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(18),
+                                  onTap: () {
+                                    setState(() {
+                                      customerprovider
+                                          .handleTransactionSelection(
+                                            orderIndex,
+                                          );
+                                    });
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const SizedBox(height: 20),
+                                        Table(
+                                          columnWidths: const {
+                                            0: FlexColumnWidth(1),
+                                            1: FlexColumnWidth(1.2),
+                                            2: FlexColumnWidth(0.5),
+                                          },
+                                          children: [
+                                            const TableRow(
+                                              children: [
+                                                Padding(
+                                                  padding: EdgeInsets.only(
+                                                    bottom: 6.0,
+                                                  ),
+                                                  child: Text(
+                                                    'Order ID',
+                                                    style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: Colors.grey,
+                                                    ),
+                                                  ),
+                                                ),
+                                                Padding(
+                                                  padding: EdgeInsets.only(
+                                                    bottom: 6.0,
+                                                  ),
+                                                  child: Text(
+                                                    'Order Taken By',
+                                                    style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: Colors.grey,
+                                                    ),
+                                                  ),
+                                                ),
+                                                Padding(
+                                                  padding: EdgeInsets.only(
+                                                    bottom: 6.0,
+                                                  ),
+                                                  child: Text(
+                                                    'Status',
+                                                    style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: Colors.grey,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            TableRow(
+                                              children: [
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                        bottom: 2.0,
+                                                      ),
+                                                  child: Text(
+                                                    order.saleOrderNo,
+                                                    style: const TextStyle(
+                                                      fontSize: 13,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: Colors.black87,
+                                                    ),
+                                                  ),
+                                                ),
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                        bottom: 2.0,
+                                                      ),
+                                                  child: Text(
+                                                    (order.employeeName ??
+                                                            'N/A')
+                                                        .replaceAll(
+                                                          RegExp(
+                                                            r'[^a-zA-Z\s]',
+                                                          ),
+                                                          '',
+                                                        ),
+                                                    style: const TextStyle(
+                                                      fontSize: 13,
+                                                      color: Colors.black87,
+                                                    ),
+                                                  ),
+                                                ),
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                        bottom: 2.0,
+                                                      ),
+                                                  child: Text(
+                                                    (order.status ?? '')
+                                                        .toUpperCase(),
+                                                    style: const TextStyle(
+                                                      fontSize: 13,
+                                                      color: Colors.black87,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
-                            ...orders.map((order) {
-                              final orderIndex = filteredSalesOrders.indexOf(
-                                order,
-                              );
-                              return Card(
-                                color: order.status == "dispatched"
-                                    ? Colors.red[200]
-                                    : Colors.white,
-                                margin: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 5,
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(10.0),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.end,
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 4,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.indigo[200],
-                                              borderRadius:
-                                                  BorderRadius.circular(
-                                                4,
-                                              ),
-                                            ),
-                                            child: Text(
-                                              order.orderType ?? '',
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              'Order ID',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.grey[700],
-                                              ),
-                                            ),
-                                          ),
-                                          Expanded(
-                                            child: Text(
-                                              'Order Taken By',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.grey[700],
-                                              ),
-                                            ),
-                                          ),
-                                          Expanded(
-                                            child: Text(
-                                              'Status',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.grey[700],
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 4),
-                                      ListTile(
-                                        title: Row(
-                                          children: [
-                                            Expanded(
-                                              child: Text(order.saleOrderNo),
-                                            ),
-                                            Expanded(
-                                              child: Text(
-                                                order.employeeName ?? 'N/A',
-                                              ),
-                                            ),
-                                            Expanded(child: Text(order.status)),
-                                          ],
-                                        ),
-                                        selected: selectedIndex == orderIndex,
-                                        onTap: () => setState(() {
-                                          customerprovider
-                                              .handleTransactionSelection(
-                                            orderIndex,
-                                          );
-                                        }),
-                                      ),
-                                    ],
+
+                              // --- Corner Ribbon for orderType ---
+                              Positioned(
+                                top: 0,
+                                right: 0,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.blue,
+                                    borderRadius: BorderRadius.only(
+                                      bottomLeft: Radius.circular(8),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    (order.orderType ?? 'ORDER').toUpperCase(),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                    ),
                                   ),
                                 ),
-                              );
-                            }).toList(),
-                          ],
-                        );
-                      },
-                    ),
+                              ),
+                            ],
+                          );
+                        }).toList(),
+                      ],
+                    );
+                  },
+                ),
         ),
       ],
     );
@@ -829,73 +1041,103 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
     int index,
     EditCustomerScreenProvider customerProvider,
   ) {
-    final isKg = salesOrder.uom[index].toLowerCase() == 'kg' ||
-        salesOrder.uom[index].toLowerCase() == 'kgs';
+    // ✅ Safe access to lists
+    final currentQty = (salesOrder.qty.length > index)
+        ? salesOrder.qty[index]
+        : 0;
+    final currentWeight =
+        (salesOrder.weight != null && salesOrder.weight!.length > index)
+        ? (salesOrder.weight![index] is int
+              ? (salesOrder.weight![index] as int).toDouble()
+              : (salesOrder.weight![index] ?? 0.0))
+        : 0.0;
+    final uom = (salesOrder.uom.length > index) ? salesOrder.uom[index] : '';
+    final isKg = uom.toLowerCase() == 'kg' || uom.toLowerCase() == 'kgs';
+    final isBoxItem =
+        (salesOrder.isBoxItem != null && salesOrder.isBoxItem!.length > index)
+        ? salesOrder.isBoxItem![index].toLowerCase() == "yes"
+        : false;
 
-    final currentQty = isKg
-        ? (salesOrder.weight[index] is int
-            ? (salesOrder.weight[index] as int).toDouble()
-            : salesOrder.weight[index] ?? 0.0)
-        : (salesOrder.qty[index] is int
-            ? (salesOrder.qty[index] as int).toDouble()
-            : salesOrder.qty[index] ?? 0.0);
-
-    final isBoxItem = salesOrder.isBoxItem != null &&
-        salesOrder.isBoxItem!.length > index &&
-        salesOrder.isBoxItem![index].toLowerCase() == "yes";
-
+    // Helper to create item map
     Map<String, dynamic> _createItemMap() {
       return {
-        'varianceName': salesOrder.varianceName[index],
+        'varianceName': (salesOrder.varianceName.length > index)
+            ? salesOrder.varianceName[index]
+            : 'Unknown',
         'itemName':
-            salesOrder.itemName != null && salesOrder.itemName!.length > index
-                ? salesOrder.itemName![index]
-                : salesOrder.varianceName[index],
-        'varianceUom': salesOrder.uom[index],
-        'variancePrice': salesOrder.price[index],
-        'variancetax': salesOrder.tax != null && salesOrder.tax!.length > index
+            (salesOrder.itemName != null && salesOrder.itemName!.length > index)
+            ? salesOrder.itemName![index]
+            : ((salesOrder.varianceName.length > index)
+                  ? salesOrder.varianceName[index]
+                  : 'Unknown'),
+        'varianceUom': uom,
+        'variancePrice': (salesOrder.price.length > index)
+            ? salesOrder.price[index]
+            : 0.0,
+        'variancetax':
+            (salesOrder.tax != null && salesOrder.tax!.length > index)
             ? salesOrder.tax![index]
             : 0,
         'varianceitemCode':
-            salesOrder.itemCode != null && salesOrder.itemCode!.length > index
-                ? salesOrder.itemCode![index]
-                : '',
+            (salesOrder.itemCode != null && salesOrder.itemCode!.length > index)
+            ? salesOrder.itemCode![index]
+            : '',
         'existingQuantity': currentQty,
-        'existingWeight': isKg ? currentQty : 0.0,
-        'existingAmount': salesOrder.amount[index],
+        'existingWeight': currentWeight,
+        'existingAmount': (salesOrder.amount.length > index)
+            ? salesOrder.amount[index]
+            : 0.0,
         'originalIndex': index,
       };
     }
 
+    // 🟢 Normal display (not modify mode)
     if (!customerProvider.isModifyMode.value) {
-      return Column(
-        children: [
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(
-              salesOrder.varianceName[index],
-              style: TextStyle(
-                fontSize: 11,
-                color: isBoxItem ? Colors.blue : Colors.grey,
-                fontWeight: isBoxItem ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-            subtitle: Text(
-              isKg
-                  ? '${currentQty.toStringAsFixed(2)} ${salesOrder.uom[index]} x ₹${salesOrder.price[index]}'
-                  : '${currentQty.toInt()} ${salesOrder.uom[index]} x ₹${salesOrder.price[index]}',
-              style: TextStyle(fontSize: 11, color: Colors.grey),
-            ),
-            trailing: Text(
-              '₹${salesOrder.amount[index].toStringAsFixed(2)}',
-              style: TextStyle(
-                  fontSize: 11, color: isBoxItem ? Colors.blue : Colors.black),
-            ),
+      final pricePerUnit = (salesOrder.price.length > index)
+          ? salesOrder.price[index]
+          : 0.0;
+      String priceDescription;
+
+      if (isKg) {
+        if (currentWeight >= 1) {
+          priceDescription =
+              '$currentQty $uom (${currentWeight.toStringAsFixed(2)} kg) × ₹${pricePerUnit.toStringAsFixed(0)}/kg';
+        } else {
+          priceDescription =
+              '$currentQty × ${(currentWeight * 1000).toStringAsFixed(0)} g × ₹${pricePerUnit.toStringAsFixed(0)}/kg';
+        }
+      } else {
+        priceDescription =
+            '${currentQty.toInt()} $uom × ₹${pricePerUnit.toStringAsFixed(0)}';
+      }
+
+      return ListTile(
+        contentPadding: EdgeInsets.zero,
+        title: Text(
+          (salesOrder.varianceName.length > index)
+              ? salesOrder.varianceName[index]
+              : 'Unknown',
+          style: TextStyle(
+            fontSize: 11,
+            color: isBoxItem ? Colors.blue : Colors.grey,
+            fontWeight: isBoxItem ? FontWeight.bold : FontWeight.normal,
           ),
-        ],
+        ),
+        subtitle: Text(
+          priceDescription,
+          style: TextStyle(fontSize: 11, color: Colors.grey),
+        ),
+        trailing: Text(
+          '₹${(salesOrder.amount.length > index ? salesOrder.amount[index] : 0.0).toStringAsFixed(2)}',
+          style: TextStyle(
+            fontSize: 11,
+            color: isBoxItem ? Colors.blue : Colors.black,
+          ),
+        ),
       );
     }
 
+    // 🟠 Modify mode display
     return Column(
       children: [
         Padding(
@@ -903,8 +1145,11 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Item title
               Text(
-                salesOrder.varianceName[index],
+                (salesOrder.varianceName.length > index)
+                    ? salesOrder.varianceName[index]
+                    : 'Unknown',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
@@ -915,6 +1160,7 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  // Existing Qty/Weight
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -922,15 +1168,36 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                         isKg ? "Ex Weight" : "Ex Qty",
                         style: TextStyle(fontSize: 10, color: Colors.grey),
                       ),
-                      Text(
-                        isKg
-                            ? '${currentQty.toStringAsFixed(2)} ${salesOrder.uom[index]}'
-                            : '${currentQty.toInt()} ${salesOrder.uom[index]}',
-                        style: TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.bold),
+                      Builder(
+                        builder: (_) {
+                          final pricePerUnit = (salesOrder.price.length > index)
+                              ? salesOrder.price[index]
+                              : 0.0;
+                          String displayText;
+                          if (isKg) {
+                            if (currentWeight >= 1) {
+                              displayText =
+                                  '$currentQty $uom (${currentWeight.toStringAsFixed(2)} kg) × ₹${pricePerUnit.toStringAsFixed(0)}/kg';
+                            } else {
+                              displayText =
+                                  '$currentQty × ${(currentWeight * 1000).toStringAsFixed(0)} g × ₹${pricePerUnit.toStringAsFixed(0)}/kg';
+                            }
+                          } else {
+                            displayText =
+                                '${currentQty.toInt()} $uom × ₹${pricePerUnit.toStringAsFixed(0)}';
+                          }
+                          return Text(
+                            displayText,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),
+                  // New Qty controls
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
@@ -942,16 +1209,8 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                         valueListenable: quantityChangesNotifier,
                         builder: (context, quantityChanges, child) {
                           final modifiedValue = quantityChanges[index] ?? 0.0;
+                          final newQuantity = currentQty + modifiedValue;
 
-                          // Debug print
-                          print(
-                              "👉 Item[$index] BaseQty=$currentQty | ModifiedValue=$modifiedValue | NewQty=${currentQty + modifiedValue}");
-
-                          final originalQty = currentQty;
-                          final newQuantity = originalQty + modifiedValue;
-
-                          final newAmount =
-                              salesOrder.price[index] * newQuantity;
                           final modificationColor = modifiedValue > 0
                               ? Colors.green
                               : (modifiedValue < 0 ? Colors.red : Colors.black);
@@ -959,32 +1218,24 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                           return Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              // Decrease button
                               GestureDetector(
                                 onTap: () {
-                                  final newChanges =
-                                      Map<int, double>.from(quantityChanges);
+                                  final newChanges = Map<int, double>.from(
+                                    quantityChanges,
+                                  );
                                   final currentModifiedValue =
                                       newChanges[index] ?? 0.0;
-                                  final newDelta = currentModifiedValue - 1.0;
-
-                                  print(
-                                      "🔴 MINUS pressed for Item[$index]: Base=$originalQty, CurrentDelta=$currentModifiedValue → NewDelta=$newDelta");
-
-                                  if (originalQty + newDelta >= 0) {
-                                    newChanges[index] = newDelta;
+                                  if (currentQty + currentModifiedValue - 1 >=
+                                      0) {
+                                    newChanges[index] =
+                                        currentModifiedValue - 1;
                                     quantityChangesNotifier.value = newChanges;
-
-                                    print(
-                                        "✅ Updated Delta for Item[$index]: ${quantityChangesNotifier.value}");
-
                                     customerProvider.updateItemInOrder(
                                       _createItemMap(),
-                                      -1.0,
+                                      -1,
                                       index,
                                     );
-                                  } else {
-                                    print(
-                                        "⚠️ Cannot go below zero for Item[$index]");
                                   }
                                 },
                                 child: Container(
@@ -993,22 +1244,26 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                                     color: Colors.red.withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
-                                  child: Icon(Icons.remove,
-                                      size: 18, color: Colors.red),
+                                  child: Icon(
+                                    Icons.remove,
+                                    size: 18,
+                                    color: Colors.red,
+                                  ),
                                 ),
                               ),
+                              // Quantity display
                               Container(
                                 margin: EdgeInsets.symmetric(horizontal: 8),
                                 padding: EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 6),
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
                                 decoration: BoxDecoration(
                                   border: Border.all(color: Colors.blue),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
-                                  isKg
-                                      ? newQuantity.toStringAsFixed(2)
-                                      : newQuantity.toInt().toString(),
+                                  newQuantity.toInt().toString(),
                                   style: TextStyle(
                                     fontSize: 14,
                                     color: modificationColor,
@@ -1016,26 +1271,19 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                                   ),
                                 ),
                               ),
+                              // Increase button
                               GestureDetector(
                                 onTap: () {
-                                  final newChanges =
-                                      Map<int, double>.from(quantityChanges);
+                                  final newChanges = Map<int, double>.from(
+                                    quantityChanges,
+                                  );
                                   final currentModifiedValue =
                                       newChanges[index] ?? 0.0;
-                                  final newDelta = currentModifiedValue + 1.0;
-
-                                  print(
-                                      "🟢 PLUS pressed for Item[$index]: Base=$originalQty, CurrentDelta=$currentModifiedValue → NewDelta=$newDelta");
-
-                                  newChanges[index] = newDelta;
+                                  newChanges[index] = currentModifiedValue + 1;
                                   quantityChangesNotifier.value = newChanges;
-
-                                  print(
-                                      "✅ Updated Delta for Item[$index]: ${quantityChangesNotifier.value}");
-
                                   customerProvider.updateItemInOrder(
                                     _createItemMap(),
-                                    1.0,
+                                    1,
                                     index,
                                   );
                                 },
@@ -1045,62 +1293,14 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                                     color: Colors.green.withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
-                                  child: Icon(Icons.add,
-                                      size: 18, color: Colors.green),
+                                  child: Icon(
+                                    Icons.add,
+                                    size: 18,
+                                    color: Colors.green,
+                                  ),
                                 ),
                               ),
                             ],
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text("Amt",
-                          style: TextStyle(fontSize: 10, color: Colors.grey)),
-                      Text(
-                        '₹${salesOrder.amount[index].toStringAsFixed(2)}',
-                        style: TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text("New Amt",
-                          style: TextStyle(fontSize: 10, color: Colors.grey)),
-                      ValueListenableBuilder<Map<int, double>>(
-                        valueListenable: quantityChangesNotifier,
-                        builder: (context, quantityChanges, child) {
-                          final modifiedValue = quantityChanges[index] ?? 0.0;
-                          final newQuantity = currentQty + modifiedValue;
-                          final newAmount =
-                              salesOrder.price[index] * newQuantity;
-                          final modificationColor = modifiedValue > 0
-                              ? Colors.green
-                              : (modifiedValue < 0 ? Colors.red : Colors.black);
-
-                          print(
-                              "💰 Amount Update Item[$index]: Base=$currentQty, Delta=$modifiedValue, NewQty=$newQuantity, NewAmt=$newAmount");
-
-                          return Text(
-                            newQuantity != currentQty
-                                ? '₹${newAmount.toStringAsFixed(2)}'
-                                : '-',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: modificationColor,
-                            ),
                           );
                         },
                       ),
@@ -1115,7 +1315,7 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
       ],
     );
   }
-// Helper widgets for table cells
+  // Helper widgets for table cells
 
   Widget _buildOrderItemsList(
     SalesOrderDisplay salesOrder,
@@ -1123,7 +1323,8 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
   ) {
     List<int> boxItemIndices = [];
     List<int> regularItemIndices = [];
-    for (int i = 0; i < salesOrder.varianceName.length; i++) {
+
+    for (int i = 0; i < (salesOrder.varianceName?.length ?? 0); i++) {
       if (salesOrder.isBoxItem != null &&
           salesOrder.isBoxItem!.length > i &&
           salesOrder.isBoxItem![i].toLowerCase() == "yes") {
@@ -1135,8 +1336,10 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
 
     final newItemsOnly = customerprovider.increasedItems
         .where(
-            (item) => !salesOrder.varianceName.contains(item['varianceName']))
+          (item) => !salesOrder.varianceName.contains(item['varianceName']),
+        )
         .toList();
+
     return Expanded(
       child: SingleChildScrollView(
         child: Column(
@@ -1151,6 +1354,7 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
               ),
             ),
 
+            // Box Items
             if (boxItemIndices.isNotEmpty)
               Card(
                 margin: EdgeInsets.symmetric(vertical: 8),
@@ -1170,8 +1374,13 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                       Divider(),
                       Column(
                         children: boxItemIndices
-                            .map((index) => _buildOrderItemTile(
-                                salesOrder, index, customerprovider))
+                            .map(
+                              (index) => _buildOrderItemTile(
+                                salesOrder,
+                                index,
+                                customerprovider,
+                              ),
+                            )
                             .toList(),
                       ),
                     ],
@@ -1179,14 +1388,20 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                 ),
               ),
 
-            // Display regular items
+            // Regular Items
             Column(
               children: regularItemIndices
-                  .map((index) =>
-                      _buildOrderItemTile(salesOrder, index, customerprovider))
+                  .map(
+                    (index) => _buildOrderItemTile(
+                      salesOrder,
+                      index,
+                      customerprovider,
+                    ),
+                  )
                   .toList(),
             ),
 
+            // Newly Added Items
             if (customerprovider.isModifyMode.value && newItemsOnly.isNotEmpty)
               Card(
                 margin: EdgeInsets.symmetric(vertical: 8),
@@ -1209,7 +1424,9 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                           SizedBox(width: 8),
                           Container(
                             padding: EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.green.withOpacity(0.2),
                               borderRadius: BorderRadius.circular(4),
@@ -1253,8 +1470,11 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                                 ),
                               ),
                               IconButton(
-                                icon: Icon(Icons.delete,
-                                    size: 20, color: Colors.red),
+                                icon: Icon(
+                                  Icons.delete,
+                                  size: 20,
+                                  color: Colors.red,
+                                ),
                                 onPressed: () =>
                                     customerprovider.removeAddedItem(item),
                               ),
@@ -1267,6 +1487,7 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                 ),
               ),
 
+            // To Approve Items
             if (salesOrder.toApprove != null &&
                 salesOrder.toApprove!.isNotEmpty) ...[
               Text(
@@ -1287,32 +1508,35 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8.0),
-                        child: Row(
-                          children: [
-                            // Icon(Icons.edit, size: 14, color: Colors.grey),
-                            SizedBox(width: 8),
-                          ],
-                        ),
-                      ),
+                      SizedBox(height: 8),
                       ListView.separated(
                         shrinkWrap: true,
                         physics: NeverScrollableScrollPhysics(),
                         itemCount: toApproveOrder.varianceName.length,
                         itemBuilder: (context, index) {
+                          final qty = toApproveOrder.qty.length > index
+                              ? toApproveOrder.qty[index]
+                              : 0;
+                          final uom = toApproveOrder.uom.length > index
+                              ? toApproveOrder.uom[index]
+                              : '';
+                          final price = toApproveOrder.price.length > index
+                              ? toApproveOrder.price[index]
+                              : 0.0;
+                          final amount = toApproveOrder.amount.length > index
+                              ? toApproveOrder.amount[index]
+                              : 0.0;
+                          final name = toApproveOrder.varianceName[index];
+
                           return ListTile(
                             contentPadding: EdgeInsets.zero,
-                            title: Text(
-                              toApproveOrder.varianceName[index],
-                              style: TextStyle(fontSize: 11),
-                            ),
+                            title: Text(name, style: TextStyle(fontSize: 11)),
                             subtitle: Text(
-                              '${toApproveOrder.qty[index]} ${toApproveOrder.uom[index]} x ₹${toApproveOrder.price[index].toStringAsFixed(2)}',
+                              '$qty $uom x ₹${price.toStringAsFixed(2)}',
                               style: TextStyle(fontSize: 10),
                             ),
                             trailing: Text(
-                              '₹${toApproveOrder.amount[index].toStringAsFixed(2)}',
+                              '₹${amount.toStringAsFixed(2)}',
                               style: TextStyle(fontSize: 11),
                             ),
                           );
@@ -1325,12 +1549,10 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                   );
                 },
               ),
-              // Divider(thickness: 1.5),
               SizedBox(height: 20),
             ],
-            Divider(thickness: 1.5),
-            // if (salesOrder.modifiedOrders == null)
 
+            // Modified Orders
             if (salesOrder.modifiedOrders != null &&
                 salesOrder.modifiedOrders!.isNotEmpty) ...[
               Text(
@@ -1347,47 +1569,52 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                 itemCount: salesOrder.modifiedOrders!.length,
                 itemBuilder: (context, modifyIndex) {
                   final modifiedOrder = salesOrder.modifiedOrders![modifyIndex];
+
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8.0),
-                        child: Row(
-                          children: [
-                            // Icon(Icons.edit, size: 14, color: Colors.grey),
-                            SizedBox(width: 8),
-                          ],
-                        ),
-                      ),
+                      SizedBox(height: 8),
                       ListView.separated(
                         shrinkWrap: true,
                         physics: NeverScrollableScrollPhysics(),
                         itemCount: modifiedOrder.varianceName.length,
                         itemBuilder: (context, index) {
+                          final name = modifiedOrder.varianceName[index];
+                          final qty = modifiedOrder.qty.length > index
+                              ? modifiedOrder.qty[index]
+                              : 0;
+                          final uom = modifiedOrder.uom.length > index
+                              ? modifiedOrder.uom[index]
+                              : '';
+                          final price = modifiedOrder.price.length > index
+                              ? modifiedOrder.price[index]
+                              : 0.0;
+                          final amount = modifiedOrder.amount.length > index
+                              ? modifiedOrder.amount[index]
+                              : 0.0;
+                          final weight =
+                              (modifiedOrder.weight != null &&
+                                  modifiedOrder.weight!.length > index)
+                              ? modifiedOrder.weight![index]
+                              : 0;
+
                           return ListTile(
                             contentPadding: EdgeInsets.zero,
-                            title: Text(
-                              modifiedOrder.varianceName[index],
-                              style: TextStyle(fontSize: 11),
-                            ),
-                            // subtitle: Text(
-                            //   '${modifiedOrder.qty[index]} ${modifiedOrder.uom[index]} x ₹${modifiedOrder.price[index].toStringAsFixed(2)}',
-                            //   style: TextStyle(fontSize: 10),
-                            // ),
-                            subtitle: modifiedOrder.uom[index] == 'Kgs'
+                            title: Text(name, style: TextStyle(fontSize: 11)),
+                            subtitle: uom == 'Kgs'
                                 ? Text(
-                                    'Weight: ${modifiedOrder.weight![index]}  x ₹${modifiedOrder.price[index].toStringAsFixed(2)}',
+                                    'Weight: $weight x ₹${price.toStringAsFixed(2)}',
                                     style: TextStyle(fontSize: 10),
                                   )
                                 : Text(
-                                    '${modifiedOrder.qty[index]} ${modifiedOrder.uom[index]} x ₹${modifiedOrder.price[index].toStringAsFixed(2)}/-',
-                                    style: const TextStyle(
+                                    '$qty $uom x ₹${price.toStringAsFixed(2)}/-',
+                                    style: TextStyle(
                                       fontSize: 11,
                                       color: Colors.grey,
                                     ),
                                   ),
                             trailing: Text(
-                              '₹${modifiedOrder.amount[index].toStringAsFixed(2)}',
+                              '₹${amount.toStringAsFixed(2)}',
                               style: TextStyle(fontSize: 11),
                             ),
                           );
@@ -1400,13 +1627,10 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                   );
                 },
               ),
-              // Divider(thickness: 1.5),
               SizedBox(height: 20),
             ],
 
-            // Current Modifications Section (if in modify mode)
-
-            // Original Order Section
+            Divider(thickness: 1.5),
           ],
         ),
       ),
@@ -1417,16 +1641,16 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
     SalesOrderDisplay salesOrder,
     EditCustomerScreenProvider customerprovider,
   ) {
-    // Safe total advance
-    double totalAdvanceAmount = (salesOrder.advanceAmount ?? [])
-        .fold(0.0, (sum, value) => (value ?? 0.0).toDouble() + sum);
+    // Safe totals
+    double totalAdvanceAmount = (salesOrder.advanceAmount ?? []).fold(
+      0.0,
+      (sum, value) => (value ?? 0.0).toDouble() + sum,
+    );
 
-    // Safe modified total
     double modifiedTotal = customerprovider.isModifyMode.value
         ? customerprovider.calculateModifiedTotal(salesOrder)
         : (salesOrder.totalAmount ?? 0.0).toDouble();
 
-    // Safe custom charge and total amounts
     double customCharge = (salesOrder.customCharge ?? 0.0).toDouble();
     double totalAmount2 =
         (salesOrder.totalAmount2 ?? salesOrder.totalAmount ?? 0.0).toDouble();
@@ -1438,169 +1662,169 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
         .map((e) => (e ?? 0.0).toDouble())
         .toList();
     List<String> advanceDates = salesOrder.advanceDateTime ?? [];
+
     int advanceLength = advanceAmounts.length < advanceDates.length
         ? advanceAmounts.length
         : advanceDates.length;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 8.0),
-      child: SingleChildScrollView(
-        child: Column(
-          children: [
-            // Total Amount
-            Text(
-              'Total: ₹${(salesOrder.totalAmount ?? 0.0).toDouble().toStringAsFixed(0)}',
-              style: const TextStyle(
-                fontSize: 12,
+      padding: const EdgeInsets.all(8.0), // reduced from 12
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _summaryRow("Total", salesOrder.totalAmount),
+          if (customCharge > 0)
+            _summaryRow("Custom Charge", customCharge, color: Colors.orange),
+          if (customCharge > 0) _summaryRow("Total Amount", totalAmount2),
+          if (discount > 0)
+            _summaryRow(
+              "Discount",
+              discountAmount,
+              prefix: "${discount.toStringAsFixed(0)}% (-)",
+              color: Colors.red,
+            ),
+          if (discount > 0) _summaryRow("Order Amount", finalPrice),
+
+          // ---- Modification Summary ----
+          if (customerprovider.isModifyMode.value &&
+              (customerprovider.increasedItems.isNotEmpty ||
+                  customerprovider.decreasedItems.isNotEmpty)) ...[
+            const SizedBox(height: 6),
+            const Divider(height: 12),
+            const Text(
+              "Modification Summary",
+              style: TextStyle(
+                fontSize: 11,
                 fontWeight: FontWeight.bold,
-                color: Colors.black,
+                color: Colors.blueGrey,
               ),
             ),
-
-            // Custom Charge
-            if (customCharge > 0)
-              Text(
-                'Custom Charge: ₹${customCharge.toStringAsFixed(0)}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.orange,
-                ),
+            const SizedBox(height: 4),
+            Text(
+              "Original Total: ₹${(salesOrder.totalAmount ?? 0.0).toStringAsFixed(2)}",
+              style: const TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.bold,
+                decoration: TextDecoration.lineThrough,
+                color: Colors.grey,
               ),
-
-            if (customCharge > 0)
-              Text(
-                'Total Amount: ₹${totalAmount2.toStringAsFixed(0)}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
+            ),
+            if (customerprovider.increasedItems.isNotEmpty)
+              _summaryRow(
+                "Added Items",
+                customerprovider.increasedItems.fold<double>(
+                  0.0,
+                  (sum, item) =>
+                      sum + ((item['amount'] ?? 0.0) as num).toDouble(),
                 ),
+                color: Colors.green,
+                prefix: "+",
               ),
-
-            // Discount
-            if (discount > 0)
-              Text(
-                'Discount: ${discount.toStringAsFixed(0)}%(-): ₹${discountAmount.toStringAsFixed(0)}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.red,
+            if (customerprovider.decreasedItems.isNotEmpty)
+              _summaryRow(
+                "Removed Items",
+                customerprovider.decreasedItems.fold<double>(
+                  0.0,
+                  (sum, item) =>
+                      sum + ((item['amount'] ?? 0.0) as num).toDouble(),
                 ),
+                color: Colors.red,
+                prefix: "-",
               ),
+            _summaryRow("Modified Total", modifiedTotal, color: Colors.blue),
+          ],
 
-            if (discount > 0)
-              Text(
-                'Order Amount: ₹${finalPrice.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
+          // ---- Advance Payments ----
+          if (advanceLength > 0) ...[
+            const Divider(height: 14),
+            const Text(
+              "Advance Payments",
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Colors.blueGrey,
               ),
-
-            // Modify Mode: Added/Removed Items
-            if (customerprovider.isModifyMode.value &&
-                (customerprovider.increasedItems.isNotEmpty ||
-                    customerprovider.decreasedItems.isNotEmpty))
-              Text(
-                'Original Total: ₹${(salesOrder.totalAmount ?? 0.0).toDouble().toStringAsFixed(2)}',
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  decoration: TextDecoration.lineThrough,
-                  color: Colors.grey,
-                ),
-              ),
-
-            if (customerprovider.isModifyMode.value &&
-                customerprovider.increasedItems.isNotEmpty)
-              Text(
-                'Added Items: +₹${customerprovider.increasedItems.fold<double>(0.0, (sum, item) => sum + ((item['amount'] ?? 0.0) as num).toDouble()).toStringAsFixed(2)}',
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green,
-                ),
-              ),
-
-            if (customerprovider.isModifyMode.value &&
-                customerprovider.decreasedItems.isNotEmpty)
-              Text(
-                'Removed Items: -₹${customerprovider.decreasedItems.fold<double>(0.0, (sum, item) => sum + ((item['amount'] ?? 0.0) as num).toDouble()).toStringAsFixed(2)}',
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.red,
-                ),
-              ),
-
-            if (customerprovider.isModifyMode.value &&
-                (customerprovider.increasedItems.isNotEmpty ||
-                    customerprovider.decreasedItems.isNotEmpty))
-              Text(
-                'Modified Total: ₹${modifiedTotal.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue,
-                ),
-              ),
-
-            const SizedBox(height: 8),
-
-            // Advance Amounts
-            if (advanceLength > 0)
-              ...List.generate(advanceLength, (index) {
+            ),
+            const SizedBox(height: 4),
+            Column(
+              children: List.generate(advanceLength, (index) {
                 String formattedDate;
                 try {
-                  formattedDate = DateFormat('dd-MM-yyyy')
-                      .format(DateTime.parse(advanceDates[index]));
+                  formattedDate = DateFormat(
+                    'dd-MM-yyyy',
+                  ).format(DateTime.parse(advanceDates[index]));
                 } catch (_) {
-                  formattedDate = advanceDates[index] ?? 'Invalid Date';
+                  formattedDate = advanceDates[index];
                 }
-
                 return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                  padding: const EdgeInsets.symmetric(vertical: 2.0),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Flexible(
-                        child: Text(
-                          formattedDate,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue,
-                          ),
+                      Text(
+                        formattedDate,
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.black87,
                         ),
                       ),
-                      Flexible(
-                        child: Text(
-                          'Amount : ₹${advanceAmounts[index].toStringAsFixed(2)}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Colors.green,
-                            fontWeight: FontWeight.bold,
-                          ),
+                      Text(
+                        "₹${advanceAmounts[index].toStringAsFixed(2)}",
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
                         ),
                       ),
                     ],
                   ),
                 );
               }),
-
-            // Balance
-            Text(
-              'Balance: ₹${(modifiedTotal - totalAdvanceAmount).toStringAsFixed(2)}',
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue,
-              ),
             ),
           ],
-        ),
+
+          const Divider(height: 14),
+          _summaryRow(
+            "Balance",
+            modifiedTotal - totalAdvanceAmount + customCharge,
+            color: Colors.blue,
+            bold: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryRow(
+    String label,
+    double? value, {
+    String prefix = "",
+    Color? color,
+    bool bold = true,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.0), // reduced from 3
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: bold ? FontWeight.w600 : FontWeight.w500,
+              color: Colors.black87,
+            ),
+          ),
+          Text(
+            "$prefix ₹${(value ?? 0.0).toStringAsFixed(2)}",
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: bold ? FontWeight.w600 : FontWeight.w500,
+              color: color ?? Colors.black,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1616,7 +1840,6 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
       0.0,
       (sum, value) => sum + value,
     );
-
     final total = salesOrder.totalAmount - totalAdvanceAmount;
     double modifiedTotal = customerscreenprovider.isModifyMode.value
         ? customerscreenprovider.calculateModifiedTotal(salesOrder)
@@ -1644,8 +1867,8 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                             customerscreenprovider.recordedFilePath.isNotEmpty
                                 ? customerscreenprovider.recordedFilePath
                                 : null,
-                            customerscreenprovider.pickedImage1,
-                            customerscreenprovider.pickedImage2,
+                            _pickedImage1,
+                            _pickedImage1,
                             modifiedTotal,
                             total,
                             totalAdvanceAmount,
@@ -1655,20 +1878,51 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                         },
                         backgroundColor: Colors.orange,
                         textColor: CustomColors.whiteColor,
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 25, vertical: 11),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 25,
+                          vertical: 11,
+                        ),
                       ),
                     if (isModifyMode &&
                         customerscreenprovider.decreasedItems.isEmpty)
                       CustomButton(
                         text: 'Save Changes',
                         onPressed: () async {
+                          print("🔹 Save Changes button clicked!");
+
+                          // Print current state values
+                          print(
+                            "➡️ Increased Items: ${customerscreenprovider.increasedItems}",
+                          );
+                          print(
+                            "➡️ Decreased Items: ${customerscreenprovider.decreasedItems}",
+                          );
+                          print(
+                            "➡️ Recorded File Path: ${customerscreenprovider.recordedFilePath}",
+                          );
+                          print(
+                            "➡️ Picked Image 1: ${_pickedImage1 != null ? _pickedImage1!.path : 'No Image Selected'}",
+                          );
+                          print(
+                            "➡️ Picked Image 2: ${_pickedImage2 != null ? _pickedImage2!.path : 'No Image Selected'}",
+                          );
+                          print("➡️ Modified Total: $modifiedTotal");
+                          print("➡️ Is Modify Mode: $isModifyMode");
+                          print("➡️ API Service Instance: $apiService");
+                          print("➡️ Sales Order: $salesOrder");
+
+                          // Decide audio path
                           final audioPath =
                               customerscreenprovider.recordedFilePath.isNotEmpty
-                                  ? customerscreenprovider.recordedFilePath
-                                  : null;
-                        
-                          // Show advance payment popup safely
+                              ? customerscreenprovider.recordedFilePath
+                              : null;
+
+                          print(
+                            "🎤 Final Audio Path: ${audioPath ?? 'No Audio'}",
+                          );
+
+                          // Call popup function
+                          print("🚀 Calling showAdvancePaymentPopup...");
                           customerscreenprovider.showAdvancePaymentPopup(
                             context,
                             salesOrder,
@@ -1676,51 +1930,97 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                             customerscreenprovider.decreasedItems,
                             audioPath,
                             apiService,
-                            customerscreenprovider.pickedImage1,
-                            customerscreenprovider.pickedImage2,
+                            _pickedImage1,
+                            _pickedImage2,
                             modifiedTotal,
                             isModifyMode,
+                            totalAdvanceAmount,
                           );
+                          print("✅ showAdvancePaymentPopup call completed!");
                         },
                         backgroundColor: Colors.green,
                         textColor: CustomColors.whiteColor,
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 25, vertical: 11),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 25,
+                          vertical: 11,
+                        ),
                       ),
                     if (customerscreenprovider.decreasedItems.isEmpty &&
                         !isModifyMode)
                       Row(
                         children: [
-                          if (salesOrder.status == 'Confirm Order')
+                          if (salesOrder.status != 'Sales Completed' &&
+                              salesOrder.status != 'Cancelled')
                             CustomButton(
                               text: 'Add Advance',
                               onPressed: () => _showAdvancePaymentDialog(
-                                  context, salesOrder),
+                                context,
+                                salesOrder,
+                              ),
                               backgroundColor: CustomColors.blueColor,
                               textColor: CustomColors.whiteColor,
-                              padding: EdgeInsets.symmetric(
-                                  horizontal: 25, vertical: 11),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 25,
+                                vertical: 11,
+                              ),
                             ),
+
                           SizedBox(width: 20),
-                          if (salesOrder.status == 'Confirm Order')
-                            CustomButton(
-                              text: 'Pay ₹ ${total.toStringAsFixed(2)}',
-                              onPressed: salesOrder.status !=
-                                      "SalesOrder Completed"
-                                  ? () =>
-                                      _showPaymentDialog(context, salesOrder)
-                                  : () {},
-                              backgroundColor:
-                                  salesOrder.status != "SalesOrder Completed"
-                                      ? CustomColors.primaryColor
-                                      : Colors.grey,
-                              textColor: CustomColors.whiteColor,
-                              padding: EdgeInsets.symmetric(
-                                  horizontal: 25, vertical: 11),
+                          // CustomButton(
+                          //   text: 'Pay ₹ ${total.toStringAsFixed(2)}',
+                          //   onPressed: () {
+                          //     if (salesOrder.status == "Confirm Order") {
+                          //       _showPaymentDialog(context, salesOrder);
+                          //     } else {
+                          //       TopMessage.show(
+                          //         context,
+                          //         message:
+                          //             "Payment is available only after dispatch.",
+                          //         backgroundColor: Colors.orangeAccent,
+                          //         textColor: Colors.white,
+                          //         duration: const Duration(seconds: 3),
+                          //       );
+                          //     }
+                          //   },
+                          //   backgroundColor:
+                          //       salesOrder.status == "Confirm Order"
+                          //       ? CustomColors.primaryColor
+                          //       : Colors.grey,
+                          //   textColor: CustomColors.whiteColor,
+                          //   padding: const EdgeInsets.symmetric(
+                          //     horizontal: 25,
+                          //     vertical: 11,
+                          //   ),
+                          // ),
+                          CustomButton(
+                            text: 'Pay ₹ ${total.toStringAsFixed(2)}',
+                            onPressed: () {
+                              if (salesOrder.status == "dispatched") {
+                                _showPaymentDialog(context, salesOrder);
+                              } else {
+                                TopMessage.show(
+                                  context,
+                                  message:
+                                      "Payment is available only after dispatch.",
+                                  backgroundColor: Colors.orangeAccent,
+                                  textColor: Colors.white,
+                                  duration: const Duration(seconds: 3),
+                                );
+                              }
+                            },
+                            backgroundColor: salesOrder.status == "dispatched"
+                                ? CustomColors.primaryColor
+                                : Colors.grey,
+                            textColor: CustomColors.whiteColor,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 25,
+                              vertical: 11,
                             ),
+                          ),
                         ],
                       ),
                   ],
+                  
                 );
               },
             ),
@@ -1731,7 +2031,9 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
   }
 
   void _showAdvancePaymentDialog(
-      BuildContext context, SalesOrderDisplay salesOrder) {
+    BuildContext context,
+    SalesOrderDisplay salesOrder,
+  ) {
     double totalAmount = salesOrder.balanceAmount;
 
     if (totalAmount != 0) {
@@ -1743,9 +2045,30 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
             backgroundColor: Colors.white,
             child: CustomSizedBox(
               width: MediaQuery.of(context).size.width * 0.5,
-              child: AddAdvancePayment(
-                salesOrder: salesOrder,
-              ),
+              child: AddAdvancePayment(salesOrder: salesOrder),
+            ),
+          );
+        },
+      );
+    }
+  }
+
+  void _showCancelOrderDialog(
+    BuildContext context,
+    SalesOrderDisplay salesOrder,
+  ) {
+    double totalAmount = salesOrder.balanceAmount;
+
+    if (totalAmount != 0) {
+      showDialog(
+        barrierDismissible: false,
+        context: context,
+        builder: (BuildContext context) {
+          return Dialog(
+            backgroundColor: Colors.white,
+            child: CustomSizedBox(
+              width: MediaQuery.of(context).size.width * 0.5,
+              child: CancelOrderPayment(salesOrder: salesOrder),
             ),
           );
         },
@@ -1755,27 +2078,28 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
 
   void _showPaymentDialog(BuildContext context, SalesOrderDisplay salesOrder) {
     double totalAmount = salesOrder.balanceAmount;
-    if (totalAmount != 0) {
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return Dialog(
-            child: CustomSizedBox(
-              width: MediaQuery.of(context).size.width * 0.5,
-              child: OrderManagementPayandPrint(
-                totalAmount: totalAmount,
-                holdBillId: '',
-                orderId: salesOrder.salesOrderId,
-                employee: salesOrder.employeeName,
-                discount: salesOrder.discount,
-                customerNumber: salesOrder.customerNumber,
-                salesOrder: salesOrder,
-              ),
+    // if (totalAmount != 0) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return Dialog(
+          child: CustomSizedBox(
+            width: MediaQuery.of(context).size.width * 0.5,
+            child: OrderManagementPayandPrint(
+              totalAmount: totalAmount,
+              holdBillId: '',
+              orderId: salesOrder.salesOrderId,
+              employee: salesOrder.employeeName,
+              discount: salesOrder.discount,
+              customerNumber: salesOrder.customerNumber,
+              salesOrder: salesOrder,
             ),
-          );
-        },
-      );
-    }
+          ),
+        );
+      },
+    );
+    // }
   }
 
   Widget _buildOrderHeader(SalesOrderDisplay salesOrder) {
@@ -1805,17 +2129,12 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
   }
 
   void _showAddItemDialog(
-    BuildContext parentContext,
+    BuildContext context,
     EditCustomerScreenProvider customerScreenProvider,
+    RegularModeProvider regularModeProvider,
   ) {
     final searchController = TextEditingController();
     List<Map<String, dynamic>> searchResults = [];
-    Timer? _debounceTimer;
-
-    final regularModeProvider = Provider.of<RegularModeProvider>(
-      parentContext,
-      listen: false,
-    );
 
     void performSearch(String query) {
       if (query.isEmpty) {
@@ -1824,144 +2143,226 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
       }
 
       final queryLower = query.toLowerCase();
-
       searchResults = regularModeProvider.originalItems
           .expand((item) => item['variances'] as List<dynamic>)
           .where((variance) {
-            final name =
-                variance['varianceName']?.toString().toLowerCase() ?? '';
-            final code =
-                variance['varianceitemCode']?.toString().toLowerCase() ?? '';
-            final uom = variance['varianceUOM']?.toString().toLowerCase() ?? '';
-
+            final name = (variance['varianceName']?.toString() ?? '')
+                .toLowerCase();
+            final code = (variance['varianceitemCode']?.toString() ?? '')
+                .toLowerCase();
+            final uom = (variance['varianceUOM']?.toString() ?? '')
+                .toLowerCase();
             return name.contains(queryLower) ||
                 code.contains(queryLower) ||
                 uom.contains(queryLower);
           })
-          .map((variance) => {
-                'varianceName': variance['varianceName'],
-                'varianceUom': variance['varianceUOM'],
-                'variancePrice': variance['varianceDefaultPrice'],
-                'varianceTax': variance['tax'] ?? 0.0,
-                'weight': variance['weight'] ?? 0.0,
-                'varianceitemCode': variance['varianceitemCode'],
-                'itemName': _getItemNameForVariance(
-                    regularModeProvider.originalItems,
-                    variance['varianceName']),
-              })
+          .map((variance) {
+            final itemName = _getItemNameForVariance(
+              regularModeProvider.originalItems,
+              variance['varianceName'],
+            );
+            return {
+              'varianceName': variance['varianceName'],
+              'varianceUom': variance['varianceUOM'],
+              'variancePrice': variance['varianceDefaultPrice'],
+              'varianceTax': variance['tax'] ?? 0.0,
+              'weight': variance['weight'] ?? 0.0,
+              'varianceitemCode': variance['varianceitemCode'],
+              'itemName': itemName,
+            };
+          })
           .toList();
     }
 
     void _clearSearch() {
       searchController.clear();
       searchResults = [];
-      if (_debounceTimer != null && _debounceTimer!.isActive) {
-        _debounceTimer!.cancel();
-      }
-    }
-
-    @override
-    void dispose() {
-      searchController.dispose();
-      _debounceTimer?.cancel();
-      super.dispose();
     }
 
     showDialog(
-      context: parentContext,
+      context: context,
       builder: (BuildContext context) {
         return StatefulBuilder(
           builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Add Item'),
-              content: Container(
-                width: MediaQuery.of(context).size.width * 0.8,
-                constraints: const BoxConstraints(maxWidth: 400),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: searchController,
-                      decoration: InputDecoration(
-                        hintText: 'Search by name, code or UOM',
-                        prefixIcon: const Icon(Icons.search),
-                        suffixIcon: IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            _clearSearch();
-                            setState(() {});
+            return Dialog(
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 40,
+                vertical: 24,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              backgroundColor: Colors.grey.shade50,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.8,
+                  maxWidth: 500,
+                ),
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Title
+                        Text(
+                          'Add Item',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue.shade800,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Search Field
+                        TextField(
+                          controller: searchController,
+                          decoration: InputDecoration(
+                            hintText: 'Search by name, code, or UOM',
+                            prefixIcon: Icon(
+                              Icons.search,
+                              color: Colors.blue.shade300,
+                            ),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                Icons.clear,
+                                color: Colors.blue.shade300,
+                              ),
+                              onPressed: () {
+                                _clearSearch();
+                                setState(() {});
+                              },
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                          autofocus: true,
+                          onChanged: (query) {
+                            setState(() {
+                              performSearch(query);
+                            });
                           },
                         ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      autofocus: true,
-                      onChanged: (query) {
-                        if (_debounceTimer != null &&
-                            _debounceTimer!.isActive) {
-                          _debounceTimer!.cancel();
-                        }
+                        const SizedBox(height: 16),
 
-                        _debounceTimer =
-                            Timer(const Duration(milliseconds: 300), () {
-                          setState(() {
-                            performSearch(query);
-                          });
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    if (searchController.text.isNotEmpty &&
-                        searchResults.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.all(8.0),
-                        child: Text('No items found'),
-                      )
-                    else if (searchResults.isNotEmpty)
-                      SizedBox(
-                        height: 300,
-                        child: ListView.separated(
-                          itemCount: searchResults.length,
-                          separatorBuilder: (_, __) => const Divider(height: 1),
-                          itemBuilder: (context, index) {
-                            final item = searchResults[index];
-                            return ListTile(
-                              title: Text(item['varianceName'] ?? ''),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('${item['itemName'] ?? ''}'),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '${item['varianceUom'] ?? ''} • '
-                                    '₹${item['variancePrice']?.toStringAsFixed(2) ?? '0.00'} • '
-                                    'Code: ${item['varianceitemCode'] ?? ''}',
-                                    style:
-                                        Theme.of(context).textTheme.bodySmall,
-                                  ),
-                                ],
+                        // Search Results
+                        if (searchController.text.isNotEmpty &&
+                            searchResults.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Text(
+                              'No items found',
+                              style: TextStyle(
+                                fontStyle: FontStyle.italic,
+                                color: Colors.grey.shade600,
                               ),
-                              onTap: () {
-                                _showQuantityDialog(
-                                  context,
-                                  item,
-                                  customerScreenProvider,
+                            ),
+                          )
+                        else if (searchResults.isNotEmpty)
+                          SizedBox(
+                            height: 300,
+                            child: ListView.separated(
+                              itemCount: searchResults.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 8),
+                              itemBuilder: (context, index) {
+                                final item = searchResults[index];
+                                return Container(
+                                  decoration: BoxDecoration(
+                                    color:
+                                        Colors.blue.shade50, // Blue background
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: Colors.blue.shade100,
+                                    ),
+                                  ),
+                                  child: ListTile(
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 8,
+                                    ),
+                                    title: Text(
+                                      item['varianceName'] ?? '',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    subtitle: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          '${item['itemName'] ?? ''}',
+                                          style: TextStyle(
+                                            color: Colors.grey.shade700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '${item['varianceUom'] ?? ''} • ₹${item['variancePrice']?.toStringAsFixed(2) ?? '0.00'} • Code: ${item['varianceitemCode'] ?? ''}',
+                                          style: TextStyle(
+                                            color: Colors.grey.shade600,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    trailing: Icon(
+                                      Icons.add_circle,
+                                      color: Colors.blue.shade400,
+                                    ),
+                                    onTap: () {
+                                      _showQuantityDialog(
+                                        context,
+                                        item,
+                                        customerScreenProvider,
+                                      );
+                                    },
+                                  ),
                                 );
                               },
-                            );
-                          },
+                            ),
+                          ),
+
+                        const SizedBox(height: 16),
+
+                        // Close Button
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.white,
+                              backgroundColor: Colors.blue.shade400,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 12,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              'Close',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
                         ),
-                      ),
-                  ],
+                      ],
+                    ),
+                  ),
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Close'),
-                ),
-              ],
             );
           },
         );
@@ -1969,8 +2370,192 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
     );
   }
 
+  void _showQuantityDialog(
+    BuildContext context,
+    Map<String, dynamic> item,
+    EditCustomerScreenProvider customerScreenProvider,
+  ) {
+    final uom = (item['varianceUom'] ?? '').toString().toLowerCase();
+    final varianceName = item['varianceName'] ?? '';
+    final itemName = item['itemName'] ?? '';
+    final price = item['variancePrice'] ?? 0.0;
+    final tax = item['varianceTax'] ?? 0.0;
+    final itemCode = item['varianceitemCode'] ?? '';
+
+    // For pcs or pkt → normal quantity input
+    if (uom == 'pcs' || uom == 'pkt') {
+      final quantityController = TextEditingController(text: '1');
+
+      showDialog(
+        context: context,
+        builder: (context) {
+          return Dialog(
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 40,
+              vertical: 24,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            backgroundColor: Colors.grey.shade50,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.4,
+                maxWidth: 360,
+              ),
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Title
+                      Text(
+                        'Add $varianceName',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue.shade800,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Quantity Input
+                      TextField(
+                        controller: quantityController,
+                        decoration: InputDecoration(
+                          labelText: 'Quantity',
+                          labelStyle: TextStyle(color: Colors.blue.shade700),
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Price Display
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.blue.shade100),
+                        ),
+                        child: Text(
+                          'Price: ₹${price.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.blue.shade800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Actions
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.pop(context),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                side: BorderSide(color: Colors.blue.shade400),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: Text(
+                                'Cancel',
+                                style: TextStyle(
+                                  color: Colors.blue.shade700,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () {
+                                double quantity =
+                                    double.tryParse(quantityController.text) ??
+                                    1;
+                                customerScreenProvider.addItemToOrder(
+                                  item,
+                                  quantity,
+                                );
+                                Navigator.pop(context); // Close quantity dialog
+                                Navigator.pop(context); // Close search dialog
+                              },
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                backgroundColor: Colors.blue.shade400,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text(
+                                'Add to Order',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    } else if (uom == 'kg' || uom == 'kgs') {
+      // Use NumericCalculator for weight-based items
+      showDialog(
+        context: context,
+        builder: (context) {
+          return NumericCalculator(
+            varianceName: varianceName,
+            onValueSelected: (weight) {
+              customerScreenProvider.addItemToOrder(item, weight);
+            },
+          );
+        },
+      );
+      Navigator.pop(context); // Close quantity dialog
+      Navigator.pop(context); // Close search dialog
+    } else {
+      // Default fallback for unknown UOM
+      final quantityController = TextEditingController(text: '1');
+      // Show the same as pcs/pkt
+    }
+  }
+
   String _getItemNameForVariance(
-      List<Map<String, dynamic>> items, String varianceName) {
+    List<Map<String, dynamic>> items,
+    String varianceName,
+  ) {
     for (final item in items) {
       for (final variance in item['variances']) {
         if (variance['varianceName'] == varianceName) {
@@ -1979,63 +2564,5 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
       }
     }
     return '';
-  }
-
-  void _showQuantityDialog(
-    BuildContext context,
-    Map<String, dynamic> item,
-    EditCustomerScreenProvider customerScreenProvider,
-  ) {
-    final quantityController = TextEditingController(text: '1');
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('Add ${item['varianceName']}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: quantityController,
-                decoration: const InputDecoration(
-                  labelText: 'Quantity',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Price: ₹${item['variancePrice']?.toStringAsFixed(2) ?? '0.00'}',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                // final quantity = int.tryParse(quantityController.text) ?? 1;
-                // customerScreenProvider.addItemToOrder(
-                //   item: item,
-                //   quantity: quantity,
-                // );
-                double quantity = double.tryParse(quantityController.text) ?? 1;
-                customerScreenProvider.addItemToOrder(
-                  item,
-                  quantity,
-                );
-                Navigator.pop(context); // Close quantity dialog
-                Navigator.pop(context); // Close search dialog
-              },
-              child: const Text('Add to Order'),
-            ),
-          ],
-        );
-      },
-    );
   }
 }

@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:yenpos/Global/Widget/customposcolumn.dart';
 
-
 class SalesReturnBill {
   final BuildContext context;
   SalesReturnBill({required this.context});
@@ -16,7 +15,7 @@ class SalesReturnBill {
     required List<Map<String, dynamic>> returnItems,
   }) async {
     // Static data setup
-    String employeeNumber = 'EMP334416';
+    String employeeNumber = 'EMP567896';
     String customerNumber = 'CUST78910';
     String formattedDate = DateFormat('dd-MM-yyyy').format(DateTime.now());
     String formattedTime = DateFormat('hh:mm a').format(DateTime.now());
@@ -29,13 +28,16 @@ class SalesReturnBill {
     final profile = await CapabilityProfile.load();
     final printer = NetworkPrinter(PaperSize.mm80, profile);
 
-    final PosPrintResult res =
-        await printer.connect('192.168.1.87', port: 9100);
+    final PosPrintResult res = await printer.connect(
+      '192.168.1.90',
+      port: 9100,
+    );
     if (res == PosPrintResult.success) {
       try {
         for (int copy = 0; copy < 2; copy++) {
-          String receiptTitle =
-              copy == 0 ? 'Sales Return' : 'Sales Return\nCustomer Copy';
+          String receiptTitle = copy == 0
+              ? 'Sales Return'
+              : 'Sales Return\nCustomer Copy';
 
           List<int> bytes = [];
           final generator = Generator(PaperSize.mm80, profile);
@@ -43,48 +45,53 @@ class SalesReturnBill {
           // Header
           bytes += generator.row([
             createPosColumn(
-                width: 12,
-                text: '',
-                styles: createPosStyles(
-                  align: PosAlign.center,
-                  height: PosTextSize.size6,
-                  width: PosTextSize.size6,
-                  codeTable: 'CP1252',
-                )),
+              width: 12,
+              text: '',
+              styles: createPosStyles(
+                align: PosAlign.center,
+                height: PosTextSize.size6,
+                width: PosTextSize.size6,
+                codeTable: 'CP1252',
+              ),
+            ),
           ]);
           bytes += generator.row([
             createPosColumn(
-                width: 12,
-                text: 'BestMummy',
-                styles: createPosStyles(
-                  align: PosAlign.center,
-                  height: PosTextSize.size1,
-                  width: PosTextSize.size1,
-                  codeTable: 'CP1252',
-                )),
+              width: 12,
+              text: 'BestMummy',
+              styles: createPosStyles(
+                align: PosAlign.center,
+                height: PosTextSize.size1,
+                width: PosTextSize.size1,
+                codeTable: 'CP1252',
+              ),
+            ),
           ]);
           bytes += generator.row([
             createPosColumn(
-                width: 12,
-                text: 'Sweets & Cakes',
-                styles: createPosStyles(
-                  align: PosAlign.center,
-                  height: PosTextSize.size1,
-                  width: PosTextSize.size1,
-                  codeTable: 'CP1252',
-                )),
+              width: 12,
+              text: 'Sweets & Cakes',
+              styles: createPosStyles(
+                align: PosAlign.center,
+                height: PosTextSize.size1,
+                width: PosTextSize.size1,
+                codeTable: 'CP1252',
+              ),
+            ),
           ]);
           bytes += generator.feed(1);
 
           // Header
           // Title and Customer Copy notice
-          bytes += generator.text(receiptTitle,
-              styles: PosStyles(
-                align: PosAlign.center,
-                height: PosTextSize.size2,
-                width: PosTextSize.size2,
-              ),
-              linesAfter: 1);
+          bytes += generator.text(
+            receiptTitle,
+            styles: PosStyles(
+              align: PosAlign.center,
+              height: PosTextSize.size2,
+              width: PosTextSize.size2,
+            ),
+            linesAfter: 1,
+          );
 
           // if (isReturn) {
           //   bytes += generator.text('Customer Copy',
@@ -94,58 +101,85 @@ class SalesReturnBill {
           // Date and Time
           bytes += generator.row([
             createPosColumn(
-                width: 6,
-                text: 'Date: $formattedDate',
-                styles:
-                    createPosStyles(align: PosAlign.left, codeTable: 'CP1252')),
+              width: 6,
+              text: 'Date: $formattedDate',
+              styles: createPosStyles(
+                align: PosAlign.left,
+                codeTable: 'CP1252',
+              ),
+            ),
             createPosColumn(
-                width: 6,
-                text: 'Time: $formattedTime',
-                styles: createPosStyles(
-                    align: PosAlign.right, codeTable: 'CP1252')),
+              width: 6,
+              text: 'Time: $formattedTime',
+              styles: createPosStyles(
+                align: PosAlign.right,
+                codeTable: 'CP1252',
+              ),
+            ),
           ]);
           bytes += generator.feed(1);
 
           // Sales Person and Customer Number
           bytes += generator.row([
             createPosColumn(
-                width: 6,
-                text: 'Sales Person: $employeeNumber',
-                styles:
-                    createPosStyles(align: PosAlign.left, codeTable: 'CP1252')),
+              width: 6,
+              text: 'Sales Person: $employeeNumber',
+              styles: createPosStyles(
+                align: PosAlign.left,
+                codeTable: 'CP1252',
+              ),
+            ),
             createPosColumn(
-                width: 6,
-                text: 'Customer No: $customerNumber',
-                styles: createPosStyles(
-                    align: PosAlign.right, codeTable: 'CP1252')),
+              width: 6,
+              text: 'Customer No: $customerNumber',
+              styles: createPosStyles(
+                align: PosAlign.right,
+                codeTable: 'CP1252',
+              ),
+            ),
           ]);
           bytes += generator.feed(1);
           bytes += generator.row([
             createPosColumn(
-                width: 1,
-                text: 'S.No',
-                styles:
-                    createPosStyles(align: PosAlign.left, codeTable: 'CP1252')),
+              width: 1,
+              text: 'S.No',
+              styles: createPosStyles(
+                align: PosAlign.left,
+                codeTable: 'CP1252',
+              ),
+            ),
             createPosColumn(
-                width: 5,
-                text: 'Item',
-                styles:
-                    createPosStyles(align: PosAlign.left, codeTable: 'CP1252')),
+              width: 5,
+              text: 'Item',
+              styles: createPosStyles(
+                align: PosAlign.left,
+                codeTable: 'CP1252',
+              ),
+            ),
             createPosColumn(
-                width: 2,
-                text: '',
-                styles: createPosStyles(
-                    align: PosAlign.right, codeTable: 'CP1252')),
+              width: 2,
+              text: '',
+              styles: createPosStyles(
+                align: PosAlign.right,
+                codeTable: 'CP1252',
+              ),
+            ),
             createPosColumn(
-                width: 1,
-                text: '',
-                styles: createPosStyles(
-                    align: PosAlign.right, codeTable: 'CP1252')),
+              width: 1,
+              text: '',
+              styles: createPosStyles(
+                align: PosAlign.right,
+                codeTable: 'CP1252',
+              ),
+            ),
             createPosColumn(
-                width: 3,
-                text: 'Amount',
-                styles: createPosStyles(
-                    align: PosAlign.right, codeTable: 'CP1252')),
+              width: 3,
+              text: 'Amount',
+              styles: createPosStyles(
+                align: PosAlign.right,
+                codeTable: 'CP1252',
+              ),
+            ),
           ]);
           // Inside _printReceiptDetails function
           bytes += generator.feed(1);
@@ -173,31 +207,41 @@ class SalesReturnBill {
 
           bytes += generator.row([
             createPosColumn(
-                width: 12,
-                text: '----------------------------------------------',
-                styles: createPosStyles(
-                    align: PosAlign.center, codeTable: 'CP1252')),
+              width: 12,
+              text: '----------------------------------------------',
+              styles: createPosStyles(
+                align: PosAlign.center,
+                codeTable: 'CP1252',
+              ),
+            ),
           ]);
           // Total Amount
           bytes += generator.text(
-              'Total Return Amount: ${totalReturnAmount.toStringAsFixed(2)}',
-              styles: PosStyles(align: PosAlign.right, bold: true));
+            'Total Return Amount: ${totalReturnAmount.toStringAsFixed(2)}',
+            styles: PosStyles(align: PosAlign.right, bold: true),
+          );
           bytes += generator.feed(1);
           bytes += generator.row([
             createPosColumn(
-                width: 12,
-                text: '----------------------------------------------',
-                styles: createPosStyles(
-                    align: PosAlign.center, codeTable: 'CP1252')),
+              width: 12,
+              text: '----------------------------------------------',
+              styles: createPosStyles(
+                align: PosAlign.center,
+                codeTable: 'CP1252',
+              ),
+            ),
           ]);
           // Footer
-          bytes += generator.text('Thank You ! Visit Again !',
-              styles: PosStyles(align: PosAlign.center, codeTable: 'CP1252'));
+          bytes += generator.text(
+            'Thank You ! Visit Again !',
+            styles: PosStyles(align: PosAlign.center, codeTable: 'CP1252'),
+          );
           bytes += generator.feed(1);
 
           const int maxLineWidth = 18;
           List<String> addressLines = splitAddress(
-              "No.45, Raja Veethi, Aranmanai, Ramanathapuram, Tamil Nadu-623501");
+            "No.45, Raja Veethi, Aranmanai, Ramanathapuram, Tamil Nadu-623501",
+          );
 
           for (int i = 0; i < addressLines.length; i++) {
             bytes += generator.row([
@@ -213,29 +257,37 @@ class SalesReturnBill {
           }
           bytes += generator.row([
             createPosColumn(
-                width: 12,
-                text: 'Phone : 9342978427',
-                styles: createPosStyles(
-                    align: PosAlign.center, codeTable: 'CP1252')),
+              width: 12,
+              text: 'Phone : 9342978427',
+              styles: createPosStyles(
+                align: PosAlign.center,
+                codeTable: 'CP1252',
+              ),
+            ),
           ]);
           bytes += generator.row([
             createPosColumn(
               width: 6,
               text: 'GST : 33AATFB12B1ZW',
-              styles:
-                  createPosStyles(align: PosAlign.center, codeTable: 'CP1252'),
+              styles: createPosStyles(
+                align: PosAlign.center,
+                codeTable: 'CP1252',
+              ),
             ),
             createPosColumn(
               width: 6,
               text: 'FSSAI : 1242000',
-              styles:
-                  createPosStyles(align: PosAlign.center, codeTable: 'CP1252'),
+              styles: createPosStyles(
+                align: PosAlign.center,
+                codeTable: 'CP1252',
+              ),
             ),
           ]);
 
           bytes += generator.feed(1);
           printer.rawBytes(
-              Uint8List.fromList(bytes)); // Send the bytes to the printer
+            Uint8List.fromList(bytes),
+          ); // Send the bytes to the printer
           printer.cut();
 
           // Debug print statement

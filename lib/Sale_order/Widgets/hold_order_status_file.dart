@@ -9,7 +9,6 @@ void showHoldOrdersSheet(
   BuildContext context,
   CustomerScreenProvider customerScreenProvider,
 ) {
-  customerScreenProvider.fetchHolderFromHive();
   showModalBottomSheet(
     isScrollControlled: true,
     backgroundColor: Colors.transparent, // for glass effect
@@ -133,9 +132,13 @@ void showHoldOrdersSheet(
                               ),
                               child: InkWell(
                                 borderRadius: BorderRadius.circular(18),
-                                onTap: () {
+                                onTap: () async {
                                   final heldOrder = HeldOrder.fromMap(order);
-                                  restoreHeldOrderData(context, heldOrder);
+                                  await restoreHeldOrderData(
+                                    context,
+                                    heldOrder,
+                                  );
+                                  Navigator.of(context).pop();
                                 },
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(

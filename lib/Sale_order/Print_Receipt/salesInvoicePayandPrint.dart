@@ -94,15 +94,6 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
   final Set<String> _loggedInvoices = {}; // Track unique invoices
 
   late WebSocketChannel _channel;
-  // Future<void> sendInvoiceDataToServer(Map<String, dynamic> invoiceData) async {
-  //   try {
-  //     final jsonData = jsonEncode(invoiceData);
-  //     _channel.sink.add(jsonData);
-  //     print('Invoice data sent to server: $jsonData');
-  //   } catch (e) {
-  //     print('Error sending invoice data to server: $e');
-  //   }
-  // }
 
   void _validateForm() {
     setState(() {

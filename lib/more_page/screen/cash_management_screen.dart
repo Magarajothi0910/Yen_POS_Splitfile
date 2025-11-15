@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:yenpos/more_page/providers/cash_management_provider.dart';
 import 'package:yenpos/more_page/widgets/cash_management_widgets.dart';
 
-
 class CashManagementScreen extends StatefulWidget {
   const CashManagementScreen({super.key});
 
@@ -13,9 +12,7 @@ class CashManagementScreen extends StatefulWidget {
 }
 
 class _CashManagementScreenState extends State<CashManagementScreen> {
-  final ValueNotifier<ConnectivityResult> connectivityResult = ValueNotifier(
-    ConnectivityResult.none,
-  );
+  final ValueNotifier<ConnectivityResult> connectivityResult = ValueNotifier(ConnectivityResult.none);
 
   @override
   void initState() {
@@ -25,8 +22,7 @@ class _CashManagementScreenState extends State<CashManagementScreen> {
     _checkConnectivity();
     // Listen for connectivity changes
     Connectivity().onConnectivityChanged.listen((result) {
-      connectivityResult.value =
-          result.first; // Handle Stream<List<ConnectivityResult>>
+      connectivityResult.value = result.first; // Handle Stream<List<ConnectivityResult>>
     });
   }
 
@@ -60,8 +56,7 @@ class _CashManagementScreenState extends State<CashManagementScreen> {
                     icon: Icons.lock_clock,
                     isSelected: view == 'Shift Closing',
                     onTap: () {
-                      CashManagementProvider.cashManagementView.value =
-                          'Shift Closing';
+                      CashManagementProvider.cashManagementView.value = 'Shift Closing';
                     },
                   ),
                   const SizedBox(width: 10),
@@ -71,8 +66,7 @@ class _CashManagementScreenState extends State<CashManagementScreen> {
                     icon: Icons.money_sharp,
                     isSelected: view == 'Cash In',
                     onTap: () {
-                      CashManagementProvider.cashManagementView.value =
-                          'Cash In';
+                      CashManagementProvider.cashManagementView.value = 'Cash In';
                     },
                   ),
                   const SizedBox(width: 10),
@@ -82,38 +76,32 @@ class _CashManagementScreenState extends State<CashManagementScreen> {
                     icon: Icons.money_off,
                     isSelected: view == 'Cash Out',
                     onTap: () {
-                      CashManagementProvider.cashManagementView.value =
-                          'Cash Out';
+                      CashManagementProvider.cashManagementView.value = 'Cash Out';
                     },
                   ),
                 ],
               ),
             ),
-            //const SizedBox(height: 20),
+            const SizedBox(height: 20),
             Expanded(
               child: view == 'Shift Closing'
-                  ? ShiftClosingContainer(
-                      connectivityResult: connectivityResult,
-                    )
+                  ? ShiftClosingContainer(connectivityResult: connectivityResult)
                   : view == 'Cash In'
                   ? const Center(
                       child: Text(
                         'Cash In functionality not implemented yet',
-                        style: TextStyle(fontSize: 18, color: Colors.grey),
+                        style: TextStyle(fontFamily: 'Poppins',fontSize: 18, color: Colors.grey),
                       ),
                     )
                   : view == 'Cash Out'
                   ? const Center(
                       child: Text(
                         'Cash Out functionality not implemented yet',
-                        style: TextStyle(fontSize: 18, color: Colors.grey),
+                        style: TextStyle(fontFamily: 'Poppins',fontSize: 18, color: Colors.grey),
                       ),
                     )
                   : const Center(
-                      child: Text(
-                        'Select a view',
-                        style: TextStyle(fontSize: 18, color: Colors.grey),
-                      ),
+                      child: Text('Select a view', style: TextStyle(fontFamily: 'Poppins',fontSize: 18, color: Colors.grey)),
                     ),
             ),
           ],

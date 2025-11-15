@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'dart:math';
 import 'package:hive/hive.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:yenpos/Hive_Manager/hive_manager_saleOrder.dart';
 
@@ -21,10 +23,31 @@ Future<void> savePosSaleOrderToHive(
   Map<String, dynamic> saleOrder,
   Box saleOrderBox,
 ) async {
-  var saleOrderBox = await Hive.openBox('saleOrderBox');
-  final String shortId = generateShortHiveInvoiceId();
-  saleOrder['hiveId'] = shortId;
-  await saleOrderBox.put(shortId, saleOrder);
+  print("\n💾 [SAVE TO HIVE - PRIMARY] --- START ---");
+
+  try {
+    saleOrderBox = await Hive.openBox('saleOrderBox');
+    print("📦 Hive Box opened: ${saleOrderBox.name}");
+
+    final String shortId = generateShortHiveInvoiceId();
+    saleOrder['hiveId'] = shortId;
+    saleOrder['sync'] = 'No';
+    saleOrder['edit'] = 'No';
+
+    print("🧾 Generated Hive Short ID: $shortId");
+    print("📝 Writing to Hive...");
+
+    await saleOrderBox.put(shortId, saleOrder);
+    print("✅ Saved order with ID: $shortId");
+
+    final savedData = saleOrderBox.get(shortId);
+    print("🔍 Data verification successful. Keys: ${savedData?.keys.toList()}");
+  } catch (e, st) {
+    print("❌ [SAVE TO HIVE - PRIMARY] Exception: $e");
+    print("🧾 StackTrace:\n$st");
+  }
+
+  print("💾 [SAVE TO HIVE - PRIMARY] --- END ---\n");
 }
 
 Future<void> savePosInvoiceOrderToHive(
@@ -43,7 +66,7 @@ String generateShortHiveInvoiceId() {
     6,
   ); // Shortened timestamp
   const characters =
-      'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123334419'; // Alphanumeric characters
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZ0125678989'; // Alphanumeric characters
   final randomId =
       List<int>.generate(6, (_) => random.nextInt(characters.length))
           .map((index) => characters[index])
@@ -97,15 +120,31 @@ Future<void> saveKotInvoiceToHive(Map<String, dynamic> invoice) async {
 }
 
 Future<void> savePosInvoiceToHive(Map<String, dynamic> posInvoice) async {
+  print("🟢 [savePosInvoiceToHive] STARTED");
+  print("🟢 Invoice data to save: $posInvoice");
+
   try {
     // Step 1: Open the Hive box
     var posInvoiceBox = await HiveManager.invoiceBox;
+    print("🟢 Hive box opened successfully");
 
     // Step 2: Save the invoice to Hive
-    await posInvoiceBox.add(posInvoice);
+    final key = await posInvoiceBox.add(posInvoice);
+    print("✅ Invoice saved successfully with key: $key");
 
-    // Debug: Current count of invoices
-  } catch (e, st) {}
+    // Step 3: Debug: Current count of invoices in Hive
+    final count = posInvoiceBox.length;
+    print("🟢 Current total invoices in Hive: $count");
+
+    // Optional: Log the last saved invoice
+    final lastInvoice = posInvoiceBox.getAt(count - 1);
+    print("🟢 Last saved invoice in Hive: $lastInvoice");
+  } catch (e, st) {
+    print("❌ Error saving invoice to Hive: $e");
+    print("❌ StackTrace: $st");
+  }
+
+  print("🟢 [savePosInvoiceToHive] FINISHED");
 }
 
 /// Save hold order using the 'holdOrders' box
@@ -114,9 +153,7 @@ Future<void> saveHoldOrderToHive(
   Map<String, dynamic> data,
   Box holdOrderBox,
 ) async {
-  print('💾 Saving Hold Order to Hive...');
   await holdOrderBox.add(data);
-  print('✅ Hold Order saved to Hive successfully!');
 }
 
 /// Save sales approval order using the 'salesApprovalOrder' box
@@ -129,4 +166,34 @@ Future<void> saveSalesApprovalOrderToHive(Map<String, dynamic> data) async {
 Future<void> saveModifyOrderToHive(Map<String, dynamic> data) async {
   var modifyOrdersBox = Hive.box('saleOrderModifyOrders');
   await modifyOrdersBox.add(data);
+}
+
+Future<void> initHiveInBackground() async {
+  await Hive.initFlutter();
+
+  // Open only what background tasks need
+  await Future.wait([
+    Hive.openBox('invoices'),
+
+    Hive.openBox('userBox'),
+    Hive.openBox('holdOrders'),
+    Hive.openBox('pendingPrintOrders'),
+    Hive.openBox('deviceData'),
+    Hive.openBox('branchData'),
+    Hive.openBox('tableStatus'),
+    Hive.openBox('openOrderBox'),
+    Hive.openBox('opensaleOrders'),
+    Hive.openBox('cartBox'),
+    Hive.openBox('imagesBox'),
+    Hive.openBox('salesOrders'),
+    Hive.openBox('invoices'),
+    Hive.openBox('imagesBox'),
+    Hive.openBox("salesOrderNumberBox"),
+    Hive.openBox('salesOrders'),
+    Hive.openBox('openOrderBox'),
+    Hive.openBox('opensaleOrders'),
+
+    Hive.openBox('logo'),
+    Hive.openBox('customerBox'),
+  ]);
 }

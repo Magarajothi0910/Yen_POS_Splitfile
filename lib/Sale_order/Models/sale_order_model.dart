@@ -30,6 +30,8 @@ class SalesOrder {
   double discountAmount;
   String remark;
   double? customCharge;
+  String? customChargeType;
+
   List<double> advanceAmount;
   double totalAmount;
   double? totalAmount2;
@@ -46,7 +48,7 @@ class SalesOrder {
   String? orderTime;
   String employeeName;
   String status;
-  String? shiftId;
+  List<String>? shiftId;
   String? companyName;
   String? companyAddress;
   String? companyGST;
@@ -56,7 +58,7 @@ class SalesOrder {
   List<String>? isBoxItem;
   List<double>? itemWiseDiscount;
   List<double>? itemWiseDiscountAmount;
-  List<int>? boxQty;
+  int? boxQty;
   List<ApprovalOrderDetail>? approvalDetails;
   String? approvalOrderId;
 
@@ -72,6 +74,7 @@ class SalesOrder {
     required this.weight,
     required this.amount,
     required this.tax,
+    required this.customChargeType,
     this.totalAmount2,
     required this.uom,
     required this.qty,
@@ -121,19 +124,24 @@ class SalesOrder {
 
   factory SalesOrder.fromJson(Map<String, dynamic> json) {
     return SalesOrder(
-      itemName:
-          List<String>.from(json['itemName']?.map((x) => x.toString()) ?? []),
+      itemName: List<String>.from(
+        json['itemName']?.map((x) => x.toString()) ?? [],
+      ),
       varianceName: List<String>.from(
-          json['varianceName']?.map((x) => x.toString()) ?? []),
-      itemCode:
-          List<String>.from(json['itemCode']?.map((x) => x.toString()) ?? []),
+        json['varianceName']?.map((x) => x.toString()) ?? [],
+      ),
+      itemCode: List<String>.from(
+        json['itemCode']?.map((x) => x.toString()) ?? [],
+      ),
       qty: List<int>.from(json['qty'] ?? []),
       tax: List<int>.from(json['tax'] ?? []),
       uom: List<String>.from(json['uom']?.map((x) => x.toString()) ?? []),
       amount: List<double>.from(
-          json['amount']?.map((x) => (x as num).toDouble()) ?? []),
+        json['amount']?.map((x) => (x as num).toDouble()) ?? [],
+      ),
       weight: List<double>.from(
-          json['weight']?.map((x) => (x as num).toDouble()) ?? []),
+        json['weight']?.map((x) => (x as num).toDouble()) ?? [],
+      ),
       price: List<int>.from(json['price'] ?? []),
       totalAmount2: (json['totalAmount2'] as num?)?.toDouble(),
       totalAmount: (json['totalAmount'] as num?)?.toDouble() ?? 0.0,
@@ -142,8 +150,12 @@ class SalesOrder {
       branchId: json['branchId']?.toString(),
       holdOrderId: json['holdOrderId']?.toString(),
       branchName: json['branchName']?.toString(),
+      customChargeType: json["customChargeType"]?.toString(),
       aliasName: json['aliasName']?.toString(),
-      shiftId: json['shiftId']?.toString() ?? "",
+      shiftId: json['shiftId'] != null
+          ? List<String>.from(json['shiftId'].map((x) => x.toString()))
+          : null,
+
       event: json['event']?.toString() ?? '',
       customerNumber: json['customerNumber']?.toString() ?? '',
       customerName: json['customerName']?.toString() ?? '',
@@ -153,6 +165,7 @@ class SalesOrder {
       discount: (json['discount'] as num?)?.toDouble() ?? 0.0,
       discountAmount: (json['discountAmount'] as num?)?.toDouble() ?? 0.0,
       remark: json['remark']?.toString() ?? '',
+      boxQty: json['boxQty'] ?? 0,
       customCharge: (json['customCharge'] as num?)?.toDouble() ?? 0.0,
       advanceAmount: List<double>.from(
         json['advanceAmount']?.map((x) => (x as num).toDouble()) ?? [],
@@ -229,6 +242,7 @@ class SalesOrder {
       "aliasName": aliasName,
       'address': address,
       'landmark': landmark,
+      "customChargeType": customChargeType,
       'discount': discount,
       'discountAmount': discountAmount,
       'remark': remark,

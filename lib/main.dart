@@ -1,23 +1,26 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
-import 'package:yenpos/Global/Audio%20Player/audio_provider.dart';
+import 'package:yenpos/Global/Audio Player/audio_provider.dart';
 import 'package:yenpos/Global/Provider/bottomNavprovider.dart';
 import 'package:yenpos/Global/Provider/branchSelection_provider.dart';
 import 'package:yenpos/Global/Provider/branchwise_item_fetch.dart';
 import 'package:yenpos/Global/Provider/connectivity_internet.dart';
+import 'package:yenpos/Global/Provider/current_datetime.dart';
 import 'package:yenpos/Global/Provider/employee_provider.dart';
 import 'package:yenpos/Global/Provider/logo_provider.dart';
+import 'package:yenpos/Global/Widget/app_theme.dart';
+import 'package:yenpos/Global/Widget/circular_process_Indicator.dart';
 import 'package:yenpos/Global/Widget/scaffold_global.dart';
-
 import 'package:yenpos/Hive_Manager/hiveProvider.dart';
-import 'package:yenpos/Mode_page/choose_mode_screen.dart';
+import 'package:yenpos/Notification/notification_service.dart';
+import 'package:yenpos/Notification/websocket_service.dart';
 import 'package:yenpos/Sale_order/Print_Receipt/invoicePrint.dart';
 import 'package:yenpos/Sale_order/Provider/bank_search_provider.dart';
 import 'package:yenpos/Sale_order/Provider/customer_search_provider.dart';
-import 'package:yenpos/Sale_order/Provider/deviceProvider.dart';
 import 'package:yenpos/Sale_order/Provider/editcustomerscreenProvider.dart';
 import 'package:yenpos/Sale_order/Provider/get_sales_order_service.dart';
 import 'package:yenpos/Sale_order/Provider/modifyOrderProvider.dart';
@@ -27,110 +30,155 @@ import 'package:yenpos/Sale_order/Widgets/customAll_keyboard.dart';
 import 'package:yenpos/Sale_order/Widgets/custom_qty_keyboard.dart';
 import 'package:yenpos/Global/Provider/printer_provider.dart';
 import 'package:yenpos/Hive_Manager/hive_manager_kot.dart';
-
 import 'package:yenpos/Hive_Manager/hive_manager_saleOrder.dart';
 import 'package:yenpos/Mode_page/Regular_mode/Provider/regular_mode_screen_provider.dart';
 import 'package:yenpos/Sale_order/Models/fetchBranch.dart';
-
 import 'package:yenpos/Sale_order/Provider/cartProvider.dart';
 import 'package:yenpos/Sale_order/Provider/cart_selection_provider.dart';
 import 'package:yenpos/Sale_order/Provider/customerScreen_provider.dart';
 import 'package:yenpos/Sale_order/Provider/detailsProvider.dart';
 import 'package:yenpos/Sale_order/Provider/salesOrder_provider.dart';
 import 'package:yenpos/Sale_order/Widgets/paymentDetail_keybaord.dart';
-import 'package:yenpos/Server_Client/serverScreen.dart';
+import 'package:yenpos/Sale_order/Widgets/search_drop_filed.dart';
 import 'package:yenpos/Server_Client/websocketService.dart';
 import 'package:yenpos/background_task/flutter_foreground_task.dart';
+import 'package:yenpos/birthday_cakes_screen/provider/birthdayCake_provider.dart';
+import 'package:yenpos/invoice_pay_and_print_page.dart/provider/options_provider.dart';
+import 'package:yenpos/invoice_pay_and_print_page.dart/provider/payment_provider.dart';
+import 'package:yenpos/invoice_pay_and_print_page.dart/provider/razorpay_provider.dart';
+import 'package:yenpos/kotpreinvoice/providers/bottomNavprovider.dart';
+import 'package:yenpos/kotpreinvoice/providers/cartprovider.dart';
+import 'package:yenpos/kotpreinvoice/providers/hold_order.dart';
+import 'package:yenpos/kotpreinvoice/providers/install_provider.dart';
+import 'package:yenpos/kotpreinvoice/providers/order_provider.dart';
+import 'package:yenpos/kotpreinvoice/providers/order_type_provider.dart';
+import 'package:yenpos/kotpreinvoice/providers/pax_provider.dart';
+import 'package:yenpos/kotpreinvoice/providers/printer_provider.dart';
+import 'package:yenpos/kotpreinvoice/providers/product_provider.dart';
+import 'package:yenpos/kotpreinvoice/providers/search_provider.dart';
+import 'package:yenpos/kotpreinvoice/providers/submissionProvider.dart';
+import 'package:yenpos/kotpreinvoice/providers/upi_provider.dart';
+import 'package:yenpos/kotpreinvoice/screens/Unprinted%20receipt/provider/unprinted_orders_provider.dart';
+import 'package:yenpos/kotpreinvoice/screens/products_card_screen.dart';
 import 'package:yenpos/loginPage/installationpage.dart';
 import 'package:yenpos/loginPage/provider/deviceProvider.dart';
-
 import 'package:yenpos/loginPage/provider/loginPageProvider.dart';
 import 'package:yenpos/more_page/controller/denomination_controler.dart';
 import 'package:yenpos/more_page/providers/bt_provide2.dart';
-import 'package:yenpos/shift_managment_page/openshift/open_shift.dart';
+import 'package:yenpos/printer_screen/provider/printer_config_provider.dart';
+import 'package:yenpos/regular_mode_page/provider/cart_page_provider.dart';
+import 'package:yenpos/regular_mode_page/provider/favorite_page_provider.dart';
+import 'package:yenpos/regular_mode_page/provider/quantity_provider.dart';
 import 'package:yenpos/transactionPage/Provider/transactionProvider.dart';
 
+final wsservice = NotificationWebSocketService();
 void main() async {
+  final String _wsUrl = 'wss://yenerp.com/fastapi/salesorders/ws';
   WidgetsFlutterBinding.ensureInitialized();
   await HiveManager().init();
   await Hive.initFlutter();
   await Hive.openBox('branchesBox');
   await Hive.openBox<String>('audioFiles');
+  await Hive.openBox('serverBox');
+  await Hive.openBox('configBox');
 
-  await ForegroundHelper.init(); // ✅ just await it, don’t assign/use
+  //KOT
+
+  await Hive.openBox('tokenBox');
+  await Hive.openBox('branchwise_items');
+  await Hive.openBox('quickAccessBox');
+  await Hive.openBox('printers');
+
+  // final customerProvider = CustomerScreenProvider();
+  // final printer = SalesInvoiceReceiptPrinter();
+
+  final orderProvider = OrderProvider()..initializeHive();
+  final printerProvider = PrinterProviderDine();
+  final orderTypeProvider = OrderTypeProviderDine();
+  final loginProvider = LoginProvider();
+  final upiProvider = UpiProviderDine();
+  final customerProvider = CustomerScreenProvider();
+  final receiptPrinter = SalesInvoiceReceiptPrinter();
+
+  // === NOW initialize WebSocketService ===
+  WebSocketService.init(
+    orderProvider: orderProvider,
+    printerProvider: printerProvider,
+    orderTypeProvider: orderTypeProvider,
+    loginProvider: loginProvider,
+    upiProvider: upiProvider,
+    customerProvider: customerProvider,
+    receiptPrinter: receiptPrinter,
+  );
+
+  //WebSocketService.init(customerProvider, printer, orderProvider: null, printerProvider: null, orderTypeProvider: null, loginProvider: null, upiProvider: null, customerProvider: null, receiptPrinter: null);
+  await ForegroundHelper.init();
+
   final appDir = await getApplicationDocumentsDirectory();
   Hive.init(appDir.path);
-  await Hive.openBox('imagesBox');
-  await Hive.openBox('salesOrders');
-  await Hive.openBox('invoices');
-  await Hive.openBox('imagesBox');
-  await Hive.openBox('salesOrders');
-  await Hive.openBox('salesOrderNumberBox');
-  await Hive.openBox('cartBox');
-  await Hive.openBox('openOrderBox');
-  await Hive.openBox('opensaleOrders');
-  await Hive.openBox('userBox');
-  await Hive.openBox('holdOrders');
-  await Hive.openBox('pendingPrintOrders');
-  await Hive.openBox('deviceData');
-  await Hive.openBox('branchData');
-  await Hive.openBox('tableStatus');
-  await Hive.openBox('openOrderBox');
-  await Hive.openBox('opensaleOrders');
-  await Hive.openBox('imagesBox');
-  await Hive.openBox('salesOrders');
-  await Hive.openBox('invoices');
-  await Hive.openBox('imagesBox');
-  await Hive.openBox('salesOrders');
-  await Hive.openBox('openOrderBox');
-  await Hive.openBox('opensaleOrders');
-  await Hive.openBox('customerBox');
-  await Hive.openBox('logo');
-  Get.put(DenominationController());
-  await HiveManager.initialize();
-  await HiveManager().init();
-  await HiveManagerKot().init();
 
   await Future.wait([
+    Hive.openBox('imagesBox'),
+    Hive.openBox('salesOrders'),
+    Hive.openBox('saleOrderBox'),
+    Hive.openBox('deviceCode'),
     Hive.openBox('invoices'),
-    Future.value(HiveManagerKot().ordersBox),
+    Hive.openBox('salesOrderNumberBox'),
+    Hive.openBox('cartBox'),
+    Hive.openBox('serverBox'),
+    Hive.openBox('configBox'),
+    Hive.openBox('employeeBox'),
+    Hive.openBox('openOrderBox'),
+    Hive.openBox('opensaleOrders'),
     Hive.openBox('userBox'),
     Hive.openBox('holdOrders'),
     Hive.openBox('pendingPrintOrders'),
     Hive.openBox('deviceData'),
     Hive.openBox('branchData'),
-    Hive.openBox('tableStatus'),
-    Hive.openBox('openOrderBox'),
-    Hive.openBox('opensaleOrders'),
-    Hive.openBox('cartBox'),
-    Hive.openBox('imagesBox'),
-    Hive.openBox('salesOrders'),
-    Hive.openBox('invoices'),
-    Hive.openBox('imagesBox'),
-    Hive.openBox("salesOrderNumberBox"),
-    Hive.openBox('salesOrders'),
-    Hive.openBox('openOrderBox'),
-    Hive.openBox('opensaleOrders'),
 
-    Hive.openBox('logo'),
     Hive.openBox('customerBox'),
+    Hive.openBox('logo'),
+
+    //KOT
+    Hive.openBox('invoicesKOT'),
+    Hive.openBox('printerData'),
+    Hive.openBox('holdOrdersKOT'),
+    Hive.openBox('cancelledOrderBox'),
+    Hive.openBox('pendingPrintOrdersKOT'),
+    Hive.openBox('tokenCounter'),
+    Hive.openBox('branchwise_tables'),
+    Hive.openBox('addons'),
+    Hive.openBox('variants'),
+    Hive.openBox('localStockBox'),
+    Hive.openBox('ordersBox'),
+    Hive.openBox('settings'),
+    Hive.openBox('tableStatus'),
+    Hive.openBox('extra_tables'),
   ]);
 
-  await fetchAndStoreLogo();
+  Get.put(DenominationController());
 
+  await HiveManager.initialize();
+  await HiveManager().init();
+  await HiveManagerKot().init();
+  WidgetsFlutterBinding.ensureInitialized();
+  await NotificationService.init();
+  await fetchAndStoreLogo();
+  wsservice.connect(_wsUrl);
   try {
     await fetchAndStoreBranchData();
-  } catch (e) {}
+  } catch (e) {
+    debugPrint('Branch data fetch error: $e');
+  }
 
-  // final serverScreen = ServerScreen();
-  // await serverScreen.init();
-  // debugPrintRebuildDirtyWidgets = true;
-  runApp(MyApp());
+  // ✅ Initialize Foreground only after bindings & Hive ready
+
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  // final ServerScreen serverScreen;
-
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
   const MyApp({super.key});
 
   @override
@@ -139,117 +187,279 @@ class MyApp extends StatelessWidget {
       'customerBox': 'https://yenerp.com/fastapi/customers/',
       'banksBox': 'https://yenerp.com/masterapi/bankmasters/',
     };
+
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ConnectivityProvider()),
         ChangeNotifierProvider(create: (_) => ItemProvider()),
         ChangeNotifierProvider(create: (_) => AudioProvider()),
-
+        ChangeNotifierProvider(create: (_) => QuantityProvider()),
         ChangeNotifierProvider(create: (_) => RegularModeProvider()),
-
+        ChangeNotifierProvider(create: (_) => CurrentSaleProvider()),
         ChangeNotifierProvider(create: (_) => PrinterProvider()),
         ChangeNotifierProvider(create: (_) => LoginProvider()),
         ChangeNotifierProvider(create: (_) => CartSelectionProvider()),
         ChangeNotifierProvider(create: (_) => BluetoothProvider2()),
-
         ChangeNotifierProvider(create: (_) => DetailsProvider()),
         ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => SaleOrderProvider()),
         ChangeNotifierProvider(create: (_) => CustomerScreenProvider()),
         ChangeNotifierProvider(create: (_) => KeyboardProvider()),
         ChangeNotifierProvider(create: (_) => QtyKeyboardProvider()),
-        // ChangeNotifierProvider(create: (_) => PrinterProviderpos()),
-        ChangeNotifierProvider(create: (_) => TransactionProvider()),
-
+        ChangeNotifierProvider(create: (_) => CurrentDatetimeService()),
+        ChangeNotifierProvider(
+          create: (_) => TransactionProvider()..getInvoicesFromHive(),
+        ),
+        ChangeNotifierProvider(create: (_) => BirthdayCakesProvider()),
         ChangeNotifierProvider(create: (_) => PaymentDetailKeyboardProvider()),
         ChangeNotifierProvider(create: (_) => AdvanceAmountKeyboard()),
-
-        ChangeNotifierProvider(
-          create: (_) => WebSocketService(
-            CustomerScreenProvider(),
-            SalesInvoiceReceiptPrinter(),
-          ),
+        ChangeNotifierProvider(create: (_) => RazorpayQRProvider()),
+        ChangeNotifierProvider(create: (_) => OptionsProvider()),
+        ChangeNotifierProvider(create: (_) => PrinterProviderpos()),
+        ChangeNotifierProvider(create: (_) => SalesInvoiceState()),
+        ChangeNotifierProvider(create: (_) => FavoriteProvider()),
+        ChangeNotifierProvider<WebSocketService>.value(
+          value: WebSocketService.instance,
         ),
         ChangeNotifierProvider(
-          create: (context) =>
-              ApiServiceSalesOrderProvider(
-                  webSocketService: Provider.of<WebSocketService>(
-                    context,
-                    listen: false,
-                  ),
-                )
-                ..fetchOrdersFromHive()
-                ..setupHiveListener(),
+          create: (context) => ApiServiceSalesOrderProvider()
+            ..fetchOrdersFromHive()
+            ..setupHiveListener(),
         ),
-
         ChangeNotifierProvider(create: (_) => PhotoProvider()),
         ChangeNotifierProvider(create: (_) => BranchProvider()),
-        ChangeNotifierProvider(create: (_) => AudioProvider()),
         ChangeNotifierProvider(create: (_) => ModifyCartProvider()),
         ChangeNotifierProvider(create: (_) => EditCustomerScreenProvider()),
-
         ChangeNotifierProvider(create: (_) => HiveProvider(boxUrls)),
         ChangeNotifierProvider(create: (_) => SalesInvoiceReceiptPrinter()),
-
         ChangeNotifierProvider(
           create: (context) => BankSearchProvider(
             Provider.of<HiveProvider>(context, listen: false),
-            boxName: 'banksBox', // Provide the required boxName here
+            boxName: 'banksBox',
           ),
         ),
         ChangeNotifierProvider(
           create: (context) => CustomerSearchProvider(
             Provider.of<HiveProvider>(context, listen: false),
-            boxName: 'customerBox', // Provide the required boxName here
+            boxName: 'customerBox',
           ),
         ),
-
-        //KOT
         ChangeNotifierProvider(
           create: (_) => PrinterProvider()..initializeHive(),
         ),
-
         ChangeNotifierProvider(create: (_) => DeviceProvider()),
-        ChangeNotifierProvider(create: (_) => CartProvider()),
-
-        ChangeNotifierProvider(create: (_) => LoginProvider()),
-
         ChangeNotifierProvider(create: (_) => EmployeeProvider()),
         ChangeNotifierProvider(create: (_) => BottomNavProvider()),
 
-        ChangeNotifierProvider(create: (_) => TransactionProvider()),
-
-        ChangeNotifierProvider(create: (_) => ConnectivityProvider()),
+        //KOT
+        ChangeNotifierProvider(create: (_) => UpiProviderDine()),
+        ChangeNotifierProvider(create: (_) => ProductEventProvider()),
+        ChangeNotifierProvider(create: (_) => PrinterProviderDine()),
+        ChangeNotifierProvider(create: (_) => BottomNavProviderKOT()),
+        ChangeNotifierProvider(create: (_) => PrinterProvider()),
+        ChangeNotifierProvider(create: (_) => SearchProviderDine()),
+        ChangeNotifierProvider(create: (_) => InstallProvider()),
+        ChangeNotifierProvider(create: (_) => CartProviderKOT()),
+        ChangeNotifierProvider(create: (_) => OrderTypeProviderDine()),
+        ChangeNotifierProvider(create: (_) => QuickAccessProvider()),
+        ChangeNotifierProvider(create: (_) => CategoryProvider()),
+        ChangeNotifierProvider(create: (_) => SubmissionProviderDine()),
+        ChangeNotifierProvider(create: (_) => PaxProviderDine()),
+        ChangeNotifierProvider(create: (_) => HoldOrderProvider()),
+        ChangeNotifierProvider(
+          create: (_) => ProductProvider()..initializeHive(),
+        ),
+        ChangeNotifierProxyProvider<ProductProvider, OrderProvider>(
+          create: (_) {
+            final orderProvider = OrderProvider();
+            orderProvider.initializeHive();
+            return orderProvider;
+          },
+          update: (ctx, prodProv, orderProv) {
+            return orderProv!..setProductProvider(prodProv);
+          },
+        ),
+        // WebSocketService (depends on multiple providers)
+        ChangeNotifierProvider<WebSocketService>.value(
+          value: WebSocketService.instance,
+        ),
+        ChangeNotifierProvider(
+          create: (context) => UnprintedOrdersProvider(
+            printerProvider: Provider.of<PrinterProviderDine>(
+              context,
+              listen: false,
+            ),
+          ),
+        ),
       ],
       builder: (context, child) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          Provider.of<ItemProvider>(
-            context,
-            listen: false,
-          ).fetchAndSaveEmployees();
-          Provider.of<ItemProvider>(
-            context,
-            listen: false,
-          ).fetchDataIfNeeded(branchAlias: '');
-          Provider.of<ItemProvider>(
-            context,
-            listen: false,
-          ).fetchAndSaveSalesOrders();
-          Provider.of<ItemProvider>(
-            context,
-            listen: false,
-          ).fetchAndStoreBranches();
-        });
-
         return GetMaterialApp(
-          showPerformanceOverlay: false,
-          scaffoldMessengerKey: GlobalScaffold.scaffoldMessengerKey,
+          theme: AppTheme.lightTheme,
           debugShowCheckedModeBanner: false,
-          // home: ChooseModePage(),
-          home: InstallPOSApp(),
-          // home: LoginScreen(),
+          scaffoldMessengerKey: GlobalScaffold.scaffoldMessengerKey,
+          home: const HiveInitializer(),
         );
       },
     );
+  }
+}
+
+class HiveInitializer extends StatefulWidget {
+  const HiveInitializer({super.key});
+
+  @override
+  State<HiveInitializer> createState() => _HiveInitializerState();
+}
+
+class _HiveInitializerState extends State<HiveInitializer> {
+  late Future<void> _initFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _initFuture = _initializeHiveData();
+  }
+
+  Future<void> _initializeHiveData() {
+    final completer = Completer<void>();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final itemProv = Provider.of<ItemProvider>(context, listen: false);
+        await Future.wait([
+          itemProv.fetchAndSaveEmployees(),
+          itemProv.fetchDataIfNeeded(branchAlias: ''),
+          itemProv.fetchAndSaveSalesOrders(),
+          itemProv.fetchAndStoreBranches(),
+        ]);
+      } catch (e) {
+        debugPrint('_initializeHiveData error: $e');
+      } finally {
+        completer.complete();
+      }
+    });
+    return completer.future;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<void>(
+      future: _initFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.done) {
+          return const ConnectivityWrapper();
+        } else if (snapshot.hasError) {
+          return Scaffold(
+            body: Center(
+              child: Text("⚠️ Initialization Failed: ${snapshot.error}"),
+            ),
+          );
+        } else {
+          // GIF Loader
+          return Scaffold(
+            backgroundColor: Colors.white,
+            body: Center(
+              child: Image.asset(
+                'assets/loading.gif',
+                width:
+                    MediaQuery.of(context).size.width * 0.5, // screen width 50%
+                height:
+                    MediaQuery.of(context).size.height *
+                    0.5, // screen height 50%
+                fit: BoxFit.contain,
+              ),
+            ),
+          );
+        }
+      },
+    );
+  }
+}
+
+class ConnectivityWrapper extends StatefulWidget {
+  const ConnectivityWrapper({super.key});
+
+  @override
+  _ConnectivityWrapperState createState() => _ConnectivityWrapperState();
+}
+
+class _ConnectivityWrapperState extends State<ConnectivityWrapper> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final connectivityProvider = Provider.of<ConnectivityProvider>(
+        context,
+        listen: false,
+      );
+      final webSocketService = Provider.of<WebSocketService>(
+        context,
+        listen: false,
+      );
+
+      if (!connectivityProvider.isConnected) {
+        _showNoInternetDialog(context, connectivityProvider);
+      }
+
+      connectivityProvider.addListener(() {
+        if (connectivityProvider.isConnected) {
+          Navigator.of(
+            context,
+            rootNavigator: true,
+          ).popUntil((route) => route.isFirst);
+          webSocketService.reconnect();
+        } else {
+          _showNoInternetDialog(context, connectivityProvider);
+        }
+      });
+    });
+  }
+
+  void _showNoInternetDialog(
+    BuildContext context,
+    ConnectivityProvider connectivityProvider,
+  ) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          title: const Text(''),
+          content: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.wifi_off, size: 80, color: Colors.grey),
+              SizedBox(height: 20),
+              Text(
+                'No Network Connection!',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 10),
+              Text('Please check your network connection.'),
+            ],
+          ),
+          actions: <Widget>[
+            ElevatedButton(
+              child: const Text('Try Again'),
+              onPressed: () async {
+                await connectivityProvider.checkConnection();
+                if (connectivityProvider.isConnected) {
+                  final webSocketService = Provider.of<WebSocketService>(
+                    context,
+                    listen: false,
+                  );
+                  webSocketService.reconnect();
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const InstallPOSApp();
   }
 }

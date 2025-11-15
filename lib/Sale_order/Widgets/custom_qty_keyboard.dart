@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:yenpos/Global/globals_data.dart';
 
-
-
 class QtyKeyboardProvider with ChangeNotifier {
   bool isNumeric = ActiveField.isNumeric.value;
   bool isUpperCase = true;
@@ -15,8 +13,10 @@ class QtyKeyboardProvider with ChangeNotifier {
 
   int get activeIndex => _activeIndex;
 
-  void registerController(TextEditingController controller,
-      {String inputType = 'text'}) {
+  void registerController(
+    TextEditingController controller, {
+    String inputType = 'text',
+  }) {
     if (!controllers.contains(controller)) {
       controllers.add(controller);
       inputTypes.add(inputType);
@@ -77,10 +77,19 @@ class QtyCustomKeyboardWidgetAll2 extends StatelessWidget {
   void _insert(BuildContext context, String txt) {
     final provider = context.read<QtyKeyboardProvider>();
     if (provider.isNumeric) {
-      final digitsOnly =
-          (controller.text + txt).replaceAll(RegExp(r'[^0-9.]'), '');
-      if (digitsOnly.length > 10) return;
+      // Remove non-digit characters for counting
+      final digitsOnly = (controller.text + txt).replaceAll(
+        RegExp(r'[^0-9]'),
+        '',
+      );
+
+      // ✅ Max 5 digits
+      if (digitsOnly.length > 5) return;
+
+      // ✅ Prevent starting with 0
+      if (controller.text.isEmpty && txt == '0') return;
     }
+
     final newText = controller.text + txt;
     controller.value = TextEditingValue(
       text: newText,
@@ -124,11 +133,11 @@ class QtyCustomKeyboardWidgetAll2 extends StatelessWidget {
   }
 
   List<List<String>> get _numeric => [
-        ['1', '2', '3'],
-        ['4', '5', '6'],
-        ['7', '8', '9'],
-        ['.', '0', '⌫'], // added ABC toggle
-      ];
+    ['1', '2', '3'],
+    ['4', '5', '6'],
+    ['7', '8', '9'],
+    ['.', '0', '⌫'], // added ABC toggle
+  ];
 
   List<List<String>> _alpha(bool upper) {
     const base = [
@@ -138,16 +147,23 @@ class QtyCustomKeyboardWidgetAll2 extends StatelessWidget {
       ['123', 'SPACE'], // numeric toggle
     ];
     return base
-        .map((row) => row
-            .map((k) => RegExp(r'^[a-zA-Z]$').hasMatch(k) && upper
-                ? k.toUpperCase()
-                : k)
-            .toList())
+        .map(
+          (row) => row
+              .map(
+                (k) => RegExp(r'^[a-zA-Z]$').hasMatch(k) && upper
+                    ? k.toUpperCase()
+                    : k,
+              )
+              .toList(),
+        )
         .toList();
   }
 
   Widget _buildKeyContainer(
-      BuildContext context, String keyLabel, bool isPressed) {
+    BuildContext context,
+    String keyLabel,
+    bool isPressed,
+  ) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 120),
       margin: const EdgeInsets.all(4),
@@ -155,7 +171,7 @@ class QtyCustomKeyboardWidgetAll2 extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: isPressed
             ? LinearGradient(
-                colors: [Colors.amber.shade300, Colors.orange.shade400],
+                colors: [Colors.blue.shade300, Colors.blue.shade500],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               )
@@ -209,8 +225,9 @@ class QtyCustomKeyboardWidgetAll2 extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<QtyKeyboardProvider>(
       builder: (context, provider, _) {
-        final layout =
-            provider.isNumeric ? _numeric : _alpha(provider.isUpperCase);
+        final layout = provider.isNumeric
+            ? _numeric
+            : _alpha(provider.isUpperCase);
         return Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
@@ -241,15 +258,21 @@ class QtyCustomKeyboardWidgetAll2 extends StatelessWidget {
                             onTap: () {
                               provider.setPressedKey(key);
                               _handleKey(context, key);
-                              Future.delayed(const Duration(milliseconds: 80),
-                                  () {
-                                provider.setPressedKey(null);
-                              });
+                              Future.delayed(
+                                const Duration(milliseconds: 80),
+                                () {
+                                  provider.setPressedKey(null);
+                                },
+                              );
                             },
-                            onLongPress:
-                                key == '⌫' ? () => controller.clear() : null,
+                            onLongPress: key == '⌫'
+                                ? () => controller.clear()
+                                : null,
                             child: _buildKeyContainer(
-                                context, key, provider.pressedKey == key),
+                              context,
+                              key,
+                              provider.pressedKey == key,
+                            ),
                           ),
                         ),
                     ],

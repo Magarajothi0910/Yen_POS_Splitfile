@@ -3,12 +3,14 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:yenpos/Global/globals_data.dart';
 import 'package:yenpos/Sale_order/Provider/customerScreen_provider.dart';
+import 'package:yenpos/Sale_order/Widgets/advance_amount_payment_keybaord.dart';
 import 'package:yenpos/Sale_order/Widgets/bank_search_dropdown.dart';
+import 'package:yenpos/Sale_order/Widgets/cheque_details.dart';
 import 'package:yenpos/Sale_order/Widgets/customAll_keyboard.dart';
 import 'package:yenpos/Sale_order/Widgets/employee_selection.dart';
-
-// import '../screens/sales_order/screens/create_salesOrder.dart/employee_selection.dart';
-// import 'dynamic_search_dropdown.dart';
+import 'package:lottie/lottie.dart';
+import 'package:yenpos/invoice_pay_and_print_page.dart/provider/payment_provider.dart';
+import 'package:yenpos/invoice_pay_and_print_page.dart/provider/razorpay_provider.dart'; // For Lottie animation
 
 class AdvanceAmountDialog extends StatefulWidget {
   final double advanceAmount;
@@ -17,33 +19,12 @@ class AdvanceAmountDialog extends StatefulWidget {
 
   const AdvanceAmountDialog({
     Key? key,
-
     required this.advanceAmount,
     required this.salesOrderId,
     required this.saleOrderNo,
   }) : super(key: key);
-
   @override
-  _AdvanceAmountDialogState createState() => _AdvanceAmountDialogState();
-
-  static Future<Map<String, dynamic>?> show(
-    BuildContext context, {
-    required double advanceAmount,
-
-    required String salesOrderId,
-    required String saleOrderNo,
-  }) {
-    return showDialog<Map<String, dynamic>>(
-      barrierDismissible: false,
-      context: context,
-      builder: (context) => AdvanceAmountDialog(
-        advanceAmount: advanceAmount,
-        salesOrderId: salesOrderId,
-        saleOrderNo: saleOrderNo,
-
-      ),
-    );
-  }
+  State<AdvanceAmountDialog> createState() => _AdvanceAmountDialogState();
 }
 
 class _AdvanceAmountDialogState extends State<AdvanceAmountDialog> {
@@ -51,8 +32,7 @@ class _AdvanceAmountDialogState extends State<AdvanceAmountDialog> {
   final TextEditingController _salesPersonController = TextEditingController();
   final TextEditingController _returnAmountController = TextEditingController();
   late final TextEditingController _amountController;
-
-
+  final List<String> cashOptions = [];
   // Payment method controllers
   final TextEditingController chequeNumberController = TextEditingController();
   final TextEditingController chequeAmountController = TextEditingController();
@@ -61,34 +41,1004 @@ class _AdvanceAmountDialogState extends State<AdvanceAmountDialog> {
   final TextEditingController chequeDateController = TextEditingController();
 
   String selectedPaymentMethod = 'Cash'; // Default payment method
+  bool _isCompleteButtonEnabled = false; // default enabled
+  // 👇 Add this
+  bool _showChequeDetails = false;
+  final FocusNode _customCashFocusNode = FocusNode();
+  final FocusNode _customUpiFocusNode = FocusNode();
+  final FocusNode _customCardFocusNode = FocusNode();
 
-  //focus nodes
+  // Cheque FocusNodes
+  final FocusNode _chequeNumberFocus = FocusNode();
+  final FocusNode _chequeAmountFocus = FocusNode();
+  final FocusNode _chequeNameFocus = FocusNode();
+  final FocusNode _chequeDateFocus = FocusNode();
+  int _cashAmount = 0;
+  int _cardAmount = 0;
+  int _upiAmount = 0;
+  int _chequeAmount = 0;
+  double _originalAmount = 0.0;
+  double _upiAndCashAmount = 0.0;
+  final TextEditingController _cashController = TextEditingController();
+  final TextEditingController _upiController = TextEditingController();
+  final TextEditingController _cardController = TextEditingController();
+
+  // Focus nodes
   FocusNode chequeNumberFocus = FocusNode();
   FocusNode chequeAmountFocus = FocusNode();
   FocusNode chequeNameFocus = FocusNode();
   FocusNode remarkFocus = FocusNode();
   FocusNode returnAmountFocus = FocusNode();
   FocusNode salespersonFocus = FocusNode();
-
-  final List<String> paymentMethods = [
-    'Cash',
-    'Card',
-    'UPI',
-    'Cheque',
-    'Others',
-  ];
+  bool _isChequeSelected = false; // tracks if cheque is selected
+  @override
   @override
   void initState() {
     super.initState();
+
     _amountController = TextEditingController(
       text: widget.advanceAmount.toString(),
     );
-
-    // show advanceAmount in return amount field by default
     _returnAmountController.text = widget.advanceAmount.toString();
-
-    // For cheque also keep same by default
     chequeAmountController.text = widget.advanceAmount.toString();
+
+    double alreadyPaid = widget.advanceAmount;
+    _originalAmount = alreadyPaid;
+    _upiAndCashAmount = alreadyPaid;
+
+    _cashController.addListener(() {
+      _cashAmount = int.tryParse(_cashController.text) ?? 0;
+      _validateAmount(_cashController, "Cash");
+      _validateForm();
+    });
+
+    // 🔹 UPI validation
+    _upiController.addListener(() {
+      _upiAmount = int.tryParse(_upiController.text) ?? 0;
+      _validateAmount(_upiController, "UPI");
+      _validateForm();
+    });
+
+    // 🔹 Card validation
+    _cardController.addListener(() {
+      _cardAmount = int.tryParse(_cardController.text) ?? 0;
+      _validateAmount(_cardController, "Card");
+      _validateForm();
+    });
+
+    // 🔹 Cheque validation
+    chequeAmountController.addListener(() {
+      _chequeAmount = int.tryParse(chequeAmountController.text) ?? 0;
+      _validateAmount(chequeAmountController, "Cheque");
+      _validateForm();
+    });
+  }
+
+  void _validateForm() {
+    final cash = double.tryParse(_cashController.text) ?? 0;
+    final upi = double.tryParse(_upiController.text) ?? 0;
+    final card = double.tryParse(_cardController.text) ?? 0;
+    final cheque = double.tryParse(chequeAmountController.text) ?? 0;
+
+    // Enable button if any field has a value > 0
+    _isCompleteButtonEnabled = (cash + upi + card + cheque) > 0;
+
+    setState(() {});
+  }
+
+  void _validateAmount(TextEditingController controller, String method) {
+    double entered = double.tryParse(controller.text) ?? 0;
+
+    double alreadyPaid = widget.advanceAmount;
+
+    double remainingBalance = alreadyPaid - entered;
+
+    if (entered > alreadyPaid) {
+      controller.text = remainingBalance.toStringAsFixed(0);
+      controller.selection = TextSelection.fromPosition(
+        TextPosition(offset: controller.text.length),
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "Entered $method amount exceeds remaining balance. Max allowed: ₹${remainingBalance.toStringAsFixed(0)}",
+            style: const TextStyle(color: Colors.white),
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+
+    _updateBalance(); 
+    _validateForm(); 
+  }
+
+  String _getSuggestedAmount(String method) {
+    final cash = double.tryParse(_cashController.text) ?? 0;
+    final upi = double.tryParse(_upiController.text) ?? 0;
+    final card = double.tryParse(_cardController.text) ?? 0;
+
+    final alreadyPaid = widget.advanceAmount;
+
+    final remaining = alreadyPaid - (cash + upi + card);
+
+    // 🔎 Debug print
+
+    if (method == "Cash" && _cashController.text.isEmpty) {
+      return remaining > 0 ? remaining.toStringAsFixed(0) : "0";
+    }
+    if (method == "UPI" && _upiController.text.isEmpty) {
+      return remaining > 0 ? remaining.toStringAsFixed(0) : "0";
+    }
+    if (method == "Card" && _cardController.text.isEmpty) {
+      return remaining > 0 ? remaining.toStringAsFixed(0) : "0";
+    }
+
+    return "0";
+  }
+
+  void _updateBalance() {
+    setState(() {
+      final cash = double.tryParse(_cashController.text) ?? 0;
+      final upi = double.tryParse(_upiController.text) ?? 0;
+      final card = double.tryParse(_cardController.text) ?? 0;
+      final cheque = double.tryParse(chequeAmountController.text) ?? 0;
+
+      double alreadyPaid = widget.advanceAmount;
+      double newPayment = cash + upi + card + cheque;
+      final remainingBalance = alreadyPaid - newPayment;
+
+      // 🔴 If total exceeds remaining balance
+      if (newPayment > alreadyPaid) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Entered amount exceeds remaining balance (₹${remainingBalance.toStringAsFixed(0)})!",
+              style: const TextStyle(color: Colors.white),
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+
+        // 🔹 Clear the last entered field
+        if (_cashController.text.isNotEmpty && cash > remainingBalance) {
+          _cashController.clear();
+        }
+        if (_upiController.text.isNotEmpty && upi > remainingBalance) {
+          _upiController.clear();
+        }
+        if (_cardController.text.isNotEmpty && card > remainingBalance) {
+          _cardController.clear();
+        }
+        if (chequeAmountController.text.isNotEmpty &&
+            cheque > remainingBalance) {
+          chequeAmountController.clear();
+        }
+
+        newPayment = 0.0; // reset new payment to prevent negative balance
+      }
+    });
+  }
+
+  Widget _buildPaymentEntry(
+    String method,
+    TextEditingController controller,
+    FocusNode focus,
+  ) {
+    final stateProvider = Provider.of<SalesInvoiceState>(
+      context,
+      listen: false,
+    );
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.3),
+            offset: const Offset(3, 3), // Shadow position for 3D effect
+            blurRadius: 6,
+          ),
+          const BoxShadow(
+            color: Colors.white, // Light reflection
+            offset: Offset(-2, -2),
+            blurRadius: 6,
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Method Name
+          Expanded(
+            flex: 1,
+            child: Text(
+              method,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ),
+
+          // Suggested amount button
+          GestureDetector(
+            onTap: () {
+              String suggested = _getSuggestedAmount(method);
+              controller.text = suggested;
+              _updateBalance();
+              setState(() {}); // 👈 trigger rebuild
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.teal[50],
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.teal.withOpacity(0.3),
+                    offset: const Offset(2, 2),
+                    blurRadius: 4,
+                  ),
+                  const BoxShadow(
+                    color: Colors.white,
+                    offset: Offset(-2, -2),
+                    blurRadius: 4,
+                  ),
+                ],
+              ),
+              child: Text(
+                _getSuggestedAmount(method),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.teal,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 10),
+
+          // Amount Input (Custom Keyboard Only)
+          Expanded(
+            flex: 3,
+            child: TextField(
+              controller: controller,
+              focusNode: focus,
+              readOnly: true, // Prevent system keyboard
+              showCursor: true, // Show blinking cursor
+              decoration: InputDecoration(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                filled: true,
+                fillColor: Colors.grey[50],
+                hintText: 'Enter $method',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              onTap: () {
+                ActiveField.activate(
+                  context: context,
+                  ctrl: controller,
+                  node: focus,
+                  numeric: true,
+                );
+              },
+              onChanged: (value) {
+                _updateBalance();
+              },
+            ),
+          ),
+
+          // UPI/Card Payment Icon
+          if (method == 'UPI' || method == 'Card')
+            Consumer<RazorpayQRProvider>(
+              builder: (context, qrProvider, _) {
+                return IconButton(
+                  icon: Icon(
+                    method == 'UPI' ? Icons.qr_code : Icons.credit_card,
+                    color: method == 'UPI' ? Colors.black : Colors.blue,
+                    size: 24,
+                  ),
+                  onPressed:
+                      isPaymentEnabled &&
+                          !(method == 'UPI'
+                              ? stateProvider.isUpiPaid
+                              : qrProvider.isCardPaid)
+                      ? () {
+                          final amountStr = controller.text;
+                          if (amountStr.isNotEmpty) {
+                            final amount = double.tryParse(amountStr);
+                            if (amount != null && amount > 0) {
+                              if (method == 'UPI') {
+                                _showUpiQrDialog(amount);
+                              } else {
+                                _handleCardPayment();
+                              }
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Please enter a valid $method amount greater than 0.',
+                                  ),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Please enter a $method amount first.',
+                                ),
+                                backgroundColor: Colors.orange,
+                              ),
+                            );
+                          }
+                        }
+                      : null,
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool> _handleCardPayment() async {
+    final qrProvider = Provider.of<RazorpayQRProvider>(context, listen: false);
+    final stateProvider = Provider.of<SalesInvoiceState>(
+      context,
+      listen: false,
+    );
+    final cardAmountStr = _returnAmountController.text;
+
+    if (cardAmountStr.isNotEmpty) {
+      final cardAmount = double.tryParse(cardAmountStr);
+      if (cardAmount != null && cardAmount > 0) {
+        try {
+          await qrProvider.createOrderAndPay(cardAmount, (
+            String type,
+            Map<String, dynamic>? extraData,
+          ) {
+            if (type == 'card_payment_success') {
+              stateProvider.updateIsCardPaid(true);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Card payment successful!'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            } else if (type == 'card_payment_error') {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Card payment failed: ${extraData?['message'] ?? 'Unknown error'}',
+                  ),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          });
+          return stateProvider.isCardPaid;
+        } catch (e) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Card payment error: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return false;
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enter a valid card amount greater than 0.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return false;
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a card amount first.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return false;
+    }
+  }
+
+  // UPI QR dialog
+  Future<bool> _showUpiQrDialog(double amount) async {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<RazorpayQRProvider>(context, listen: false).createQR(amount);
+    });
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.qr_code, color: Colors.blue),
+              SizedBox(width: 8),
+              Text(
+                'UPI QR Code',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            height: 600,
+            width: 285,
+            child: Consumer<RazorpayQRProvider>(
+              builder: (context, qrProvider, _) {
+                if (qrProvider.isLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                } else if (qrProvider.errorMessage != null) {
+                  return Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error, color: Colors.red, size: 48),
+                      const SizedBox(height: 8),
+                      Text(
+                        qrProvider.errorMessage!,
+                        style: const TextStyle(color: Colors.red, fontSize: 16),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.close),
+                        label: const Text("Close"),
+                        onPressed: () {
+                          qrProvider.disconnectWebSocket();
+                          Navigator.pop(context, false);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color.fromARGB(
+                            255,
+                            6,
+                            62,
+                            247,
+                          ),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                } else if (qrProvider.paymentSuccess) {
+                  Provider.of<SalesInvoiceState>(
+                    context,
+                    listen: false,
+                  ).updateIsUpiPaid(true);
+                  return Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Lottie.asset(
+                        'assets/Payment Successful.json',
+                        repeat: false,
+                        height: 580,
+                        width: double.infinity,
+                        fit: BoxFit.contain,
+                        onLoaded: (composition) {
+                          Future.delayed(
+                            composition.duration + const Duration(seconds: 2),
+                            () {
+                              if (mounted) {
+                                Navigator.pop(context, true);
+                              }
+                            },
+                          );
+                        },
+                      ),
+                      const Text(
+                        'UPI Payment Successful!',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  );
+                } else if (qrProvider.qrImageUrl != null) {
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.network(
+                        qrProvider.qrImageUrl!,
+                        height: 535,
+                        width: double.infinity,
+                        fit: BoxFit.fill,
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.error, color: Colors.red, size: 48),
+                              SizedBox(height: 8),
+                              Text(
+                                'Failed to load QR code',
+                                style: TextStyle(
+                                  color: Colors.red,
+                                  fontSize: 16,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              icon: const Icon(Icons.close),
+                              label: const Text("Close"),
+                              onPressed: () {
+                                qrProvider.disconnectWebSocket();
+                                Navigator.pop(context, false);
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color.fromARGB(
+                                  255,
+                                  6,
+                                  62,
+                                  247,
+                                ),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(7),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                } else {
+                  return const Center(child: Text('No QR generated'));
+                }
+              },
+            ),
+          ),
+        );
+      },
+    );
+    return result ?? false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final customerScreenProvider = Provider.of<CustomerScreenProvider>(context);
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FA),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        backgroundColor: Colors.blue,
+        elevation: 3,
+        centerTitle: true,
+        title: const Text(
+          "Cancel Order",
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2,
+          ),
+        ),
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.all(8.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildFormField(
+                            controller: _remarksController,
+                            labelText: 'Remarks',
+                            icon: Icons.comment,
+                            hintText: 'Enter remarks or comments',
+                            keyboardType: TextInputType.multiline,
+                            focusNode: remarkFocus,
+                            onTap: () {
+                              ActiveField.activate(
+                                context: context,
+                                ctrl: _remarksController,
+                                node: remarkFocus,
+                                numeric: false,
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 15),
+                        const Expanded(child: EmployeeSearchDropdown()),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      "Select Payment Method",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // 🔹 Cash + Card
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildPaymentEntry(
+                            "Cash",
+                            _cashController,
+                            _customCashFocusNode,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildPaymentEntry(
+                            "Card",
+                            _cardController,
+                            _customCardFocusNode,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+
+                    // 🔹 UPI + Cheque
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildPaymentEntry(
+                            "UPI",
+                            _upiController,
+                            _customUpiFocusNode,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _showChequeDetails = !_showChequeDetails;
+                                _isChequeSelected = _showChequeDetails;
+
+                                if (_isChequeSelected) {
+                                  _cashController.clear();
+                                  _upiController.clear();
+                                  _cardController.clear();
+                                  _updateBalance();
+                                }
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.grey.withOpacity(0.3),
+                                    offset: const Offset(3, 3),
+                                    blurRadius: 6,
+                                  ),
+                                  const BoxShadow(
+                                    color: Colors.white,
+                                    offset: Offset(-2, -2),
+                                    blurRadius: 6,
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    "Cheque",
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  Icon(
+                                    _showChequeDetails
+                                        ? Icons.keyboard_arrow_up
+                                        : Icons.keyboard_arrow_down,
+                                    color: Colors.grey[600],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    if (_showChequeDetails) ...[
+                      const SizedBox(height: 8),
+                      ChequeDetails(
+                        chequeNumberController: chequeNumberController,
+                        chequeAmountController: chequeAmountController,
+                        chequeNameController: chequeNameController,
+                        chequeDateController: chequeDateController,
+                        chequeNumberFocus: _chequeNumberFocus,
+                        chequeAmountFocus: _chequeAmountFocus,
+                        chequeNameFocus: _chequeNameFocus,
+                        chequeDateFocus: _chequeDateFocus,
+                        onFocusChanged: (index) {},
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+
+            // 🔹 Bottom Panel: Summary + Keyboard
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.2),
+                    blurRadius: 12,
+                    offset: const Offset(0, -3),
+                  ),
+                ],
+              ),
+              height: 220,
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                },
+                                child: const Text(
+                                  "Cancel",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () async {
+                                  // Step 1: Validate remarks
+                                  if (_remarksController.text.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Please fill the Remarks',
+                                        ),
+                                      ),
+                                    );
+                                    return;
+                                  }
+
+                                  // Step 2: Handle UPI/Card payments
+                                  bool paymentSuccess = true;
+                                  if (selectedPaymentMethod == 'UPI' ||
+                                      selectedPaymentMethod == 'Card') {
+                                    final amountStr =
+                                        _returnAmountController.text;
+
+                                    if (amountStr.isEmpty) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Please enter a $selectedPaymentMethod amount',
+                                          ),
+                                          backgroundColor: Colors.orange,
+                                        ),
+                                      );
+                                      return;
+                                    }
+
+                                    final amount = double.tryParse(amountStr);
+                                    if (amount == null || amount <= 0) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Please enter a valid $selectedPaymentMethod amount greater than 0',
+                                          ),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                      return;
+                                    }
+
+                                    // Process UPI or Card payment
+                                    if (selectedPaymentMethod == 'UPI') {
+                                      paymentSuccess = await _showUpiQrDialog(
+                                        amount,
+                                      );
+                                    } else if (selectedPaymentMethod ==
+                                        'Card') {
+                                      paymentSuccess =
+                                          await _handleCardPayment();
+                                    }
+
+                                    if (!paymentSuccess) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            '$selectedPaymentMethod payment failed. Order cancellation aborted.',
+                                          ),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                  }
+
+                                  // Step 3: Build approval details
+                                  final approvalDetails = {
+                                    "approvalType": "Cancel Order",
+                                    "summary": "no",
+                                  };
+
+                                  final payload = {
+                                    "status": "Waiting for approval",
+                                    "cancelOrderRemark":
+                                        _remarksController.text,
+                                    "canceledPersonName":
+                                        customerScreenProvider
+                                            .searchController
+                                            .text ??
+                                        "",
+                                    "saleOrderNo": widget.saleOrderNo,
+                                    "returnAmount":
+                                        _returnAmountController.text.isEmpty
+                                        ? "0"
+                                        : _returnAmountController.text,
+                                    "canceledPaymentType":
+                                        selectedPaymentMethod,
+                                    "cancelOrderDate": DateTime.now()
+                                        .toIso8601String(),
+                                    "approvalDetails": [approvalDetails],
+                                  };
+
+                                  // Step 4: Call Provider method
+                                  customerScreenProvider.cancelOrder(
+                                    widget.saleOrderNo,
+                                    payload,
+                                  );
+
+                                  Navigator.of(context).pop();
+
+                                  // Step 5: Show success message and navigate back
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Cancel order submitted successfully!',
+                                      ),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+
+                                  Navigator.of(context).pop(payload);
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue.shade700,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 12,
+                                  ),
+                                  elevation: 5,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(15),
+                                  ),
+                                  shadowColor: Colors.blue.shade300,
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.check_circle, size: 18),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Submit',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 1,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.black12),
+                      ),
+                      child: SizedBox(
+                        height: double.infinity,
+                        child: ValueListenableBuilder<TextEditingController?>(
+                          valueListenable: ActiveField.controller,
+                          builder: (_, ctrl, __) {
+                            return AdvanceAmountKeyboardWidgetAll2(
+                              controller: ctrl ?? TextEditingController(),
+                              onChanged: _updateBalance,
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -102,10 +1052,15 @@ class _AdvanceAmountDialogState extends State<AdvanceAmountDialog> {
     chequeNameController.dispose();
     chequeBankController.dispose();
     chequeDateController.dispose();
+    chequeNumberFocus.dispose();
+    chequeAmountFocus.dispose();
+    chequeNameFocus.dispose();
+    remarkFocus.dispose();
+    returnAmountFocus.dispose();
+    salespersonFocus.dispose();
     super.dispose();
   }
 
-  // Helper field builder
   Widget _buildFormField({
     required TextEditingController controller,
     required String labelText,
@@ -115,9 +1070,11 @@ class _AdvanceAmountDialogState extends State<AdvanceAmountDialog> {
     bool readOnly = true,
     String? prefixText,
     VoidCallback? onTap,
+    FocusNode? focusNode,
   }) {
     return TextFormField(
       controller: controller,
+      focusNode: focusNode,
       readOnly: readOnly,
       showCursor: true,
       keyboardType: keyboardType,
@@ -145,550 +1102,6 @@ class _AdvanceAmountDialogState extends State<AdvanceAmountDialog> {
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 14,
           vertical: 14,
-        ),
-      ),
-    );
-  }
-
-  // Payment method option builder
-  Widget _buildPaymentMethodOption(String method, IconData icon) {
-    final bool isSelected = selectedPaymentMethod == method;
-    return InkWell(
-      onTap: () {
-        setState(() {
-          selectedPaymentMethod = method;
-        });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.blue.shade700 : Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [
-            BoxShadow(
-              color: isSelected ? Colors.blue.shade200 : Colors.grey.shade200,
-              blurRadius: isSelected ? 10 : 5,
-              spreadRadius: 1,
-            ),
-          ],
-          border: Border.all(
-            color: isSelected ? Colors.blue.shade700 : Colors.grey.shade300,
-            width: 1.5,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? Colors.white : Colors.blue.shade700,
-              size: 20,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              method,
-              style: TextStyle(
-                color: isSelected ? Colors.white : Colors.blue.shade700,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final customerScreenProvider = Provider.of<CustomerScreenProvider>(context);
-
-    return Center(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: 700),
-        child: Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          elevation: 10,
-          backgroundColor: Colors.white,
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeader(context),
-                  const SizedBox(height: 16.0),
-
-                  // Payment method UI
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.grey.shade200),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Payment Method',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            color: Colors.blue.shade800,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: [
-                              _buildPaymentMethodOption('Cash', Icons.payments),
-                              const SizedBox(width: 10),
-                              _buildPaymentMethodOption(
-                                'Card',
-                                Icons.credit_card,
-                              ),
-                              const SizedBox(width: 10),
-                              _buildPaymentMethodOption('UPI', Icons.qr_code),
-                              const SizedBox(width: 10),
-                              _buildPaymentMethodOption(
-                                'Cheque',
-                                Icons.account_balance,
-                              ),
-                              const SizedBox(width: 10),
-                              _buildPaymentMethodOption(
-                                'Others',
-                                Icons.more_horiz,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Conditional cheque details
-                  if (selectedPaymentMethod == 'Cheque')
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      margin: const EdgeInsets.only(bottom: 20),
-                      child: buildChequeDetails(),
-                    ),
-
-                  // 🔹 Conditional Rows
-                  if (selectedPaymentMethod == 'Cheque') ...[
-                    Row(
-                      children: [
-                        Expanded(child: EmployeeSearchDropdown()),
-                        const SizedBox(width: 15),
-                        Expanded(
-                          child: _buildFormField(
-                            controller: _remarksController,
-                            labelText: 'Remarks',
-                            icon: Icons.comment,
-                            hintText: 'Enter remarks or comments',
-                            keyboardType: TextInputType.multiline,
-                            onTap: () {
-                              ActiveField.activate(
-                                ctrl: _remarksController,
-                                node: remarkFocus,
-                                numeric: false,
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                  ] else ...[
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildFormField(
-                            controller: _returnAmountController,
-                            labelText: 'Return Amount',
-                            icon: Icons.monetization_on,
-                            hintText: 'Enter return amount',
-                            keyboardType: TextInputType.number,
-                            prefixText: '₹ ',
-                            onTap: () {
-                              ActiveField.activate(
-                                ctrl: _returnAmountController,
-                                node: returnAmountFocus,
-                                numeric: true,
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 15),
-                        Expanded(child: EmployeeSearchDropdown()),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    _buildFormField(
-                      controller: _remarksController,
-                      labelText: 'Remarks',
-                      icon: Icons.comment,
-                      hintText: 'Enter remarks or comments',
-                      keyboardType: TextInputType.multiline,
-                      onTap: () {
-                        ActiveField.activate(
-                          ctrl: _remarksController,
-                          node: remarkFocus,
-                          numeric: false,
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-
-                  // Custom Keyboard widget
-                  Center(
-                    child: FractionallySizedBox(
-                      widthFactor: 0.85,
-                      child: SizedBox(
-                        height: 180,
-                        child: ValueListenableBuilder<TextEditingController?>(
-                          valueListenable: ActiveField.controller,
-                          builder: (context, ctrl, _) {
-                            return Column(
-                              children: [
-                                const SizedBox(height: 8),
-                                Expanded(
-                                  child: CustomKeyboardWidgetAll2(
-                                    controller: ctrl ?? TextEditingController(),
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // Action buttons
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 12,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            side: BorderSide(color: Colors.red.shade300),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.close,
-                              color: Colors.red.shade500,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Cancel',
-                              style: TextStyle(
-                                color: Colors.red.shade500,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      ElevatedButton(
-                        onPressed: () {
-
-                          // Step 1: Validate remarks
-                          if (_remarksController.text.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Please fill the Remarks'),
-                              ),
-                            );
-                            return;
-                          } else {
-                          }
-
-                          // Step 2: Build approval details
-                          final approvalDetails = {
-                            "approvalType": "Cancel Order",
-                            "summary": "no",
-                          };
-
-                          Map<String, dynamic> payload = {
-                            "status": "Waiting for approval",
-                            "cancelOrderRemark": _remarksController.text,
-                            "canceledPersonName":
-                                customerScreenProvider.searchController.text ??
-                                "",
-                            "saleOrderNo": widget.saleOrderNo,
-                            "returnAmount": _returnAmountController.text ?? "0",
-                            "canceledPaymentType":
-                                selectedPaymentMethod ?? "Cash",
-                            "cancelOrderDate": DateTime.now().toIso8601String(),
-                            "approvalDetails": [approvalDetails],
-                          };
-
-                          payload.forEach((key, value) {
-                          });
-
-                          // Step 4: Call Provider method
-                          customerScreenProvider.cancelOrder(
-                            widget.saleOrderNo,
-                            payload,
-                          );
-
-                          // Step 5: Navigate back
-                          Navigator.of(context).pop();
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue.shade700,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 12,
-                          ),
-                          elevation: 5,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
-                          ),
-                          shadowColor: Colors.blue.shade300,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            Icon(Icons.check_circle, size: 18),
-                            SizedBox(width: 8),
-                            Text(
-                              'Submit',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget buildChequeDetails() {
-    return Padding(
-      padding: const EdgeInsets.all(15),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: buildStyledFormField(
-                  controller: chequeNumberController,
-                  focusNode: chequeNumberFocus,
-                  labelText: 'Cheque Number',
-                  icon: Icons.numbers,
-                  hintText: 'Enter cheque number',
-                  keyboardType: TextInputType.number,
-                  readOnly: true,
-                  onTap: () {
-                    ActiveField.activate(
-                      ctrl: chequeNumberController,
-                      numeric: false,
-                      node: chequeNumberFocus,
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: buildStyledFormField(
-                  controller: chequeAmountController,
-                  focusNode: chequeAmountFocus,
-                  labelText: 'Cheque Amount',
-                  icon: Icons.currency_rupee,
-                  hintText: 'Enter amount',
-                  keyboardType: TextInputType.number,
-                  prefixText: '₹ ',
-                  readOnly: true,
-                  onTap: () {
-                    ActiveField.activate(
-                      ctrl: chequeAmountController,
-                      numeric: true,
-                      node: chequeAmountFocus,
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: buildStyledFormField(
-                  controller: chequeDateController,
-                  labelText: 'Cheque Date',
-                  icon: Icons.calendar_today,
-                  hintText: 'Select date',
-                  readOnly: true,
-                  onTap: () async {
-                    final DateTime now = DateTime.now();
-                    final DateTime? picked = await showDatePicker(
-                      context: context,
-                      initialDate: now,
-                      firstDate: DateTime(
-                        now.year,
-                        now.month,
-                        now.day,
-                      ), // ⛔ disables past dates
-                      lastDate: DateTime(2100),
-                      builder: (context, child) {
-                        return Theme(
-                          data: Theme.of(context).copyWith(
-                            colorScheme: const ColorScheme.light(
-                              primary: Colors.blueAccent,
-                              onPrimary: Colors.white,
-                              onSurface: Colors.black,
-                            ),
-                          ),
-                          child: child!,
-                        );
-                      },
-                    );
-                    if (picked != null) {
-                      chequeDateController.text = DateFormat(
-                        'dd-MM-yyyy',
-                      ).format(picked);
-                    }
-                  },
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: buildStyledFormField(
-                  controller: chequeNameController,
-                  focusNode: chequeNameFocus,
-                  labelText: 'Cheque Holder Name',
-                  icon: Icons.person,
-                  hintText: 'Enter name on cheque',
-                  readOnly: true,
-                  onTap: () {
-                    ActiveField.activate(
-                      ctrl: chequeNameController,
-                      numeric: false,
-                      node: chequeNameFocus,
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(width: 15),
-              Expanded(child: BankSearchDropdown()),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeader(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.blue.shade800,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text(
-            'Cancel Order',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
-            ),
-          ),
-          Row(
-            children: [
-              const Icon(Icons.currency_rupee, color: Colors.white, size: 22),
-              const SizedBox(width: 4),
-              Text(
-                _amountController.text,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget buildStyledFormField({
-    required TextEditingController controller,
-    required String labelText,
-    required IconData icon,
-    String? hintText,
-    TextInputType keyboardType = TextInputType.text,
-    String? prefixText,
-    bool readOnly = false,
-    VoidCallback? onTap,
-    FocusNode? focusNode,
-  }) {
-    return TextFormField(
-      controller: controller,
-      focusNode: focusNode,
-      readOnly: readOnly,
-      keyboardType: keyboardType,
-      style: const TextStyle(fontSize: 15, color: Colors.black87),
-      onTap: onTap,
-      decoration: InputDecoration(
-        prefixText: prefixText,
-        labelText: labelText,
-        hintText: hintText,
-        hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
-        filled: true,
-        fillColor: Colors.white,
-        prefixIcon: Icon(icon, color: Colors.grey.shade700),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.grey.shade300),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.grey.shade300, width: 1),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: Colors.blue, width: 1.5),
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          vertical: 14,
-          horizontal: 14,
         ),
       ),
     );

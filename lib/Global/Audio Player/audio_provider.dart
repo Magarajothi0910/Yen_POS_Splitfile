@@ -24,7 +24,7 @@ class AudioProvider extends ChangeNotifier {
       final isPlaying = playerState.playing;
       final isLoading =
           playerState.processingState == ProcessingState.loading ||
-              playerState.processingState == ProcessingState.buffering;
+          playerState.processingState == ProcessingState.buffering;
 
       if (playerState.processingState == ProcessingState.completed) {
         _player.seek(Duration.zero);
@@ -81,7 +81,10 @@ class AudioProvider extends ChangeNotifier {
   }
 
   Future<void> loadAudio(String filePath) async {
-    if (_currentId == filePath) return; // Avoid reloading if same path
+
+    if (_currentId == filePath) {
+      return; // Avoid reloading if same path
+    }
     _currentId = filePath;
 
     try {
@@ -89,10 +92,10 @@ class AudioProvider extends ChangeNotifier {
       _state = _state.copyWith(isLoading: true, error: null);
       notifyListeners();
 
-      await _player.setFilePath(filePath); // Directly load from local path
+      await _player.setFilePath(filePath);
 
-      // Generate fake waveform data for now if needed
       final fileBytes = await File(filePath).readAsBytes();
+
       final waveformData = await _generateWaveformData(fileBytes);
 
       _state = _state.copyWith(
@@ -100,7 +103,8 @@ class AudioProvider extends ChangeNotifier {
         waveformData: waveformData,
         error: null,
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+
       _state = _state.copyWith(
         isLoading: false,
         error: 'No audio file found. Please add an audio file to play.',

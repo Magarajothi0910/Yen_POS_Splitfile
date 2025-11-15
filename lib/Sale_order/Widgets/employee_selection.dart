@@ -9,8 +9,6 @@ import 'package:yenpos/Global/pos_detector.dart';
 import 'package:yenpos/Sale_order/Provider/customerScreen_provider.dart';
 import 'package:yenpos/Sale_order/Provider/detailsProvider.dart';
 
-
-
 class EmployeeSearchDropdown extends StatefulWidget {
   const EmployeeSearchDropdown({Key? key}) : super(key: key);
 
@@ -23,8 +21,10 @@ class _EmployeeSearchDropdownState extends State<EmployeeSearchDropdown> {
   final _salesmanFocus = FocusNode();
   @override
   Widget build(BuildContext context) {
-    final customerScreenProvider =
-        Provider.of<CustomerScreenProvider>(context, listen: false);
+    final customerScreenProvider = Provider.of<CustomerScreenProvider>(
+      context,
+      listen: false,
+    );
 
     return CompositedTransformTarget(
       link: _layerLink,
@@ -33,13 +33,13 @@ class _EmployeeSearchDropdownState extends State<EmployeeSearchDropdown> {
           SizedBox(
             height: 48,
             child: // inside build() of EmployeeSearchDropdown
-                TextField(
+            TextField(
               readOnly: true,
               showCursor: true, // Ensure cursor is visible
               focusNode: _salesmanFocus,
               controller: customerScreenProvider.searchController,
               decoration: InputDecoration(
-                labelText: 'Search SalesMan',
+                labelText: 'Search Salesperson',
                 border: const OutlineInputBorder(),
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.qr_code_scanner),
@@ -51,9 +51,11 @@ class _EmployeeSearchDropdownState extends State<EmployeeSearchDropdown> {
               // 🔧 new onTap
               onTap: () {
                 ActiveField.activate(
-                    ctrl: customerScreenProvider.searchController,
-                    node: _salesmanFocus,
-                    numeric: false);
+                  context: context,
+                  ctrl: customerScreenProvider.searchController,
+                  node: _salesmanFocus,
+                  numeric: false,
+                );
               },
             ),
           ),
@@ -65,12 +67,11 @@ class _EmployeeSearchDropdownState extends State<EmployeeSearchDropdown> {
                 controller: _textController,
                 keyboardType: TextInputType.none,
                 onSubmitted: _handleInput,
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                ),
+                decoration: const InputDecoration(border: InputBorder.none),
                 style: const TextStyle(fontSize: 0),
                 onTap: () {
                   ActiveField.activate(
+                    context: context,
                     ctrl: _textController,
                     node: _focusNode,
                   );
@@ -99,11 +100,7 @@ class _EmployeeSearchDropdownState extends State<EmployeeSearchDropdown> {
 
     // 🔑 this drives the overlay every time the text changes
     provider.searchController.addListener(_debouncedUpdateOverlay);
-
-
   }
-
-
 
   void _debouncedUpdateOverlay() {
     if (_isProgrammaticUpdate) return; // Skip if programmatic update
@@ -115,10 +112,13 @@ class _EmployeeSearchDropdownState extends State<EmployeeSearchDropdown> {
   void dispose() {
     _debounceTimer?.cancel();
     _removeOverlay();
-    final customerScreenProvider =
-        Provider.of<CustomerScreenProvider>(context, listen: false);
-    customerScreenProvider.searchController
-        .removeListener(_debouncedUpdateOverlay);
+    final customerScreenProvider = Provider.of<CustomerScreenProvider>(
+      context,
+      listen: false,
+    );
+    customerScreenProvider.searchController.removeListener(
+      _debouncedUpdateOverlay,
+    );
     _focusNode.dispose();
     _textController.dispose();
     super.dispose();
@@ -128,10 +128,14 @@ class _EmployeeSearchDropdownState extends State<EmployeeSearchDropdown> {
   void _updateOverlay() {
     if (_isProgrammaticUpdate) return;
 
-    final detailsProvider =
-        Provider.of<DetailsProvider>(context, listen: false);
-    final customerScreenProvider =
-        Provider.of<CustomerScreenProvider>(context, listen: false);
+    final detailsProvider = Provider.of<DetailsProvider>(
+      context,
+      listen: false,
+    );
+    final customerScreenProvider = Provider.of<CustomerScreenProvider>(
+      context,
+      listen: false,
+    );
 
     detailsProvider.searchQuery = customerScreenProvider.searchController.text;
 
@@ -264,7 +268,7 @@ class _EmployeeSearchDropdownState extends State<EmployeeSearchDropdown> {
             color: Colors.white,
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                maxHeight: 200, // Constrain maximum height
+                maxHeight: 120, // 🔽 reduced from 200
                 minWidth: size.width,
               ),
               child: Selector<DetailsProvider, List<String>>(
@@ -275,6 +279,7 @@ class _EmployeeSearchDropdownState extends State<EmployeeSearchDropdown> {
                   if (listEquals(filteredEmployees, _lastFilteredList)) {
                     return const SizedBox.shrink();
                   }
+
                   _lastFilteredList = filteredEmployees;
 
                   return filteredEmployees.isNotEmpty
@@ -304,15 +309,18 @@ class _EmployeeSearchDropdownState extends State<EmployeeSearchDropdown> {
     if (_overlayEntry != null) {
       _overlayEntry?.remove();
       _overlayEntry = null;
-    } else {
-    }
+    } else {}
   }
 
   void _handleEmployeeSelection(String employeeName) {
-    final customerScreenProvider =
-        Provider.of<CustomerScreenProvider>(context, listen: false);
-    final detailsProvider =
-        Provider.of<DetailsProvider>(context, listen: false);
+    final customerScreenProvider = Provider.of<CustomerScreenProvider>(
+      context,
+      listen: false,
+    );
+    final detailsProvider = Provider.of<DetailsProvider>(
+      context,
+      listen: false,
+    );
 
     // Set flag to avoid triggering the debounced update
     setState(() => _isProgrammaticUpdate = true);
@@ -337,6 +345,7 @@ class _EmployeeSearchDropdownState extends State<EmployeeSearchDropdown> {
       }
     });
   }
+
   // Keep rest of the methods unchanged
 }
 
@@ -344,19 +353,13 @@ class _ListItem extends StatelessWidget {
   final String employeeName;
   final Function(String) onSelect;
 
-  const _ListItem({
-    required this.employeeName,
-    required this.onSelect,
-  });
+  const _ListItem({required this.employeeName, required this.onSelect});
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
       key: ValueKey(employeeName),
-      title: Text(
-        employeeName,
-        style: const TextStyle(color: Colors.black),
-      ),
+      title: Text(employeeName, style: const TextStyle(color: Colors.black)),
       hoverColor: Colors.blue.shade50,
       onTap: () => onSelect(employeeName),
     );

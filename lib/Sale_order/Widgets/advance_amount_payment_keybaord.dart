@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:yenpos/Global/globals_data.dart';
 
-
 class AdvanceAmountKeyboard with ChangeNotifier {
   bool isNumeric = ActiveField.isNumeric.value;
   bool isUpperCase = true;
@@ -14,8 +13,10 @@ class AdvanceAmountKeyboard with ChangeNotifier {
 
   int get activeIndex => _activeIndex;
 
-  void registerController(TextEditingController controller,
-      {String inputType = 'text'}) {
+  void registerController(
+    TextEditingController controller, {
+    String inputType = 'text',
+  }) {
     if (!controllers.contains(controller)) {
       controllers.add(controller);
       inputTypes.add(inputType);
@@ -151,19 +152,19 @@ class AdvanceAmountKeyboardWidgetAll2 extends StatelessWidget {
 
   /// normal numeric keyboard
   List<List<String>> get _numeric => [
-        ['1', '2', '3'],
-        ['4', '5', '6'],
-        ['7', '8', '9'],
-        ['.', '0', '⌫'],
-      ];
+    ['1', '2', '3'],
+    ['4', '5', '6'],
+    ['7', '8', '9'],
+    ['.', '0', '⌫'],
+  ];
 
   /// 🚫 locked numeric (used for custom charge)
   List<List<String>> get _numericLocked => [
-        ['1', '2', '3'],
-        ['4', '5', '6'],
-        ['7', '8', '9'],
-        ['0', '⌫'],
-      ];
+    ['1', '2', '3'],
+    ['4', '5', '6'],
+    ['7', '8', '9'],
+    ['0', '⌫'],
+  ];
 
   List<List<String>> _alpha(bool upper) {
     const base = [
@@ -173,11 +174,15 @@ class AdvanceAmountKeyboardWidgetAll2 extends StatelessWidget {
       ['123', 'SPACE'],
     ];
     return base
-        .map((row) => row
-            .map((k) => RegExp(r'^[a-zA-Z]$').hasMatch(k) && upper
-                ? k.toUpperCase()
-                : k)
-            .toList())
+        .map(
+          (row) => row
+              .map(
+                (k) => RegExp(r'^[a-zA-Z]$').hasMatch(k) && upper
+                    ? k.toUpperCase()
+                    : k,
+              )
+              .toList(),
+        )
         .toList();
   }
 
@@ -185,12 +190,11 @@ class AdvanceAmountKeyboardWidgetAll2 extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<AdvanceAmountKeyboard>(
       builder: (context, provider, _) {
-        // 👉 if locked numeric (custom charge), force _numericLocked
         final layout = ActiveField.isNumeric.value
             ? _numericLocked
             : provider.isNumeric
-                ? _numeric
-                : _alpha(provider.isUpperCase);
+            ? _numeric
+            : _alpha(provider.isUpperCase);
 
         return Column(
           children: [
@@ -205,21 +209,40 @@ class AdvanceAmountKeyboardWidgetAll2 extends StatelessWidget {
                           onTap: () {
                             provider.setPressedKey(key);
                             _handleKey(context, key);
-                            Future.delayed(const Duration(milliseconds: 80),
-                                () {
-                              provider.setPressedKey(null);
-                            });
+                            Future.delayed(
+                              const Duration(milliseconds: 80),
+                              () => provider.setPressedKey(null),
+                            );
                           },
-                          onLongPress:
-                              key == '⌫' ? () => controller.clear() : null,
-                          child: Container(
-                            margin: const EdgeInsets.all(4),
+                          onLongPress: key == '⌫'
+                              ? () => controller.clear()
+                              : null,
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 120),
+                            margin: const EdgeInsets.all(6),
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
-                              color: provider.pressedKey == key
-                                  ? Colors.blue[100]
-                                  : Colors.grey[200],
-                              borderRadius: BorderRadius.circular(5),
+                              gradient: provider.pressedKey == key
+                                  ? LinearGradient(
+                                      colors: [
+                                        Colors.blue.shade200,
+                                        Colors.blue.shade400,
+                                      ],
+                                    )
+                                  : LinearGradient(
+                                      colors: [
+                                        Colors.grey.shade300,
+                                        Colors.grey.shade100,
+                                      ],
+                                    ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
+                                  offset: const Offset(2, 2),
+                                  blurRadius: 4,
+                                ),
+                              ],
+                              borderRadius: BorderRadius.circular(12),
                             ),
                             child: _buildLabel(key),
                           ),

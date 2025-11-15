@@ -19,6 +19,7 @@ import 'package:yenpos/Global/globals_data.dart' as globals;
 import 'package:yenpos/Sale_order/Models/sales_order_display_model.dart';
 import 'package:yenpos/Sale_order/Print_Receipt/invoicePrint.dart';
 import 'package:yenpos/Sale_order/Provider/get_sales_order_service.dart';
+import 'package:yenpos/Sale_order/Widgets/Send_data_to_server.dart';
 import 'package:yenpos/Server_Client/websocketService.dart';
 
 import '../../Global/Provider/branchSelection_provider.dart';
@@ -32,8 +33,9 @@ class EditCustomerScreenProvider with ChangeNotifier {
   EditCustomerScreenProvider() {
     storedBranch = branchProvider.getStoredBranch(globalbranch.branchName);
     isModifyMode.addListener(_onModifyModeChanged);
-    _initWebSocket();
+    globals.quantityChangesNotifier = ValueNotifier<Map<int, double>>({});
   }
+
   List<Map<String, String>> suggestions = [];
   bool isFormValid = true;
   TextEditingController customerNameController = TextEditingController();
@@ -45,6 +47,8 @@ class EditCustomerScreenProvider with ChangeNotifier {
   TextEditingController landmarkController = TextEditingController();
   TextEditingController companyNameController = TextEditingController();
   TextEditingController companyAddressController = TextEditingController();
+  TextEditingController customChargeController = TextEditingController();
+  final FocusNode customChargeFocus = FocusNode(); // 👈 new
   TextEditingController companygstNumberController = TextEditingController();
   TextEditingController advanceAmountController = TextEditingController();
   TextEditingController birthdaydateController = TextEditingController();
@@ -59,38 +63,23 @@ class EditCustomerScreenProvider with ChangeNotifier {
   String? photoScreenId;
   String? previousAudioId;
   String? previousImageId;
-
+  String? selectedChargeType;
   File? pickedImage1;
   File? pickedImage2;
+  final List<String> chargeTypes = [
+    "Custom Charge",
+    "Delivery Charge",
+    "Other Charges",
+  ];
+
   // Global ScaffoldMessengerKey to safely show SnackBars without relying on context
   final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
       GlobalKey<ScaffoldMessengerState>();
   Map<String, dynamic>? here;
   String selectedPaymentMethod = 'Cash';
   int? selectedTransactionIndex;
-  // bool isModifyMode = false;
-  late WebSocketChannel _channel;
-  final ValueNotifier<bool> isModifyMode = ValueNotifier<bool>(false);
-  void _initWebSocket() {
-    // Replace these with your actual server IP and port defined in globals.
-    _channel = WebSocketChannel.connect(
-      Uri.parse('ws://${webSocketglobals.serverip}:${webSocketglobals.port}'),
-    );
-    // Listen for messages from the server.
-    _channel.stream.listen(
-      (data) {
-        // print('Received dataCustomerProvider: $data');
-        // WebSocketService();
-        WebSocketService(
-          CustomerScreenProvider(),
-          SalesInvoiceReceiptPrinter(),
-        ).handleMessage(data);
-      },
-      onError: (error) {
-        // print('WebSocket error: $error');
-      },
-    );
-  }
+
+  ValueNotifier<bool> isModifyMode = ValueNotifier<bool>(false);
 
   void setSelectedOrderType(String? newValue) {
     selectedOrderType = newValue;
@@ -185,7 +174,6 @@ class EditCustomerScreenProvider with ChangeNotifier {
 
   void handleTransactionSelection(int newIndex) {
     if (selectedTransactionIndex != newIndex) {
-      resetSelection();
       selectedTransactionIndex = newIndex;
       notifyListeners();
     }
@@ -250,21 +238,52 @@ class EditCustomerScreenProvider with ChangeNotifier {
   }
 
   double calculateModifiedTotal(SalesOrderDisplay salesOrder) {
-    double originalTotal = salesOrder.totalAmount;
+    print("\n🔹 [calculateModifiedTotal] STARTED");
 
-    // Calculate total for increased items
-    double increasedTotal = increasedItems.fold(0.0, (sum, item) {
-      return sum + (item['amount'] ?? 0.0);
-    });
+    double originalTotal = salesOrder.totalAmount ?? 0.0;
+    print(
+      "➡️ Original Total from salesOrder: ₹${originalTotal.toStringAsFixed(2)}",
+    );
 
-    // Calculate total for decreased items
-    double decreasedTotal = decreasedItems.fold(0.0, (sum, item) {
-      return sum + (item['amount'] ?? 0.0);
-    });
+    // --- Calculate total for increased items ---
+    double increasedTotal = 0.0;
+    print("🔹 Calculating Increased Items Total:");
+    for (var item in increasedItems) {
+      double itemAmount = item['amount'] ?? 0.0;
+      increasedTotal += itemAmount;
+      print(
+        "   + ${item['varianceName'] ?? 'Unknown'} → Amount: ₹${itemAmount.toStringAsFixed(2)} | Running Increased Total: ₹${increasedTotal.toStringAsFixed(2)}",
+      );
+    }
+    print(
+      "✅ Total Increased Items Amount: ₹${increasedTotal.toStringAsFixed(2)}",
+    );
 
-    // Final total: original + increased - decreased
+    // --- Calculate total for decreased items ---
+    double decreasedTotal = 0.0;
+    print("🔹 Calculating Decreased Items Total:");
+    for (var item in decreasedItems) {
+      double itemAmount = item['amount'] ?? 0.0;
+      decreasedTotal += itemAmount;
+      print(
+        "   - ${item['varianceName'] ?? 'Unknown'} → Amount: ₹${itemAmount.toStringAsFixed(2)} | Running Decreased Total: ₹${decreasedTotal.toStringAsFixed(2)}",
+      );
+    }
+    print(
+      "✅ Total Decreased Items Amount: ₹${decreasedTotal.toStringAsFixed(2)}",
+    );
+
+    // --- Compute final modified total ---
     double modifiedTotal = originalTotal + increasedTotal - decreasedTotal;
+    print(
+      "🔹 Modified Total Calculation: ₹${originalTotal.toStringAsFixed(2)} + ₹${increasedTotal.toStringAsFixed(2)} - ₹${decreasedTotal.toStringAsFixed(2)}",
+    );
+    print("✅ Final Modified Total: ₹${modifiedTotal.toStringAsFixed(2)}");
+
+    // Notify UI listeners
     notifyListeners();
+    print("🔹 [calculateModifiedTotal] COMPLETED\n");
+
     return modifiedTotal;
   }
 
@@ -376,13 +395,6 @@ class EditCustomerScreenProvider with ChangeNotifier {
     } catch (e) {}
   }
 
-  Future<void> sendPaymentDataToServer(Map<String, dynamic> paymentData) async {
-    try {
-      final jsonData = jsonEncode(paymentData);
-      _channel.sink.add(jsonData);
-    } catch (e) {}
-  }
-
   Future<bool> addCompany(String name, String address, String gst) async {
     try {
       final response = await http.post(
@@ -416,53 +428,90 @@ class EditCustomerScreenProvider with ChangeNotifier {
     File? img2,
     double modifiedTotal,
     bool isModifyMode,
+    double totalAdvanceAmount,
   ) {
-    final dialogContext = context; // Save context safely
+    print("🔹 showAdvancePaymentPopup called!");
+    print("➡️ Sales Order: $salesorder");
+    print("➡️ Increased Items: $increasedItems");
+    print("➡️ Decreased Items: $decreasedItems");
+    print("➡️ Audio Path: ${path ?? 'No Audio'}");
+    print("➡️ Image 1: ${img1 != null ? img1.path : 'No Image'}");
+    print("➡️ Image 2: ${img2 != null ? img2.path : 'No Image'}");
+    print("➡️ Modified Total: $modifiedTotal");
+    print("➡️ Is Modify Mode: $isModifyMode");
 
-    advanceAmountController.clear();
+    double orderAmount = modifiedTotal;
+    double discount = 0;
+    double customCharge = 0;
+
+    double deductedAmount = 0;
+    double totalAmount = modifiedTotal + customCharge - deductedAmount;
+
+    print("📊 Calculation Details:");
+    print("   ▪️ Order Amount: $orderAmount");
+    print("   ▪️ Discount: $discount");
+    print("   ▪️ Custom Charge: $customCharge");
+    print("   ▪️ Deducted Amount: $deductedAmount");
+    print("   ▪️ Total Amount (final): $totalAmount");
+    print("   ▪️ advance Amount: ${advanceAmountController.text}");
+    // Before showDialog(...)
+    if (!isModifyMode) {
+      advanceAmountController.clear();
+      print("🧹 Cleared for new order.");
+    } else if (salesorder.advanceAmount != null &&
+        salesorder.advanceAmount!.isNotEmpty) {
+      advanceAmountController.text = salesorder.advanceAmount!.first.toString();
+      print("💰 Restored Advance Amount: ${advanceAmountController.text}");
+    }
+    print("🧹 advanceAmountController cleared.");
 
     showDialog(
       context: context,
       builder: (BuildContext context) {
+        print("📢 Showing confirmation dialog...");
         return AlertDialog(
           title: const Text('Confirm Order'),
           content: const Text('Are you sure you want to complete the order?'),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop(); // Close dialog
+                print("❌ Cancel button pressed → Closing dialog.");
+                Navigator.of(context).pop();
               },
               child: const Text('Cancel'),
             ),
             TextButton(
               onPressed: () async {
-                Navigator.of(context).pop(); // Close dialog first
+                print(
+                  "✅ Confirm button pressed → Processing saveModifiedOrder...",
+                );
 
-                double totalAdvance = 0; // Replace with actual calculation
-                double totalAmount = modifiedTotal;
-                double balanceAmount = totalAmount - totalAdvance;
+                double balanceAmount = totalAmount - totalAdvanceAmount;
+
+                print("📊 Final Values before saveModifiedOrder:");
+                print("   ▪️ Total Amount: $totalAmount");
+                print("   ▪️ Total Advance: $totalAdvanceAmount");
+                print("   ▪️ Balance Amount: $balanceAmount");
 
                 try {
                   await saveModifiedOrder(
                     salesorder,
                     increasedItems,
                     decreasedItems,
-                    path,
+                    path, // Using path parameter here
                     img1,
                     img2,
                     totalAmount,
-                    totalAdvance,
+                    totalAdvanceAmount,
                     balanceAmount,
-                    dialogContext, // Use saved context
+                    context,
                     isModifyMode,
                   );
+
+                  print("🎯 saveModifiedOrder completed successfully!");
                 } catch (e, stack) {
-                  rootScaffoldMessengerKey.currentState?.showSnackBar(
-                    SnackBar(
-                      content: Text('Error occurred: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                  print("❌ Error in saveModifiedOrder: $e");
+                  print(stack);
                 }
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
@@ -477,34 +526,6 @@ class EditCustomerScreenProvider with ChangeNotifier {
     );
   }
 
-  Future<void> updateCustomId(
-    String currentCustomId,
-    String newCustomId,
-  ) async {
-    // Define the API endpoint
-    final Uri url = Uri.parse(
-      'http://$ipAddress/audioOrder/media/$currentCustomId/audio',
-    );
-
-    try {
-      // Make the PATCH request
-      final http.Response response = await http.patch(
-        url,
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: {'new_custom_id': newCustomId},
-      );
-
-      // Handle the response
-      if (response.statusCode == 200) {
-      } else {
-        // Decode the server response for detailed error messages
-        final String errorMessage = utf8.decode(response.bodyBytes);
-      }
-    } catch (e) {
-      // Handle exceptions like network issues
-    }
-  }
-
   int _sendInvoiceCallCount = 0;
   // 🔹 Global Counters & Trackers
   int serverSendCount = 0;
@@ -515,59 +536,12 @@ class EditCustomerScreenProvider with ChangeNotifier {
   final Map<String, int> clientSendTracker = {};
   final Map<String, int> clientReceiveTracker = {};
 
-  /// -------------------- SERVER SIDE -------------------- ///
+  void exitModifyMode() {
+    isModifyMode.value = false;
+    globals.quantityChangesNotifier.value = {};
+    globals.quantityChangesNotifier.value.clear();
 
-  Future<void> sendModifyDataToServer(Map<String, dynamic> invoiceData) async {
-    try {
-      final jsonData = jsonEncode(invoiceData);
-      final soNo =
-          invoiceData['saleOrderNo'] ??
-          invoiceData['salesOrderId'] ??
-          'UNKNOWN';
-
-      // 🔹 Count increment
-      serverSendCount++;
-      serverSendTracker[soNo] = (serverSendTracker[soNo] ?? 0) + 1;
-
-      // 🔹 Block duplicates
-      if (serverSendTracker[soNo]! > 1) {
-        return;
-      }
-
-      debugPrint(
-        "📤 [Server] Sending ModifyData ($soNo) → Count: ${serverSendTracker[soNo]}",
-      );
-      _channel.sink.add(jsonData);
-      // ✅ Reset tracker after success
-      serverSendTracker[soNo] = 0;
-    } catch (e) {
-    }
-  }
-
-  Future<void> _sendPatchedDataToServer(
-    Map<String, dynamic> invoiceData,
-  ) async {
-    try {
-      final jsonData = jsonEncode(invoiceData);
-      final soNo = invoiceData['saleOrderNo'] ?? 'UNKNOWN';
-
-      // 🔹 Count increment
-      serverSendCount++;
-      serverSendTracker[soNo] = (serverSendTracker[soNo] ?? 0) + 1;
-
-      // 🔹 Block duplicates
-      if (serverSendTracker[soNo]! > 1) {
-        return;
-      }
-
-      debugPrint(
-        "📤 [Server] Sending PatchedData ($soNo) → Count: ${serverSendTracker[soNo]}",
-      );
-      _channel.sink.add(jsonData);
-      // ✅ Reset tracker after success
-      serverSendTracker[soNo] = 0;
-    } catch (e) {
-    }
+    notifyListeners();
   }
 
   Future<void> saveModifiedOrder(
@@ -584,7 +558,9 @@ class EditCustomerScreenProvider with ChangeNotifier {
     bool isModified,
   ) async {
     try {
+      debugPrint("🟦 [saveModifiedOrder] Started...");
 
+      // Step 1: Prepare JSON for original order (POST)
       final jsonSalesOrder = jsonEncode({
         "data": originalOrder.toJson(),
         "deviceName": globals.deviceName,
@@ -593,7 +569,9 @@ class EditCustomerScreenProvider with ChangeNotifier {
         "sync": "No",
         "edit": "No",
       });
+      debugPrint("📦 Original Order JSON Prepared: $jsonSalesOrder");
 
+      // Step 2: Prepare JSON for modified order (PATCH)
       final modifiedOrderData = _mergeOrderModifications(
         originalOrder,
         increasedItems,
@@ -601,11 +579,12 @@ class EditCustomerScreenProvider with ChangeNotifier {
         totalAmount,
         totalAdvance,
         balanceAmount,
-        audioPath: audioPath,
-        imagePath1: newImage1?.path ?? originalOrder.image1,
-        imagePath2: newImage2?.path ?? originalOrder.image2,
+        audioPath ?? originalOrder.audio,
+        newImage1 ??
+            (originalOrder.image1 != '' ? File(originalOrder.image1!) : null),
+        newImage2 ??
+            (originalOrder.image2 != '' ? File(originalOrder.image2!) : null),
       );
-
       final jsonModifiedSalesOrder = jsonEncode({
         "data": modifiedOrderData,
         "deviceName": globals.deviceName,
@@ -614,184 +593,226 @@ class EditCustomerScreenProvider with ChangeNotifier {
         "sync": "No",
         "edit": "Yes",
       });
+      debugPrint("📦 Modified Order JSON Prepared: $jsonModifiedSalesOrder");
 
-      // Send original and modified order
-      await sendModifyDataToServer(jsonDecode(jsonSalesOrder));
-      await _sendPatchedDataToServer(jsonDecode(jsonModifiedSalesOrder));
+      // Step 3: Send Original Order
+      debugPrint("🚀 Sending original order to server...");
+      await sendataToServer(jsonDecode(jsonSalesOrder));
+      debugPrint("✅ Original order sent successfully.");
 
-      // Show success SnackBar safely
-      rootScaffoldMessengerKey.currentState?.showSnackBar(
-        const SnackBar(
-          content: Text('Order modification completed successfully.'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      // Step 4: Send Modified Order
+      debugPrint("🚀 Sending modified order to server...");
+      await sendataToServer(jsonDecode(jsonModifiedSalesOrder));
+      debugPrint("✅ Modified order sent successfully.");
 
-      // Clear temporary lists
+      // Step 5: Show success message
+      if (context.mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Order modification completed successfully.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        });
+      }
+
+      // ✅ Clear temp variables
+      debugPrint("🧹 Clearing temporary variables and trackers...");
       increasedItems.clear();
       decreasedItems.clear();
+      globals.quantityChangesNotifier.value = {};
       serverSendTracker.clear();
       clientSendTracker.clear();
       clientReceiveTracker.clear();
-      serverSendCount = 0;
-      clientSendCount = 0;
-      clientReceiveCount = 0;
-      webSocketglobals.quantityChangesNotifier.value =
-          {}; // clear changes after save
-    } catch (e, stackTrace) {
 
-      rootScaffoldMessengerKey.currentState?.showSnackBar(
-        SnackBar(
-          content: Text('Error occurred: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      exitModifyMode();
+      notifyListeners();
+      debugPrint("🟩 [saveModifiedOrder] Completed Successfully.");
+    } catch (e, stackTrace) {
+      debugPrint("❌ [Error] Exception in saveModifiedOrder(): $e");
+      debugPrint(stackTrace.toString());
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error occurred: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (context.mounted) {
+        Navigator.of(context).pop(); // Close dialog
+      }
     }
   }
 
-  // ----------------------------- _mergeOrderModifications -----------------------------
+  // Helper to calculate amount for weighted products
+  double calculateItemAmount(Map<String, dynamic> item) {
+    debugPrint(
+      "🧮 [calculateItemAmount] Called for item: ${item['itemName'] ?? 'Unknown'}",
+    );
+
+    // Extract and normalize UOM
+    final uom = item['uom']?.toString().toLowerCase() ?? '';
+    final bool isKgUnit = uom == 'kg' || uom == 'kgs';
+    debugPrint("🔹 UOM: $uom | Weighted Product: $isKgUnit");
+
+    // Extract item details safely
+    final double itemWeight = (item['weight'] ?? 0).toDouble();
+    final double itemQty = (item['quantity'] ?? 0).toDouble();
+    final double pricePerUnit = (item['price'] ?? 0).toDouble();
+
+    debugPrint("📦 Item Details:");
+    debugPrint("   - Quantity: $itemQty");
+    debugPrint("   - Weight per unit: $itemWeight");
+    debugPrint("   - Price per unit: ₹$pricePerUnit");
+
+    double calculatedAmount = 0.0;
+
+    // Calculate based on UOM type
+    if (isKgUnit) {
+      calculatedAmount = itemQty * itemWeight * pricePerUnit;
+      debugPrint(
+        "🧾 Weighted Calculation (KG): $itemQty × $itemWeight × ₹$pricePerUnit = ₹${calculatedAmount.toStringAsFixed(2)}",
+      );
+    } else {
+      calculatedAmount = itemQty * pricePerUnit;
+      debugPrint(
+        "🧾 Regular Calculation (Units): $itemQty × ₹$pricePerUnit = ₹${calculatedAmount.toStringAsFixed(2)}",
+      );
+    }
+
+    debugPrint(
+      "✅ Final Calculated Amount for '${item['varianceName'] ?? item['itemName']}': ₹${calculatedAmount.toStringAsFixed(2)}",
+    );
+    debugPrint("─────────────────────────────────────────────");
+
+    return calculatedAmount;
+  }
+
+  /// Merges increased and decreased items into the existing order with detailed logs
   Map<String, dynamic> _mergeOrderModifications(
     SalesOrderDisplay originalOrder,
     List<Map<String, dynamic>> increasedItems,
     List<Map<String, dynamic>> decreasedItems,
     double totalAmount,
     double totalAdvance,
-    double balanceAmount, {
+    double balanceAmount,
     String? audioPath,
-    String? imagePath1,
-    String? imagePath2,
-  }) {
-    // --- Start with original order values ---
-    List<String> mergedItemNames = (originalOrder.itemName ?? [])
-        .map((e) => e.trim())
-        .toList();
-    List<String> mergedVarianceNames = (originalOrder.varianceName ?? [])
-        .map((e) => e.trim())
-        .toList();
-    List<num> mergedQty = (originalOrder.qty ?? [])
-        .map((q) => q is int ? q.toDouble() : q)
-        .toList();
-    List<String> mergedUom = (originalOrder.uom ?? []).toList();
-    List<num> mergedWeight = (originalOrder.weight ?? [])
-        .map((w) => w is int ? w.toDouble() : w)
-        .toList();
-    List<num> mergedAmount = (originalOrder.amount ?? [])
-        .map((a) => a is int ? a.toDouble() : a)
-        .toList();
-    List<num> mergedPrice = (originalOrder.price ?? [])
-        .map((p) => p is int ? p.toDouble() : p)
-        .toList();
+    File? newImage1,
+    File? newImage2,
+  ) {
+    debugPrint("🔹 [_mergeOrderModifications] Started...");
 
-    // --- Merge increased items ---
+    // Clone original lists safely
+    List<String> varianceNames = [...originalOrder.varianceName];
+    List<String> itemNames = [...originalOrder.itemName];
+    List<int> qty = originalOrder.qty.map((n) => n.toInt()).toList(); // int
+    List<String> uom = [...originalOrder.uom];
+    List<num> amount = [...originalOrder.amount];
+    List<num> price = [...originalOrder.price];
+
+    debugPrint(
+      "📦 Original Order Cloned: Variances=${varianceNames.length}, Qty=${qty.length}",
+    );
+
+    // --- Apply INCREASED items ---
     for (var item in increasedItems) {
-      int existingIndex = mergedVarianceNames.indexWhere(
-        (name) => name.toLowerCase() == item['varianceName'].toLowerCase(),
+      int existingIndex = varianceNames.indexOf(item['varianceName']);
+      double addQty = (item['quantity'] ?? 0).toDouble();
+      double addAmount = calculateItemAmount(item);
+      String itemUom = item['uom']?.toString().toLowerCase() ?? '';
+      bool isWeighted = itemUom == 'kg' || itemUom == 'kgs';
+
+      debugPrint(
+        "➕ Processing increased item: ${item['varianceName']} | Qty=$addQty | Amount=$addAmount | Weighted=$isWeighted",
       );
 
       if (existingIndex != -1) {
-        mergedQty[existingIndex] += (item['quantity'] is int
-            ? item['quantity'].toDouble()
-            : item['quantity']);
-        mergedAmount[existingIndex] += (item['amount'] is int
-            ? item['amount'].toDouble()
-            : item['amount']);
-        if (item['uom'].toLowerCase() == 'kg' ||
-            item['uom'].toLowerCase() == 'kgs') {
-          mergedWeight[existingIndex] += (item['weight'] is int
-              ? item['weight'].toDouble()
-              : item['weight']);
-        }
-        if (mergedItemNames[existingIndex] == "Unknown Item") {
-          mergedItemNames[existingIndex] = item['itemName'].isEmpty
-              ? item['varianceName']
-              : item['itemName'];
+        debugPrint("🔄 Updating existing item at index $existingIndex");
+        qty[existingIndex] += addQty.toInt();
+        amount[existingIndex] += addAmount;
+        debugPrint(
+          "Updated Qty=${qty[existingIndex]}, Amount=${amount[existingIndex]}",
+        );
+      } else {
+        debugPrint("🆕 Adding new item to order");
+        varianceNames.add(item['varianceName']);
+        itemNames.add(item['itemName']);
+        qty.add(addQty.toInt());
+        uom.add(item['uom']);
+        amount.add(addAmount);
+        price.add(item['price']);
+        debugPrint(
+          "Added Item: ${item['varianceName']} | Qty=${addQty.toInt()} | Amount=$addAmount",
+        );
+      }
+    }
+
+    // --- Apply DECREASED items ---
+    for (var item in decreasedItems) {
+      int existingIndex = varianceNames.indexOf(item['varianceName']);
+      double subQty = (item['quantity'] ?? 0).toDouble();
+      double subAmount = calculateItemAmount(item);
+      String itemUom = item['uom']?.toString().toLowerCase() ?? '';
+      bool isWeighted = itemUom == 'kg' || itemUom == 'kgs';
+
+      debugPrint(
+        "➖ Processing decreased item: ${item['varianceName']} | Qty=$subQty | Amount=$subAmount | Weighted=$isWeighted",
+      );
+
+      if (existingIndex != -1) {
+        qty[existingIndex] -= subQty.toInt();
+        amount[existingIndex] -= subAmount;
+        debugPrint(
+          "Updated Qty=${qty[existingIndex]}, Amount=${amount[existingIndex]}",
+        );
+
+        // Remove item if qty or amount becomes zero or less
+        if (qty[existingIndex] <= 0 || amount[existingIndex] <= 0) {
+          debugPrint(
+            "🗑 Removing item at index $existingIndex due to zero/negative Qty or Amount",
+          );
+          varianceNames.removeAt(existingIndex);
+          itemNames.removeAt(existingIndex);
+          qty.removeAt(existingIndex);
+          uom.removeAt(existingIndex);
+          amount.removeAt(existingIndex);
+          price.removeAt(existingIndex);
         }
       } else {
-        mergedVarianceNames.add(item['varianceName']);
-        mergedItemNames.add(
-          item['itemName'].isEmpty ? item['varianceName'] : item['itemName'],
-        );
-        mergedQty.add(
-          item['quantity'] is int
-              ? item['quantity'].toDouble()
-              : item['quantity'],
-        );
-        mergedUom.add(item['uom']);
-        mergedWeight.add(
-          item['weight'] is int ? item['weight'].toDouble() : item['weight'],
-        );
-        mergedAmount.add(
-          item['amount'] is int ? item['amount'].toDouble() : item['amount'],
-        );
-        mergedPrice.add(
-          item['price'] is int ? item['price'].toDouble() : item['price'],
+        debugPrint(
+          "⚪ Decreased item not found in original order: ${item['varianceName']}",
         );
       }
     }
 
-    // --- Merge decreased items ---
-    for (var item in decreasedItems) {
-      int existingIndex = mergedVarianceNames.indexOf(item['varianceName']);
-      if (existingIndex != -1) {
-        num newQuantity = mergedQty[existingIndex];
-        num newAmount = mergedAmount[existingIndex];
-        num newWeight = mergedWeight[existingIndex];
+    debugPrint(
+      "✅ [_mergeOrderModifications] Completed. Total items: ${varianceNames.length}",
+    );
+    debugPrint("Final Variance Names: $varianceNames");
+    debugPrint("Final Qty List: $qty");
+    debugPrint("Final Amount List: $amount");
 
-        if (mergedUom[existingIndex].toLowerCase() == 'kg' ||
-            mergedUom[existingIndex].toLowerCase() == 'kgs') {
-          newWeight -= item['weight'];
-          newAmount -= item['amount'];
-        } else {
-          newQuantity -= item['quantity'];
-          newAmount -= item['amount'];
-        }
-
-        if (newQuantity > 0 && newWeight >= 0) {
-          mergedQty[existingIndex] = newQuantity;
-          mergedAmount[existingIndex] = newAmount;
-          mergedWeight[existingIndex] = newWeight;
-        } else {
-          mergedItemNames.removeAt(existingIndex);
-          mergedVarianceNames.removeAt(existingIndex);
-          mergedQty.removeAt(existingIndex);
-          mergedUom.removeAt(existingIndex);
-          mergedWeight.removeAt(existingIndex);
-          mergedAmount.removeAt(existingIndex);
-          mergedPrice.removeAt(existingIndex);
-        }
-      }
-    }
-
-    // --- Build final modified order including audio and image paths ---
-    Map<String, dynamic> modifiedOrderData = {
-      'previousOrderId': originalOrder.salesOrderId,
-      'itemName': mergedItemNames,
-      'varianceName': mergedVarianceNames,
-      'qty': mergedQty,
-      'uom': mergedUom,
-      'weight': mergedWeight,
-      'amount': mergedAmount,
-      'price': mergedPrice,
-      'saleOrderNo': originalOrder.saleOrderNo,
-      'customerName': originalOrder.customerName,
-      'customerNumber': originalOrder.customerNumber,
-      'deliveryDate': originalOrder.deliveryDate,
-      'deliveryTime': originalOrder.deliveryTime,
-      'event': originalOrder.event,
-      'deliveryType': originalOrder.deliveryType,
-      'address': originalOrder.address,
-      'landmark': originalOrder.landmark,
+    return {
+      'varianceName': varianceNames,
+      'itemName': itemNames,
+      'qty': qty, // int list
+      'uom': uom,
+      'amount': amount,
+      'price': price,
       'totalAmount': totalAmount,
-      'advanceAmount': originalOrder.advanceAmount ?? [],
+      'totalAmount2': totalAmount,
+      'advanceAmount': [totalAdvance],
       'balanceAmount': balanceAmount,
-      'status': 'toApprove Orders',
-      'approvalType': 'ModifyOrder',
-      'audioPath': audioPath ?? originalOrder.audio,
-      'imagePath1': imagePath1 ?? originalOrder.image1,
-      'imagePath2': imagePath2 ?? originalOrder.image2,
+      'status': decreasedItems.isNotEmpty
+          ? 'Pending Approval'
+          : 'Confirm Order',
+      'audioPath': audioPath ?? '',
+      'image1Path': newImage1?.path ?? '',
+      'image2Path': newImage2?.path ?? '',
     };
-
-    return modifiedOrderData;
   }
 
   Timer? _debounceTimer; // Timer for debouncing
@@ -1030,8 +1051,8 @@ class EditCustomerScreenProvider with ChangeNotifier {
         "saleOrderNo": originalOrder.saleOrderNo,
       });
 
-      await _sendPostToapproveDataToServer(jsonDecode(jsonModifiedSalesOrder));
-      await _sendPatchForSaleOrderDataToServer(jsonDecode(serverPatchData));
+      await sendataToServer(jsonDecode(jsonModifiedSalesOrder));
+      await sendataToServer(jsonDecode(serverPatchData));
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1042,27 +1063,6 @@ class EditCustomerScreenProvider with ChangeNotifier {
         );
       }
     }
-  }
-
-  Future<void> _sendPostToapproveDataToServer(
-    Map<String, dynamic> invoiceData,
-  ) async {
-    try {
-      final jsonData = jsonEncode(invoiceData);
-      _channel.sink.add(jsonData);
-    } catch (e) {}
-  }
-
-  int _sendCount = 0; // Add this as a member variable of your class
-
-  Future<void> _sendPatchForSaleOrderDataToServer(
-    Map<String, dynamic> patchData,
-  ) async {
-    try {
-      final jsonData = jsonEncode(patchData);
-      _channel.sink.add(jsonData);
-      _sendCount++; // Increment the counter
-    } catch (e) {}
   }
 
   Future<void> handleAudioOrder(
@@ -1252,6 +1252,11 @@ class EditCustomerScreenProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  void setSelectedCustomChargeType(String? newValue) {
+    selectedChargeType = newValue;
+    notifyListeners();
+  }
+
   String? selectedDeliveryType;
   Future<bool> addCustomer(String mobile, String name) async {
     try {
@@ -1266,7 +1271,6 @@ class EditCustomerScreenProvider with ChangeNotifier {
       );
       return response.statusCode == 200 || response.statusCode == 201;
     } catch (e) {
-      debugPrint('Error adding customer: $e');
       return false;
     }
   }
@@ -2176,124 +2180,195 @@ class EditCustomerScreenProvider with ChangeNotifier {
     double difference,
     int originalIndex,
   ) {
+    debugPrint("\n🚀 [updateItemInOrder] STARTED");
+    debugPrint("📥 Input Params:");
+    debugPrint("   🔸 Item: ${item['itemName']} (${item['varianceName']})");
+    debugPrint("   🔸 Difference: $difference");
+    debugPrint("   🔸 Original Index: $originalIndex");
+    debugPrint("--------------------------------------------------");
+
+    // ✅ Identify Unit Type
     bool isKgUnit =
-        item['varianceUom']?.toLowerCase() == 'kg' ||
-        item['varianceUom']?.toLowerCase() == 'kgs';
+        item['varianceUom']?.toString().toLowerCase() == 'kg' ||
+        item['varianceUom']?.toString().toLowerCase() == 'kgs';
+    debugPrint("📏 isKgUnit: $isKgUnit (UOM: ${item['varianceUom']})");
 
-    // Convert existingQuantity to double to avoid int type issues
-    double currentValue = isKgUnit
-        ? (item['existingWeight'] ?? 0.0)
-        : (item['existingQuantity'] is int
-              ? (item['existingQuantity'] as int).toDouble()
-              : (item['existingQuantity'] ?? 0.0));
+    // ✅ Normalize existingQuantity
+    double currentQuantity = 0.0;
+    final rawQty = item['existingQuantity'];
+    if (rawQty is int) {
+      currentQuantity = rawQty.toDouble();
+    } else if (rawQty is double) {
+      currentQuantity = rawQty;
+    } else {
+      currentQuantity = (rawQty ?? 0.0);
+    }
+    debugPrint("📦 Normalized Current Quantity: $currentQuantity");
 
-    // Find if the item is in increased or decreased lists
+    // ✅ Normalize existingWeight
+    double itemWeightRaw = 0.0;
+    final rawWeight = item['existingWeight'];
+    if (rawWeight is int) {
+      itemWeightRaw = rawWeight.toDouble();
+    } else if (rawWeight is double) {
+      itemWeightRaw = rawWeight;
+    } else {
+      itemWeightRaw = (rawWeight ?? 0.0);
+    }
+    debugPrint("⚖️ Raw Weight: $itemWeightRaw (${item['existingWeightUnit']})");
+
+    // ✅ Normalize weight units to KG
+    double itemWeightKg = itemWeightRaw;
+    final weightUnit = (item['existingWeightUnit'] ?? '')
+        .toString()
+        .toLowerCase();
+    if (weightUnit == 'g' || weightUnit == 'gram' || weightUnit == 'grams') {
+      itemWeightKg = itemWeightRaw / 1000.0;
+      debugPrint("🧮 Converted Weight: $itemWeightKg kg (from grams)");
+    } else if (weightUnit == 'kg' ||
+        weightUnit == 'kgs' ||
+        weightUnit == 'kilogram') {
+      debugPrint("✅ Weight already in KG: $itemWeightKg kg");
+    } else {
+      if (itemWeightRaw > 50) {
+        itemWeightKg = itemWeightRaw / 1000.0;
+        debugPrint(
+          "⚠️ No unit provided, assuming grams → Converted: $itemWeightKg kg",
+        );
+      } else {
+        debugPrint(
+          "⚠️ No unit provided, assuming already KG → Kept as: $itemWeightKg kg",
+        );
+      }
+    }
+
+    debugPrint("--------------------------------------------------");
+    debugPrint(
+      "📊 Current Qty: $currentQuantity | ⚖️ Weight (kg): $itemWeightKg",
+    );
+
+    // ✅ Calculate unit price
+    final double pricePerKg = (item['variancePrice'] ?? 0.0).toDouble();
+    double unitPrice = isKgUnit ? pricePerKg * itemWeightKg : pricePerKg;
+    debugPrint("💰 PricePerKg: $pricePerKg | UnitPrice: $unitPrice");
+
+    double calculateAmountForQty(double qty) {
+      final amt = qty * unitPrice;
+      debugPrint(
+        "   ➕ [calculateAmountForQty] Qty: $qty → ₹${amt.toStringAsFixed(2)}",
+      );
+      return amt;
+    }
+
+    // ✅ Find if item already exists in modification lists
     int increasedIndex = increasedItems.indexWhere(
-      (element) => element['varianceName'] == item['varianceName'],
+      (e) => e['varianceName'] == item['varianceName'],
     );
     int decreasedIndex = decreasedItems.indexWhere(
-      (element) => element['varianceName'] == item['varianceName'],
+      (e) => e['varianceName'] == item['varianceName'],
     );
 
-    // Calculate current modification value
+    debugPrint("--------------------------------------------------");
+    debugPrint("🔍 Searching existing modification entries:");
+    debugPrint("   🔸 IncreasedIndex: $increasedIndex");
+    debugPrint("   🔸 DecreasedIndex: $decreasedIndex");
+
+    // ✅ Calculate current modification value
     double modificationValue = 0.0;
     if (increasedIndex != -1) {
-      var value = isKgUnit
-          ? increasedItems[increasedIndex]['weight']
-          : increasedItems[increasedIndex]['quantity'];
-      modificationValue = value is int ? value.toDouble() : (value ?? 0.0);
+      modificationValue = (increasedItems[increasedIndex]['quantity'] ?? 0.0);
     } else if (decreasedIndex != -1) {
-      var value = isKgUnit
-          ? decreasedItems[decreasedIndex]['weight']
-          : decreasedItems[decreasedIndex]['quantity'];
-      modificationValue = -(value is int ? value.toDouble() : (value ?? 0.0));
+      modificationValue = -(decreasedItems[decreasedIndex]['quantity'] ?? 0.0);
     }
+    debugPrint("🧾 Existing Modification Value: $modificationValue");
 
-    // Calculate new quantity to check if it goes below 0
-    double newQuantity = currentValue + modificationValue + difference;
+    // ✅ Compute new quantities
+    double newQuantity = currentQuantity + modificationValue + difference;
+    debugPrint(
+      "📈 CurrentQty: $currentQuantity | + Modification: $modificationValue | + Difference: $difference",
+    );
+    debugPrint("➡️ NewQuantity: $newQuantity");
     if (newQuantity < 0) {
-      return; // Skip update if quantity would go negative
+      debugPrint("❌ New quantity is negative. Aborting update.\n");
+      return;
     }
 
-    // Calculate new modification value
-    double newModificationValue = modificationValue + difference;
+    double newModificationValue = newQuantity - currentQuantity;
+    debugPrint("🔸 New Modification Value: $newModificationValue");
 
-    // Update or move the modification
+    // ✅ Update existing or add new modification entries
+    debugPrint("--------------------------------------------------");
     if (increasedIndex != -1 && newModificationValue > 0) {
-      // Update existing increased item
-      var existingItem = increasedItems[increasedIndex];
-      existingItem[isKgUnit ? 'weight' : 'quantity'] = isKgUnit
-          ? newModificationValue
-          : newModificationValue;
-      existingItem['amount'] = item['variancePrice'] * newModificationValue;
+      debugPrint("🟢 Updating existing increased item...");
+      increasedItems[increasedIndex]['quantity'] = newModificationValue;
+      increasedItems[increasedIndex]['amount'] = calculateAmountForQty(
+        newModificationValue,
+      );
     } else if (decreasedIndex != -1 && newModificationValue < 0) {
-      // Update existing decreased item
-      var existingItem = decreasedItems[decreasedIndex];
-      existingItem[isKgUnit ? 'weight' : 'quantity'] = isKgUnit
-          ? -newModificationValue
-          : -newModificationValue;
-      existingItem['amount'] = item['variancePrice'] * (-newModificationValue);
+      debugPrint("🔴 Updating existing decreased item...");
+      decreasedItems[decreasedIndex]['quantity'] = -newModificationValue;
+      decreasedItems[decreasedIndex]['amount'] = calculateAmountForQty(
+        -newModificationValue,
+      );
     } else {
-      // Remove existing entries to handle transitions or new modifications
+      // Clean up old entries first
       if (increasedIndex != -1) {
+        debugPrint("🧹 Removing stale increased entry...");
         increasedItems.removeAt(increasedIndex);
       }
       if (decreasedIndex != -1) {
+        debugPrint("🧹 Removing stale decreased entry...");
         decreasedItems.removeAt(decreasedIndex);
       }
 
-      // Add new modification if non-zero
+      // Add new entries
       if (newModificationValue > 0) {
-        // Add to increasedItems
+        debugPrint("🆕 Adding new increased item...");
         increasedItems.add({
           'varianceName': item['varianceName'],
           'itemName': item['itemName'],
-          'quantity': isKgUnit ? 1.0 : newModificationValue,
-          'weight': isKgUnit ? newModificationValue : 0.0,
+          'weight': itemWeightKg * newModificationValue,
+          'quantity': newModificationValue,
           'uom': item['varianceUom'],
           'price': item['variancePrice'],
           'tax': item['variancetax'] ?? 0,
           'itemCode': item['varianceitemCode'],
-          'amount': item['variancePrice'] * newModificationValue,
+          'amount': calculateAmountForQty(newModificationValue),
           'originalQuantity': item['existingQuantity'],
-          'originalWeight': item['existingWeight'],
           'originalAmount': item['existingAmount'],
         });
       } else if (newModificationValue < 0) {
-        // Add to decreasedItems
+        debugPrint("🆕 Adding new decreased item...");
         decreasedItems.add({
           'varianceName': item['varianceName'],
           'itemName': item['itemName'],
-          'quantity': isKgUnit ? 1.0 : -newModificationValue,
-          'weight': isKgUnit ? -newModificationValue : 0.0,
+          'weight': itemWeightKg * (-newModificationValue),
+          'quantity': -newModificationValue,
           'uom': item['varianceUom'],
           'price': item['variancePrice'],
           'tax': item['variancetax'] ?? 0,
           'itemCode': item['varianceitemCode'],
-          'amount': item['variancePrice'] * (-newModificationValue),
+          'amount': calculateAmountForQty(-newModificationValue),
           'originalQuantity': item['existingQuantity'],
-          'originalWeight': item['existingWeight'],
           'originalAmount': item['existingAmount'],
         });
       }
     }
 
-    // Cleanup zero values
-    increasedItems.removeWhere(
-      (item) => (isKgUnit ? item['weight'] : item['quantity']) <= 0,
-    );
-    decreasedItems.removeWhere(
-      (item) => (isKgUnit ? item['weight'] : item['quantity']) <= 0,
-    );
+    // ✅ Cleanup zero-quantity entries
+    increasedItems.removeWhere((e) => (e['quantity'] ?? 0) <= 0);
+    decreasedItems.removeWhere((e) => (e['quantity'] ?? 0) <= 0);
 
-    // Recalculate totals and notify listeners
-    _recalculateOrderTotals();
+    debugPrint("--------------------------------------------------");
+    debugPrint(
+      "✅ Final Increased Items: ${increasedItems.isEmpty ? 'None' : increasedItems}",
+    );
+    debugPrint(
+      "✅ Final Decreased Items: ${decreasedItems.isEmpty ? 'None' : decreasedItems}",
+    );
+    debugPrint("--------------------------------------------------");
+
     notifyListeners();
-  }
-
-  // Helper method to recalculate order totals
-  void _recalculateOrderTotals() {
-    // Implement total calculations based on your business logic
-    // This might include subtotals, taxes, etc.
+    debugPrint("🏁 [updateItemInOrder] COMPLETED SUCCESSFULLY\n");
   }
 }

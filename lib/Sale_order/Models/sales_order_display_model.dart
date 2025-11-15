@@ -39,27 +39,33 @@ class ModifyOrder {
       //         ?.map((item) => item.toString())
       //         .toList() ??
       //     [],
-      varianceName: (json['varianceName'] as List<dynamic>?)
+      varianceName:
+          (json['varianceName'] as List<dynamic>?)
               ?.map((item) => item.toString())
               .toList() ??
           [],
-      qty: (json['qty'] as List<dynamic>?)
+      qty:
+          (json['qty'] as List<dynamic>?)
               ?.map((qty) => (qty as num?)?.toDouble() ?? 0.0)
               .toList() ??
           [],
-      uom: (json['uom'] as List<dynamic>?)
+      uom:
+          (json['uom'] as List<dynamic>?)
               ?.map((uom) => uom.toString())
               .toList() ??
           [],
-      price: (json['price'] as List<dynamic>?)
+      price:
+          (json['price'] as List<dynamic>?)
               ?.map((price) => (price as num?)?.toDouble() ?? 0.0)
               .toList() ??
           [],
-      amount: (json['amount'] as List<dynamic>?)
+      amount:
+          (json['amount'] as List<dynamic>?)
               ?.map((amt) => (amt as num?)?.toDouble() ?? 0.0)
               .toList() ??
           [],
-      weight: (json['weight'] as List<dynamic>?)
+      weight:
+          (json['weight'] as List<dynamic>?)
               ?.map((weight) => (weight as num?)?.toDouble() ?? 0.0)
               .toList() ??
           [],
@@ -112,27 +118,33 @@ class ToApprove {
       //         ?.map((item) => item.toString())
       //         .toList() ??
       //     [],
-      varianceName: (json['varianceName'] as List<dynamic>?)
+      varianceName:
+          (json['varianceName'] as List<dynamic>?)
               ?.map((item) => item.toString())
               .toList() ??
           [],
-      qty: (json['qty'] as List<dynamic>?)
+      qty:
+          (json['qty'] as List<dynamic>?)
               ?.map((qty) => (qty as num?)?.toDouble() ?? 0.0)
               .toList() ??
           [],
-      uom: (json['uom'] as List<dynamic>?)
+      uom:
+          (json['uom'] as List<dynamic>?)
               ?.map((uom) => uom.toString())
               .toList() ??
           [],
-      price: (json['price'] as List<dynamic>?)
+      price:
+          (json['price'] as List<dynamic>?)
               ?.map((price) => (price as num?)?.toDouble() ?? 0.0)
               .toList() ??
           [],
-      amount: (json['amount'] as List<dynamic>?)
+      amount:
+          (json['amount'] as List<dynamic>?)
               ?.map((amt) => (amt as num?)?.toDouble() ?? 0.0)
               .toList() ??
           [],
-      weight: (json['weight'] as List<dynamic>?)
+      weight:
+          (json['weight'] as List<dynamic>?)
               ?.map((weight) => (weight as num?)?.toDouble() ?? 0.0)
               .toList() ??
           [],
@@ -168,6 +180,8 @@ class SalesOrderDisplay {
   final double? totalAmount2;
   final double netPrice;
   final String orderInvoiceNo;
+  final String invoiceNo;
+
   final String branchId;
   final String branchName;
   final String aliasName;
@@ -179,7 +193,7 @@ class SalesOrderDisplay {
   final String deliveryPartners;
   final double otherPayments;
   final String deliveryPartnerName;
-  final String shiftId;
+  final List<String> shiftId;
   final String shiftName;
   final String user;
   String deliveryDate;
@@ -205,6 +219,8 @@ class SalesOrderDisplay {
   final String saleOrderNo;
   final String orderDate;
   final String orderTime;
+  final String customChargeType;
+
   final String employeeName;
   final String status;
   final String cancelOrderRemark;
@@ -213,7 +229,7 @@ class SalesOrderDisplay {
   List<String>? isBoxItem;
   List<double>? itemWiseDiscount;
   List<double>? itemWiseDiscountAmount;
-  List<int>? boxQty;
+  int? boxQty;
   List<bool>? isItemReduced;
   final String? hiveId;
   final List<ModifyOrder>? modifiedOrders;
@@ -221,73 +237,76 @@ class SalesOrderDisplay {
   String? image1;
   String? image2;
   String? audio;
-  SalesOrderDisplay(
-      {required this.salesOrderId,
-      required this.itemName,
-      required this.varianceName,
-      required this.qty,
-      required this.price,
-      required this.itemCode,
-      required this.weight,
-      required this.amount,
-      required this.tax,
-      required this.uom,
-      required this.totalAmount,
-      required this.totalAmount2,
-      required this.netPrice,
-      required this.orderInvoiceNo,
-      required this.branchId,
-      required this.branchName,
-      required this.aliasName,
-      required this.invoiceDate,
-      required this.cash,
-      required this.card,
-      required this.upi,
-      required this.deliveryPartners,
-      required this.otherPayments,
-      required this.deliveryPartnerName,
-      required this.shiftId,
-      required this.shiftName,
-      required this.user,
-      required this.deliveryDate,
-      required this.deliveryTime,
-      required this.event,
-      required this.customerNumber,
-      required this.customerName,
-      required this.deliveryType,
-      required this.address,
-      required this.landmark,
-      required this.discount,
-      required this.discountAmount,
-      required this.remark,
-      required this.customCharge,
-      this.advanceAmount,
-      this.modeWiseAmount,
-      required this.advanceDateTime,
-      required this.advancePaymentType,
-      required this.paymentType,
-      required this.finalPrice,
-      required this.balanceAmount,
-      required this.saleOrderNo,
-      required this.orderDate,
-      required this.orderTime,
-      required this.employeeName,
-      required this.status,
-      required this.cancelOrderRemark,
-      this.audioUrl,
-      this.isItemReduced,
-      this.modifiedOrders,
-      this.isBoxItem,
-      this.itemWiseDiscount,
-      this.itemWiseDiscountAmount,
-      this.boxQty,
-      this.toApprove,
-      this.eventDate,
-      this.image1,
-      this.image2,
-      this.audio,
-      this.hiveId,
-      this.orderType});
+  SalesOrderDisplay({
+    required this.salesOrderId,
+    required this.itemName,
+    required this.varianceName,
+    required this.qty,
+    required this.price,
+    required this.itemCode,
+    required this.weight,
+    required this.amount,
+    required this.tax,
+    required this.uom,
+    required this.totalAmount,
+    required this.totalAmount2,
+    required this.netPrice,
+    required this.orderInvoiceNo,
+    required this.invoiceNo,
+    required this.branchId,
+    required this.branchName,
+    required this.aliasName,
+    required this.invoiceDate,
+    required this.customChargeType,
+    required this.cash,
+    required this.card,
+    required this.upi,
+    required this.deliveryPartners,
+    required this.otherPayments,
+    required this.deliveryPartnerName,
+    required this.shiftId,
+    required this.shiftName,
+    required this.user,
+    required this.deliveryDate,
+    required this.deliveryTime,
+    required this.event,
+    required this.customerNumber,
+    required this.customerName,
+    required this.deliveryType,
+    required this.address,
+    required this.landmark,
+    required this.discount,
+    required this.discountAmount,
+    required this.remark,
+    required this.customCharge,
+    this.advanceAmount,
+    this.modeWiseAmount,
+    required this.advanceDateTime,
+    required this.advancePaymentType,
+    required this.paymentType,
+    required this.finalPrice,
+    required this.balanceAmount,
+    required this.saleOrderNo,
+    required this.orderDate,
+    required this.orderTime,
+    required this.employeeName,
+    required this.status,
+    required this.cancelOrderRemark,
+    this.audioUrl,
+    this.isItemReduced,
+    this.modifiedOrders,
+    this.isBoxItem,
+    this.itemWiseDiscount,
+    this.itemWiseDiscountAmount,
+    this.boxQty,
+    this.toApprove,
+    this.eventDate,
+    this.image1,
+    this.image2,
+    this.audio,
+    this.hiveId,
+    this.orderType,
+  });
 
   String get formattedDeliveryDate {
     try {
@@ -298,7 +317,7 @@ class SalesOrderDisplay {
     }
   }
 
-//create a tojson method
+  //create a tojson method
   Map<String, dynamic> toJson() {
     return {
       'salesOrderId': salesOrderId ?? "",
@@ -315,6 +334,7 @@ class SalesOrderDisplay {
       'totalAmount2': totalAmount2,
       'netPrice': netPrice,
       'orderInvoiceNo': orderInvoiceNo,
+      'invoiceNo': invoiceNo,
       'branchId': branchId,
       'branchName': branchName,
       'aliasName': aliasName,
@@ -322,6 +342,7 @@ class SalesOrderDisplay {
       'cash': cash,
       'card': card,
       'upi': upi,
+      "customChargeType": customChargeType,
       'deliveryPartners': deliveryPartners,
       'otherPayments': otherPayments,
       'deliveryPartnerName': deliveryPartnerName,
@@ -377,32 +398,38 @@ class SalesOrderDisplay {
           (json['itemName'] as List?)?.map((e) => e.toString()).toList() ?? [],
       varianceName:
           (json['varianceName'] as List?)?.map((e) => e.toString()).toList() ??
-              [],
-      qty: (json['qty'] as List?)
+          [],
+      qty:
+          (json['qty'] as List?)
               ?.map((e) => int.tryParse(e.toString()) ?? 0)
               .toList() ??
           [],
-      price: (json['price'] as List?)
+      price:
+          (json['price'] as List?)
               ?.map((e) => (e as num).toDouble())
               .toList() ??
           [],
       itemCode:
           (json['itemCode'] as List?)?.map((e) => e.toString()).toList() ?? [],
-      weight: (json['weight'] as List?)
+      weight:
+          (json['weight'] as List?)
               ?.map((e) => (e as num).toDouble())
               .toList() ??
           [],
-      amount: (json['amount'] as List?)
+      amount:
+          (json['amount'] as List?)
               ?.map((e) => (e as num).toDouble())
               .toList() ??
           [],
-      tax: (json['tax'] as List?)?.map((e) => (e as num).toDouble()).toList() ??
+      tax:
+          (json['tax'] as List?)?.map((e) => (e as num).toDouble()).toList() ??
           [],
       uom: (json['uom'] as List?)?.map((e) => e.toString()).toList() ?? [],
       totalAmount: (json['totalAmount'] as num?)?.toDouble() ?? 0.0,
       totalAmount2: (json['totalAmount2'] as num?)?.toDouble(),
       netPrice: (json['netPrice'] as num?)?.toDouble() ?? 0.0,
       orderInvoiceNo: json['orderInvoiceNo'] ?? '',
+      invoiceNo: json['invoiceNo'] ?? '',
       branchId: json['branchId'] ?? '',
       branchName: json['branchName'] ?? '',
       aliasName: json['aliasName'] ?? '',
@@ -413,10 +440,13 @@ class SalesOrderDisplay {
       deliveryPartners: json['deliveryPartners'] ?? '',
       otherPayments: (json['otherPayments'] as num?)?.toDouble() ?? 0.0,
       deliveryPartnerName: json['deliveryPartnerName'] ?? '',
-      shiftId: json['shiftId'] ?? '',
+
+      shiftId:
+          (json['shiftId'] as List?)?.map((e) => e.toString()).toList() ?? [],
       shiftName: json['shiftName'] ?? '',
       user: json['user'] ?? '',
       deliveryDate: json['deliveryDate'] ?? '',
+      customChargeType: json["customChargeType"] ?? '',
       deliveryTime: json['deliveryTime'] ?? '',
       event: json['event'] ?? '',
       customerNumber: json['customerNumber'] ?? '',
@@ -464,29 +494,26 @@ class SalesOrderDisplay {
       toApprove: (json['toApprove'] as List?)
           ?.map((x) => ToApprove.fromJson(x))
           .toList(),
-      isItemReduced:
-          (json['isItemReduced'] as List?)?.map((e) => e == true).toList(),
-      isBoxItem:
-          (json['isBoxItem'] as List?)?.map((e) => e.toString()).toList(),
+      isItemReduced: (json['isItemReduced'] as List?)
+          ?.map((e) => e == true)
+          .toList(),
+      isBoxItem: (json['isBoxItem'] as List?)
+          ?.map((e) => e.toString())
+          .toList(),
       itemWiseDiscount: (json['itemWiseDiscount'] as List?)
           ?.map((e) => (e as num).toDouble())
           .toList(),
       itemWiseDiscountAmount: (json['itemWiseDiscountAmount'] as List?)
           ?.map((e) => (e as num).toDouble())
           .toList(),
-      boxQty:
-          (json['boxQty'] as List?)?.map((e) => (e as num).toInt()).toList(),
+      boxQty: json['boxQty'] ?? 0,
       image1: json['image1'],
       image2: json['image2'],
       audio: json['audio'],
       hiveId: json['hiveId'],
     );
   }
-
   factory SalesOrderDisplay.fromMap(Map<String, dynamic> map) {
-    // Encode and pretty-print the incoming raw map
-    var encoder = JsonEncoder.withIndent('  ');
-
     // Determine which part of the map to use
     final orderMap = map.containsKey('data') && map['data'] is Map
         ? Map<String, dynamic>.from(map['data'])
@@ -494,15 +521,26 @@ class SalesOrderDisplay {
 
     // Helper to parse list fields safely
     List<T> parseList<T>(
-        dynamic input, T Function(dynamic) parser, T defaultValue) {
-      if (input == null) return [defaultValue];
+      dynamic input,
+      T Function(dynamic) parser,
+      T defaultValue,
+    ) {
+      if (input == null) {
+        return [defaultValue];
+      }
       if (input is List) {
-        return input.map((v) => parser(v) ?? defaultValue).toList();
+        final result = input.map((v) {
+          final parsed = parser(v);
+
+          return parsed ?? defaultValue;
+        }).toList();
+        return result;
       }
       try {
-        return [parser(input) ?? defaultValue];
+        final result = [parser(input) ?? defaultValue];
+
+        return result;
       } catch (e) {
-        debugPrint('❌ Failed to parse input: $input, error: $e');
         return [defaultValue];
       }
     }
@@ -512,33 +550,54 @@ class SalesOrderDisplay {
     String image2 = orderMap['imagePath2'] ?? 'No image2 available';
     String audio = orderMap['audioPath'] ?? 'No audio available';
 
-    // Specific key logs
-
     // Return the populated SalesOrderDisplay object
-    return SalesOrderDisplay(
+    final order = SalesOrderDisplay(
       hiveId: orderMap['hiveId']?.toString() ?? '',
       salesOrderId: orderMap['salesOrderId']?.toString() ?? '',
-      itemName:
-          parseList<String>(orderMap['itemName'], (v) => v.toString(), 'N/A'),
+      itemName: parseList<String>(
+        orderMap['itemName'],
+        (v) => v.toString(),
+        'N/A',
+      ),
       varianceName: parseList<String>(
-          orderMap['varianceName'], (v) => v.toString(), 'N/A'),
+        orderMap['varianceName'],
+        (v) => v.toString(),
+        'N/A',
+      ),
       qty: parseList<int>(
-          orderMap['qty'], (v) => int.tryParse(v.toString()) ?? 0, 0),
+        orderMap['qty'],
+        (v) => int.tryParse(v.toString()) ?? 0,
+        0,
+      ),
       price: parseList<double>(
-          orderMap['price'], (v) => double.tryParse(v.toString()) ?? 0.0, 0.0),
-      itemCode:
-          parseList<String>(orderMap['itemCode'], (v) => v.toString(), 'N/A'),
+        orderMap['price'],
+        (v) => double.tryParse(v.toString()) ?? 0.0,
+        0.0,
+      ),
+      itemCode: parseList<String>(
+        orderMap['itemCode'],
+        (v) => v.toString(),
+        'N/A',
+      ),
       weight: parseList<double>(
-          orderMap['weight'], (v) => double.tryParse(v.toString()) ?? 0.0, 0.0),
+        orderMap['weight'],
+        (v) => double.tryParse(v.toString()) ?? 0.0,
+        0.0,
+      ),
       amount: parseList<double>(
-          orderMap['amount'], (v) => double.tryParse(v.toString()) ?? 0.0, 0.0),
+        orderMap['amount'],
+        (v) => double.tryParse(v.toString()) ?? 0.0,
+        0.0,
+      ),
       totalAmount: (orderMap['totalAmount']?.toDouble() ?? 0.0),
       totalAmount2: (orderMap['totalAmount2']?.toDouble()),
       netPrice: (orderMap['netPrice']?.toDouble() ?? 0.0),
       orderInvoiceNo: orderMap['orderInvoiceNo'] ?? '',
+      invoiceNo: orderMap['invoiceNo'] ?? '',
       branchId: orderMap['branchId'] ?? '',
       branchName: orderMap['branchName'] ?? '',
       aliasName: orderMap['aliasName'] ?? '',
+      customChargeType: orderMap["customChargeType"] ?? '',
       invoiceDate: orderMap['invoiceDate'] ?? '',
       cash: (orderMap['cash']?.toDouble() ?? 0.0),
       card: (orderMap['card']?.toDouble() ?? 0.0),
@@ -546,7 +605,9 @@ class SalesOrderDisplay {
       deliveryPartners: orderMap['deliveryPartners'] ?? '',
       otherPayments: (orderMap['otherPayments']?.toDouble() ?? 0.0),
       deliveryPartnerName: orderMap['deliveryPartnerName'] ?? '',
-      shiftId: orderMap['shiftId'] ?? '',
+      shiftId:
+          (orderMap['shiftId'] as List?)?.map((e) => e.toString()).toList() ??
+          [],
       shiftName: orderMap['shiftName'] ?? '',
       user: orderMap['user'] ?? '',
       deliveryDate: orderMap['deliveryDate'] ?? '',
@@ -563,14 +624,18 @@ class SalesOrderDisplay {
       discountAmount: (orderMap['discountAmount']?.toDouble() ?? 0.0),
       remark: orderMap['remark'] ?? '',
       customCharge: (orderMap['customCharge']?.toDouble() ?? 0.0),
-      tax: (orderMap['tax'] as List<dynamic>?)
+      tax:
+          (orderMap['tax'] as List<dynamic>?)
               ?.map((e) => double.tryParse(e.toString()) ?? 0.0)
               .toList() ??
           [],
       uom: List<String>.from(orderMap['uom'] ?? []),
       advanceAmount: (orderMap['advanceAmount'] is List)
-          ? List<double>.from((orderMap['advanceAmount'] as List<dynamic>)
-              .map((x) => (x as num).toDouble()))
+          ? List<double>.from(
+              (orderMap['advanceAmount'] as List<dynamic>).map(
+                (x) => (x as num).toDouble(),
+              ),
+            )
           : [orderMap['advanceAmount']?.toDouble() ?? 0.0],
       advanceDateTime: List<String>.from(orderMap['advanceDateTime'] ?? []),
       advancePaymentType: orderMap['advancePaymentType'] != null
@@ -598,16 +663,21 @@ class SalesOrderDisplay {
       cancelOrderRemark: orderMap['cancelOrderRemark'] ?? '',
       eventDate: orderMap['eventDate'] ?? '',
       orderType: orderMap['orderType'] ?? '',
-      modifiedOrders: null, // optionally handle
-      toApprove: null, // optionally handle
+      modifiedOrders: null,
+      toApprove: null,
       audioUrl: orderMap['audioUrl'],
       image1: image1,
       image2: image2,
       audio: audio,
-      isItemReduced: null, // optionally handle
-      isBoxItem:
-          parseList<String>(orderMap['isBoxItem'], (v) => v.toString(), 'N/A'),
+      isItemReduced: null,
+      isBoxItem: parseList<String>(
+        orderMap['isBoxItem'],
+        (v) => v.toString(),
+        'N/A',
+      ),
     );
+
+    return order;
   }
   SalesOrderDisplay copyWith({
     List<ModifyOrder>? modifiedOrders,
@@ -628,11 +698,13 @@ class SalesOrderDisplay {
       totalAmount2: totalAmount2,
       netPrice: netPrice,
       orderInvoiceNo: orderInvoiceNo,
+      invoiceNo: invoiceNo,
       branchId: branchId,
       branchName: branchName,
       aliasName: aliasName,
       invoiceDate: invoiceDate,
       cash: cash,
+      customChargeType: customChargeType,
       card: card,
       upi: upi,
       deliveryPartners: deliveryPartners,
@@ -679,9 +751,7 @@ class SalesOrderDisplay {
     );
   }
 
-  SalesOrderDisplay copytoapprove({
-    List<ToApprove>? toApprove,
-  }) {
+  SalesOrderDisplay copytoapprove({List<ToApprove>? toApprove}) {
     return SalesOrderDisplay(
       salesOrderId: salesOrderId,
       itemName: itemName,
@@ -697,7 +767,9 @@ class SalesOrderDisplay {
       totalAmount2: totalAmount2,
       netPrice: netPrice,
       orderInvoiceNo: orderInvoiceNo,
+      invoiceNo: invoiceNo,
       branchId: branchId,
+      customChargeType: customChargeType,
       branchName: branchName,
       aliasName: aliasName,
       invoiceDate: invoiceDate,
@@ -747,17 +819,18 @@ class SalesOrderDisplay {
   }
 
   Iterable<SalesOrderItem> get items sync* {
-    for (int i = 0; i < varianceName.length; i++) {
+    final length = varianceName.length;
+    for (int i = 0; i < length; i++) {
       yield SalesOrderItem(
-        varianceName: varianceName[i],
-        itemName: itemName[i],
-        qty: qty[i],
-        price: price[i],
-        itemCode: itemCode[i],
-        weight: weight[i],
-        amount: amount[i],
-        tax: tax[i],
-        uom: uom[i],
+        varianceName: i < varianceName.length ? varianceName[i] : '',
+        itemName: i < itemName.length ? itemName[i] : '',
+        qty: i < qty.length ? qty[i] : 0,
+        price: i < price.length ? price[i] : 0.0,
+        itemCode: i < itemCode.length ? itemCode[i] : '',
+        weight: i < weight.length ? weight[i] : 0.0,
+        amount: i < amount.length ? amount[i] : 0.0,
+        tax: i < tax.length ? tax[i] : 0.0,
+        uom: i < uom.length ? uom[i] : '',
       );
     }
   }

@@ -1,6 +1,7 @@
 // hive_manager.dart
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:yenpos/invoice_pay_and_print_page.dart/widgets/pending_print.dart';
 
 class HiveManager {
   static final HiveManager _instance = HiveManager._internal();
@@ -12,6 +13,12 @@ class HiveManager {
   static Box? _holdOrderBox;
   static Box? _salesApprovalOrder;
   static Box? _saleOrderModifyOrders;
+  static Box? _events;
+  static Box? _deliveryTypes;
+  static Box? _customCharges;
+  static Box? _customers;
+  static Box? _branches;
+
   late Box? userBox;
   late Box? serverBox;
   late Box configBox;
@@ -20,17 +27,25 @@ class HiveManager {
   HiveManager._internal();
 
   static Future<void> initialize() async {
-    await Hive.initFlutter(); // Initialize Hive
+    await Hive.initFlutter();
+
     _salesOrderBox = await Hive.openBox('saleOrderBox');
     _invoiceBox = await Hive.openBox('invoices');
     _modifyOrderBox = await Hive.openBox('modifyOrderBox');
-    _toApproveOrderBox = await Hive.openBox('toApproveOrderBox');
 
+    _events = await Hive.openBox('events');
+    _deliveryTypes = await Hive.openBox('deliveryTypes');
+    _customCharges = await Hive.openBox('charges');
+    _customers = await Hive.openBox('customerBox');
+    _branches = await Hive.openBox('branches');
+
+    _toApproveOrderBox = await Hive.openBox('toApproveOrderBox');
     _holdOrderBox = await Hive.openBox('holdOrders');
     _salesOrderNumberBox = await Hive.openBox('salesOrderNumberBox');
-
     _salesApprovalOrder = await Hive.openBox('salesApprovalOrder');
     _saleOrderModifyOrders = await Hive.openBox('saleOrderModifyOrders');
+
+    // Boxes from init()
   }
 
   Future<void> init() async {
@@ -39,12 +54,16 @@ class HiveManager {
     userBox = await Hive.openBox('userBox');
     serverBox = await Hive.openBox('serverBox'); // New line for serverBox
     configBox = await Hive.openBox('configBox');
+
+    _events = await Hive.openBox('events');
+    _deliveryTypes = await Hive.openBox('deliveryTypes');
+    _customCharges = await Hive.openBox('charges');
   }
 
   static Box get salesOrderBox {
     if (_salesOrderBox == null) {
       throw Exception(
-        'Hive not initialized! Call HiveManager.initialize() first',
+        'Saleorder Hive not initialized! Call HiveManager.initialize() first',
       );
     }
     return _salesOrderBox!;
@@ -53,7 +72,7 @@ class HiveManager {
   static Box get invoiceBox {
     if (_invoiceBox == null) {
       throw Exception(
-        'Hive not initialized! Call HiveManager.initialize() first',
+        'Invoice Hive not initialized! Call HiveManager.initialize() first',
       );
     }
     return _invoiceBox!;
@@ -62,7 +81,7 @@ class HiveManager {
   static Box get modifyOrderBox {
     if (_modifyOrderBox == null) {
       throw Exception(
-        'Hive not initialized! Call HiveManager.initialize() first',
+        'Modify order Hive not initialized! Call HiveManager.initialize() first',
       );
     }
     return _modifyOrderBox!;
@@ -71,7 +90,7 @@ class HiveManager {
   static Box get toApproveOrderBox {
     if (_toApproveOrderBox == null) {
       throw Exception(
-        'Hive not initialized! Call HiveManager.initialize() first',
+        'To Approval Hive not initialized! Call HiveManager.initialize() first',
       );
     }
     return _toApproveOrderBox!;
@@ -80,7 +99,7 @@ class HiveManager {
   static Box get holdOrderBox {
     if (_holdOrderBox == null) {
       throw Exception(
-        'Hive not initialized! Call HiveManager.initialize() first',
+        'Hold order Hive not initialized! Call HiveManager.initialize() first',
       );
     }
     return _holdOrderBox!;
@@ -89,7 +108,7 @@ class HiveManager {
   static Box get salesOrderNumberBox {
     if (_salesOrderNumberBox == null) {
       throw Exception(
-        'Hive not initialized! Call HiveManager.initialize() first',
+        'Sale order Number Hive not initialized! Call HiveManager.initialize() first',
       );
     }
     return _salesOrderNumberBox!;
@@ -98,7 +117,7 @@ class HiveManager {
   static Box get salesApprovalOrder {
     if (_salesApprovalOrder == null) {
       throw Exception(
-        'Hive not initialized! Call HiveManager.initialize() first',
+        'Sales approval Order Hive not initialized! Call HiveManager.initialize() first',
       );
     }
     return _salesApprovalOrder!;
@@ -107,9 +126,54 @@ class HiveManager {
   static Box get saleOrderModifyOrders {
     if (_saleOrderModifyOrders == null) {
       throw Exception(
-        'Hive not initialized! Call HiveManager.initialize() first',
+        ' Sale order Modify Order Hive not initialized! Call HiveManager.initialize() first',
       );
     }
     return _saleOrderModifyOrders!;
+  }
+
+  static Box get events {
+    if (_events == null) {
+      throw Exception(
+        'Event Hive not initialized! Call HiveManager.initialize() first',
+      );
+    }
+    return _events!;
+  }
+
+  static Box get deliveryTypes {
+    if (_deliveryTypes == null) {
+      throw Exception(
+        'Delivery Types Hive not initialized! Call HiveManager.initialize() first',
+      );
+    }
+    return _deliveryTypes!;
+  }
+
+  static Box get customCharges {
+    if (_customCharges == null) {
+      throw Exception(
+        'Custom Charge Hive not initialized! Call HiveManager.initialize() first',
+      );
+    }
+    return _customCharges!;
+  }
+
+  static Box get customers {
+    if (_customers == null) {
+      throw Exception(
+        'customer Hive not initialized! Call HiveManager.initialize() first',
+      );
+    }
+    return _customers!;
+  }
+
+  static Box get branches {
+    if (_branches == null) {
+      throw Exception(
+        'customer Hive not initialized! Call HiveManager.initialize() first',
+      );
+    }
+    return _branches!;
   }
 }

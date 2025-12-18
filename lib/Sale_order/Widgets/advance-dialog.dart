@@ -151,8 +151,8 @@ class _AdvanceAmountDialogState extends State<AdvanceAmountDialog> {
       );
     }
 
-    _updateBalance(); 
-    _validateForm(); 
+    _updateBalance();
+    _validateForm();
   }
 
   String _getSuggestedAmount(String method) {
@@ -959,6 +959,7 @@ class _AdvanceAmountDialogState extends State<AdvanceAmountDialog> {
                                   customerScreenProvider.cancelOrder(
                                     widget.saleOrderNo,
                                     payload,
+                                    context,
                                   );
 
                                   Navigator.of(context).pop();

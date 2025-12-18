@@ -59,7 +59,6 @@ class _TransactionPageState extends State<TransactionPage> {
       "🟡 [TransactionPage] Preparing salesCompletedOrders from invoiceList",
     );
     final salesCompletedOrders = transactionProvider.invoiceList.map((order) {
-      print("    - Mapping invoice: $order");
       return Transaction.fromMap(order);
     }).toList();
 
@@ -153,7 +152,7 @@ class _TransactionPageState extends State<TransactionPage> {
             Expanded(
               child: Container(
                 padding: const EdgeInsets.all(12),
-                decoration: const BoxDecoration(color: Color(0xFFF4F6FA)),
+                decoration: const BoxDecoration(color: Colors.white),
                 child: Row(
                   children: transactionProvider.selectedIndex == 0
                       ? buildSalesCompletedLayout(
@@ -292,18 +291,8 @@ class _TransactionPageState extends State<TransactionPage> {
         crossAxisAlignment: CrossAxisAlignment.end, // Align text to the right
         mainAxisSize: MainAxisSize.min, // Minimize height to fit content
         children: [
-          if (salesOrder.discount > 0)
-            Text(
-              'Discount: ${salesOrder.discountAmount}%',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-            ),
-          if (salesOrder.customCharge > 0)
-            Text(
-              'Custom Charge: ₹${salesOrder.customCharge.toStringAsFixed(0)}',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-            ),
           Text(
-            'Order Amount: ₹${salesOrder.totalAmount.toStringAsFixed(0)}',
+            'Total Amount: ₹${salesOrder.totalAmount.toStringAsFixed(0)}',
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
           ),
         ],
@@ -581,14 +570,7 @@ class _TransactionPageState extends State<TransactionPage> {
               'Order ID',
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
             ),
-            Text(
-              salesOrder.salesOrderId.length > 5
-                  ? salesOrder.salesOrderId.substring(
-                      salesOrder.salesOrderId.length - 5,
-                    )
-                  : salesOrder.salesOrderId,
-              style: TextStyle(fontSize: 11),
-            ),
+            Text(salesOrder.saleOrderNo, style: TextStyle(fontSize: 11)),
           ],
         ),
       ],
@@ -601,6 +583,13 @@ class _TransactionPageState extends State<TransactionPage> {
     int? selectedIndex,
     TransactionProvider transactionProvider,
   ) {
+    // SAFETY: Reset selected index if out of range
+    if (transactionProvider.selectedTransactionIndex != null &&
+        transactionProvider.selectedTransactionIndex! >=
+            filteredSalesOrders.length) {
+      transactionProvider.selectedTransactionIndex = null;
+    }
+
     return Column(
       children: [
         Padding(
@@ -610,6 +599,8 @@ class _TransactionPageState extends State<TransactionPage> {
             onSearch: apiService.searchOrders,
           ),
         ),
+
+        // ===================== LIST VIEW =====================
         Expanded(
           child: filteredSalesOrders.isEmpty
               ? const Center(
@@ -630,13 +621,18 @@ class _TransactionPageState extends State<TransactionPage> {
                   ),
                   itemBuilder: (context, index) {
                     final order = filteredSalesOrders[index];
+
+                    // SAFE CHECK: Prevent RangeError
                     final bool isSelected =
+                        transactionProvider.selectedTransactionIndex != null &&
+                        transactionProvider.selectedTransactionIndex! <
+                            filteredSalesOrders.length &&
                         transactionProvider.selectedTransactionIndex == index;
 
                     return Stack(
                       clipBehavior: Clip.none,
                       children: [
-                        // --- Main Card ---
+                        // Main Card
                         AnimatedContainer(
                           duration: const Duration(milliseconds: 250),
                           curve: Curves.easeInOut,
@@ -666,10 +662,17 @@ class _TransactionPageState extends State<TransactionPage> {
                           ),
                           child: InkWell(
                             borderRadius: BorderRadius.circular(18),
-                            onTap: () => setState(() {
-                              transactionProvider.selectedTransactionIndex =
-                                  index;
-                            }),
+
+                            // TAP EVENT (Safe index assignment)
+                            onTap: () {
+                              setState(() {
+                                if (index < filteredSalesOrders.length) {
+                                  transactionProvider.selectedTransactionIndex =
+                                      index;
+                                }
+                              });
+                            },
+
                             child: Padding(
                               padding: const EdgeInsets.all(16),
                               child: Column(
@@ -743,7 +746,6 @@ class _TransactionPageState extends State<TransactionPage> {
                                               bottom: 2.0,
                                             ),
                                             child: Text(
-                                              // Keep only letters and spaces
                                               (order.employeeName ?? 'N/A')
                                                   .replaceAll(
                                                     RegExp(r'[^a-zA-Z\s]'),
@@ -777,28 +779,27 @@ class _TransactionPageState extends State<TransactionPage> {
                             ),
                           ),
                         ),
+
+                        // TAG POSITION
                         Positioned(
-                          top:
-                              0, // Adjust for desired corner (top, bottom, left, right)
+                          top: 0,
                           right: 0,
                           child: Container(
-                            padding: EdgeInsets.symmetric(
+                            padding: const EdgeInsets.symmetric(
                               horizontal: 8,
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
                               color: Colors.blue,
-                              borderRadius: BorderRadius.only(
-                                bottomLeft: Radius.circular(
-                                  8,
-                                ), // Rounded corner for the tag
+                              borderRadius: const BorderRadius.only(
+                                bottomLeft: Radius.circular(8),
                               ),
                             ),
                             child: Text(
                               order.status.toLowerCase() == 'open order'
                                   ? 'SO'
                                   : (order.orderType ?? ''),
-                              style: TextStyle(
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 12,
                               ),

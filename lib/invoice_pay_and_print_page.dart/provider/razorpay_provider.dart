@@ -320,10 +320,7 @@ class RazorpayQRProvider extends ChangeNotifier {
   }
 
   // Card Payment
-  Future<void> createOrderAndPay(
-    double amount,
-    Function(String type, Map<String, dynamic>? extraData) sendState,
-  ) async {
+  Future<void> createOrderAndPay(double amount, Function(String type, Map<String, dynamic>? extraData) sendState) async {
     if (amount <= 0) {
       throw Exception("Enter a valid card amount");
     }
@@ -341,11 +338,7 @@ class RazorpayQRProvider extends ChangeNotifier {
         'name': 'YenPOS Payments',
         'description': 'Card Payment for ₹${amount.toStringAsFixed(2)}',
         'order_id': orderData['id'],
-        'prefill': {
-          'contact': '9384250027',
-          'email': 'test@example.com',
-          'method': 'card',
-        },
+        'prefill': {'contact': '9384250027', 'email': 'test@example.com', 'method': 'card'},
         'theme': {'color': '#2E86DE'},
       };
 
@@ -359,16 +352,9 @@ class RazorpayQRProvider extends ChangeNotifier {
   // Payment Success Handler
   void _handlePaymentSuccess(PaymentSuccessResponse response) async {
     try {
-      final verifyData = {
-        "order_id": response.orderId,
-        "payment_id": response.paymentId,
-        "signature": response.signature,
-      };
+      final verifyData = {"order_id": response.orderId, "payment_id": response.paymentId, "signature": response.signature};
 
-      final result = await Dio().post(
-        "https://yenerp.com/fastapi/razorPay/verify_payment",
-        data: verifyData,
-      );
+      final result = await Dio().post("https://yenerp.com/fastapi/razorPay/verify_payment", data: verifyData);
 
       if (result.data["status"] == "success") {
         isCardPaid = true;

@@ -301,6 +301,9 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
     _searchController.clear();
     submitflag = false;
 
+    final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+    orderProvider.chargeSubmit = false;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
         Provider.of<CartProviderKOT>(context, listen: false).setToggled(false);
@@ -422,7 +425,7 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
                             child: ListTile(
                               leading: const Icon(
                                 Icons.favorite,
-                                color: Colors.red,
+                                color: Color.fromARGB(255, 255, 61, 47),
                                 size: 18,
                               ),
                               title: Text(
@@ -458,7 +461,7 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
                                   if (product.variance_Uom.toLowerCase() ==
                                           "kg" ||
                                       product.variance_Uom.toLowerCase() ==
-                                          "kgs") {
+                                          "Kgs") {
                                     _cartProvider.addToCart(
                                       varianceName,
                                       weight: 50,
@@ -556,8 +559,8 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
     }
     final lowerQuery = query.toLowerCase();
     return products.where((product) {
-      return product.name.toLowerCase().contains(lowerQuery) ||
-          product.varianceName.toLowerCase().contains(lowerQuery);
+      return product.name.toLowerCase().replaceAll(RegExp(r'\s+'), '').contains(lowerQuery)||
+          product.varianceName.toLowerCase().replaceAll(RegExp(r'\s+'), '').contains(lowerQuery);
     }).toList();
   }
 
@@ -597,25 +600,56 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
   }
 
   void _autoSaveHoldOrder() {
-    final orderProvider = Provider.of<OrderProvider>(context, listen: false);
-    final ordersForSeat = orderProvider.getRunningOrdersForSeat(
-      widget.tableNumber,
-      widget.seat,
-    );
-
-    bool hasActiveOrder = ordersForSeat.any(
-      (order) => order['status'] == 'active',
-    );
-    if (_cartProvider.cart.isNotEmpty && !hasActiveOrder) {
-      _holdOrderProvider.saveHoldOrder(
-        widget.tableNumber,
-        widget.seat,
-        _cartProvider.cart,
+    try {
+      final holdOrderProvider = Provider.of<HoldOrderProvider>(
+        context,
+        listen: false,
       );
+      final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+      final cartProvider = Provider.of<CartProviderKOT>(context, listen: false);
+
+      final currentTable = cartProvider.currentTableNumber.value;
+      final currentSeat = cartProvider.currentSeat.value;
+      final currentArea = cartProvider.currentAreaName.value;
+
+      if (currentTable.isNotEmpty &&
+          currentSeat.isNotEmpty &&
+          cartProvider.cart.isNotEmpty) {
+        final ordersForSeat = orderProvider.getRunningOrdersForSeat(
+          currentTable,
+          currentSeat,
+        );
+        bool hasActiveOrder = ordersForSeat.any(
+          (order) => order['status'] == 'active',
+        );
+
+        if (!hasActiveOrder) {
+          debugPrint(
+            '💾 Auto-saving hold order for $currentTable - Seat $currentSeat',
+          );
+
+          // Ensure cart data is complete before saving
+          final cartDataToSave = Map<String, dynamic>.from(cartProvider.cart);
+
+          // Add debug logging to see what's being saved
+          debugPrint('📦 Cart data being saved:');
+          cartDataToSave.forEach((productName, productData) {
+            debugPrint('   - $productName: $productData');
+          });
+
+          holdOrderProvider.saveHoldOrder(
+            currentTable,
+            currentSeat,
+            cartDataToSave,
+            areaName: currentArea,
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Error in auto-save hold order: $e');
     }
   }
 
-  // ENHANCED: Add to cart with incremental quantity
   // ENHANCED: Add to cart with incremental quantity and proper data
   void _addToCartWithEvent(String varianceName, {int? weight}) {
     try {
@@ -735,6 +769,22 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
     }
   }
 
+  // NEW: Toggle favorite status for a product
+  void _toggleFavorite(String varianceName) {
+    final quickAccessProvider = Provider.of<QuickAccessProvider>(
+      context,
+      listen: false,
+    );
+
+    if (quickAccessProvider.quickAccessProducts.contains(varianceName)) {
+      // Remove from favorites
+      quickAccessProvider.removeFromQuickAccess(varianceName, context);
+    } else {
+      // Add to favorites
+      quickAccessProvider.addToQuickAccess(varianceName, context);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     try {
@@ -783,128 +833,30 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
 
       return Scaffold(
         backgroundColor: Colors.white,
-        appBar: AppBar(
-          automaticallyImplyLeading: false,
-          backgroundColor: Colors.white,
-          surfaceTintColor: Colors.white,
-          leading: IconButton(
-            icon: const Icon(Icons.close, color: Colors.black),
-            onPressed: () {
-              widget.onClose?.call();
-            },
-          ),
-          title: Text(
-            ' ${widget.tableNumber} - Seat ${widget.seat}',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-          ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.favorite, color: Colors.red),
-              onPressed: () => _showQuickAccessDialog(context),
-              tooltip: 'Quick Access',
-            ),
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: () async {
-                try {
-                  print('🔄 Refreshing data...');
-                  final productProvider = Provider.of<ProductProvider>(
-                    context,
-                    listen: false,
-                  );
-                  await productProvider.fetchDataAndSaveInHive(context);
-                  print('✅ Successfully refreshed server data');
-                } catch (e) {
-                  print('❌ Error during refresh: $e');
-                  CustomSnackBar.show(
-                    context,
-                    'Error refreshing data: $e',
-                    type: SnackType.error,
-                  );
-                }
-              },
-            ),
-            Consumer<CartProviderKOT>(
-              builder: (context, cartProvider, child) {
-                return ToggleButtons(
-                  isSelected: [cartProvider.isToggled],
-                  onPressed: (index) async {
-                    try {
-                      cartProvider.setToggled(!cartProvider.isToggled);
-                      print('🔧 Toggled state: ${cartProvider.isToggled}');
-
-                      if (cartProvider.isToggled) {
-                        print('➡️ Navigating to ProductSearchScreen');
-                        final result = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ProductSearchScreen(
-                              tableNumber: widget.tableNumber,
-                              seat: widget.seat,
-                              areaName: widget.areaName,
-                              seathiveOrderId: seathiveOrderId,
-                            ),
-                          ),
-                        );
-
-                        if (result != null && result == 'toggle_off') {
-                          cartProvider.setToggled(false);
-                          print(
-                            '🔙 Returned from ProductSearchScreen, toggle set to off',
-                          );
-                        }
-                      } else {
-                        print('⬅️ Toggle OFF, staying on current screen');
-                        Navigator.popUntil(context, (route) => route.isFirst);
-                      }
-                    } catch (e) {
-                      print('❌ Error in toggle button action: $e');
-                      CustomSnackBar.show(
-                        context,
-                        'Error in toggle action: $e',
-                        type: SnackType.error,
-                      );
-                    }
-                  },
-                  borderColor: Colors.transparent,
-                  selectedBorderColor: Colors.transparent,
-                  fillColor: Colors.transparent,
-                  splashColor: Colors.transparent,
-                  highlightColor: Colors.transparent,
-                  children: [
-                    Icon(
-                      cartProvider.isToggled
-                          ? Icons.toggle_on
-                          : Icons.toggle_off,
-                      color: cartProvider.isToggled
-                          ? Colors.green
-                          : Colors.grey,
-                      size: 36,
-                    ),
-                  ],
-                );
-              },
-            ),
-          ],
-        ),
         body: Column(
           children: [
-            // Subcategory Filter Bar
             Padding(
-              padding: const EdgeInsets.only(left: 10),
+              padding: const EdgeInsets.only(left: 10, top: 10),
               child: Row(
                 children: [
-                  // Remove Expanded and directly use IdleKeyboardHide wrapped with SizedBox (optional)
                   Expanded(
                     child: SizedBox(
-                      height: 40, // Adjust height as needed to reduce
+                      height: 55,
                       child: IdleKeyboardHide(
                         controller: _searchController,
                         decoration: InputDecoration(
+                          filled: true,
+                          fillColor: Colors.blue.shade50,
+                          labelText: 'Search Products',
+                          labelStyle: const TextStyle(color: Colors.blue),
                           hintText: 'Search Products',
-                          prefixIcon: const Icon(Icons.search),
+                          hintStyle: const TextStyle(color: Colors.blue),
+                          prefixIcon: const Icon(
+                            Icons.search,
+                            color: Colors.blue,
+                          ),
                           suffixIcon: IconButton(
-                            icon: const Icon(Icons.clear),
+                            icon: const Icon(Icons.clear, color: Colors.blue),
                             onPressed: () {
                               try {
                                 Provider.of<SearchProviderDine>(
@@ -919,24 +871,36 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
                               }
                             },
                           ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12.0),
+                            borderSide: const BorderSide(
+                              color: Colors.blue,
+                              width: 0.0,
+                            ),
+                          ),
                           border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12.0),
+                            borderSide: const BorderSide(
+                              color: Colors.blue,
+                              width: 0.0,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8.0),
                             borderSide: const BorderSide(
-                              color: Colors.black12,
+                              color: Colors.blue,
                               width: 2.0,
                             ),
                           ),
                           contentPadding: const EdgeInsets.symmetric(
-                            vertical: 8,
+                            vertical: 20,
                             horizontal: 12,
                           ),
                         ),
-                        
                         idleDuration: const Duration(seconds: 2),
                       ),
                     ),
                   ),
-
                   Expanded(
                     flex: 3,
                     child: Container(
@@ -945,40 +909,21 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
                       child: ListView(
                         scrollDirection: Axis.horizontal,
                         children: [
-                          // Padding(
-                          //   padding: const EdgeInsets.only(right: 8.0),
-                          //   child: ChoiceChip(
-                          //     label: const Text('All'),
-                          //     backgroundColor: Colors.white,
-                          //     selectedColor: Colors.blue,
-                          //     side: BorderSide.none, // ✅ Remove border
-                          //     labelStyle: TextStyle(
-                          //       color: categoryProvider.selectedCategory == null
-                          //           ? Colors.white
-                          //           : Colors.black,
-                          //     ),
-                          //     selected:
-                          //         categoryProvider.selectedCategory == null,
-                          //     onSelected: (selected) {
-                          //       if (selected) {
-                          //         categoryProvider.selectCategory(null);
-                          //       }
-                          //     },
-                          //   ),
-                          // ),
                           ChoiceChip(
                             label: const Text('Favorites'),
-                             labelStyle: TextStyle(
-                                  color:
-                                      categoryProvider.selectedCategory == "Favorites"
-                                      ? Colors.white
-                                      : Colors.black,
-                                ),
                             backgroundColor: Colors.white,
                             selectedColor: Colors.blue,
-                            side: BorderSide.none, // ✅
+                            labelStyle: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 17,
+                              color:
+                                  categoryProvider.selectedCategory ==
+                                      'Favorites'
+                                  ? Colors.white
+                                  : Colors.blue,
+                            ),
                             showCheckmark: false,
-
+                            side: BorderSide.none,
                             selected:
                                 categoryProvider.selectedCategory ==
                                 'Favorites',
@@ -990,14 +935,16 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
                           ),
                           ...subcategories.map(
                             (sub) => Padding(
-                              padding: const EdgeInsets.only(right: 8.0),
+                              padding: const EdgeInsets.only(right: 0),
                               child: ChoiceChip(
                                 label: Text(sub),
                                 backgroundColor: Colors.white,
                                 selectedColor: Colors.blue,
-                                side: BorderSide.none, // ✅ Remove border
                                 showCheckmark: false,
+                                side: BorderSide.none,
                                 labelStyle: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 17,
                                   color:
                                       categoryProvider.selectedCategory == sub
                                       ? Colors.white
@@ -1020,22 +967,380 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
                 ],
               ),
             ),
-            // SizedBox(
-            //   height: 20,
-            // )   ,
+            Padding(
+              padding: const EdgeInsets.only(
+                left: 12,
+                top: 0,
+                right: 12,
+                bottom: 10,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  if (widget.tableNumber.isNotEmpty && widget.seat.isNotEmpty)
+                    Consumer<CartProviderKOT>(
+                      builder: (context, value, child) {
+                        return Text(
+                          '${widget.tableNumber}- Seat ${widget.seat}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: Colors.black,
+                          ),
+                        );
+                      },
+                    ),
+                  ElevatedButton(
+                    onPressed: () {
+                      try {
+                        // Method 1: Use a callback system through providers
+                        final eventProvider = Provider.of<ProductEventProvider>(
+                          context,
+                          listen: false,
+                        );
+                        final cartProvider = Provider.of<CartProviderKOT>(
+                          context,
+                          listen: false,
+                        );
+
+                        // Send event to close product card overlay
+
+                        eventProvider.addEvent(
+                          ProductEvent(
+                            action: 'close_overlay',
+                            tableNumber: widget.tableNumber,
+                            seat: widget.seat,
+                            areaName: widget.areaName,
+                          ),
+                        );
+                        cartProvider.clearTableSeat();
+
+                        // Navigator.of(context).pop();
+
+                        // ValueListenableBuilder4(
+                        //   valueListenable1: cartProvider.currentTableNumber,
+                        //   valueListenable2: cartProvider.currentSeat,
+                        //   valueListenable3: cartProvider.currentAreaName,
+                        //   valueListenable4: cartProvider.currentSeathiveOrderId,
+                        //   builder:
+                        //       (
+                        //         context,
+                        //         tableNum,
+                        //         seatVal,
+                        //         areaNameVal,
+                        //         seathiveId,
+                        //         _,
+                        //       ) {
+                        //         return RepaintBoundary(
+                        //           child: productCardViewList(
+                        //             tableNumber: tableNum,
+                        //             seat: seatVal,
+                        //             areaName: areaNameVal,
+                        //             seathiveOrderId: seathiveId,
+                        //           ),
+                        //         );
+                        //       },
+                        // );
+
+                        cartProvider.clearCart();
+                        final orderProvider = Provider.of<OrderProvider>(
+                          context,
+                          listen: false,
+                        );
+                        orderProvider.chargeSubmit = true;
+
+                        print("✅ Sent close overlay event");
+                      } catch (e) {
+                        print("❌ Error in button: $e");
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      backgroundColor: Colors.white70,
+                      foregroundColor: Colors.blue,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 35,
+                        vertical: 15,
+                      ),
+                    ),
+                    child: const Text(
+                      " Table Screen",
+                      style: TextStyle(fontSize: 18),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Expanded(
+            //   child: Consumer<SearchProviderDine>(
+            //     builder: (context, searchProvider, child) {
+            //       try {
+            //         var products = productProvider.products;
+            //         products = _filterBySubcategory(
+            //           products,
+            //           categoryProvider.selectedCategory,
+            //         );
+            //         final searchedProducts = _filteredProducts(
+            //           products,
+            //           searchProvider.searchQuery,
+            //         );
+            //         print(
+            //           '📋 Found ${searchedProducts.length} products after filtering',
+            //         );
+
+            //         if (searchedProducts.isEmpty) {
+            //           return const Center(
+            //             child: Text(
+            //               'No products found.\nTry a different search term.',
+            //               textAlign: TextAlign.center,
+            //               style: TextStyle(fontSize: 16, color: Colors.grey),
+            //             ),
+            //           );
+            //         }
+
+            //         return GridView.builder(
+            //           controller: _scrollController,
+            //           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            //             crossAxisCount: MediaQuery.of(context).size.width > 600
+            //                 ? 5
+            //                 : 2,
+            //             childAspectRatio:
+            //                 MediaQuery.of(context).size.width > 600
+            //                 ? 4 / 3
+            //                 : 3 / 2,
+            //             crossAxisSpacing: 10,
+            //             mainAxisSpacing: 10,
+            //           ),
+            //           padding: const EdgeInsets.all(10),
+            //           itemCount: searchedProducts.length,
+            //           itemBuilder: (context, index) {
+            //             try {
+            //               final product = searchedProducts[index];
+            //               final isInCart = cartProvider.cart.containsKey(
+            //                 product.varianceName,
+            //               );
+            //               final int quantity = isInCart
+            //                   ? (cartProvider.cart[product
+            //                                 .varianceName]?['qty'] ??
+            //                             0)
+            //                         as int
+            //                   : 0;
+
+            //               return Consumer<QuickAccessProvider>(
+            //                 builder: (context, quickAccessProvider, child) {
+            //                   final isQuickAccess = quickAccessProvider
+            //                       .quickAccessProducts
+            //                       .contains(product.varianceName);
+
+            //                   return GestureDetector(
+            //                     onTap: () {
+            //                       print("Tapped product: ${product.toJson()}");
+            //                       _addToCartWithEvent(product.varianceName);
+            //                     },
+            //                     onLongPress: () {
+            //                       // Long press still adds to quick access
+            //                       quickAccessProvider.addToQuickAccess(
+            //                         product.varianceName,
+            //                         context,
+            //                       );
+            //                     },
+            //                     child: Card(
+            //                       elevation: 5,
+            //                       shape: RoundedRectangleBorder(
+            //                         borderRadius: BorderRadius.circular(10),
+            //                       ),
+            //                       color: Colors.white,
+            //                       child: Container(
+            //                         clipBehavior: Clip.none,
+            //                         child: Stack(
+            //                           clipBehavior: Clip.none,
+            //                           children: [
+            //                             Padding(
+            //                               padding: const EdgeInsets.only(
+            //                                 left: 0,
+            //                                 top: 40,
+            //                                 right: 0,
+            //                               ),
+            //                               child: Column(
+            //                                 crossAxisAlignment:
+            //                                     CrossAxisAlignment.center,
+            //                                 children: [
+            //                                   Align(
+            //                                     alignment: Alignment.center,
+            //                                     child: Text(
+            //                                       product.varianceName,
+            //                                       textAlign: TextAlign.center,
+            //                                       style: const TextStyle(
+            //                                         fontSize: 12,
+            //                                         letterSpacing: 0.5,
+            //                                         fontWeight: FontWeight.bold,
+            //                                       ),
+            //                                       maxLines: 2,
+            //                                       overflow:
+            //                                           TextOverflow.ellipsis,
+            //                                     ),
+            //                                   ),
+            //                                   const SizedBox(height: 4),
+            //                                 ],
+            //                               ),
+            //                             ),
+            //                             Positioned(
+            //                               bottom: 10,
+            //                               left: 10,
+            //                               child: Text(
+            //                                 '₹${product.price.toStringAsFixed(2)}',
+            //                                 style: const TextStyle(
+            //                                   fontSize: 13,
+            //                                   color: Colors.grey,
+            //                                 ),
+            //                               ),
+            //                             ),
+            //                             Positioned(
+            //                               top: 5,
+            //                               right: 5,
+            //                               child: GestureDetector(
+            //                                 onTap: () {
+            //                                   _toggleFavorite(
+            //                                     product.varianceName,
+            //                                   );
+            //                                 },
+            //                                 child: Icon(
+            //                                   isQuickAccess
+            //                                       ? Icons.favorite
+            //                                       : Icons.favorite_border,
+            //                                   color: isQuickAccess
+            //                                       ? Colors.red[400]
+            //                                       : Colors.grey,
+            //                                   size: 22,
+            //                                 ),
+            //                               ),
+            //                             ),
+            //                             if (quantity > 0)
+            //                               Stack(
+            //                                 clipBehavior: Clip.none,
+            //                                 alignment: Alignment.center,
+            //                                 children: [
+            //                                   Positioned(
+            //                                     top: -15,
+            //                                     left: 0,
+            //                                     right: 0,
+            //                                     child: Container(
+            //                                       width: 30.0,
+            //                                       height: 30.0,
+            //                                       alignment: Alignment.center,
+            //                                       decoration: BoxDecoration(
+            //                                         color: Colors.red[400],
+            //                                         shape: BoxShape.circle,
+            //                                         boxShadow: const [
+            //                                           BoxShadow(
+            //                                             color: Colors.black26,
+            //                                             blurRadius: 4.0,
+            //                                             spreadRadius: 1.0,
+            //                                           ),
+            //                                         ],
+            //                                       ),
+            //                                       child: Text(
+            //                                         quantity.toString(),
+            //                                         style: const TextStyle(
+            //                                           color: Colors.white,
+            //                                           fontSize: 12,
+            //                                           fontWeight:
+            //                                               FontWeight.bold,
+            //                                         ),
+            //                                       ),
+            //                                     ),
+            //                                   ),
+            //                                 ],
+            //                               ),
+            //                             if (quantity > 0)
+            //                               Stack(
+            //                                 children: [
+            //                                   Positioned(
+            //                                     top: -6,
+            //                                     left: 0,
+            //                                     child: IconButton(
+            //                                       icon: Icon(
+            //                                         Icons.mode_edit,
+            //                                         color: Colors.blue[300],
+            //                                         size: 20,
+            //                                       ),
+            //                                       onPressed: () {
+            //                                         _showEditDialog(
+            //                                           product,
+            //                                           cartProvider,
+            //                                         );
+            //                                       },
+            //                                     ),
+            //                                   ),
+            //                                   Positioned(
+            //                                     bottom: 0,
+            //                                     right: -6,
+            //                                     child: IconButton(
+            //                                       icon: Icon(
+            //                                         Icons.remove_circle_outline,
+            //                                         color: Colors.red[200],
+            //                                       ),
+            //                                       onPressed: () {
+            //                                         _removeFromCartWithEvent(
+            //                                           product.varianceName,
+            //                                         );
+            //                                       },
+            //                                     ),
+            //                                   ),
+            //                                 ],
+            //                               ),
+            //                           ],
+            //                         ),
+            //                       ),
+            //                     ),
+            //                   );
+            //                 },
+            //               );
+            //             } catch (e) {
+            //               print(
+            //                 '❌ Error building product card at index $index: $e',
+            //               );
+            //               return const SizedBox();
+            //             }
+            //           },
+            //         );
+            //       } catch (e) {
+            //         print('❌ Error in Consumer<SearchProvider>: $e');
+            //         return const Center(child: Text('Error loading products.'));
+            //       }
+            //     },
+            //   ),
+            // ),
             Expanded(
               child: Consumer<SearchProviderDine>(
                 builder: (context, searchProvider, child) {
                   try {
-                    var products = productProvider.products;
-                    products = _filterBySubcategory(
-                      products,
-                      categoryProvider.selectedCategory,
+                    // Start with all products
+                    List<Product> products = productProvider.products;
+                    List<Product> searchedProducts = [];
+
+                    print(
+                      "searchProvider.searchQuery.trim() is ${searchProvider.searchQuery.trim()}",
                     );
-                    final searchedProducts = _filteredProducts(
-                      products,
-                      searchProvider.searchQuery,
-                    );
+
+                    // If searching → ignore category and search all products
+                    if (searchProvider.searchQuery.isNotEmpty) {
+                      searchedProducts = _filteredProducts(
+                        products,
+                        searchProvider.searchQuery.trim(),
+                      );
+                    }
+                    // If NOT searching → filter by category
+                    else {
+                      searchedProducts = _filterBySubcategory(
+                        products,
+                        categoryProvider.selectedCategory,
+                      );
+                    }
+
                     print(
                       '📋 Found ${searchedProducts.length} products after filtering',
                     );
@@ -1043,7 +1348,7 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
                     if (searchedProducts.isEmpty) {
                       return const Center(
                         child: Text(
-                          'No products found.\nTry a different search term.',
+                          'No products found.',
                           textAlign: TextAlign.center,
                           style: TextStyle(fontSize: 16, color: Colors.grey),
                         ),
@@ -1064,13 +1369,15 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
                         mainAxisSpacing: 10,
                       ),
                       padding: const EdgeInsets.all(10),
-                      itemCount: searchedProducts.length,
+                      itemCount: searchedProducts.length, // FIXED
                       itemBuilder: (context, index) {
                         try {
-                          final product = searchedProducts[index];
+                          final product = searchedProducts[index]; // FIXED
+
                           final isInCart = cartProvider.cart.containsKey(
-                            product.varianceName,
+                            product.varianceName.trim(),
                           );
+
                           final int quantity = isInCart
                               ? (cartProvider.cart[product
                                             .varianceName]?['qty'] ??
@@ -1078,19 +1385,15 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
                                     as int
                               : 0;
 
-                          final quickAccessProvider =
-                              Provider.of<QuickAccessProvider>(context);
-
-                          return Consumer<CartProviderKOT>(
-                            builder: (context, cartProvider, child) {
+                          return Consumer<QuickAccessProvider>(
+                            builder: (context, quickAccessProvider, child) {
                               final isQuickAccess = quickAccessProvider
                                   .quickAccessProducts
                                   .contains(product.varianceName);
+
                               return GestureDetector(
                                 onTap: () {
-                                  print(
-                                    "Tapped product: ${product.varianceName}",
-                                  );
+                                  print("Tapped product: ${product.toJson()}");
                                   _addToCartWithEvent(product.varianceName);
                                 },
                                 onLongPress: () {
@@ -1105,136 +1408,135 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   color: Colors.white,
-                                  child: Container(
+                                  child: Stack(
                                     clipBehavior: Clip.none,
-                                    child: Stack(
-                                      clipBehavior: Clip.none,
-                                      children: [
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            left: 5,
-                                            top: 5.0,
-                                            right: 38.0,
-                                          ),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Align(
-                                                alignment: Alignment.topLeft,
-                                                child: Text(
-                                                  '₹${product.price.toStringAsFixed(2)}',
-                                                  style: const TextStyle(
-                                                    fontSize: 13,
-                                                    color: Colors.grey,
-                                                  ),
-                                                ),
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          left: 20,
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.center,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Text(
+                                              product.varianceName,
+                                              // textAlign: TextAlign.center,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                letterSpacing: 0.5,
+                                                fontWeight: FontWeight.bold,
                                               ),
-                                              const SizedBox(height: 4),
-                                              Align(
-                                                alignment: Alignment.center,
-                                                child: Text(
-                                                  product.varianceName,
-                                                  textAlign: TextAlign.center,
-                                                  style: const TextStyle(
-                                                    fontSize: 12,
-                                                    letterSpacing: 0.5,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                  maxLines: 2,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
-                                              ),
-                                            ],
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 4),
+                                          ],
+                                        ),
+                                      ),
+
+                                      Positioned(
+                                        bottom: 10,
+                                        left: 10,
+                                        child: Text(
+                                          '₹${product.price.toStringAsFixed(2)}',
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.grey,
                                           ),
                                         ),
-                                        if (isQuickAccess)
-                                          const Positioned(
-                                            bottom: 5,
-                                            left: 5,
-                                            child: Icon(
-                                              Icons.favorite,
-                                              color: Colors.red,
-                                              size: 20,
+                                      ),
+
+                                      Positioned(
+                                        top: 5,
+                                        right: 5,
+                                        child: GestureDetector(
+                                          onTap: () {
+                                            _toggleFavorite(
+                                              product.varianceName,
+                                            );
+                                          },
+                                          child: Icon(
+                                            isQuickAccess
+                                                ? Icons.favorite
+                                                : Icons.favorite_border,
+                                            color: isQuickAccess
+                                                ? Colors.red[400]
+                                                : Colors.grey,
+                                            size: 22,
+                                          ),
+                                        ),
+                                      ),
+
+                                      if (quantity > 0)
+                                        Positioned(
+                                          top: -15,
+                                          left: 0,
+                                          right: 0,
+                                          child: Container(
+                                            width: 30,
+                                            height: 30,
+                                            alignment: Alignment.center,
+                                            decoration: BoxDecoration(
+                                              color: Colors.red[400],
+                                              shape: BoxShape.circle,
+                                              boxShadow: const [
+                                                BoxShadow(
+                                                  color: Colors.black26,
+                                                  blurRadius: 4.0,
+                                                  spreadRadius: 1.0,
+                                                ),
+                                              ],
+                                            ),
+                                            child: Text(
+                                              quantity.toString(),
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                             ),
                                           ),
-                                        if (quantity > 0)
-                                          Stack(
-                                            clipBehavior: Clip.none,
-                                            alignment: Alignment.center,
-                                            children: [
-                                              Positioned(
-                                                top: -15,
-                                                left: 0,
-                                                right: 0,
-                                                child: Container(
-                                                  width: 30.0,
-                                                  height: 30.0,
-                                                  alignment: Alignment.center,
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.red[400],
-                                                    shape: BoxShape.circle,
-                                                    boxShadow: const [
-                                                      BoxShadow(
-                                                        color: Colors.black26,
-                                                        blurRadius: 4.0,
-                                                        spreadRadius: 1.0,
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  child: Text(
-                                                    quantity.toString(),
-                                                    style: const TextStyle(
-                                                      color: Colors.white,
-                                                      fontSize: 12,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
+                                        ),
+
+                                      if (quantity > 0)
+                                        Positioned(
+                                          top: -6,
+                                          left: 0,
+                                          child: IconButton(
+                                            icon: Icon(
+                                              Icons.mode_edit,
+                                              color: Colors.blue[300],
+                                              size: 20,
+                                            ),
+                                            onPressed: () {
+                                              _showEditDialog(
+                                                product,
+                                                cartProvider,
+                                              );
+                                            },
                                           ),
-                                        if (quantity > 0)
-                                          Stack(
-                                            children: [
-                                              Positioned(
-                                                top: 0,
-                                                right: 0,
-                                                child: IconButton(
-                                                  icon: Icon(
-                                                    Icons.mode_edit,
-                                                    color: Colors.blue[300],
-                                                    size: 20,
-                                                  ),
-                                                  onPressed: () {
-                                                    _showEditDialog(
-                                                      product,
-                                                      cartProvider,
-                                                    );
-                                                  },
-                                                ),
-                                              ),
-                                              Positioned(
-                                                top: 40,
-                                                right: 0,
-                                                child: IconButton(
-                                                  icon: Icon(
-                                                    Icons.remove_circle_outline,
-                                                    color: Colors.red[200],
-                                                  ),
-                                                  onPressed: () {
-                                                    _removeFromCartWithEvent(
-                                                      product.varianceName,
-                                                    );
-                                                  },
-                                                ),
-                                              ),
-                                            ],
+                                        ),
+
+                                      if (quantity > 0)
+                                        Positioned(
+                                          bottom: 0,
+                                          right: -6,
+                                          child: IconButton(
+                                            icon: Icon(
+                                              Icons.remove_circle_outline,
+                                              color: Colors.red[200],
+                                            ),
+                                            onPressed: () {
+                                              _removeFromCartWithEvent(
+                                                product.varianceName,
+                                              );
+                                            },
                                           ),
-                                      ],
-                                    ),
+                                        ),
+                                    ],
                                   ),
                                 ),
                               );
@@ -1255,64 +1557,8 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
                 },
               ),
             ),
-            // if (cartProvider.cart.isNotEmpty)
-            //   Container(
-            //     margin: const EdgeInsets.symmetric(
-            //       horizontal: 15,
-            //       vertical: 10,
-            //     ),
-            //     child: Row(
-            //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            //       children: [
-            //         Text(
-            //           'Total Items: ${_calculateTotalItems(cartProvider.cart)}',
-            //           style: const TextStyle(
-            //             fontWeight: FontWeight.bold,
-            //             color: Colors.black,
-            //             fontSize: 16,
-            //           ),
-            //         ),
-            //         TextButton(
-            //           onPressed: () {
-            //             try {
-            //               print(
-            //                 '➡️ Navigating to cart view with Table : ${widget.tableNumber}, Seat : ${widget.seat}, Area : ${widget.areaName}',
-            //               );
-            //               Navigator.push(
-            //                 context,
-            //                 MaterialPageRoute(
-            //                   builder: (context) => productCardViewList(
-            // tableNumber: widget.tableNumber,
-            // seat: widget.seat,
-            // areaName: widget.areaName,
-            // seathiveOrderId: widget.seathiveOrderId,
-            //                   ),
-            //                 ),
-            //               );
-            //             } catch (e) {
-            //               print('❌ Error navigating to cart view: $e');
-            //               CustomSnackBar.show(
-            //                 context,
-            //                 'Error navigating to cart: $e',
-            //                 type: SnackType.error,
-            //               );
-            //             }
-            //           },
-            //           child: Text(
-            //             'View Cart >>',
-            //             style: TextStyle(
-            //               fontSize: 16,
-            //               color: Colors.green[900],
-            //               fontWeight: FontWeight.bold,
-            //             ),
-            //           ),
-            //         ),
-            //       ],
-            //     ),
-            //   ),
           ],
         ),
-       // bottomNavigationBar: const GlobalBottomNavReturn(),
       );
     } catch (e) {
       print('❌ Fatal error in build method: $e');
@@ -1652,6 +1898,7 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
                                                     if (value != null &&
                                                         !dialogState.addons[i]
                                                             .contains(value)) {
+                                                      _autoSaveHoldOrder();
                                                       dialogState.updateAddOn(
                                                         i,
                                                         value,
@@ -2216,6 +2463,7 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
                       'variants': dialogState.variants,
                       'type': dialogState.type,
                     });
+                    _autoSaveHoldOrder();
 
                     dialogState.dispose();
                     Navigator.of(context).pop();
@@ -2341,11 +2589,11 @@ class QuickAccessProvider extends ChangeNotifier {
       _quickAccessProducts.add(varianceName);
       await _saveToBox();
 
-      CustomSnackBar.show(
-        context,
-        'Added $varianceName to quick access',
-        type: SnackType.success,
-      );
+      // CustomSnackBar.show(
+      //   context,
+      //   'Added $varianceName to quick access',
+      //   type: SnackType.success,
+      // );
 
       debugPrint('⭐ Added $varianceName to quick access');
       notifyListeners();
@@ -2360,20 +2608,20 @@ class QuickAccessProvider extends ChangeNotifier {
       _quickAccessProducts.remove(varianceName);
       await _saveToBox();
 
-      CustomSnackBar.show(
-        context,
-        'Removed $varianceName from quick access',
-        type: SnackType.warning,
-      );
+      // CustomSnackBar.show(
+      //   context,
+      //   'Removed $varianceName from quick access',
+      //   type: SnackType.warning,
+      // );
 
       debugPrint('🗑️ Removed $varianceName from quick access');
       notifyListeners();
     } else {
-      CustomSnackBar.show(
-        context,
-        '$varianceName not found in quick access',
-        type: SnackType.error,
-      );
+      // CustomSnackBar.show( 
+      //   context,
+      //   '$varianceName not found in quick access',
+      //   type: SnackType.error,
+      // );
     }
   }
 
@@ -2388,7 +2636,7 @@ class QuickAccessProvider extends ChangeNotifier {
 }
 
 class CategoryProvider extends ChangeNotifier {
-  String? _selectedCategory =  'Favorites';
+  String? _selectedCategory = 'Favorites';
 
   String? get selectedCategory => _selectedCategory;
 

@@ -6,11 +6,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive/hive.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:yenpos/Global/Audio%20Player/audio_provider.dart';
 import 'package:yenpos/Global/Model/branch_model.dart';
 import 'package:yenpos/Global/Provider/branchwise_item_fetch.dart';
+import 'package:yenpos/Global/Provider/connectivity_internet.dart';
 
 import 'package:yenpos/Global/globals_data.dart' as globalsData;
 import 'package:yenpos/Global/globals_data.dart' as globals;
@@ -31,7 +33,9 @@ import 'package:yenpos/Sale_order/Provider/saveAudioandImageFile.dart';
 import 'package:yenpos/Sale_order/Screens/create_sales_order.dart';
 import 'package:yenpos/Sale_order/Widgets/Send_data_to_server.dart';
 import 'package:yenpos/Sale_order/Widgets/storetype_selection_dialogue.dart';
+import 'package:yenpos/Server_Client/handlers/saleorder_handlemessage.dart';
 import 'package:yenpos/Server_Client/handlers/webscoket_messgae_handler.dart';
+import 'package:yenpos/printer_screen/provider/printer_config_provider.dart';
 import '../../Global/Provider/branchSelection_provider.dart';
 import 'cartProvider.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
@@ -42,7 +46,9 @@ class CustomerScreenProvider with ChangeNotifier {
   late salesOrderReceiptPrinter receiptPrinter;
   late salesInvoiceReceiptPrinter
   invoiceReceiptPrinter; // Separate printer for invoices
+
   bool isRequestInProgress = false; // Added variable definition
+  final PrinterProviderpos printerProvider;
 
   //from kot payment variable
   double orderAmount = 0.0;
@@ -51,8 +57,9 @@ class CustomerScreenProvider with ChangeNotifier {
   double totalAdvance = 0;
   double deductedAmount = 0;
   double totalAmount = 0.0;
-
-  CustomerScreenProvider() {
+  ValueNotifier<int> cartItemCountNotifier = ValueNotifier<int>(0);
+  ValueNotifier<int> cartItemsNotifier = ValueNotifier<int>(0);
+  CustomerScreenProvider({required this.printerProvider}) {
     // Initialize printers
     receiptPrinter = salesOrderReceiptPrinter(
       employeeNameController: TextEditingController(),
@@ -77,6 +84,9 @@ class CustomerScreenProvider with ChangeNotifier {
       finalPrice: 0.0,
       discountAmount: 0.0,
       editAbout: '',
+      chargeType: '',
+      printerProvider: printerProvider,
+
       // currentPatchId: '',
     );
 
@@ -98,18 +108,37 @@ class CustomerScreenProvider with ChangeNotifier {
       cardAmount: 0.0,
       upiAmount: 0.0,
       invoiceNo: '',
+      saleOrderNo: "",
+      printerProvider: printerProvider,
     );
+    // Initialize connectivity provider from context
 
     storedBranch = branchProvider.getStoredBranch(globalbranch.branchName);
+    getEventList();
+    getChargesList();
   }
 
   TextEditingController otherEventController = TextEditingController();
   TextEditingController combinedController = TextEditingController();
-
+  final FocusNode customChargeFocus = FocusNode(); // 👈 new
   String? holdId;
 
   final Razorpay _razorpay = Razorpay();
+  bool isStoreTypeDialogShowing = false;
+  bool isStoreTypeSelected = false;
+  List<bool> itemSelections = []; // List to track selection state of each item
+  String selectedStoreType = 'Warehouse';
+  bool showCheckBoxes = false; // To control if checkboxes should be shown
 
+  final TextEditingController allBoxQtyController = TextEditingController();
+  final FocusNode allBoxQtyFocus = FocusNode(); // 👈 new
+  final Map<String, TextEditingController> boxQtyControllers = {};
+  final TextEditingController bulkDiscountController = TextEditingController();
+  final Map<String, TextEditingController> discountControllers = {};
+  final Map<String, FocusNode> discountFocusNodes = {};
+  bool isDialogShownToday = false;
+  // Prevent listener loop
+  bool isInternalUpdate = false;
   void onImagesSelected(File? image1, File? image2) async {
     if (image1 != null && image2 != null) {
       final box = Hive.box('imagesBox');
@@ -122,13 +151,51 @@ class CustomerScreenProvider with ChangeNotifier {
     }
   }
 
-  TextEditingController allBoxQtyController = TextEditingController();
-  TextEditingController bulkDiscountController = TextEditingController();
+  /// 📸 Multiple picked images
+  List<File> pickedImages = [];
+
+  /// Update images from ImagePickerWidget
+  void setPickedImages(List<File> images) {
+    pickedImages = images;
+    notifyListeners();
+  }
+
+  List<String> getEventList() {
+    final eventsBox = HiveManager.events;
+    final storedEvents = eventsBox.get('events', defaultValue: []);
+
+    // Extract event names correctly
+    if (storedEvents is List) {
+      return storedEvents.map<String>((e) {
+        if (e is Map && e.containsKey('eventname')) {
+          return e['eventname'].toString(); // 👈 correct key
+        }
+        return e.toString();
+      }).toList();
+    }
+
+    return [];
+  }
+
+  List<String> getChargesList() {
+    final eventsBox = HiveManager.customCharges;
+    final storedEvents = eventsBox.get('charges', defaultValue: []);
+
+    // Extract event names correctly
+    if (storedEvents is List) {
+      return storedEvents.map<String>((e) {
+        if (e is Map && e.containsKey('chargeType')) {
+          return e['chargeType'].toString(); // 👈 correct key
+        }
+        return e.toString();
+      }).toList();
+    }
+
+    return [];
+  }
+
   String _selectedStoreType = 'Warehouse';
   bool _isStoreTypeSelected = false;
-
-  String get selectedStoreType => _selectedStoreType;
-  bool get isStoreTypeSelected => _isStoreTypeSelected;
 
   String customerType = 'Normal';
   List<Map<String, dynamic>> _hiveholdSalesOrders = [];
@@ -146,7 +213,7 @@ class CustomerScreenProvider with ChangeNotifier {
   String? previousAudioId;
   String? previousImageId;
   String? audioPlayer;
-  String selectedChargeType = "Custom Charge";
+  String? selectedChargeType;
   String? photoScreen;
   Future<void> saveStoreType(String type) async {
     final prefs = await SharedPreferences.getInstance();
@@ -160,19 +227,49 @@ class CustomerScreenProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  List<String> selectedChargeTypes =
+      []; // Instead of a single selectedChargeType
+  void updateCartCount() {
+    cartItemCountNotifier.value = globals.cartItems.length;
+  }
+
+  // Update notifier when cart changes
+  void updateCartItems() {
+    cartItemsNotifier.value = globals.cartItems.length;
+  }
+
   /// Sends the brand‑new customer to the back‑end so every device sees it.
-  Future<void> sendNewCustomer(String mobile, String name) async {
-    final Map<String, dynamic> cutomerPayload = {
+  Future<bool> sendNewCustomer(
+    String mobile,
+    String name,
+    BuildContext context,
+  ) async {
+    final Map<String, dynamic> customerPayload = {
       "type": "newCustomer",
       "mobile": mobile,
       "name": name,
-      "branchId": storedBranch?.branchId, // optional
       "timestamp": DateTime.now().toIso8601String(),
     };
 
     try {
-      sendataToServer(cutomerPayload);
-    } catch (e) {}
+      final connectivityProvider = Provider.of<ConnectivityProvider>(
+        context,
+        listen: false,
+      );
+
+      if (connectivityProvider.isConnected) {
+        print("send data to customer server");
+        await sendataToServer(customerPayload);
+        return true; // 🔥 SUCCESS (ONLINE)
+      } else {
+        print("send customer data in local");
+        handleSalesOrderAddCustomer(customerPayload);
+        return true; // 🔥 SUCCESS (OFFLINE)
+      }
+    } catch (e) {
+      print("Error adding customer: $e");
+      return false; // ❌ ERROR
+    }
   }
 
   List<Map<String, dynamic>> cartItems = []; // your cart items list
@@ -190,45 +287,38 @@ class CustomerScreenProvider with ChangeNotifier {
     return false; // no invalid items
   }
 
+  void resetControllers() {
+    mobileNoController.text = '';
+    customerNameController.text = '';
+    combinedController.text = "";
+    // Reset any other controllers if needed
+  }
+
+  // ==========================
+  // FETCH HELD ORDERS FROM HIVE
+  // ==========================
   Future<List<Map<String, dynamic>>> fetchHolderFromHive() async {
     try {
-      // Step 2: Fetch all saved hold orders from Hive
-      List<Map<String, dynamic>> hiveOrders = await getSavedHoldOrders();
+      final hiveOrders = await getSavedHoldOrders();
 
-      if (hiveOrders.isEmpty) {
-        return [];
-      }
+      if (hiveOrders.isEmpty) return [];
 
-      for (int i = 0; i < hiveOrders.length; i++) {}
-
-      // Step 3: Filter orders with status = "Hold Order"
-      List<Map<String, dynamic>> holdOrders = hiveOrders.where((order) {
-        // Extract the nested "data" map safely
+      // Filter orders with status "Hold Order"
+      final holdOrders = hiveOrders.where((order) {
         final data = order['data'] ?? {};
-        final status = (data['status'] ?? '').toString().trim().toLowerCase();
+        final status = (data['status'] ?? '').toString().toLowerCase().trim();
         return status == 'hold order';
       }).toList();
 
-      if (holdOrders.isEmpty) {
-      } else {
-        for (int i = 0; i < holdOrders.length; i++) {}
-      }
-
-      // ✅ Optional Step: Flatten data for easier UI access
-      // This lets you access values directly like order['customerName'], etc.
-      List<Map<String, dynamic>> flattenedHoldOrders = holdOrders
+      // Flatten for easier UI access
+      final flattenedOrders = holdOrders
           .map((order) => Map<String, dynamic>.from(order['data'] ?? {}))
           .toList();
 
-      // Step 4: Assign to internal variables
-      _rawOrders = flattenedHoldOrders;
-      _hiveholdSalesOrders = List.from(_rawOrders);
-
-      // Step 5: Notify listeners for UI updates
+      _hiveholdSalesOrders = List.from(flattenedOrders);
       notifyListeners();
-
       return _hiveholdSalesOrders;
-    } catch (e, stacktrace) {
+    } catch (e) {
       return [];
     }
   }
@@ -377,6 +467,7 @@ class CustomerScreenProvider with ChangeNotifier {
     if (data.containsKey('varianceName') && data['varianceName'] is List) {
       for (int i = 0; i < data['varianceName'].length; i++) {
         CartItem item = CartItem(
+          rowId: UniqueKey().toString(), // 🔥 NEVER reuse
           itemName: (data['itemName'].length > i ? data['itemName'][i] : ''),
           varianceName: data['varianceName'][i] ?? '',
           itemCode: (data['itemCode'].length > i ? data['itemCode'][i] : ''),
@@ -453,7 +544,7 @@ class CustomerScreenProvider with ChangeNotifier {
     receiptPrinter.deliveryTimeprint = data['deliveryTime'] ?? '';
 
     receiptPrinter.saleOrderNo = data['saleOrderNo'] ?? '';
-
+    receiptPrinter.chargeType = data['customChargeType'] ?? '';
     // --- ADVANCE AMOUNTS ---
     receiptPrinter.advanceAmount = data['advanceAmount'] != null
         ? List<double>.from(
@@ -489,6 +580,7 @@ class CustomerScreenProvider with ChangeNotifier {
     if (data.containsKey('varianceName') && data['varianceName'] is List) {
       for (int i = 0; i < data['varianceName'].length; i++) {
         CartItem item = CartItem(
+          rowId: UniqueKey().toString(), // 🔥 NEVER reuse
           itemName: (data['itemName'].length > i ? data['itemName'][i] : ''),
           varianceName: data['varianceName'][i] ?? '',
           itemCode: (data['itemCode'].length > i ? data['itemCode'][i] : ''),
@@ -580,6 +672,7 @@ class CustomerScreenProvider with ChangeNotifier {
   Future<void> cancelOrder(
     String salesOrderId,
     Map<String, dynamic> payload,
+    BuildContext context,
   ) async {
     try {
       // Step 1: Prepare cancel order data
@@ -588,8 +681,15 @@ class CustomerScreenProvider with ChangeNotifier {
         'saleOrderNo': salesOrderId,
         'data': payload,
       };
-
-      await sendataToServer(cancelOrderData);
+      final connectivityProvider = Provider.of<ConnectivityProvider>(
+        context,
+        listen: false,
+      );
+      if (connectivityProvider.isConnected) {
+        await sendataToServer(cancelOrderData);
+      } else {
+        handlePatchSaleOrder(cancelOrderData);
+      }
     } catch (e, stackTrace) {
       // Step 5: Error handling
       // Optional: show user error message here
@@ -607,75 +707,66 @@ class CustomerScreenProvider with ChangeNotifier {
     String remark,
     String? selectedOrderOption,
     BuildContext context,
+    Map<String, double> payments,
+    double customChargeAmount,
+    String customChargeType,
   ) async {
-    double balanceAmount = totalAmount - totalAdvance;
+    // =====================================================
+    // STEP 1: PAYMENT PROCESSING
+    // =====================================================
+    final List<double> advanceAmount = [];
+    final List<List<String>> advancePaymentType = [];
+    final List<List<double>> modeWiseAmount = [];
+    final List<String> advanceDateTime = [];
 
-    // Initialize advance breakdown
-    List<double> cashAdvance = [0.0];
-    List<double> cardAdvance = [0.0];
-    List<double> upiAdvance = [0.0];
+    void addAdvancePayment(Map<String, double> payMap) {
+      final filtered = Map.fromEntries(
+        payMap.entries.where((e) => e.value > 0),
+      );
 
-    if (selectedPaymentMethod == 'Cash') {
-      cashAdvance[0] = totalAdvance;
-    } else if (selectedPaymentMethod == 'Card') {
-      cardAdvance[0] = totalAdvance;
-    } else if (selectedPaymentMethod == 'UPI') {
-      upiAdvance[0] = totalAdvance;
+      if (filtered.isEmpty) {
+        return;
+      }
+
+      final total = filtered.values.fold<double>(0, (a, b) => a + b);
+
+      advanceAmount.add(total);
+      advancePaymentType.add(filtered.keys.toList(growable: false));
+      modeWiseAmount.add(filtered.values.toList(growable: false));
+      advanceDateTime.add(DateTime.now().toIso8601String());
     }
 
-    // Prepare advance metadata
-    String currentDateTime = DateTime.now().toIso8601String();
-    advanceDateTime ??= [];
-    advancePaymentType ??= [];
+    if (payments.isNotEmpty) {
+      addAdvancePayment(payments);
+    } else {}
 
-    advanceDateTime!.add(currentDateTime);
-    advancePaymentType!.add(selectedPaymentMethod);
+    final double computedTotalAdvance = advanceAmount.fold<double>(
+      0,
+      (a, b) => a + b,
+    );
 
-    String saleOrderNo = generateSaleOrderNo();
+    final double itemTotal = saleOrders.amount.fold<double>(0, (a, b) => a + b);
+
+    final double totalAmount2 = itemTotal + customCharge;
+
+    final double finalPrice = itemTotal + customCharge - deductedAmount;
+
+    final double balanceAmount = finalPrice - computedTotalAdvance;
+
     // Common sales order data
     Map<String, dynamic> orderData = {
-      // "itemName": saleOrders.itemName,
-      // "varianceName":
-      //     saleOrders.varianceName, // Assuming saleOrders.varianceName is a list
-      // "itemCode": saleOrders.itemCode, // Assuming saleOrders.itemCode is a list
-      // "qty": saleOrders.qty, // Assuming saleOrders.qty is a list
-      // "tax": saleOrders.tax, // Assuming saleOrders.tax is a list
-      // "uom": saleOrders.uom, // Assuming saleOrders.uom is a list
-      // "amount": saleOrders.amount, // Assuming saleOrders.amount is a list
-      // "branchId": saleOrders.branchId,
-      // "branchName": saleOrders.branchName,
-      // "price": saleOrders.price, // Assuming saleOrders.price is a list
-      // "weight": saleOrders.weight, // Assuming saleOrders.weight is a list
-      // "deliveryDate": saleOrders.deliveryDate,
-      // "deliveryTime": saleOrders.deliveryTime,
-      // "event": saleOrders.event,
-      // "customerNumber": saleOrders.customerNumber,
-      // "customerName": saleOrders.customerName,
-      // "deliveryType": saleOrders.deliveryType,
-      // "address": saleOrders.address,
-      // "landmark": saleOrders.landmark,
-      // "discountAmount": discount,
-
-      // "orderDate": saleOrders.orderDate,
-      // "orderTime": saleOrders.orderTime,
-      // "employeeName": saleOrders.employeeName,
+      "discountAmount": deductedAmount,
+      "discount": discount,
       "status": "Confirm Order",
-      // "orderType": saleOrders.orderType,
-      // "eventDate": saleOrders.eventDate,
-      // "itemWiseDiscount": saleOrders.itemWiseDiscount,
-      // "itemWiseDiscountAmount": saleOrders.itemWiseDiscountAmount,
-      // "boxQty": saleOrders.boxQty,
-      // "totalAmount": totalAmount,
-      // "remark": remark,
-      // "customCharge": customCharge,
-      // "deductedAmount": deductedAmount,
-      // "orderAmount": orderAmount,
-      // "advanceAmount": [totalAdvance],
-      // "advancePaymentType": advancePaymentType,
-      // "advanceDateTime": advanceDateTime,
-      // "balanceAmount": balanceAmount,
-
-      // "discount": discount,
+      "customChargeType": customChargeType,
+      "customCharge": customChargeAmount,
+      "shiftId": [globalsData.shiftId.value],
+      "advanceAmount": advanceAmount,
+      "advancePaymentType": advancePaymentType,
+      "modeWiseAmount": modeWiseAmount,
+      "advanceDateTime": advanceDateTime,
+      "balanceAmount": balanceAmount,
+      "totalAmount2": totalAmount2,
     };
 
     try {
@@ -686,21 +777,32 @@ class CustomerScreenProvider with ChangeNotifier {
         "sync": "No",
         "edit": "No",
       });
+      final connectivityProvider = Provider.of<ConnectivityProvider>(
+        context,
+        listen: false,
+      );
+      if (connectivityProvider.isConnected) {
+        await sendataToServer(jsonDecode(jsonadvanceSalesOrder));
+      } else {
+        handlePatchSaleOrder(jsonDecode(jsonadvanceSalesOrder));
+      }
 
-      await sendataToServer(jsonDecode(jsonadvanceSalesOrder));
-      // Full Sales Order POST
+      // Small delay
+      await Future.delayed(Duration(milliseconds: 500));
 
-      await Future.delayed(Duration(milliseconds: 500)); // small delay
-
-      if (context.mounted) Navigator.pop(context);
+      if (context.mounted) {
+        Navigator.pop(context);
+      }
     } catch (e) {
     } finally {
       clearControllers();
 
       isSubmitting = false;
       showAudioandImage = false;
-      advanceDateTime?.clear();
-      advancePaymentType?.clear();
+
+      advanceDateTime.clear();
+      advancePaymentType.clear();
+
       notifyListeners();
     }
   }
@@ -779,7 +881,7 @@ class CustomerScreenProvider with ChangeNotifier {
       "discountAmount": discount,
       "saleOrderNo": saleOrderNo,
       "orderDate": parsedOrderDate.toIso8601String(),
-      "orderTime": saleOrders.orderTime,
+
       "employeeName": saleOrders.employeeName,
       "status": "Confirm Order",
       "orderType": saleOrders.orderType,
@@ -820,13 +922,21 @@ class CustomerScreenProvider with ChangeNotifier {
         'waitingForApprovalResult': 'Yes',
         "saleOrderNo": saleOrders.saleOrderNo,
       });
+      final connectivityProvider = Provider.of<ConnectivityProvider>(
+        context,
+        listen: false,
+      );
+      if (connectivityProvider.isConnected) {
+        await sendataToServer(jsonDecode(jsonSalesOrder));
+      } else {
+        handleSalesApprovalOrder(jsonDecode(jsonSalesOrder));
+      }
 
-      await sendataToServer(jsonDecode(jsonSalesOrder));
       // Check if it reaches here
 
       final patchData = jsonEncode(orderData); // Use the single orderData map
       final url = Uri.parse(
-        'https://yenerp.com/fastapi/salesorders/${saleOrders.salesOrderId}',
+        'https://yenerp.com/fluttertestapi/salesorders/${saleOrders.salesOrderId}',
       );
 
       final response = await http.patch(
@@ -891,9 +1001,14 @@ class CustomerScreenProvider with ChangeNotifier {
   // Member variable for payment method
   String selectedPaymentMethod = 'Cash'; // Initialized with a default value
   String searchQuery = '';
-  String? selectedDeliveryType = 'Pickup by Customer';
+  String? selectedDeliveryType = '';
   void setSelectedEvent(String? event) {
     _selectedEvent = event;
+    notifyListeners();
+  }
+
+  void setSelectedCustomCharge(String? charges) {
+    selectedChargeType = charges;
     notifyListeners();
   }
 
@@ -935,8 +1050,7 @@ class CustomerScreenProvider with ChangeNotifier {
     customerCombinedController.clear();
     cartItems.clear();
     CartProvider().clearCart();
-
-    notifyListeners();
+    CartProvider().notifyListeners();
   }
 
   @override
@@ -949,37 +1063,21 @@ class CustomerScreenProvider with ChangeNotifier {
     landmarkController.dispose();
     searchController.dispose();
     advanceAmountController.dispose(); // Dispose all controllers
-    super.dispose();
-  }
-
-  void _startPayment(CartProvider cartProvider) {
-    double orderAmount = cartProvider.getTotalAmount();
-    String amountText = orderAmount.toString();
-    double amount = double.tryParse(amountText) ?? 0.0;
-
-    if (amount <= 0) {
-      return;
+    allBoxQtyController.dispose();
+    for (final controller in boxQtyControllers.values) {
+      controller.dispose();
     }
+    for (final controller in discountControllers.values) {
+      controller.dispose();
+    }
+    bulkDiscountController.dispose();
 
-    final options = {
-      'key': 'rzp_live_DkLaEuvsoESEhW',
-      'amount': (amount * 100).toInt(),
-      'name': 'NGXCORP PRIVATE LIMITED',
-      'description': 'Payment for your order',
-      'prefill': {'contact': '9840911266', 'email': 'prakash018@ngxcorp.com'},
-      'external': {
-        'wallets': ['paytm'],
-      },
-    };
-
-    try {
-      _razorpay.open(options);
-    } catch (e) {}
+    super.dispose();
   }
 
   void showAdvancePaymentPopup(
     BuildContext context,
-
+    CartSelectionProvider cartSelectionProvider,
     CartProvider cartProvider,
     String? path,
     ApiServiceSalesOrderProvider apiprovider,
@@ -1080,6 +1178,7 @@ class CustomerScreenProvider with ChangeNotifier {
                     SizedBox(
                       height: 600,
                       child: PlaceOrderPaymentPrint(
+                        cartSelectionProvider: cartSelectionProvider,
                         totalAmount: totalAmount,
                         holdBillId: holdId ?? '',
                         orderId: salesOrderId ?? '',
@@ -1252,18 +1351,8 @@ class CustomerScreenProvider with ChangeNotifier {
     // Get the current year in YY format (last two digits of the year)
     String currentYear = DateFormat('yy').format(DateTime.now());
 
-    // Fetch the stored branch data from Hive
-    Branch? storedBranch = branchProvider.getStoredBranch(
-      globalbranch.branchName,
-    );
-
-    // Check if branch data is found
-    if (storedBranch == null) {
-      return 'Error: Branch data not found';
-    }
-
     // Get the aliasName from the stored branch
-    String aliasName = storedBranch.aliasName;
+    String aliasName = globals.aliasname;
 
     // Generate the sales order number in the desired format
     return 'SO$aliasName$currentYear';
@@ -1271,6 +1360,7 @@ class CustomerScreenProvider with ChangeNotifier {
 
   Future<void> saveOrder(
     CartProvider cartProvider,
+    CartSelectionProvider cartSelectionProvider,
     double totalAdvance,
     double orderAmount,
     double discount,
@@ -1333,7 +1423,7 @@ class CustomerScreenProvider with ChangeNotifier {
         .map((e) => e.varianceName)
         .toList();
     final List<int> quantities = globals.cartItems
-        .map((e) => e.quantity)
+        .map((e) => e.quantity.value)
         .toList();
     final List<String> itemCodes = globals.cartItems
         .map((e) => e.itemCode)
@@ -1357,14 +1447,23 @@ class CustomerScreenProvider with ChangeNotifier {
     final List<double> itemWiseDiscountAmounts = globals.cartItems
         .map((e) => e.itemWiseDiscountAmount ?? 0.0)
         .toList();
+    final List<int> sellingPrices = globals.cartItems
+        .map((item) => (item.sellingPrice ?? 0).toInt())
+        .toList();
+    final List<double> sellingAmounts = globals.cartItems
+        .map((item) => (item.sellingAmount ?? 0.0).toDouble())
+        .toList();
+    double customCharge = 0;
 
-    final double customCharge =
-        double.tryParse(cartProvider.customChargeController.text) ?? 0;
+    // Sum all custom charges from the map
+    for (var controller in cartProvider.customChargeControllers.values) {
+      customCharge += double.tryParse(controller!.text) ?? 0;
+    }
 
     final List<double> amounts = globals.cartItems.map((item) {
       final base = (item.uom == 'Pcs' || item.uom == 'Pkt')
-          ? (item.pricePerKg * item.quantity).toDouble()
-          : (item.weight * item.quantity * item.pricePerKg);
+          ? (item.pricePerKg * item.quantity.value).toDouble()
+          : (item.weight * item.quantity.value * item.pricePerKg);
       final disc = (item.itemWiseDiscountAmount ?? 0.0);
       final total = base - disc;
       return total;
@@ -1418,9 +1517,39 @@ class CustomerScreenProvider with ChangeNotifier {
         '${saleOrderNo}_${timestamp}_img2',
       );
     }
+    List<String> savedImagePaths = [];
 
+    if (pickedImages.isNotEmpty && orderDir != null) {
+      for (int i = 0; i < pickedImages.length; i++) {
+        final savedPath = await saveFile(
+          pickedImages[i],
+          orderDir,
+          '${saleOrderNo}_${timestamp}_img${i + 1}',
+        );
+        savedImagePaths.add(savedPath!);
+      }
+    }
+    final String orderDateIso = DateTime.now().toIso8601String();
     storedBranch = branchProvider.getStoredBranch(globalbranch.branchName);
-
+    DateTime eventDateTime;
+    if (birthdaydateController.text.isNotEmpty &&
+        timeController.text.isNotEmpty) {
+      eventDateTime = DateFormat(
+        "dd-MM-yyyy hh:mm a",
+      ).parse("${birthdaydateController.text} ${timeController.text}");
+    } else {
+      eventDateTime = DateTime.now(); // or null, or skip
+    }
+    final String eventDateIso = eventDateTime.toIso8601String();
+    DateTime deliveryDateTime;
+    if (dateController.text.isNotEmpty && timeController.text.isNotEmpty) {
+      deliveryDateTime = DateFormat(
+        "dd-MM-yyyy hh:mm a",
+      ).parse("${dateController.text} ${timeController.text}");
+    } else {
+      throw Exception("Delivery date & time missing");
+    }
+    final String deliveryDateIso = deliveryDateTime.toIso8601String();
     // =====================================================
     // STEP 5: BUILD SALES ORDER OBJECT
     // =====================================================
@@ -1430,19 +1559,22 @@ class CustomerScreenProvider with ChangeNotifier {
       varianceName: varianceNames,
       qty: quantities,
       uom: uoms,
+
       isBoxItem: isBoxItem,
       weight: weights,
       amount: amounts,
+      sellingPrice: sellingPrices, // now List<int>
+      sellingAmount: sellingAmounts, // List<double>
       boxQty: boxQuantities,
       totalAmount2: totalAmount2,
-      branchId: storedBranch?.branchId ?? "",
-      branchName: storedBranch?.branchName ?? "",
-      aliasName: storedBranch?.aliasName ?? "",
+      branchId: globals.branchId,
+      branchName: globals.branchName,
+      aliasName: globals.aliasname,
       totalAmount: itemTotal,
       itemCode: itemCodes,
       tax: taxs,
       price: prices,
-      deliveryDate: dateController.text,
+      deliveryDate: deliveryDateIso,
       deliveryTime: timeController.text,
       event: (selectedEvent ?? ""),
       customerNumber: mobileNoController.text,
@@ -1452,7 +1584,7 @@ class CustomerScreenProvider with ChangeNotifier {
       landmark: landmarkController.text,
       discount: discount,
       discountAmount: deductedAmount,
-      remark: remark,
+
       shiftId: [globalsData.shiftId.value],
       customCharge: customCharge,
       advanceAmount: advanceAmount,
@@ -1461,11 +1593,11 @@ class CustomerScreenProvider with ChangeNotifier {
       finalPrice: finalPrice,
       balanceAmount: balanceAmount,
       saleOrderNo: saleOrderNo,
-      orderDate: DateTime.now().toIso8601String(),
-      orderTime: formattedTime,
+      orderDate: orderDateIso,
+      imagePaths: savedImagePaths, // List<String>
       audioPath: savedAudioPath,
-      imagePath1: savedImg1Path,
-      imagePath2: savedImg2Path,
+      // imagePath1: savedImg1Path,
+      // imagePath2: savedImg2Path,
       employeeName: searchController.text,
       status: 'Confirm Order',
       advanceDateTime: advanceDateTime,
@@ -1473,12 +1605,13 @@ class CustomerScreenProvider with ChangeNotifier {
       companyAddress: companyAddressController.text,
       companyGST: companygstNumberController.text,
       orderType: (selectedOrderOption ?? ""),
-      eventDate: birthdaydateController.text,
+      eventDate: eventDateIso,
       itemWiseDiscount: itemWiseDiscounts,
       itemWiseDiscountAmount: itemWiseDiscountAmounts,
       holdOrderId: patchHoldOrderId,
       approvalOrderId: approvalOrderId,
       customChargeType: selectedChargeType,
+      remark: remarkController.text,
     );
 
     // =====================================================
@@ -1494,8 +1627,15 @@ class CustomerScreenProvider with ChangeNotifier {
         "WaitingForDiscountApproval": "No",
         "edit": "No",
       };
-
-      await sendataToServer(postData);
+      final connectivityProvider = Provider.of<ConnectivityProvider>(
+        context,
+        listen: false,
+      );
+      if (connectivityProvider.isConnected) {
+        await sendataToServer(postData);
+      } else {
+        await handleSaleOrder(postData);
+      }
 
       if (patchHoldOrderId.isNotEmpty) {
         Map<String, dynamic> requestBody = {"status": "HoldOrder Converted"};
@@ -1507,23 +1647,59 @@ class CustomerScreenProvider with ChangeNotifier {
           "holdOrderId": patchHoldOrderId,
           "deviceName": deviceName,
         };
-        await sendataToServer(patchData);
+        if (connectivityProvider.isConnected) {
+          await sendataToServer(patchData);
+        } else {
+          await handlePatchHoldOrder(patchData);
+        }
+
         await fetchHolderFromHive();
         notifyListeners();
       }
-      isSubmitting = false;
-
-      clearControllers();
-      cartProvider.clearCart();
-      cartProvider.cartItems.clear();
       globals.cartItems.clear();
-      print("globals.cartitem: ${globals.cartItems.length}");
+      clearControllers();
+
+      notifyListeners();
+      // =====================================================
+      // STEP 7: CLEANUP
+      // =====================================================
+      try {
+        cartSelectionProvider.clearSelections();
+        globals.cartItems.clear();
+        clearControllers();
+        cartProvider.clearCart();
+        if (path != null) clearFile(path);
+        if (img1 != null) clearFile(img1.path);
+        if (img2 != null) clearFile(img2.path);
+        if (path != null) clearFile(path);
+        advanceDateTime.clear();
+        advancePaymentType.clear();
+        modeWiseAmount.clear();
+        advanceAmount.clear();
+
+        isSubmitting = false;
+        showAudioandImage = false;
+        pickedImage1 = null;
+        pickedImage2 = null;
+        recordedFilePath = '';
+        photoScreen = null;
+        audioPlayer = null;
+        Navigator.of(context).pop();
+      } catch (e) {}
+    } catch (e, st) {
+      rethrow;
+    } finally {
+      cartProvider.clearCart();
+      cartSelectionProvider.clearSelections();
       advanceDateTime.clear();
       advancePaymentType.clear();
       modeWiseAmount.clear();
       advanceAmount.clear();
-      cartProvider.customChargeController.clear();
-      patchHoldOrderId = "";
+
+      advanceDateTime.clear();
+      advancePaymentType.clear();
+      modeWiseAmount.clear();
+      advanceAmount.clear();
       isSubmitting = false;
       showAudioandImage = false;
       pickedImage1 = null;
@@ -1536,8 +1712,6 @@ class CustomerScreenProvider with ChangeNotifier {
       img2 = null;
 
       notifyListeners();
-    } catch (e, st) {
-      rethrow;
     }
   }
 
@@ -1560,11 +1734,32 @@ class CustomerScreenProvider with ChangeNotifier {
     try {
       isSubmitting = true;
 
-      // 🔹 Step 1: Initial values
-      double totalAdvance = 0.0;
-      double balanceAmount = cartProvider.getTotalAmount();
-      List<double> advanceAmountList = [0.0];
-      List<String> advanceDateTime = [DateTime.now().toIso8601String()];
+      final List<double> advanceAmount = [];
+      final List<List<String>> advancePaymentType = [];
+      final List<List<double>> modeWiseAmount = [];
+      final List<String> advanceDateTime = [];
+
+      void addAdvancePayment(Map<String, double> payMap) {
+        final filtered = Map.fromEntries(
+          payMap.entries.where((e) => e.value > 0),
+        );
+
+        if (filtered.isEmpty) {
+          return;
+        }
+
+        final total = filtered.values.fold<double>(0, (a, b) => a + b);
+
+        advanceAmount.add(total);
+        advancePaymentType.add(filtered.keys.toList(growable: false));
+        modeWiseAmount.add(filtered.values.toList(growable: false));
+        advanceDateTime.add(DateTime.now().toIso8601String());
+      }
+
+      final double computedTotalAdvance = advanceAmount.fold<double>(
+        0,
+        (a, b) => a + b,
+      );
 
       // 🔹 Step 2: Collect cart item details
       List<String> itemNames = globals.cartItems
@@ -1574,7 +1769,7 @@ class CustomerScreenProvider with ChangeNotifier {
           .map((item) => item.varianceName)
           .toList();
       List<int> quantities = globals.cartItems
-          .map((item) => item.quantity)
+          .map((item) => item.quantity.value)
           .toList();
       List<String> itemCodes = globals.cartItems
           .map((item) => item.itemCode.toString())
@@ -1589,62 +1784,188 @@ class CustomerScreenProvider with ChangeNotifier {
       List<int> prices = globals.cartItems
           .map((item) => item.pricePerKg)
           .toList();
+      final List<double> itemWiseDiscounts = globals.cartItems
+          .map((e) => e.itemWiseDiscount ?? 0.0)
+          .toList();
+      final List<double> itemWiseDiscountAmounts = globals.cartItems
+          .map((e) => e.itemWiseDiscountAmount ?? 0.0)
+          .toList();
+      final List<int> sellingPrices = globals.cartItems
+          .map((item) => (item.sellingPrice ?? 0).toInt())
+          .toList();
+      final List<double> sellingAmounts = globals.cartItems
+          .map((item) => (item.sellingAmount ?? 0.0).toDouble())
+          .toList();
 
-      // 🔹 Step 3: Calculate amounts
-      List<double> amounts = globals.cartItems.map((item) {
-        double amt = (item.uom == 'Pcs' || item.uom == 'Pkt')
-            ? item.pricePerKg * item.quantity.toDouble()
-            : item.weight * item.quantity * item.pricePerKg;
-        return amt;
+      final int boxQuantities = globals.cartItems.first.boxQuantity ?? 0;
+
+      final List<String> isBoxItem = globals.cartItems
+          .map((e) => e.isBoxItem ?? '')
+          .toList();
+
+      double customCharge = 0;
+
+      // Sum all custom charges from the map
+      for (var controller in cartProvider.customChargeControllers.values) {
+        customCharge += double.tryParse(controller!.text) ?? 0;
+      }
+
+      final List<double> amounts = globals.cartItems.map((item) {
+        final base = (item.uom == 'Pcs' || item.uom == 'Pkt')
+            ? (item.pricePerKg * item.quantity.value).toDouble()
+            : (item.weight * item.quantity.value * item.pricePerKg);
+        final disc = (item.itemWiseDiscountAmount ?? 0.0);
+        final total = base - disc;
+        return total;
       }).toList();
 
+      final double itemTotal = amounts.fold<double>(0, (a, b) => a + b);
+      final double totalAmount2 = itemTotal + customCharge;
+      final double finalPrice = itemTotal + customCharge - deductedAmount;
+      final double balanceAmount = finalPrice - computedTotalAdvance;
+
+      // =====================================================
+      // STEP 3: ORDER METADATA
+      // =====================================================
+
+      final String saleOrderNo = generateSaleOrderNo();
+      final String formattedTime = DateFormat('hh:mm a').format(DateTime.now());
+      const String deviceName = "POS1";
+
+      Directory? orderDir = await createOrderDir(saleOrderNo);
+
+      final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+
+      // =====================================================
+      // STEP 4: FILE SAVING (AUDIO/IMAGES)
+      // =====================================================
+
+      String? savedAudioPath;
+      String? savedImg1Path;
+      String? savedImg2Path;
+
+      if (recordedFilePath != null && orderDir != null) {
+        savedAudioPath = await saveFile(
+          File(recordedFilePath),
+          orderDir,
+          '${saleOrderNo}_${timestamp}_audio',
+        );
+      }
+
+      if (pickedImage1 != null && orderDir != null) {
+        savedImg1Path = await saveFile(
+          pickedImage1,
+          orderDir,
+          '${saleOrderNo}_${timestamp}_img1',
+        );
+      }
+
+      if (pickedImage2 != null && orderDir != null) {
+        savedImg2Path = await saveFile(
+          pickedImage2,
+          orderDir,
+          '${saleOrderNo}_${timestamp}_img2',
+        );
+      }
+      List<String> savedImagePaths = [];
+
+      if (pickedImages.isNotEmpty && orderDir != null) {
+        for (int i = 0; i < pickedImages.length; i++) {
+          final savedPath = await saveFile(
+            pickedImages[i],
+            orderDir,
+            '${saleOrderNo}_${timestamp}_img${i + 1}',
+          );
+          savedImagePaths.add(savedPath!);
+        }
+      }
       // Generate IDs
       approvalOrderId = generateApprovalOrderId();
-      String saleOrderNo = generateSaleOrderNo();
-
+      final String orderDateIso = DateTime.now().toIso8601String();
+      storedBranch = branchProvider.getStoredBranch(globalbranch.branchName);
+      DateTime eventDateTime;
+      if (birthdaydateController.text.isNotEmpty &&
+          timeController.text.isNotEmpty) {
+        eventDateTime = DateFormat(
+          "dd-MM-yyyy hh:mm a",
+        ).parse("${birthdaydateController.text} ${timeController.text}");
+      } else {
+        eventDateTime = DateTime.now(); // or null, or skip
+      }
+      final String eventDateIso = eventDateTime.toIso8601String();
+      DateTime deliveryDateTime;
+      if (dateController.text.isNotEmpty && timeController.text.isNotEmpty) {
+        deliveryDateTime = DateFormat(
+          "dd-MM-yyyy hh:mm a",
+        ).parse("${dateController.text} ${timeController.text}");
+      } else {
+        throw Exception("Delivery date & time missing");
+      }
+      final String deliveryDateIso = deliveryDateTime.toIso8601String();
+      // =====================================================
+      // STEP 5: BUILD SALES ORDER OBJECT
+      // =====================================================
       // 🔹 Step 4: Create SalesOrder object
       SalesOrder approvalOrder = SalesOrder(
         itemName: itemNames,
         varianceName: varianceNames,
         qty: quantities,
         uom: uoms,
+
+        isBoxItem: isBoxItem,
         weight: weights,
         amount: amounts,
-        totalAmount2: cartProvider.getTotalAmount(),
-        branchId: storedBranch!.branchId,
-        branchName: storedBranch!.branchName,
-        totalAmount: cartProvider.getTotalAmount(),
+        sellingPrice: sellingPrices, // now List<int>
+        sellingAmount: sellingAmounts, // List<double>
+        boxQty: boxQuantities,
+        totalAmount2: totalAmount2,
+        branchId: globals.branchId,
+        branchName: globals.branchName,
+        aliasName: globals.aliasname,
+        totalAmount: itemTotal,
         itemCode: itemCodes,
         tax: taxs,
         price: prices,
-        deliveryDate: dateController.text,
+        deliveryDate: deliveryDateIso,
         deliveryTime: timeController.text,
-        event: selectedEvent.toString(),
+        event: (selectedEvent ?? ""),
         customerNumber: mobileNoController.text,
         customerName: customerNameController.text,
-        deliveryType: selectedDeliveryType.toString(),
+        deliveryType: (selectedDeliveryType ?? ""),
         address: addressController.text,
-        shiftId: [globalsData.shiftId.value],
         landmark: landmarkController.text,
-        discount: 0.0,
-        discountAmount: 0.0,
+        discount: discount,
+        discountAmount: deductedAmount,
         remark: remarkController.text,
-        advanceAmount: advanceAmountList,
-        finalPrice: cartProvider.getTotalAmount(),
+        shiftId: [globalsData.shiftId.value],
+        customCharge: customCharge,
+        advanceAmount: advanceAmount,
+        advancePaymentType: advancePaymentType,
+        modeWiseAmount: modeWiseAmount,
+        finalPrice: finalPrice,
         balanceAmount: balanceAmount,
         saleOrderNo: saleOrderNo,
-        orderDate: DateTime.now().toIso8601String(),
-        orderTime: DateFormat('hh:mm a').format(DateTime.now()),
+        orderDate: orderDateIso,
+
+        audioPath: savedAudioPath,
+        imagePaths: savedImagePaths, // List<String>
+        // imagePath1: savedImg1Path,
+        // imagePath2: savedImg2Path,
         employeeName: searchController.text,
-        status: 'Waiting for Approval',
+
         advanceDateTime: advanceDateTime,
         companyName: companyNameController.text,
         companyAddress: companyAddressController.text,
         companyGST: companygstNumberController.text,
-        orderType: selectedOrderOption,
-        eventDate: birthdaydateController.text,
+        orderType: (selectedOrderOption ?? ""),
+        eventDate: eventDateIso,
+        itemWiseDiscount: itemWiseDiscounts,
+        itemWiseDiscountAmount: itemWiseDiscountAmounts,
         holdOrderId: patchHoldOrderId,
         approvalOrderId: approvalOrderId,
+
+        status: 'Waiting for Approval',
+
         approvalDetails: [
           ApprovalOrderDetail(
             approvalType: "Discount",
@@ -1653,9 +1974,8 @@ class CustomerScreenProvider with ChangeNotifier {
             summary: 'No',
           ),
         ],
-        customChargeType: selectedChargeType,
+        customChargeType: selectedChargeType ?? '',
       );
-
       // 🔹 Step 5: Encode to JSON
       String jsonApprovalOrder = jsonEncode({
         "data": approvalOrder.toJson(),
@@ -1664,9 +1984,15 @@ class CustomerScreenProvider with ChangeNotifier {
         'edit': 'No',
         'approvalStatusChanged': 'No',
       });
-
-      // 🔹 Step 6: Send to server
-      await sendataToServer(jsonDecode(jsonApprovalOrder));
+      final connectivityProvider = Provider.of<ConnectivityProvider>(
+        context,
+        listen: false,
+      );
+      if (connectivityProvider.isConnected) {
+        await sendataToServer(jsonDecode(jsonApprovalOrder));
+      } else {
+        await handleSalesApprovalOrder(jsonDecode(jsonApprovalOrder));
+      }
 
       // 🔹 Step 7: Success feedback
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1714,10 +2040,6 @@ class CustomerScreenProvider with ChangeNotifier {
     BuildContext context,
     Map<String, double> payments, // 👈 new param
   ) async {
-    // if (isSubmitting) return; // Prevent double submission
-    // isSubmitting = true;
-
-    double balanceAmount = totalAmount - totalAdvance;
     List<double> advanceAmountList = [totalAdvance];
     List<double> cashAdvance = [0.0];
     List<double> cardAdvance = [0.0];
@@ -1731,12 +2053,7 @@ class CustomerScreenProvider with ChangeNotifier {
       upiAdvance[0] = totalAdvance; // Update the first element of upiAdvance
     }
     String currentDateTime = DateTime.now().toIso8601String();
-    advanceDateTime ??= [];
-    advancePaymentType ??= [];
-
-    // Add datetime and payment type
-    advanceDateTime!.add(currentDateTime);
-    advancePaymentType!.add(selectedPaymentMethod);
+    ;
 
     List<String> itemNames = globals.cartItems
         .map((item) => item.itemName)
@@ -1745,7 +2062,7 @@ class CustomerScreenProvider with ChangeNotifier {
         .map((item) => item.varianceName)
         .toList();
     List<int> quantities = globals.cartItems
-        .map((item) => item.quantity)
+        .map((item) => item.quantity.value)
         .toList();
     List<String> itemCodes = globals.cartItems
         .map((item) => item.itemCode.toString())
@@ -1760,20 +2077,16 @@ class CustomerScreenProvider with ChangeNotifier {
     List<int> prices = globals.cartItems
         .map((item) => item.pricePerKg)
         .toList();
+    final List<int> sellingPrices = globals.cartItems
+        .map((item) => (item.sellingPrice ?? 0).toInt())
+        .toList();
+    final List<double> sellingAmounts = globals.cartItems
+        .map((item) => (item.sellingAmount ?? 0.0).toDouble())
+        .toList();
 
-    List<double> amounts = globals.cartItems.map((item) {
-      double calculatedAmount;
-      if (item.uom == 'Pcs' || item.uom == 'Pkt') {
-        calculatedAmount = item.pricePerKg * item.quantity.toDouble();
-      } else {
-        calculatedAmount = item.weight * item.quantity * item.pricePerKg;
-      }
-      return calculatedAmount;
-    }).toList();
+    // Generate IDs
+    approvalOrderId = generateApprovalOrderId();
 
-    String saleOrderNo = generateSaleOrderNo();
-    // String formattedDate = DateFormat('dd-MM-yyyy').format(DateTime.now());
-    String formattedTime = DateFormat('hh:mm a').format(DateTime.now());
     String approvalType;
     String approvalStatus;
     if (selectedOrderOption == 'Cheque') {
@@ -1783,48 +2096,213 @@ class CustomerScreenProvider with ChangeNotifier {
       approvalType = 'Discount';
       approvalStatus = 'Sending to Approval';
     }
+    isSubmitting = true;
+
+    final List<double> advanceAmount = [];
+    final List<List<String>> advancePaymentType = [];
+    final List<List<double>> modeWiseAmount = [];
+    final List<String> advanceDateTime = [];
+
+    void addAdvancePayment(Map<String, double> payMap) {
+      final filtered = Map.fromEntries(
+        payMap.entries.where((e) => e.value > 0),
+      );
+
+      if (filtered.isEmpty) {
+        return;
+      }
+
+      final total = filtered.values.fold<double>(0, (a, b) => a + b);
+
+      advanceAmount.add(total);
+      advancePaymentType.add(filtered.keys.toList(growable: false));
+      modeWiseAmount.add(filtered.values.toList(growable: false));
+      advanceDateTime.add(DateTime.now().toIso8601String());
+    }
+
+    final double computedTotalAdvance = advanceAmount.fold<double>(
+      0,
+      (a, b) => a + b,
+    );
+
+    // 🔹 Step 2: Collect cart item details
+
+    final List<double> itemWiseDiscounts = globals.cartItems
+        .map((e) => e.itemWiseDiscount ?? 0.0)
+        .toList();
+    final List<double> itemWiseDiscountAmounts = globals.cartItems
+        .map((e) => e.itemWiseDiscountAmount ?? 0.0)
+        .toList();
+
+    final int boxQuantities = globals.cartItems.first.boxQuantity ?? 0;
+
+    final List<String> isBoxItem = globals.cartItems
+        .map((e) => e.isBoxItem ?? '')
+        .toList();
+
+    double customCharge = 0;
+
+    // Sum all custom charges from the map
+    for (var controller in cartProvider.customChargeControllers.values) {
+      customCharge += double.tryParse(controller!.text) ?? 0;
+    }
+
+    final List<double> amounts = globals.cartItems.map((item) {
+      final base = (item.uom == 'Pcs' || item.uom == 'Pkt')
+          ? (item.pricePerKg * item.quantity.value).toDouble()
+          : (item.weight * item.quantity.value * item.pricePerKg);
+      final disc = (item.itemWiseDiscountAmount ?? 0.0);
+      final total = base - disc;
+      return total;
+    }).toList();
+
+    final double itemTotal = amounts.fold<double>(0, (a, b) => a + b);
+    final double totalAmount2 = itemTotal + customCharge;
+    final double finalPrice = itemTotal + customCharge - deductedAmount;
+    final double balanceAmount = finalPrice - computedTotalAdvance;
+
+    // =====================================================
+    // STEP 3: ORDER METADATA
+    // =====================================================
+
+    final String saleOrderNo = generateSaleOrderNo();
+    final String formattedTime = DateFormat('hh:mm a').format(DateTime.now());
+    const String deviceName = "POS1";
+
+    Directory? orderDir = await createOrderDir(saleOrderNo);
+
+    final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+
+    // =====================================================
+    // STEP 4: FILE SAVING (AUDIO/IMAGES)
+    // =====================================================
+
+    String? savedAudioPath;
+    String? savedImg1Path;
+    String? savedImg2Path;
+
+    if (recordedFilePath != null && orderDir != null) {
+      savedAudioPath = await saveFile(
+        File(recordedFilePath),
+        orderDir,
+        '${saleOrderNo}_${timestamp}_audio',
+      );
+    }
+
+    if (img1 != null && orderDir != null) {
+      savedImg1Path = await saveFile(
+        img1,
+        orderDir,
+        '${saleOrderNo}_${timestamp}_img1',
+      );
+    }
+
+    if (img2 != null && orderDir != null) {
+      savedImg2Path = await saveFile(
+        img2,
+        orderDir,
+        '${saleOrderNo}_${timestamp}_img2',
+      );
+    }
+    List<String> savedImagePaths = [];
+
+    if (pickedImages.isNotEmpty && orderDir != null) {
+      for (int i = 0; i < pickedImages.length; i++) {
+        final savedPath = await saveFile(
+          pickedImages[i],
+          orderDir,
+          '${saleOrderNo}_${timestamp}_img${i + 1}',
+        );
+        savedImagePaths.add(savedPath!);
+      }
+    }
+    // Generate IDs
+    approvalOrderId = generateApprovalOrderId();
+    final String orderDateIso = DateTime.now().toIso8601String();
+    storedBranch = branchProvider.getStoredBranch(globalbranch.branchName);
+    DateTime eventDateTime;
+    if (birthdaydateController.text.isNotEmpty &&
+        timeController.text.isNotEmpty) {
+      eventDateTime = DateFormat(
+        "dd-MM-yyyy hh:mm a",
+      ).parse("${birthdaydateController.text} ${timeController.text}");
+    } else {
+      eventDateTime = DateTime.now(); // or null, or skip
+    }
+    final String eventDateIso = eventDateTime.toIso8601String();
+    DateTime deliveryDateTime;
+    if (dateController.text.isNotEmpty && timeController.text.isNotEmpty) {
+      deliveryDateTime = DateFormat(
+        "dd-MM-yyyy hh:mm a",
+      ).parse("${dateController.text} ${timeController.text}");
+    } else {
+      throw Exception("Delivery date & time missing");
+    }
+    final String deliveryDateIso = deliveryDateTime.toIso8601String();
+    // =====================================================
+    // STEP 5: BUILD SALES ORDER OBJECT
+    // =====================================================
     SalesOrder salesOrder = SalesOrder(
       itemName: itemNames,
       varianceName: varianceNames,
       qty: quantities,
       uom: uoms,
+
+      isBoxItem: isBoxItem,
       weight: weights,
       amount: amounts,
-      totalAmount2: totalAmount,
-      branchId: storedBranch!.branchId,
-      branchName: storedBranch!.branchName,
-      totalAmount: totalAmount,
+      sellingPrice: sellingPrices, // now List<int>
+      sellingAmount: sellingAmounts, // List<double>
+      boxQty: boxQuantities,
+      totalAmount2: totalAmount2,
+      branchId: globals.branchId,
+      branchName: globals.branchName,
+      aliasName: globals.aliasname,
+      totalAmount: itemTotal,
       itemCode: itemCodes,
       tax: taxs,
       price: prices,
-      deliveryDate: dateController.text,
+      deliveryDate: deliveryDateIso,
       deliveryTime: timeController.text,
-      event: selectedEvent.toString(),
+      event: (selectedEvent ?? ""),
       customerNumber: mobileNoController.text,
       customerName: customerNameController.text,
-      deliveryType: selectedDeliveryType.toString(),
+      deliveryType: (selectedDeliveryType ?? ""),
       address: addressController.text,
       landmark: landmarkController.text,
       discount: discount,
       discountAmount: deductedAmount,
-      remark: remark,
-      customCharge: customCharge,
-      advanceAmount: advanceAmountList,
+
       shiftId: [globalsData.shiftId.value],
-      finalPrice: orderAmount,
+      customCharge: customCharge,
+      advanceAmount: advanceAmount,
+      advancePaymentType: advancePaymentType,
+      modeWiseAmount: modeWiseAmount,
+      finalPrice: finalPrice,
       balanceAmount: balanceAmount,
       saleOrderNo: saleOrderNo,
-      orderDate: DateTime.now().toIso8601String(),
-      orderTime: formattedTime,
+      orderDate: orderDateIso,
+      imagePaths: savedImagePaths, // List<String>
+      audioPath: savedAudioPath,
+      // imagePath1: savedImg1Path,
+      // imagePath2: savedImg2Path,
       employeeName: searchController.text,
-      status: 'Waiting for Approval',
+
       advanceDateTime: advanceDateTime,
       companyName: companyNameController.text,
       companyAddress: companyAddressController.text,
       companyGST: companygstNumberController.text,
-      orderType: selectedOrderOption,
+      orderType: (selectedOrderOption ?? ""),
+      eventDate: eventDateIso,
+      itemWiseDiscount: itemWiseDiscounts,
+      itemWiseDiscountAmount: itemWiseDiscountAmounts,
       holdOrderId: patchHoldOrderId,
       approvalOrderId: approvalOrderId,
+      customChargeType: selectedChargeType,
+      remark: remarkController.text,
+
+      status: 'Waiting for Approval',
+
       approvalDetails: [
         ApprovalOrderDetail(
           approvalType: approvalType,
@@ -1833,7 +2311,7 @@ class CustomerScreenProvider with ChangeNotifier {
           summary: 'No',
         ),
       ],
-      customChargeType: selectedChargeType,
+
       // cash: cashAdvance,
       // card: cardAdvance,
       // upi: upiAdvance,
@@ -1843,15 +2321,23 @@ class CustomerScreenProvider with ChangeNotifier {
 
     try {
       String jsonSalesOrder = jsonEncode({
-        "data": [salesOrder.toJson()],
+        "data": salesOrder.toJson(),
         "type": "salesApprovalOrder",
         'sync': "No",
         'edit': 'No',
         'waitingForApprovalResult': 'Yes',
         "saleOrderNo": salesOrder.saleOrderNo,
       });
+      final connectivityProvider = Provider.of<ConnectivityProvider>(
+        context,
+        listen: false,
+      );
+      if (connectivityProvider.isConnected) {
+        await sendataToServer(jsonDecode(jsonSalesOrder));
+      } else {
+        await handleSalesApprovalOrder(jsonDecode(jsonSalesOrder));
+      }
 
-      await sendataToServer(jsonDecode(jsonSalesOrder));
       // Check if it reaches here
     } catch (e) {
       // Catches any errors during the request
@@ -1923,7 +2409,6 @@ class CustomerScreenProvider with ChangeNotifier {
     ApiServiceSalesOrderProvider apiProvider,
     File? img1,
     File? img2,
-
     String? holdOrderId,
     String? selectedOrderOption,
     BuildContext context,
@@ -1952,7 +2437,7 @@ class CustomerScreenProvider with ChangeNotifier {
         .map((e) => e.varianceName)
         .toList();
     final List<int> quantities = globals.cartItems
-        .map((e) => e.quantity)
+        .map((e) => e.quantity.value)
         .toList();
     final List<String> itemCodes = globals.cartItems
         .map((e) => e.itemCode)
@@ -1975,19 +2460,27 @@ class CustomerScreenProvider with ChangeNotifier {
     final List<double> itemWiseDiscountAmounts = globals.cartItems
         .map((e) => e.itemWiseDiscountAmount ?? 0.0)
         .toList();
+    double customCharge = 0;
 
-    final double customCharge =
-        double.tryParse(cartProvider.customChargeController.text) ?? 0;
+    // Sum all custom charges from the map
+    for (var controller in cartProvider.customChargeControllers.values) {
+      customCharge += double.tryParse(controller!.text) ?? 0;
+    }
 
     final List<double> amounts = globals.cartItems.map((item) {
       final base = (item.uom == 'Pcs' || item.uom == 'Pkt')
-          ? (item.pricePerKg * item.quantity).toDouble()
-          : (item.weight * item.quantity * item.pricePerKg);
+          ? (item.pricePerKg * item.quantity.value).toDouble()
+          : (item.weight * item.quantity.value * item.pricePerKg);
       final disc = (item.itemWiseDiscountAmount ?? 0.0);
       final total = base - disc;
       return total;
     }).toList();
-
+    final List<int> sellingPrices = globals.cartItems
+        .map((item) => (item.sellingPrice ?? 0).toInt())
+        .toList();
+    final List<double> sellingAmounts = globals.cartItems
+        .map((item) => (item.sellingAmount ?? 0.0).toDouble())
+        .toList();
     final double itemTotal = amounts.fold<double>(0, (a, b) => a + b);
     final double totalAmount2 = itemTotal + customCharge;
     final double finalPrice = itemTotal + customCharge - deductedAmount;
@@ -2034,9 +2527,31 @@ class CustomerScreenProvider with ChangeNotifier {
       );
     }
     String holdOrderId = generateHoldOrderId();
+    List<String> savedImagePaths = [];
 
+    if (pickedImages.isNotEmpty && orderDir != null) {
+      for (int i = 0; i < pickedImages.length; i++) {
+        final savedPath = await saveFile(
+          pickedImages[i],
+          orderDir,
+          '${saleOrderNo}_${timestamp}_img${i + 1}',
+        );
+        savedImagePaths.add(savedPath!);
+      }
+    }
     storedBranch = branchProvider.getStoredBranch(globalbranch.branchName);
+    final String orderDateIso = DateTime.now().toIso8601String();
+    storedBranch = branchProvider.getStoredBranch(globalbranch.branchName);
+    DateTime eventDateTime = DateFormat(
+      "dd-MM-yyyy hh:mm a",
+    ).parse("${birthdaydateController.text} ${timeController.text}");
 
+    final String eventDateIso = eventDateTime.toIso8601String();
+    DateTime deliveryDateTime = DateFormat(
+      "dd-MM-yyyy hh:mm a",
+    ).parse("${dateController.text} ${timeController.text}");
+
+    final String deliveryDateIso = deliveryDateTime.toIso8601String();
     // =====================================================
     // STEP 5: BUILD SALES ORDER OBJECT
     // =====================================================
@@ -2048,16 +2563,18 @@ class CustomerScreenProvider with ChangeNotifier {
       isBoxItem: isBoxItem,
       weight: weights,
       amount: amounts,
+      sellingPrice: sellingPrices, // now List<int>
+      sellingAmount: sellingAmounts, // List<double>
       boxQty: boxQuantities,
       totalAmount2: totalAmount2,
-      branchId: storedBranch?.branchId ?? "",
-      branchName: storedBranch?.branchName ?? "",
-      aliasName: storedBranch?.aliasName ?? "",
+      branchId: globals.branchId,
+      branchName: globals.branchName,
+      aliasName: globals.aliasname,
       totalAmount: itemTotal,
       itemCode: itemCodes,
       tax: taxs,
       price: prices,
-      deliveryDate: dateController.text,
+      deliveryDate: deliveryDateIso,
       deliveryTime: timeController.text,
       event: (selectedEvent ?? ""),
       customerNumber: mobileNoController.text,
@@ -2068,17 +2585,15 @@ class CustomerScreenProvider with ChangeNotifier {
       discount: discount,
       discountAmount: deductedAmount,
       remark: remark,
-      shiftId: globalsData.shiftId.value,
+      shiftId: [globalsData.shiftId.value],
       customCharge: customCharge,
-
       finalPrice: finalPrice,
       balanceAmount: balanceAmount,
+      imagePaths: savedImagePaths, // List<String>
       saleOrderNo: saleOrderNo,
-      orderDate: DateTime.now().toIso8601String(),
-      orderTime: formattedTime,
+      orderDate: orderDateIso,
       audioPath: savedAudioPath,
-      imagePath1: savedImg1Path,
-      imagePath2: savedImg2Path,
+
       employeeName: searchController.text,
       status: 'Hold Order',
       advanceDateTime: advanceDateTime,
@@ -2086,11 +2601,13 @@ class CustomerScreenProvider with ChangeNotifier {
       companyAddress: companyAddressController.text,
       companyGST: companygstNumberController.text,
       orderType: (selectedOrderOption ?? ""),
-      eventDate: birthdaydateController.text,
+      eventDate: eventDateIso,
       itemWiseDiscount: itemWiseDiscounts,
       itemWiseDiscountAmount: itemWiseDiscountAmounts,
       holdOrderId: holdOrderId,
       approvalOrderId: approvalOrderId,
+      customChargeType: selectedChargeType,
+
       salesOrderId: '',
     );
 
@@ -2107,8 +2624,15 @@ class CustomerScreenProvider with ChangeNotifier {
         "edit": "No",
       };
 
-      await sendataToServer(postData);
-
+      final connectivityProvider = Provider.of<ConnectivityProvider>(
+        context,
+        listen: false,
+      );
+      if (connectivityProvider.isConnected) {
+        await sendataToServer(postData);
+      } else {
+        await handleHoldOrder(postData);
+      }
       // PATCH HOLD ORDER
 
       globals.cartItems.clear();
@@ -2119,23 +2643,18 @@ class CustomerScreenProvider with ChangeNotifier {
       // STEP 7: CLEANUP
       // =====================================================
       try {
-        if (savedAudioPath != null && await File(savedAudioPath).exists()) {
-          await File(savedAudioPath).delete();
-        }
-        if (savedImg1Path != null && await File(savedImg1Path).exists()) {
-          await File(savedImg1Path).delete();
-        }
-        if (savedImg2Path != null && await File(savedImg2Path).exists()) {
-          await File(savedImg2Path).delete();
-        }
-
         cartSelectionProvider.clearSelections();
-
+        globals.cartItems.clear();
+        clearControllers();
+        cartProvider.clearCart();
+        if (path != null) clearFile(path);
+        if (img1 != null) clearFile(img1.path);
+        if (img2 != null) clearFile(img2.path);
+        if (path != null) clearFile(path);
         advanceDateTime.clear();
         advancePaymentType.clear();
         modeWiseAmount.clear();
         advanceAmount.clear();
-        cartProvider.customChargeController.clear();
 
         isSubmitting = false;
         showAudioandImage = false;
@@ -2154,7 +2673,6 @@ class CustomerScreenProvider with ChangeNotifier {
       advancePaymentType.clear();
       modeWiseAmount.clear();
       advanceAmount.clear();
-      cartProvider.customChargeController.clear();
 
       isSubmitting = false;
       showAudioandImage = false;

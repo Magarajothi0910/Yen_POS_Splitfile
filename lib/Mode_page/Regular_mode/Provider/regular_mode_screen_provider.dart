@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
 import 'package:yenpos/Global/global_data_manager.dart';
-
+import 'package:yenpos/Global/globals_data.dart';
 
 class RegularModeProvider with ChangeNotifier {
   List<Map<String, dynamic>> items = [];
@@ -36,6 +37,27 @@ class RegularModeProvider with ChangeNotifier {
   void setSelectedVariance(String? newValue) {
     selectedVariance = newValue;
     notifyListeners();
+  }
+
+  Map<String, dynamic> getVarianceFullDetails(String varianceName) {
+    for (var item in originalItems) {
+      var variances = item['variances'] ?? [];
+
+      for (var variance in variances) {
+        String currentVarianceName = (variance['varianceName'] ?? "")
+            .toString();
+
+        if (currentVarianceName == varianceName) {
+          return {
+            ...variance, // all variance fields
+            'itemName': item['name'] ?? item['itemName'] ?? '',
+            'tax': item['tax'],
+          };
+        }
+      }
+    }
+
+    return {};
   }
 
   void setFavorite(bool value) {
@@ -77,7 +99,10 @@ class RegularModeProvider with ChangeNotifier {
   }
 
   Future<void> loadData() async {
-    final globalData = GlobalDataManager().branchwiseItems;
+    // final globalData = GlobalDataManager().branchwiseItems;
+    final lazyBox = await Hive.openBox('items');
+    final globalData = await lazyBox.get('branchwiseItems_$aliasname');
+
     final data = globalData['data'];
 
     if (data is Map) {
@@ -90,8 +115,9 @@ class RegularModeProvider with ChangeNotifier {
               final item = (itemEntry['item'] ?? {}) as Map;
               final variances = (itemEntry['variance'] ?? {}) as Map;
 
-              List<Map<String, dynamic>> variancesList =
-                  variances.entries.map((v) {
+              List<Map<String, dynamic>> variancesList = variances.entries.map((
+                v,
+              ) {
                 final varianceKey = v.key;
                 final variance = (v.value ?? {}) as Map;
 
@@ -134,10 +160,11 @@ class RegularModeProvider with ChangeNotifier {
                     return 0.0;
                   }(),
                   'varianceUOM': (variance['variance_Uom'] ?? "").toString(),
-                  'varianceItemCode': (variance['varianceitemCode'] ??
-                          variance['varianceItemCode'] ??
-                          "")
-                      .toString(), // ✅ handle both naming styles safely
+                  'varianceItemCode':
+                      (variance['varianceitemCode'] ??
+                              variance['varianceItemCode'] ??
+                              "")
+                          .toString(), // ✅ handle both naming styles safely
                   'takeawayPrice': takeawayPrice,
                   'branchwise': branchwise,
                 };
@@ -159,7 +186,8 @@ class RegularModeProvider with ChangeNotifier {
       originalItems = List.from(items);
 
       // Avoid cast error by converting each to string manually
-      categories = (globalData['categories'] as List?)
+      categories =
+          (globalData['categories'] as List?)
               ?.map((c) => (c ?? "").toString())
               .toList() ??
           [];
@@ -203,7 +231,8 @@ class RegularModeProvider with ChangeNotifier {
     isMixedSelected = false;
     items = originalItems
         .where(
-            (item) => (item['category'] ?? "").toString() == selectedCategory)
+          (item) => (item['category'] ?? "").toString() == selectedCategory,
+        )
         .toList();
     notifyListeners();
   }
@@ -233,12 +262,44 @@ class RegularModeProvider with ChangeNotifier {
   }
 
   Map<String, dynamic> getVarianceDetails(String varianceName) {
-    return originalItems.expand((item) => item['variances'] ?? []).firstWhere(
-      (variance) => (variance['varianceName'] ?? "").toString() == varianceName,
-      orElse: () {
-        return {};
-      },
-    );
+    try {
+      final raw = originalItems
+          .expand((item) => item['variances'] ?? [])
+          .firstWhere(
+            (variance) =>
+                (variance['varianceName'] ?? "").toString() == varianceName,
+            orElse: () => {},
+          );
+
+      if (raw is Map) {
+        return _deepCastMap(raw);
+      }
+
+      return {};
+    } catch (e) {
+      print("❌ getVarianceDetails ERROR: $e");
+      return {};
+    }
+  }
+
+  Map<String, dynamic> _deepCastMap(Map input) {
+    final result = <String, dynamic>{};
+
+    input.forEach((key, value) {
+      if (key == null) return;
+
+      final k = key.toString();
+
+      if (value is Map) {
+        result[k] = _deepCastMap(value);
+      } else if (value is List) {
+        result[k] = value.map((e) => e is Map ? _deepCastMap(e) : e).toList();
+      } else {
+        result[k] = value;
+      }
+    });
+
+    return result;
   }
 
   void filterItemsBySearchQuery(String query) {
@@ -246,18 +307,20 @@ class RegularModeProvider with ChangeNotifier {
     if (query.isEmpty) {
       if (selectedCategory.isNotEmpty) {
         items = originalItems
-            .where((item) =>
-                (item['category'] ?? "").toString() == selectedCategory)
+            .where(
+              (item) => (item['category'] ?? "").toString() == selectedCategory,
+            )
             .toList();
       } else {
         items = List.from(originalItems);
       }
     } else {
       items = originalItems
-          .where((item) => (item['name'] ?? "")
-              .toString()
-              .toLowerCase()
-              .contains(query.toLowerCase()))
+          .where(
+            (item) => (item['name'] ?? "").toString().toLowerCase().contains(
+              query.toLowerCase(),
+            ),
+          )
           .toList();
     }
     notifyListeners();
@@ -301,11 +364,12 @@ class RegularModeProvider with ChangeNotifier {
       filteredItems = List.from(originalItems);
     } else {
       filteredItems = originalItems.where((item) {
-        return (item['variances'] ?? []).any((variance) =>
-            (variance['varianceName'] ?? "")
-                .toString()
-                .toLowerCase()
-                .contains(query.toLowerCase()));
+        return (item['variances'] ?? []).any(
+          (variance) => (variance['varianceName'] ?? "")
+              .toString()
+              .toLowerCase()
+              .contains(query.toLowerCase()),
+        );
       }).toList();
     }
     notifyListeners();

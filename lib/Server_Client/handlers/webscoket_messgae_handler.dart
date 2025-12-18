@@ -96,7 +96,7 @@ Future<void> saveApproveOrderToHive(Map<String, dynamic> salesOrder) async {
 }
 
 Future<void> saveAddNewCustomerToHive(Map<String, dynamic> customerData) async {
-  var customerBox = await Hive.openBox('customerBox');
+  var customerBox = HiveManager.customers;
 
   final newMobile = customerData['mobile']?.toString() ?? '';
 
@@ -113,7 +113,7 @@ Future<void> saveAddNewCustomerToHive(Map<String, dynamic> customerData) async {
 }
 
 Future<List<Map<String, dynamic>>> getAddnewCustomer() async {
-  var customerBox = await Hive.openBox('customerBox');
+  var customerBox = HiveManager.customers;
   final customers = customerBox.values
       .map((customer) => Map<String, dynamic>.from(customer))
       .toList();
@@ -145,11 +145,7 @@ Future<List<Map<String, dynamic>>> getSavedSalesOrders() async {
 
     final allEntries = saleOrderBox.toMap();
 
-    final validPattern = RegExp(r'^SO[A-Z]{2}\d{6}$');
-
-    int index = 0;
     for (final entry in allEntries.entries) {
-      index++;
       final key = entry.key;
       final order = entry.value;
 
@@ -170,15 +166,11 @@ Future<List<Map<String, dynamic>>> getSavedSalesOrders() async {
         continue;
       }
 
-      if (!validPattern.hasMatch(saleOrderNo)) {
-        keysToDelete.add(key);
-        continue;
-      }
-
       if (seenSaleOrderNos.contains(saleOrderNo)) {
+        // Duplicate found, mark for deletion if key != saleOrderNo
         if (key.toString() != saleOrderNo) {
           keysToDelete.add(key);
-        } else {}
+        }
       } else {
         seenSaleOrderNos.add(saleOrderNo);
         uniqueOrders.add(orderMap);
@@ -199,7 +191,13 @@ Future<List<Map<String, dynamic>>> getSavedHoldOrders() async {
   try {
     final saleOrderBox = HiveManager.holdOrderBox;
 
-    final seenSaleOrderNos = <String>{};
+    print("📦 Hive holdOrderBox opened. Total entries: ${saleOrderBox.length}");
+    print("💾 Hive box content:");
+    saleOrderBox.toMap().forEach((key, value) {
+      print("  Key: $key, Value: $value");
+    });
+
+    final seenIds = <String>{};
     final uniqueOrders = <Map<String, dynamic>>[];
     final keysToDelete = <dynamic>[];
 
@@ -207,78 +205,117 @@ Future<List<Map<String, dynamic>>> getSavedHoldOrders() async {
       final key = entry.key;
       final order = entry.value;
 
-      if (order is Map) {
-        final orderMap = Map<String, dynamic>.from(order);
-        // Check for saleOrderNo in the nested data map
-        final dataMap = orderMap['data'] is Map
-            ? Map<String, dynamic>.from(orderMap['data'])
-            : orderMap;
-        final saleOrderNo = dataMap['holdOrderId'] as String?;
+      print("\n🔹 Processing entry with key: $key");
+      print("Original order from Hive: $order");
 
-        if (saleOrderNo != null) {
-          if (!seenSaleOrderNos.contains(saleOrderNo)) {
-            seenSaleOrderNos.add(saleOrderNo);
+      if (order is Map) {
+        // Convert Hive Map<dynamic, dynamic> to Map<String, dynamic> safely
+        final orderMap = Map<String, dynamic>.from(
+          order.map((k, v) => MapEntry(k.toString(), v)),
+        );
+
+        print("Converted orderMap: $orderMap");
+
+        // Extract nested 'data' safely
+        final dataMap = orderMap['data'] is Map
+            ? Map<String, dynamic>.from(
+                (orderMap['data'] as Map).map(
+                  (k, v) => MapEntry(k.toString(), v),
+                ),
+              )
+            : Map<String, dynamic>.from(orderMap);
+
+        print("Extracted dataMap: $dataMap");
+
+        final holdOrderId = dataMap['holdOrderId'] as String?;
+        print("holdOrderId: $holdOrderId");
+
+        if (holdOrderId != null) {
+          if (!seenIds.contains(holdOrderId)) {
+            print(
+              "✅ New holdOrderId found: $holdOrderId. Adding to uniqueOrders.",
+            );
+            seenIds.add(holdOrderId);
             uniqueOrders.add(orderMap);
           } else {
+            print(
+              "⚠️ Duplicate holdOrderId found: $holdOrderId. Marking key $key for deletion.",
+            );
             keysToDelete.add(key);
           }
+        } else {
+          print("❌ holdOrderId is null for key: $key. Skipping.");
         }
+      } else {
+        print("❌ Entry is not a Map. Skipping key: $key");
       }
     }
 
-    await saleOrderBox.deleteAll(keysToDelete);
+    if (keysToDelete.isNotEmpty) {
+      print("🗑 Deleting duplicate keys: $keysToDelete");
+      await saleOrderBox.deleteAll(keysToDelete);
+    } else {
+      print("✅ No duplicates found. No deletion needed.");
+    }
+
+    print("📊 Total unique orders: ${uniqueOrders.length}");
     return uniqueOrders;
-  } catch (e) {
+  } catch (e, stackTrace) {
+    print("❌ Error in getSavedHoldOrders: $e");
+    print(stackTrace);
     rethrow;
   }
 }
 
-// 3. Update getInvoiceOrders to work with new structure
 Future<void> saveInvoiceToHive(Map<String, dynamic> invoiceData) async {
-  print("🟢 [saveInvoiceToHive] STARTED");
-  print("🟢 Incoming invoice data: $invoiceData");
-
   try {
+    print("🚀 [saveInvoiceToHive] Function called");
+
     // Step 1: Open Hive box
-    var invoiceBox = await HiveManager.invoiceBox;
-    print("🟢 Hive box opened successfully");
+    var invoiceBox = HiveManager.invoiceBox;
+    print("📦 [Step 1] Invoice box opened successfully");
 
     // Step 2: Extract sales order safely
     final salesOrder = invoiceData['salesOrderId'];
-    if (salesOrder == null || salesOrder is! Map<String, dynamic>) {
-      print("⚠️ No valid salesOrderId found in invoice");
+    if (salesOrder == null) {
+      print("⚠️ [Step 2] salesOrderId is null in invoiceData: $invoiceData");
       return;
     }
-    print("🟢 Sales order extracted: $salesOrder");
+    if (salesOrder is! Map<String, dynamic>) {
+      print("⚠️ [Step 2] salesOrderId is not a Map: $salesOrder");
+      return;
+    }
+    print("✅ [Step 2] Extracted salesOrder: $salesOrder");
 
     // Step 3: Get order invoice number
     final orderInvoiceNo = salesOrder['invoiceNo']?.toString();
     if (orderInvoiceNo == null || orderInvoiceNo.isEmpty) {
-      print("⚠️ Invalid or missing orderInvoiceNo in sales order");
+      print(
+        "⚠️ [Step 3] invoiceNo is missing or empty in salesOrder: $salesOrder",
+      );
       return;
     }
-    print("🟢 Order Invoice No: $orderInvoiceNo");
+    print("✅ [Step 3] Invoice number extracted: $orderInvoiceNo");
 
     // Step 4: Check if invoice already exists
     if (invoiceBox.containsKey(orderInvoiceNo)) {
       print(
-        "⚠️ Invoice already exists in Hive for orderInvoiceNo: $orderInvoiceNo",
+        "ℹ️ [Step 4] Invoice already exists in Hive with key: $orderInvoiceNo",
       );
       return;
     }
+    print("✅ [Step 4] Invoice does not exist yet. Proceeding to save.");
 
     // Step 5: Save invoice to Hive
     await invoiceBox.put(orderInvoiceNo, invoiceData);
-    print("✅ Invoice saved to Hive successfully with key: $orderInvoiceNo");
+    print("💾 [Step 5] Invoice saved successfully: $orderInvoiceNo");
 
     // Optional: Log current total invoices
-    print("🟢 Current total invoices in Hive: ${invoiceBox.length}");
+    print("📊 Total invoices in Hive now: ${invoiceBox.length}");
   } catch (e, st) {
-    print("❌ Error saving invoice to Hive: $e");
-    print("❌ StackTrace: $st");
+    print("❌ [saveInvoiceToHive] Error saving invoice: $e");
+    print("📄 Stack trace: $st");
   }
-
-  print("🟢 [saveInvoiceToHive] FINISHED");
 }
 
 Future<List<Map<String, dynamic>>> getInvoiceOrders() async {
@@ -309,8 +346,6 @@ Future<List<Map<String, dynamic>>> getInvoiceOrders() async {
         }
       }
     }
-
-    for (var inv in uniqueInvoices) {}
 
     return uniqueInvoices;
   } catch (e, st) {
@@ -358,27 +393,67 @@ Future<List<Map<String, dynamic>>> getSavedHoldOrder() async {
 }
 
 Future<List<Map<String, dynamic>>> getSavedApprovalOrder() async {
-  // Step 1: Open the Hive box
-  var approvalOrderBox = await Hive.openBox('salesApprovalOrder');
+  var box = HiveManager.salesApprovalOrder;
 
-  // Step 2: Check if the box is empty
-  if (approvalOrderBox.isEmpty) {
+  print("🔹 Opening Hive box for approval orders...");
+
+  if (box.isEmpty) {
+    print("⚠️ The approval order box is empty. Returning empty list.");
     return [];
   }
 
-  // Step 3: Iterate and log each record before converting
-  approvalOrderBox.toMap().forEach((key, value) {});
+  print("✅ The box has ${box.length} records.");
 
-  // Step 4: Convert each value to a Map<String, dynamic>
-  final List<Map<String, dynamic>> approvalOrders = approvalOrderBox.values.map(
-    (order) {
-      final convertedOrder = Map<String, dynamic>.from(order);
-      return convertedOrder;
-    },
-  ).toList();
+  print("🔹 Iterating through Hive box contents (key -> value):");
+  box.toMap().forEach((key, value) {
+    print("   🔑 Key: $key");
+    print("   📦 Value: $value");
+  });
 
-  // Step 5: Return the result
-  return approvalOrders;
+  // --------------------------------------------------------
+  // 🔥 STEP 1: Remove duplicates based on saleOrderNo
+  // --------------------------------------------------------
+  print("🔍 Checking for duplicate saleOrderNo entries...");
+
+  Map<String, dynamic> latestEntryMap = {}; // saleOrderNo → key
+  List<dynamic> keysToDelete = [];
+
+  box.toMap().forEach((key, value) {
+    final orderMap = Map<String, dynamic>.from(value);
+    final saleOrderNo = orderMap['saleOrderNo']?.toString() ?? "";
+
+    if (saleOrderNo.isEmpty) return;
+
+    if (latestEntryMap.containsKey(saleOrderNo)) {
+      // ❌ Duplicate found — delete old one
+      print(
+        "❌ Duplicate found for SaleOrderNo: $saleOrderNo → Removing older entry (Key: $key)",
+      );
+      keysToDelete.add(key);
+    } else {
+      latestEntryMap[saleOrderNo] = key; // store unique key
+    }
+  });
+
+  // Delete duplicates from Hive
+  for (var delKey in keysToDelete) {
+    await box.delete(delKey);
+    print("🗑️ Deleted duplicate Hive entry with Key: $delKey");
+  }
+
+  print("✅ Duplicate removal complete. Final count: ${box.length}");
+
+  // --------------------------------------------------------
+  // 🔥 STEP 2: Return all cleaned approval orders
+  // --------------------------------------------------------
+  final orders = box.values.map((order) {
+    final convertedOrder = Map<String, dynamic>.from(order);
+    print("   📝 Converted order: $convertedOrder");
+    return convertedOrder;
+  }).toList();
+
+  print("🔹 Returning ${orders.length} approval orders.");
+  return orders;
 }
 
 Future<List<Map<String, dynamic>>> getModifyOrder() async {
@@ -468,66 +543,226 @@ Future<void> putOrder(dynamic key, Map<String, dynamic> order) async {
 Future<void> handlePatchSaleOrderMessage(
   Map<String, dynamic> messageData,
 ) async {
+  print('\n=============== HANDLE PATCH SALE ORDER MESSAGE ===============');
+  print('📥 Incoming Patch Message: $messageData');
+
   try {
-    // STEP 1: Extract saleOrderNo
+    // STEP 1️⃣ Extract saleOrderNo
+    print('\n----------- STEP 1: Extract saleOrderNo -----------');
+
     final saleOrderNo =
         messageData['saleOrderNo']?.toString() ??
         messageData['patchSaleOrder']?['saleOrderNo']?.toString() ??
         messageData['patchSaleOrder']?['data']?['saleOrderNo']?.toString();
 
+    print('🔍 Extracted saleOrderNo: $saleOrderNo');
+
     if (saleOrderNo == null || saleOrderNo.isEmpty) {
+      print('⚠️ No saleOrderNo found. Stop patch process.');
       return;
     }
 
-    // STEP 2: Extract patch data
+    // STEP 2️⃣ Extract patch data
+    print('\n----------- STEP 2: Extract Patch Data -----------');
+
     final patchData = Map<String, dynamic>.from(
       messageData['patchSaleOrder']?['data'] ?? {},
     );
 
+    print('🟦 Patch Data Extracted: $patchData');
+
     if (patchData.isEmpty) {
+      print('⚠️ Patch data is empty. Nothing to update.');
       return;
     }
 
-    for (final entry in patchData.entries) {}
+    print('🔄 Iterating Patch Fields:');
+    for (final entry in patchData.entries) {
+      print('   ➤ ${entry.key} = ${entry.value}');
+    }
 
-    // STEP 3: Access Hive box
+    // STEP 3️⃣ Access Hive box
+    print('\n----------- STEP 3: Access Hive Box -----------');
     final saleOrderBox = HiveManager.salesOrderBox;
-    final totalEntries = saleOrderBox.length;
+    print('📦 Hive Box Loaded (salesOrderBox)');
+    print('📊 Total Entries in Hive: ${saleOrderBox.length}');
 
-    // STEP 4: Locate the existing order
+    // STEP 4️⃣ Locate the existing order
+    print('\n----------- STEP 4: Locate Existing Order -----------');
+
     final allEntries = saleOrderBox.toMap();
+    print('🔍 Total Entries to Search: ${allEntries.length}');
 
     final matchingEntry = allEntries.entries.firstWhere((entry) {
       final entryData = entry.value['data'] ?? entry.value;
-      return entryData is Map && entryData['saleOrderNo'] == saleOrderNo;
+      return entryData is Map &&
+          entryData['saleOrderNo']?.toString() == saleOrderNo;
     }, orElse: () => const MapEntry('', null));
 
     if (matchingEntry.key == '') {
+      print('❌ No matching order found for saleOrderNo: $saleOrderNo');
       return;
     }
 
-    // STEP 5: Load existing order data
-    final existingValue = Map<String, dynamic>.from(matchingEntry.value);
+    print('✅ Matching Entry Found at Key: ${matchingEntry.key}');
+    print('📄 Existing Order Value: ${matchingEntry.value}');
+
+    // STEP 5️⃣ Load existing order data
+    print('\n----------- STEP 5: Load Existing Order Data -----------');
+
+    final existingValue = Map<String, dynamic>.from(matchingEntry.value ?? {});
     final existingData = Map<String, dynamic>.from(existingValue['data'] ?? {});
 
-    // STEP 6: Merge patch data into existing data
+    print('📄 Existing Data Before Patch: $existingData');
+
+    // STEP 6️⃣ Merge patch data
+    print('\n----------- STEP 6: Merge Patch Data -----------');
+
     patchData.forEach((key, value) {
       if (existingData.containsKey(key)) {
-      } else {}
+        print(
+          '✏️ Updating field: $key | Old: ${existingData[key]} → New: $value',
+        );
+      } else {
+        print('➕ Adding new field: $key = $value');
+      }
       existingData[key] = value;
     });
 
-    // STEP 7: Update metadata and save back
+    print('🟢 Merged Data: $existingData');
+
+    // STEP 7️⃣ Save updated order back to Hive
+    print('\n----------- STEP 7: Save Back to Hive -----------');
+
     existingValue['data'] = existingData;
     existingValue['lastUpdated'] = DateTime.now().toIso8601String();
 
     await saleOrderBox.put(matchingEntry.key, existingValue);
+    print('💾 Hive Updated Successfully at Key: ${matchingEntry.key}');
 
-    // STEP 8: Verification
+    // STEP 8️⃣ Verification
+    print('\n----------- STEP 8: Verify Saved Data -----------');
+
     final savedOrder = saleOrderBox.get(matchingEntry.key);
     if (savedOrder != null) {
-    } else {}
-  } catch (e, st) {}
+      print('🟩 Verification Success! Saved Order: $savedOrder');
+    } else {
+      print('❌ Verification Failed! Could not read saved data.');
+    }
+
+    print('\n=============== END PATCH SALE ORDER MESSAGE ===============\n');
+  } catch (e, st) {
+    print('🚨 ERROR in handlePatchSaleOrderMessage: $e');
+    print('📌 Stacktrace: $st');
+  }
+}
+
+Future<void> handlePatchSaleApprovalOrderMessage(
+  Map<String, dynamic> messageData,
+) async {
+  print('\n=============== HANDLE PATCH SALE APPROVAL ORDER ===============');
+  print('📥 Incoming Patch Message: $messageData');
+
+  try {
+    // STEP 1️⃣ Extract saleOrderNo
+    print('\n----------- STEP 1: Extract saleOrderNo -----------');
+
+    final saleOrderNo =
+        messageData['saleOrderNo']?.toString() ??
+        messageData['patchapprovalSaleOrder']?['saleOrderNo']?.toString();
+
+    print('🔍 Extracted saleOrderNo: $saleOrderNo');
+
+    if (saleOrderNo == null || saleOrderNo.isEmpty) {
+      print('⚠️ No saleOrderNo found. Stopping patch process.');
+      return;
+    }
+
+    // STEP 2️⃣ Extract patch data (NO inner .data)
+    print('\n----------- STEP 2: Extract Patch Data -----------');
+
+    final patchData = Map<String, dynamic>.from(
+      messageData['patchapprovalSaleOrder'] ?? {},
+    );
+
+    print('🟦 Patch Data Extracted: $patchData');
+
+    if (patchData.isEmpty) {
+      print('⚠️ Patch data is empty! Check incoming server data.');
+      return;
+    }
+
+    print('🔄 Patch Fields:');
+    patchData.forEach((key, value) {
+      print('   ➤ $key = $value');
+    });
+
+    // STEP 3️⃣ Access Hive box
+    print('\n----------- STEP 3: Access Hive Box -----------');
+
+    final saleOrderBox = HiveManager.salesApprovalOrder;
+    print('📦 Hive Box Loaded');
+    print('📊 Total Entries in Hive: ${saleOrderBox.length}');
+
+    // STEP 4️⃣ Locate the existing order
+    print('\n----------- STEP 4: Locate Existing Order -----------');
+
+    final allEntries = saleOrderBox.toMap();
+
+    final matchingEntry = allEntries.entries.firstWhere((entry) {
+      final entryMap = entry.value;
+
+      if (entryMap is Map &&
+          entryMap['saleOrderNo']?.toString() == saleOrderNo) {
+        return true;
+      }
+
+      return false;
+    }, orElse: () => const MapEntry('', null));
+
+    if (matchingEntry.key == '') {
+      print('❌ No matching Hive entry found for saleOrderNo: $saleOrderNo');
+      return;
+    }
+
+    print('✅ Matching Entry Found — Key: ${matchingEntry.key}');
+    print('📄 Existing Hive Value: ${matchingEntry.value}');
+
+    // STEP 5️⃣ Load existing order data
+    print('\n----------- STEP 5: Load Existing Order Data -----------');
+
+    final existingValue = Map<String, dynamic>.from(matchingEntry.value);
+    print('📄 Existing Data Before Merge: $existingValue');
+
+    // STEP 6️⃣ Merge patch into existing
+    print('\n----------- STEP 6: Merge Patch Data -----------');
+
+    patchData.forEach((key, value) {
+      print('✏️ Updating: $key → $value');
+      existingValue[key] = value;
+    });
+
+    print('🟢 Final Merged Data: $existingValue');
+
+    // STEP 7️⃣ Save updated order back to Hive
+    print('\n----------- STEP 7: Save Back to Hive -----------');
+
+    existingValue['lastUpdated'] = DateTime.now().toIso8601String();
+
+    await saleOrderBox.put(matchingEntry.key, existingValue);
+    print('💾 Hive Updated Successfully at Key: ${matchingEntry.key}');
+
+    // STEP 8️⃣ Verification
+    print('\n----------- STEP 8: Verify Saved Data -----------');
+
+    final savedOrder = saleOrderBox.get(matchingEntry.key);
+    print('🟩 Verification — Saved Order: $savedOrder');
+
+    print('\n=============== END PATCH SALE APPROVAL ORDER ===============\n');
+  } catch (e, st) {
+    print('🚨 ERROR in handlePatchSaleApprovalOrderMessage: $e');
+    print('📌 Stacktrace: $st');
+  }
 }
 
 Future<void> patchSaleOrder(Map<String, dynamic> patchData) async {

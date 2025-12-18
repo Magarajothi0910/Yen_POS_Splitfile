@@ -80,6 +80,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
+          backgroundColor: Colors.white,
           title: const Text(
             'ADD PRINTER',
             style: TextStyle(fontSize: 18),
@@ -112,6 +113,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
+                dropdownColor: Colors.white,
                 value: _selectedType,
                 onChanged: (String? newValue) {
                   setState(() {
@@ -334,6 +336,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                       itemBuilder: (context, index) {
                         final printer = printerProvider.printers[index];
                         return Card(
+                          color: Colors.white,
                           margin: const EdgeInsets.all(10.0),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
@@ -344,7 +347,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                               children: [
                                 const Icon(
                                   Icons.print,
-                                  color: Color(0xFFA5D6A7),
+                                  color: Colors.blue,
                                 ),
                                 const CustomSizedBox(width: 10),
                                 Text(
@@ -477,6 +480,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
+          backgroundColor: Colors.white,
           title: Text('Edit Printer - ${printer.name}'),
           content: SingleChildScrollView(
             child: Column(
@@ -503,6 +507,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                 ),
                 SizedBox(height: 16),
                 DropdownButtonFormField<String>(
+                  dropdownColor: Colors.white,
                   value: _selectedType,
                   onChanged: (String? newValue) {
                     setState(() {
@@ -531,7 +536,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: Text('Cancel'),
+              child: Text('Cancel',style: TextStyle(color: Colors.black),),
             ),
             ElevatedButton(
               onPressed: () {

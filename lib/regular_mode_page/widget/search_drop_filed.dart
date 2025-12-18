@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hive/hive.dart';
 import 'package:provider/provider.dart';
 import 'package:yenpos/Global/Provider/branchwise_item_fetch.dart';
 import 'package:yenpos/Global/Widget/custom_textWidgets.dart';
@@ -124,14 +125,14 @@ class _SearchDropdownState extends State<SearchDropdown> {
                                     ),
                                     hoverColor: Colors.blue.shade50,
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                    onTap: () {
+                                    onTap: () async {
                                       if (index < provider.filteredVarianceNames.length) {
                                         final selectedItem = provider.getVarianceDetails(varianceName);
                                         if (selectedItem != null) {
                                           final varianceData = provider.getVarianceDetails(varianceName);
-                                          final itemName = _getItemNameForVariance(varianceName) ?? 'Unknown Item';
+                                          final itemName = await _getItemNameForVariance(varianceName, aliasname) ?? 'Unknown Item';
                                           final varianceUOM = provider.getUOMForVariance(varianceName) ?? 'Unknown UOM';
-                                          _handleItemSelection(selectedItem, varianceData, itemName, varianceUOM);
+                                          await _handleItemSelection(selectedItem, varianceData, itemName, varianceUOM);
                                           _removeOverlay();
                                         }
                                       }
@@ -157,318 +158,262 @@ class _SearchDropdownState extends State<SearchDropdown> {
     );
   }
 
-  String? _getItemNameForVariance(String varianceName) {
-    final branchwiseItems = GlobalDataManager().branchwiseItems['data'];
-    if (branchwiseItems == null) {
-      print('DEBUG: _getItemNameForVariance - branchwiseItems[\'data\'] is null');
-      return null;
-    }
 
-    final items = branchwiseItems as Map<dynamic, dynamic>;
-    for (var entry in items.entries) {
-      final itemName = entry.key.toString();
-      final itemData = entry.value as Map<dynamic, dynamic>?;
-      if (itemData != null && itemData['variance'] != null) {
-        final varianceMap = itemData['variance'] as Map<dynamic, dynamic>;
-        if (varianceMap.values.any((v) => (v as Map<dynamic, dynamic>)['varianceName']?.toString() == varianceName)) {
-          return itemName;
-        }
-      }
-    }
-    print('DEBUG: _getItemNameForVariance - No item found for variance: $varianceName');
+  Future<String?> _getItemNameForVariance(String varianceName, String branchAlias) async {
+  // Open the Hive box
+  final lazyBox = await Hive.openBox('items');
+
+  // Fetch branchwiseItems from Hive for the current branch
+  final branchwiseData = (await lazyBox.get('branchwiseItems_$branchAlias'))?['data'] as Map<dynamic, dynamic>?;
+
+  if (branchwiseData == null) {
+    print('DEBUG: _getItemNameForVariance - branchwiseItems is null');
     return null;
   }
 
-  // void _handleItemSelection(
-  //   Map<String, dynamic> selectedItem,
-  //   Map<String, dynamic> varianceData,
-  //   String itemName,
-  //   String varianceUOM,
-  // ) {
-  //   final saleProvider = Provider.of<CurrentSaleProvider>(context, listen: false);
-  //   final bluetoothProvider2 = Provider.of<BluetoothProvider2>(context, listen: false);
+  for (var entry in branchwiseData.entries) {
+    final itemName = entry.key.toString();
+    final itemData = entry.value as Map<dynamic, dynamic>?;
 
-  //   String varianceName = selectedItem['varianceName'] ?? 'Unknown Variance';
-  //   String itemCode = varianceData['varianceItemCode']?.toString() ?? varianceName;
-  //   double price = (varianceData['branchwise']?['${aliasname}']?['Price_${aliasname}'] as num?)?.toDouble() ?? 0.0;
-  //   print('DEBUG: varianceData branchwise → ${jsonEncode(varianceData['branchwise'])}');
-  //   print('DEBUG: aliasname: $aliasname');
-
-  //   // Fetch itemData and system stock
-  //   Map<String, dynamic>? itemData;
-  //   double tax = 0.0;
-  //   double systemStock = 0.0;
-  //   final branchwiseItems = GlobalDataManager().branchwiseItems['data'] as Map<dynamic, dynamic>?;
-  //   if (itemName != 'Unknown Item' && branchwiseItems != null && branchwiseItems.containsKey(itemName)) {
-  //     final rawItemData = branchwiseItems[itemName]?['item'] as Map<dynamic, dynamic>?;
-  //     if (rawItemData != null) {
-  //       itemData = rawItemData.map((key, value) => MapEntry(key.toString(), value));
-  //       tax = (rawItemData['tax'] as num?)?.toDouble() ?? 0.0;
-  //     }
-  //     systemStock = (varianceData['branchwise']?['${aliasname}']?['systemStock_${aliasname}'] as num?)?.toDouble() ?? 0.0;
-  //   } else {
-  //     print('DEBUG: _handleItemSelection - Invalid itemName: $itemName or branchwiseItems[\'data\'] is null');
-  //   }
-
-  //   bool isWeightItem = (varianceUOM.toLowerCase() == 'kgs' || varianceUOM.toLowerCase() == 'kg');
-
-  //   print('DEBUG: _handleItemSelection - Variance Data: $varianceData');
-  //   print('DEBUG: _handleItemSelection - Item Data: $itemData');
-  //   print('DEBUG: _handleItemSelection - IsWeightItem: $isWeightItem, UOM: $varianceUOM, Tax: $tax, System Stock: $systemStock');
-  //   print('DEBUG: _handleItemSelection - Bluetooth Connected: ${bluetoothProvider2.isConnected}');
-
-  //   Map<String, dynamic> itemToAdd = {
-  //     'itemData': {
-  //       'itemId': itemData?['itemId']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
-  //       'itemName': itemName,
-  //       'itemCode': itemCode,
-  //       'tax': tax,
-  //       'item_Uom': varianceUOM,
-  //       'category': itemData?['category']?.toString() ?? varianceData['category']?.toString() ?? 'Unknown',
-  //     },
-  //     'varianceData': {
-  //       'varianceName': varianceName,
-  //       'variance_Defaultprice': price,
-  //       'variance_Uom': varianceUOM,
-  //       'variancetax': tax,
-  //       'varianceItemCode': itemCode,
-  //     },
-  //     'itemName': itemName,
-  //     'uom': varianceUOM,
-  //     'quantity': isWeightItem ? 1 : 1,
-  //     'weight': 0.0,
-  //     'itemCode': itemCode,
-  //     'tax': tax,
-  //     'itemWiseDiscountAmount': 0.0,
-  //     'itemWiseDiscount': 0.0,
-  //     'isBoxItem': 'no',
-  //     'totalPrice': price,
-  //   };
-
-  //   try {
-  //     if (isWeightItem) {
-  //       if (bluetoothProvider2.isConnected) {
-  //         _showBluetoothWeightDialog(context, itemName, varianceName, price, itemToAdd, saleProvider, systemStock);
-  //       } else {
-  //         _showNumericCalculatorDialog(context, varianceName, price, itemToAdd, saleProvider, systemStock);
-  //       }
-  //     } else if (varianceUOM == 'Pcs' || varianceUOM == 'Pkt') {
-  //       _showQuantityDialog(context, varianceName, price, itemToAdd, saleProvider, systemStock);
-  //     } else {
-  //       // For other item types, validate stock for quantity=1
-  //       if (1 > systemStock) {
-  //         _showErrorSnackbar(context, "Insufficient stock for $varianceName. Available: $systemStock.");
-  //         _clearSelection();
-  //         return;
-  //       }
-  //       print('DEBUG: _handleItemSelection - Adding default item: $itemToAdd');
-  //       saleProvider.addItemToCart(itemToAdd);
-  //       _showSuccessSnackbar(context, varianceName);
-  //     }
-  //   } catch (e) {
-  //     _showErrorSnackbar(context, e);
-  //   }
-
-  //   _clearSelection();
-  // }
-  //   void _handleItemSelection(
-  //   Map<String, dynamic> selectedItem,
-  //   Map<String, dynamic> varianceData,
-  //   String itemName,
-  //   String varianceUOM,
-  // ) {
-  //   final saleProvider = Provider.of<CurrentSaleProvider>(context, listen: false);
-  //   final bluetoothProvider2 = Provider.of<BluetoothProvider2>(context, listen: false);
-
-  //   String varianceName = selectedItem['varianceName'] ?? 'Unknown Variance';
-  //   String itemCode = varianceData['varianceItemCode']?.toString() ?? varianceName;
-  //   double price = (varianceData['branchwise']?['${aliasname}']?['Price_${aliasname}'] as num?)?.toDouble() ?? 0.0;
-
-  //   Map<String, dynamic>? itemData;
-  //   double tax = 0.0;
-  //   double systemStock = 0.0;
-
-  //   final branchwiseItems = GlobalDataManager().branchwiseItems['data'] as Map<dynamic, dynamic>?;
-  //   if (branchwiseItems != null && branchwiseItems.containsKey(itemName)) {
-  //     final rawItemData = branchwiseItems[itemName]?['item'] as Map<dynamic, dynamic>?;
-  //     if (rawItemData != null) {
-  //       itemData = rawItemData.map((key, value) => MapEntry(key.toString(), value));
-  //       tax = (rawItemData['tax'] as num?)?.toDouble() ?? 0.0;
-  //     }
-  //     systemStock = (varianceData['branchwise']?['${aliasname}']?['systemStock_${aliasname}'] as num?)?.toDouble() ?? 0.0;
-  //   }
-
-  //   bool isWeightItem = (varianceUOM.toLowerCase() == 'kgs' || varianceUOM.toLowerCase() == 'kg');
-
-  //   // ✅ Consistent itemId rule
-  //   String itemId = "${itemName}_${varianceName}";
-
-  //   Map<String, dynamic> itemToAdd = {
-  //     'itemData': {
-  //       'itemId': itemId,
-  //       'itemName': itemName,
-  //       'itemCode': itemCode,
-  //       'tax': tax,
-  //       'item_Uom': varianceUOM,
-  //       'category': itemData?['category']?.toString() ?? varianceData['category']?.toString() ?? 'Unknown',
-  //     },
-  //     'varianceData': {
-  //       'varianceName': varianceName,
-  //       'variance_Defaultprice': price,
-  //       'variance_Uom': varianceUOM,
-  //       'variancetax': tax,
-  //       'varianceItemCode': itemCode,
-  //     },
-  //     'itemName': itemName,
-  //     'uom': varianceUOM,
-  //     'quantity': 1,
-  //     'weight': 0.0,
-  //     'itemCode': itemCode,
-  //     'tax': tax,
-  //     'itemWiseDiscountAmount': 0.0,
-  //     'itemWiseDiscount': 0.0,
-  //     'isBoxItem': 'no',
-  //     'totalPrice': price,
-  //   };
-
-  //   try {
-  //     if (isWeightItem) {
-  //       if (bluetoothProvider2.isConnected) {
-  //         _showBluetoothWeightDialog(context, itemName, varianceName, price, itemToAdd, saleProvider, systemStock);
-  //       } else {
-  //         _showNumericCalculatorDialog(context, varianceName, price, itemToAdd, saleProvider, systemStock);
-  //       }
-  //     } else if (varianceUOM == 'Pcs' || varianceUOM == 'Pkt') {
-  //       _showQuantityDialog(context, varianceName, price, itemToAdd, saleProvider, systemStock);
-  //     } else {
-  //       if (1 > systemStock) {
-  //         _showErrorSnackbar(context, "Insufficient stock for $varianceName. Available: $systemStock.");
-  //         _clearSelection();
-  //         return;
-  //       }
-  //       saleProvider.addItemToCart(itemToAdd);
-  //       _showSuccessSnackbar(context, varianceName);
-  //     }
-  //   } catch (e) {
-  //     _showErrorSnackbar(context, e);
-  //   }
-
-  //   _clearSelection();
-  // }
-
-  void _handleItemSelection(
-    Map<String, dynamic> selectedItem,
-    Map<String, dynamic> varianceData,
-    String itemName,
-    String varianceUOM,
-  ) {
-    final saleProvider = Provider.of<CurrentSaleProvider>(context, listen: false);
-    final bluetoothProvider2 = Provider.of<BluetoothProvider2>(context, listen: false);
-
-    String varianceName = selectedItem['varianceName'] ?? 'Unknown Variance';
-    String itemCode = varianceData['varianceItemCode']?.toString() ?? varianceName;
-    double price = (varianceData['branchwise']?['${aliasname}']?['Price_${aliasname}'] as num?)?.toDouble() ?? 0.0;
-
-    Map<String, dynamic>? itemData;
-    double tax = 0.0;
-    double systemStock = 0.0;
-
-    final branchwiseItems = GlobalDataManager().branchwiseItems['data'] as Map<dynamic, dynamic>?;
-    if (branchwiseItems != null && branchwiseItems.containsKey(itemName)) {
-      final rawItemData = branchwiseItems[itemName]?['item'] as Map<dynamic, dynamic>?;
-      if (rawItemData != null) {
-        itemData = rawItemData.map((key, value) => MapEntry(key.toString(), value));
-        tax = (rawItemData['tax'] as num?)?.toDouble() ?? 0.0;
+    if (itemData != null && itemData['variance'] != null) {
+      final varianceMap = itemData['variance'] as Map<dynamic, dynamic>;
+      if (varianceMap.values.any((v) => (v as Map<dynamic, dynamic>)['varianceName']?.toString() == varianceName)) {
+        return itemName;
       }
-      systemStock = (varianceData['branchwise']?['${aliasname}']?['systemStock_${aliasname}'] as num?)?.toDouble() ?? 0.0;
-    }
-
-    bool isWeightItem = (varianceUOM.toLowerCase() == 'kgs' || varianceUOM.toLowerCase() == 'kg');
-
-    // Consistent itemId rule
-    String itemId = "${itemName}_${varianceName}";
-
-    // Base item structure
-    Map<String, dynamic> itemToAdd = {
-      'itemData': {
-        'itemId': itemId,
-        'itemName': itemName,
-        'itemCode': itemCode,
-        'tax': tax,
-        'item_Uom': varianceUOM,
-        'category': itemData?['category']?.toString() ?? varianceData['category']?.toString() ?? 'Unknown',
-      },
-      'varianceData': {
-        'varianceName': varianceName,
-        'variance_Defaultprice': price,
-        'variance_Uom': varianceUOM,
-        'variancetax': tax,
-        'varianceItemCode': itemCode,
-      },
-      'itemName': itemName,
-      'uom': varianceUOM,
-      'quantity': 1,
-      'weight': 0.0,
-      'itemCode': itemCode,
-      'tax': tax,
-      'itemWiseDiscountAmount': 0.0,
-      'itemWiseDiscount': 0.0,
-      'isBoxItem': 'no',
-      'totalPrice': price,
-    };
-
-    // Helper: Add to cart directly with qty = 1
-    void _addDirectlyToCart() {
-      if (1 > systemStock) {
-        _showErrorSnackbar(context, "Insufficient stock for $varianceName. Available: $systemStock.");
-        _clearSelection();
-        return;
-      }
-      saleProvider.addItemToCart(itemToAdd);
-      _showSuccessSnackbar(context, varianceName);
-      _clearSelection();
-    }
-
-    try {
-      if (isWeightItem) {
-        // Weight items: always show dialog (even if isCartEnabled)
-        if (bluetoothProvider2.isConnected) {
-          _showBluetoothWeightDialog(context, itemName, varianceName, price, itemToAdd, saleProvider, systemStock);
-        } else {
-          _showNumericCalculatorDialog(context, varianceName, price, itemToAdd, saleProvider, systemStock);
-        }
-      } else if (varianceUOM == 'Pcs' || varianceUOM == 'Pkt') {
-        // Quantity-based items
-        if (isCartEnabled) {
-          _addDirectlyToCart();
-        } else {
-          _showQuantityDialog(context, varianceName, price, itemToAdd, saleProvider, systemStock);
-        }
-      } else {
-        // Other UOMs (like Ltr, Ml, etc.) – previously added directly
-        if (isCartEnabled) {
-          _addDirectlyToCart();
-        } else {
-          if (1 > systemStock) {
-            _showErrorSnackbar(context, "Insufficient stock for $varianceName. Available: $systemStock.");
-            _clearSelection();
-            return;
-          }
-          saleProvider.addItemToCart(itemToAdd);
-          _showSuccessSnackbar(context, varianceName);
-        }
-      }
-    } catch (e) {
-      _showErrorSnackbar(context, e.toString());
-    }
-
-    // Final cleanup (only if not opening a dialog)
-    if (!isWeightItem && (isCartEnabled || !(varianceUOM == 'Pcs' || varianceUOM == 'Pkt'))) {
-      // Already cleared inside _addDirectlyToCart or success path
-    } else {
-      // Dialogs will handle their own cleanup
     }
   }
+
+  print('DEBUG: _getItemNameForVariance - No item found for variance: $varianceName');
+  return null;
+}
+
+
+//   Future<void> _handleItemSelection(
+//   Map<String, dynamic> selectedItem,
+//   Map<String, dynamic> varianceData,
+//   String itemName,
+//   String varianceUOM,
+// ) async {
+//   final saleProvider = Provider.of<CurrentSaleProvider>(context, listen: false);
+//   final bluetoothProvider2 = Provider.of<BluetoothProvider2>(context, listen: false);
+
+//   String varianceName = selectedItem['varianceName'] ?? 'Unknown Variance';
+//   String itemCode = varianceData['varianceItemCode']?.toString() ?? varianceName;
+//   double price = (varianceData['branchwise']?['${aliasname}']?['Price_${aliasname}'] as num?)?.toDouble() ?? 0.0;
+
+//   Map<String, dynamic>? itemData;
+//   double tax = 0.0;
+//   double systemStock = 0.0;
+
+//   // --- Fetch from Hive ---
+//   final lazyBox = await Hive.openBox('items');
+//   final branchwiseItemsData = await lazyBox.get('branchwiseItems_$aliasname');
+//   final branchwiseItems = branchwiseItemsData != null
+//       ? branchwiseItemsData['data'] as Map<dynamic, dynamic>?
+//       : null;
+
+//   if (branchwiseItems != null && branchwiseItems.containsKey(itemName)) {
+//     final rawItemData = branchwiseItems[itemName]?['item'] as Map<dynamic, dynamic>?;
+//     if (rawItemData != null) {
+//       itemData = rawItemData.map((key, value) => MapEntry(key.toString(), value));
+//       tax = (rawItemData['tax'] as num?)?.toDouble() ?? 0.0;
+//     }
+//     systemStock = (varianceData['branchwise']?['${aliasname}']?['systemStock_${aliasname}'] as num?)?.toDouble() ?? 0.0;
+//   }
+
+//     bool isWeightItem = (varianceUOM.toLowerCase() == 'kgs' || varianceUOM.toLowerCase() == 'kg');
+
+//     // Consistent itemId rule
+//     String itemId = "${itemName}_${varianceName}";
+
+//     // Base item structure
+//     Map<String, dynamic> itemToAdd = {
+//       'itemData': {
+//         'itemId': itemId,
+//         'itemName': itemName,
+//         'itemCode': itemCode,
+//         'tax': tax,
+//         'item_Uom': varianceUOM,
+//         'category': itemData?['category']?.toString() ?? varianceData['category']?.toString() ?? 'Unknown',
+//       },
+//       'varianceData': {
+//         'varianceName': varianceName,
+//         'variance_Defaultprice': price,
+//         'variance_Uom': varianceUOM,
+//         'variancetax': tax,
+//         'varianceItemCode': itemCode,
+//       },
+//       'itemName': itemName,
+//       'uom': varianceUOM,
+//       'quantity': 1,
+//       'weight': 0.0,
+//       'itemCode': itemCode,
+//       'tax': tax,
+//       'itemWiseDiscountAmount': 0.0,
+//       'itemWiseDiscount': 0.0,
+//       'isBoxItem': 'no',
+//       'totalPrice': price,
+//     };
+
+//     // Helper: Add to cart directly with qty = 1
+//     void _addDirectlyToCart() {
+//       if (1 > systemStock) {
+//         _showErrorSnackbar(context, "Insufficient stock for $varianceName. Available: $systemStock.");
+//         _clearSelection();
+//         return;
+//       }
+//       saleProvider.addItemToCart(itemToAdd);
+//       _showSuccessSnackbar(context, varianceName);
+//       _clearSelection();
+//     }
+
+//     try {
+//       if (isWeightItem) {
+//         // Weight items: always show dialog (even if isCartEnabled)
+//         if (bluetoothProvider2.isConnected) {
+//           _showBluetoothWeightDialog(context, itemName, varianceName, price, itemToAdd, saleProvider, systemStock);
+//         } else {
+//           _showNumericCalculatorDialog(context, varianceName, price, itemToAdd, saleProvider, systemStock);
+//         }
+//       } else if (varianceUOM == 'Pcs' || varianceUOM == 'Pkt') {
+//         // Quantity-based items
+//         if (isCartEnabled) {
+//           _addDirectlyToCart();
+//         } else {
+//           _showQuantityDialog(context, varianceName, price, itemToAdd, saleProvider, systemStock);
+//         }
+//       } else {
+//         // Other UOMs (like Ltr, Ml, etc.) – previously added directly
+//         if (isCartEnabled) {
+//           _addDirectlyToCart();
+//         } else {
+//           if (1 > systemStock) {
+//             _showErrorSnackbar(context, "Insufficient stock for $varianceName. Available: $systemStock.");
+//             _clearSelection();
+//             return;
+//           }
+//           saleProvider.addItemToCart(itemToAdd);
+//           _showSuccessSnackbar(context, varianceName);
+//         }
+//       }
+//     } catch (e) {
+//       _showErrorSnackbar(context, e.toString());
+//     }
+
+//     // Final cleanup (only if not opening a dialog)
+//     if (!isWeightItem && (isCartEnabled || !(varianceUOM == 'Pcs' || varianceUOM == 'Pkt'))) {
+//       // Already cleared inside _addDirectlyToCart or success path
+//     } else {
+//       // Dialogs will handle their own cleanup
+//     }
+//   }
+
+Future<void> _handleItemSelection(
+  Map<String, dynamic> selectedItem,
+  Map<String, dynamic> varianceData,
+  String itemName,
+  String varianceUOM,
+) async {
+  final saleProvider = Provider.of<CurrentSaleProvider>(context, listen: false);
+  final bluetoothProvider2 = Provider.of<BluetoothProvider2>(context, listen: false);
+
+  String varianceName = selectedItem['varianceName'] ?? 'Unknown Variance';
+  String itemCode = varianceData['varianceItemCode']?.toString() ?? varianceName;
+  double price = (varianceData['branchwise']?['${aliasname}']?['Price_${aliasname}'] as num?)?.toDouble() ?? 0.0;
+
+  Map<String, dynamic>? itemData;
+  double tax = 0.0;
+  double systemStock = 0.0;
+
+  // --- Fetch from Hive ---
+  final lazyBox = await Hive.openBox('items');
+  final branchwiseItemsData = await lazyBox.get('branchwiseItems_$aliasname');
+  final branchwiseItems = branchwiseItemsData != null
+      ? branchwiseItemsData['data'] as Map<dynamic, dynamic>?
+      : null;
+
+  if (branchwiseItems != null && branchwiseItems.containsKey(itemName)) {
+    final rawItemData = branchwiseItems[itemName]?['item'] as Map<dynamic, dynamic>?;
+    if (rawItemData != null) {
+      itemData = rawItemData.map((key, value) => MapEntry(key.toString(), value));
+      tax = (rawItemData['tax'] as num?)?.toDouble() ?? 0.0;
+    }
+    systemStock = (varianceData['branchwise']?['${aliasname}']?['systemStock_${aliasname}'] as num?)?.toDouble() ?? 0.0;
+  }
+
+  bool isWeightItem = (varianceUOM.toLowerCase() == 'kgs' || varianceUOM.toLowerCase() == 'kg');
+  String itemId = "${itemName}_$varianceName";
+
+  Map<String, dynamic> itemToAdd = {
+    'itemData': {
+      'itemId': itemId,
+      'itemName': itemName,
+      'itemCode': itemCode,
+      'tax': tax,
+      'item_Uom': varianceUOM,
+      'category': itemData?['category']?.toString() ?? varianceData['category']?.toString() ?? 'Unknown',
+    },
+    'varianceData': {
+      'varianceName': varianceName,
+      'variance_Defaultprice': price,
+      'variance_Uom': varianceUOM,
+      'variancetax': tax,
+      'varianceItemCode': itemCode,
+    },
+    'itemName': itemName,
+    'uom': varianceUOM,
+    'quantity': 1,
+    'weight': 0.0,
+    'itemCode': itemCode,
+    'tax': tax,
+    'itemWiseDiscountAmount': 0.0,
+    'itemWiseDiscount': 0.0,
+    'isBoxItem': 'no',
+    'totalPrice': price,
+  };
+
+  // Helper: Add directly to cart
+  void _addDirectlyToCart() {
+    if (1 > systemStock) {
+      _showErrorSnackbar(context, "Insufficient stock for $varianceName. Available: $systemStock.");
+      return;
+    }
+    saleProvider.addItemToCart(itemToAdd);
+    _showSuccessSnackbar(context, varianceName);
+  }
+
+  // CLEAR TEXT IMMEDIATELY AFTER SELECTION — THIS IS THE KEY FIX
+  _clearSelection();  // ADD THIS LINE HERE
+
+  try {
+    if (isWeightItem) {
+      if (bluetoothProvider2.isConnected) {
+        _showBluetoothWeightDialog(context, itemName, varianceName, price, itemToAdd, saleProvider, systemStock);
+      } else {
+        _showNumericCalculatorDialog(context, varianceName, price, itemToAdd, saleProvider, systemStock);
+      }
+    } else if (varianceUOM == 'Pcs' || varianceUOM == 'Pkt') {
+      if (isCartEnabled) {
+        _addDirectlyToCart();
+      } else {
+        _showQuantityDialog(context, varianceName, price, itemToAdd, saleProvider, systemStock);
+      }
+    } else {
+      if (isCartEnabled) {
+        _addDirectlyToCart();
+      } else {
+        if (1 > systemStock) {
+          _showErrorSnackbar(context, "Insufficient stock for $varianceName. Available: $systemStock.");
+          return;
+        }
+        saleProvider.addItemToCart(itemToAdd);
+        _showSuccessSnackbar(context, varianceName);
+      }
+    }
+  } catch (e) {
+    _showErrorSnackbar(context, e.toString());
+  }
+}
 
   void _showBluetoothWeightDialog(
     BuildContext context,
@@ -692,7 +637,7 @@ class _SearchDropdownState extends State<SearchDropdown> {
 
         final itemProvider = Provider.of<ItemProvider>(context, listen: false);
         final provider = Provider.of<RegularModeProvider>(context, listen: false);
-        final result = itemProvider.checkVarianceItemCode(itemCode);
+        final result = await itemProvider.checkVarianceItemCode(itemCode,aliasname);
 
         if (result.isNotEmpty) {
           final itemData = result.first;
@@ -700,7 +645,7 @@ class _SearchDropdownState extends State<SearchDropdown> {
           final selectedItem = provider.getVarianceDetails(varianceName);
           if (selectedItem != null) {
             final varianceData = provider.getVarianceDetails(varianceName);
-            final itemName = _getItemNameForVariance(varianceName) ?? 'Unknown Item';
+            final itemName = await _getItemNameForVariance(varianceName, aliasname) ?? 'Unknown Item';
             final varianceUOM = provider.getUOMForVariance(varianceName)?.toString() ?? 'Unknown UOM';
             // Validate stock for QR code scanned items
             double systemStock =
@@ -715,7 +660,7 @@ class _SearchDropdownState extends State<SearchDropdown> {
               );
               return;
             }
-            _handleItemSelection(selectedItem, varianceData, itemName, varianceUOM);
+            await _handleItemSelection(selectedItem, varianceData, itemName, varianceUOM);
           } else {
             ScaffoldMessenger.of(
               context,
@@ -848,3 +793,233 @@ class _SearchDropdownState extends State<SearchDropdown> {
     );
   }
 }
+
+
+
+
+  // void _handleItemSelection(
+  //   Map<String, dynamic> selectedItem,
+  //   Map<String, dynamic> varianceData,
+  //   String itemName,
+  //   String varianceUOM,
+  // ) {
+  //   final saleProvider = Provider.of<CurrentSaleProvider>(context, listen: false);
+  //   final bluetoothProvider2 = Provider.of<BluetoothProvider2>(context, listen: false);
+
+  //   String varianceName = selectedItem['varianceName'] ?? 'Unknown Variance';
+  //   String itemCode = varianceData['varianceItemCode']?.toString() ?? varianceName;
+  //   double price = (varianceData['branchwise']?['${aliasname}']?['Price_${aliasname}'] as num?)?.toDouble() ?? 0.0;
+  //   print('DEBUG: varianceData branchwise → ${jsonEncode(varianceData['branchwise'])}');
+  //   print('DEBUG: aliasname: $aliasname');
+
+  //   // Fetch itemData and system stock
+  //   Map<String, dynamic>? itemData;
+  //   double tax = 0.0;
+  //   double systemStock = 0.0;
+  //   final branchwiseItems = GlobalDataManager().branchwiseItems['data'] as Map<dynamic, dynamic>?;
+  //   if (itemName != 'Unknown Item' && branchwiseItems != null && branchwiseItems.containsKey(itemName)) {
+  //     final rawItemData = branchwiseItems[itemName]?['item'] as Map<dynamic, dynamic>?;
+  //     if (rawItemData != null) {
+  //       itemData = rawItemData.map((key, value) => MapEntry(key.toString(), value));
+  //       tax = (rawItemData['tax'] as num?)?.toDouble() ?? 0.0;
+  //     }
+  //     systemStock = (varianceData['branchwise']?['${aliasname}']?['systemStock_${aliasname}'] as num?)?.toDouble() ?? 0.0;
+  //   } else {
+  //     print('DEBUG: _handleItemSelection - Invalid itemName: $itemName or branchwiseItems[\'data\'] is null');
+  //   }
+
+  //   bool isWeightItem = (varianceUOM.toLowerCase() == 'kgs' || varianceUOM.toLowerCase() == 'kg');
+
+  //   print('DEBUG: _handleItemSelection - Variance Data: $varianceData');
+  //   print('DEBUG: _handleItemSelection - Item Data: $itemData');
+  //   print('DEBUG: _handleItemSelection - IsWeightItem: $isWeightItem, UOM: $varianceUOM, Tax: $tax, System Stock: $systemStock');
+  //   print('DEBUG: _handleItemSelection - Bluetooth Connected: ${bluetoothProvider2.isConnected}');
+
+  //   Map<String, dynamic> itemToAdd = {
+  //     'itemData': {
+  //       'itemId': itemData?['itemId']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
+  //       'itemName': itemName,
+  //       'itemCode': itemCode,
+  //       'tax': tax,
+  //       'item_Uom': varianceUOM,
+  //       'category': itemData?['category']?.toString() ?? varianceData['category']?.toString() ?? 'Unknown',
+  //     },
+  //     'varianceData': {
+  //       'varianceName': varianceName,
+  //       'variance_Defaultprice': price,
+  //       'variance_Uom': varianceUOM,
+  //       'variancetax': tax,
+  //       'varianceItemCode': itemCode,
+  //     },
+  //     'itemName': itemName,
+  //     'uom': varianceUOM,
+  //     'quantity': isWeightItem ? 1 : 1,
+  //     'weight': 0.0,
+  //     'itemCode': itemCode,
+  //     'tax': tax,
+  //     'itemWiseDiscountAmount': 0.0,
+  //     'itemWiseDiscount': 0.0,
+  //     'isBoxItem': 'no',
+  //     'totalPrice': price,
+  //   };
+
+  //   try {
+  //     if (isWeightItem) {
+  //       if (bluetoothProvider2.isConnected) {
+  //         _showBluetoothWeightDialog(context, itemName, varianceName, price, itemToAdd, saleProvider, systemStock);
+  //       } else {
+  //         _showNumericCalculatorDialog(context, varianceName, price, itemToAdd, saleProvider, systemStock);
+  //       }
+  //     } else if (varianceUOM == 'Pcs' || varianceUOM == 'Pkt') {
+  //       _showQuantityDialog(context, varianceName, price, itemToAdd, saleProvider, systemStock);
+  //     } else {
+  //       // For other item types, validate stock for quantity=1
+  //       if (1 > systemStock) {
+  //         _showErrorSnackbar(context, "Insufficient stock for $varianceName. Available: $systemStock.");
+  //         _clearSelection();
+  //         return;
+  //       }
+  //       print('DEBUG: _handleItemSelection - Adding default item: $itemToAdd');
+  //       saleProvider.addItemToCart(itemToAdd);
+  //       _showSuccessSnackbar(context, varianceName);
+  //     }
+  //   } catch (e) {
+  //     _showErrorSnackbar(context, e);
+  //   }
+
+  //   _clearSelection();
+  // }
+  //   void _handleItemSelection(
+  //   Map<String, dynamic> selectedItem,
+  //   Map<String, dynamic> varianceData,
+  //   String itemName,
+  //   String varianceUOM,
+  // ) {
+  //   final saleProvider = Provider.of<CurrentSaleProvider>(context, listen: false);
+  //   final bluetoothProvider2 = Provider.of<BluetoothProvider2>(context, listen: false);
+
+  //   String varianceName = selectedItem['varianceName'] ?? 'Unknown Variance';
+  //   String itemCode = varianceData['varianceItemCode']?.toString() ?? varianceName;
+  //   double price = (varianceData['branchwise']?['${aliasname}']?['Price_${aliasname}'] as num?)?.toDouble() ?? 0.0;
+
+  //   Map<String, dynamic>? itemData;
+  //   double tax = 0.0;
+  //   double systemStock = 0.0;
+
+  //   final branchwiseItems = GlobalDataManager().branchwiseItems['data'] as Map<dynamic, dynamic>?;
+  //   if (branchwiseItems != null && branchwiseItems.containsKey(itemName)) {
+  //     final rawItemData = branchwiseItems[itemName]?['item'] as Map<dynamic, dynamic>?;
+  //     if (rawItemData != null) {
+  //       itemData = rawItemData.map((key, value) => MapEntry(key.toString(), value));
+  //       tax = (rawItemData['tax'] as num?)?.toDouble() ?? 0.0;
+  //     }
+  //     systemStock = (varianceData['branchwise']?['${aliasname}']?['systemStock_${aliasname}'] as num?)?.toDouble() ?? 0.0;
+  //   }
+
+  //   bool isWeightItem = (varianceUOM.toLowerCase() == 'kgs' || varianceUOM.toLowerCase() == 'kg');
+
+  //   // ✅ Consistent itemId rule
+  //   String itemId = "${itemName}_${varianceName}";
+
+  //   Map<String, dynamic> itemToAdd = {
+  //     'itemData': {
+  //       'itemId': itemId,
+  //       'itemName': itemName,
+  //       'itemCode': itemCode,
+  //       'tax': tax,
+  //       'item_Uom': varianceUOM,
+  //       'category': itemData?['category']?.toString() ?? varianceData['category']?.toString() ?? 'Unknown',
+  //     },
+  //     'varianceData': {
+  //       'varianceName': varianceName,
+  //       'variance_Defaultprice': price,
+  //       'variance_Uom': varianceUOM,
+  //       'variancetax': tax,
+  //       'varianceItemCode': itemCode,
+  //     },
+  //     'itemName': itemName,
+  //     'uom': varianceUOM,
+  //     'quantity': 1,
+  //     'weight': 0.0,
+  //     'itemCode': itemCode,
+  //     'tax': tax,
+  //     'itemWiseDiscountAmount': 0.0,
+  //     'itemWiseDiscount': 0.0,
+  //     'isBoxItem': 'no',
+  //     'totalPrice': price,
+  //   };
+
+  //   try {
+  //     if (isWeightItem) {
+  //       if (bluetoothProvider2.isConnected) {
+  //         _showBluetoothWeightDialog(context, itemName, varianceName, price, itemToAdd, saleProvider, systemStock);
+  //       } else {
+  //         _showNumericCalculatorDialog(context, varianceName, price, itemToAdd, saleProvider, systemStock);
+  //       }
+  //     } else if (varianceUOM == 'Pcs' || varianceUOM == 'Pkt') {
+  //       _showQuantityDialog(context, varianceName, price, itemToAdd, saleProvider, systemStock);
+  //     } else {
+  //       if (1 > systemStock) {
+  //         _showErrorSnackbar(context, "Insufficient stock for $varianceName. Available: $systemStock.");
+  //         _clearSelection();
+  //         return;
+  //       }
+  //       saleProvider.addItemToCart(itemToAdd);
+  //       _showSuccessSnackbar(context, varianceName);
+  //     }
+  //   } catch (e) {
+  //     _showErrorSnackbar(context, e);
+  //   }
+
+  //   _clearSelection();
+  // }
+
+  // void _handleItemSelection(
+  //   Map<String, dynamic> selectedItem,
+  //   Map<String, dynamic> varianceData,
+  //   String itemName,
+  //   String varianceUOM,
+  // ) {
+  //   final saleProvider = Provider.of<CurrentSaleProvider>(context, listen: false);
+  //   final bluetoothProvider2 = Provider.of<BluetoothProvider2>(context, listen: false);
+
+  //   String varianceName = selectedItem['varianceName'] ?? 'Unknown Variance';
+  //   String itemCode = varianceData['varianceItemCode']?.toString() ?? varianceName;
+  //   double price = (varianceData['branchwise']?['${aliasname}']?['Price_${aliasname}'] as num?)?.toDouble() ?? 0.0;
+
+  //   Map<String, dynamic>? itemData;
+  //   double tax = 0.0;
+  //   double systemStock = 0.0;
+
+  //   final branchwiseItems = GlobalDataManager().branchwiseItems['data'] as Map<dynamic, dynamic>?;
+    
+  //   if (branchwiseItems != null && branchwiseItems.containsKey(itemName)) {
+  //     final rawItemData = branchwiseItems[itemName]?['item'] as Map<dynamic, dynamic>?;
+  //     if (rawItemData != null) {
+  //       itemData = rawItemData.map((key, value) => MapEntry(key.toString(), value));
+  //       tax = (rawItemData['tax'] as num?)?.toDouble() ?? 0.0;
+  //     }
+  //     systemStock = (varianceData['branchwise']?['${aliasname}']?['systemStock_${aliasname}'] as num?)?.toDouble() ?? 0.0;
+  //   }
+
+    // String? _getItemNameForVariance(String varianceName) {
+  //   final branchwiseItems = GlobalDataManager().branchwiseItems['data'];
+  //   if (branchwiseItems == null) {
+  //     print('DEBUG: _getItemNameForVariance - branchwiseItems[\'data\'] is null');
+  //     return null;
+  //   }
+
+  //   final items = branchwiseItems as Map<dynamic, dynamic>;
+  //   for (var entry in items.entries) {
+  //     final itemName = entry.key.toString();
+  //     final itemData = entry.value as Map<dynamic, dynamic>?;
+  //     if (itemData != null && itemData['variance'] != null) {
+  //       final varianceMap = itemData['variance'] as Map<dynamic, dynamic>;
+  //       if (varianceMap.values.any((v) => (v as Map<dynamic, dynamic>)['varianceName']?.toString() == varianceName)) {
+  //         return itemName;
+  //       }
+  //     }
+  //   }
+  //   print('DEBUG: _getItemNameForVariance - No item found for variance: $varianceName');
+  //   return null;
+  // }

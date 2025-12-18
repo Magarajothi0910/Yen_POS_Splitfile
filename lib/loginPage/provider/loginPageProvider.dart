@@ -9,6 +9,7 @@ class LoginProvider with ChangeNotifier {
   final TextEditingController userNameController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
 
+
   bool _isSigningIn = false;
   String? _authToken;
   String? _loggedInUserName;

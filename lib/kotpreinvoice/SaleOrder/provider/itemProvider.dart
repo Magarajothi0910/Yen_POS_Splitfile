@@ -11,8 +11,7 @@ class ItemProvider with ChangeNotifier {
   // List<Map<String, dynamic>> _originalMixboxItems = [];
   List<String> _filteredVarianceNames = []; // For search results
   List<String> _varianceNames = []; // List of variance names
-  List<String> get varianceNames =>
-      _varianceNames; // Getter to access variance names
+  List<String> get varianceNames => _varianceNames; // Getter to access variance names
   List<Map<String, dynamic>> _birthdayCakeItems = []; // Add this line
 
   List<Map<String, dynamic>> get birthdayCakeItems => _birthdayCakeItems;
@@ -28,13 +27,9 @@ class ItemProvider with ChangeNotifier {
 
     try {
       // ✅ Fetch from API if not already in Hive
-      if (branchAlias != null &&
-          (appType == 'server' || appType == '') &&
-          !lazyBox.containsKey('branchwiseItems_$branchAlias')) {
+      if (branchAlias != null && (appType == 'server' || appType == '') && !lazyBox.containsKey('branchwiseItems_$branchAlias')) {
         try {
-          var response = await dio.get(
-            'https://yenerp.com/fastapi/branchwiseitems/?branch_alias=$branchAlias',
-          );
+          var response = await dio.get('https://yenerp.com/fastapi/branchwiseitems/?branch_alias=$branchAlias');
 
           if (response.statusCode == 200) {
             var jsonData = response.data;
@@ -54,8 +49,7 @@ class ItemProvider with ChangeNotifier {
               final itemName = itemEntry.key;
               final itemDetails = itemEntry.value;
 
-              final variances =
-                  itemDetails['variance'] as Map<String, dynamic>?;
+              final variances = itemDetails['variance'] as Map<String, dynamic>?;
 
               if (variances != null) {
                 for (var varianceEntry in variances.entries) {
@@ -63,53 +57,31 @@ class ItemProvider with ChangeNotifier {
                   final varianceData = varianceEntry.value;
                   final String? itemCode = varianceData['varianceitemCode'];
 
-                  final branchData =
-                      (varianceData['branchwise'] as Map?)?[branchAlias];
+                  final branchData = (varianceData['branchwise'] as Map?)?[branchAlias];
 
                   if (itemCode != null && branchData != null) {
                     final localStockKey = 'localStock_${branchAlias}_$itemCode';
-                    final localHiveStock =
-                        branchData['localHiveStock_$branchAlias'];
+                    final localHiveStock = branchData['localHiveStock_$branchAlias'];
 
                     if (localHiveStock != null) {
                       // ✅ Update localStockBox
                       await localStockBox.put(localStockKey, localHiveStock);
-                      print(
-                        '🔁 Updated localStockBox for $itemCode: $localHiveStock',
-                      );
+                      print('🔁 Updated localStockBox for $itemCode: $localHiveStock');
 
                       // ✅ Update inside branchwiseItems Hive too
-                      final currentGlobalData = await lazyBox.get(
-                        'branchwiseItems_$branchAlias',
-                      );
+                      final currentGlobalData = await lazyBox.get('branchwiseItems_$branchAlias');
                       if (currentGlobalData != null) {
-                        final dataMap = Map<String, dynamic>.from(
-                          currentGlobalData,
-                        );
-                        final itemMap = Map<String, dynamic>.from(
-                          dataMap['data'],
-                        );
+                        final dataMap = Map<String, dynamic>.from(currentGlobalData);
+                        final itemMap = Map<String, dynamic>.from(dataMap['data']);
                         if (itemMap.containsKey(itemName)) {
-                          final itemDetailsMap = Map<String, dynamic>.from(
-                            itemMap[itemName],
-                          );
-                          final varianceMap = Map<String, dynamic>.from(
-                            itemDetailsMap['variance'],
-                          );
+                          final itemDetailsMap = Map<String, dynamic>.from(itemMap[itemName]);
+                          final varianceMap = Map<String, dynamic>.from(itemDetailsMap['variance']);
                           if (varianceMap.containsKey(varianceName)) {
-                            final varianceDataMap = Map<String, dynamic>.from(
-                              varianceMap[varianceName],
-                            );
-                            final branchwiseMap = Map<String, dynamic>.from(
-                              varianceDataMap['branchwise'],
-                            );
+                            final varianceDataMap = Map<String, dynamic>.from(varianceMap[varianceName]);
+                            final branchwiseMap = Map<String, dynamic>.from(varianceDataMap['branchwise']);
                             if (branchwiseMap.containsKey(branchAlias)) {
-                              final updatedBranchData =
-                                  Map<String, dynamic>.from(
-                                    branchwiseMap[branchAlias],
-                                  );
-                              updatedBranchData['localHiveStock_$branchAlias'] =
-                                  localHiveStock;
+                              final updatedBranchData = Map<String, dynamic>.from(branchwiseMap[branchAlias]);
+                              updatedBranchData['localHiveStock_$branchAlias'] = localHiveStock;
                               branchwiseMap[branchAlias] = updatedBranchData;
                               varianceDataMap['branchwise'] = branchwiseMap;
                               varianceMap[varianceName] = varianceDataMap;
@@ -117,15 +89,10 @@ class ItemProvider with ChangeNotifier {
                               itemMap[itemName] = itemDetailsMap;
                               dataMap['data'] = itemMap;
 
-                              await lazyBox.put(
-                                'branchwiseItems_$branchAlias',
-                                dataMap,
-                              );
+                              await lazyBox.put('branchwiseItems_$branchAlias', dataMap);
                               GlobalDataManager().branchwiseItems = dataMap;
 
-                              print(
-                                '✅ Synced localHiveStock_$branchAlias for $itemCode in Hive',
-                              );
+                              print('✅ Synced localHiveStock_$branchAlias for $itemCode in Hive');
                             }
                           }
                         }
@@ -147,9 +114,7 @@ class ItemProvider with ChangeNotifier {
         }
       } else {
         // ✅ Load from Hive if already present
-        GlobalDataManager().branchwiseItems = await lazyBox.get(
-          'branchwiseItems_$branchAlias',
-        );
+        GlobalDataManager().branchwiseItems = await lazyBox.get('branchwiseItems_$branchAlias');
         _extractVarianceNames(GlobalDataManager().branchwiseItems);
         _filteredVarianceNames = _varianceNames;
         print("📦 Loaded branchwiseItems from Hive for $branchAlias");
@@ -186,11 +151,7 @@ class ItemProvider with ChangeNotifier {
     return box.get(key);
   }
 
-  Future<void> updateLocalStock(
-    String branchAlias,
-    String itemCode,
-    int newStock,
-  ) async {
+  Future<void> updateLocalStock(String branchAlias, String itemCode, int newStock) async {
     final box = await Hive.box('localStockBox');
     final key = 'localStock_${branchAlias}_$itemCode';
     await box.put(key, newStock);
@@ -204,16 +165,12 @@ class ItemProvider with ChangeNotifier {
   /// Return the variance-item-code (FGxxxx) for a given variance name,
   /// or null if not found.
   String? varianceCodeForName(String varianceName) {
-    final data = _convertMap(
-      GlobalDataManager().branchwiseItems['data'] as Map<dynamic, dynamic>?,
-    );
+    final data = _convertMap(GlobalDataManager().branchwiseItems['data'] as Map<dynamic, dynamic>?);
     if (data == null) return null;
 
     for (final item in data.values) {
       final itemMap = _convertMap(item as Map<dynamic, dynamic>?);
-      final variances = _convertMap(
-        itemMap?['variance'] as Map<dynamic, dynamic>?,
-      );
+      final variances = _convertMap(itemMap?['variance'] as Map<dynamic, dynamic>?);
       if (variances == null) continue;
 
       for (final v in variances.values) {
@@ -275,9 +232,7 @@ class ItemProvider with ChangeNotifier {
 
   List<String> getBranchNames() {
     if (GlobalDataManager().branches is List) {
-      return (GlobalDataManager().branches as List)
-          .map((branch) => branch['branchName'] as String)
-          .toList();
+      return (GlobalDataManager().branches as List).map((branch) => branch['branchName'] as String).toList();
     }
     return [];
   }
@@ -312,11 +267,7 @@ class ItemProvider with ChangeNotifier {
     }
   }
 
-  void printData(
-    dynamic data, {
-    required String dataType,
-    required bool isNewData,
-  }) {
+  void printData(dynamic data, {required String dataType, required bool isNewData}) {
     if (isNewData) {
       print('New $dataType data fetched and saved: $data');
     } else {
@@ -389,7 +340,7 @@ class ItemProvider with ChangeNotifier {
                 "itemData": itemData,
                 "varianceData": varianceData,
                 "quantity": 1,
-              },
+              }
             ];
           }
         }

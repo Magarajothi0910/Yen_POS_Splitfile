@@ -11,6 +11,8 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:yenpos/Global/global_data_manager.dart';
 import 'package:yenpos/Global/globals_data.dart';
+import 'package:yenpos/Hive_Manager/hive_manager_saleOrder.dart';
+import 'package:yenpos/invoice_pay_and_print_page.dart/widgets/pending_print.dart';
 
 import 'dart:developer' as developer;
 
@@ -71,82 +73,35 @@ class ReceiptPrinter {
     double customCharge = cartProvider.customCharge;
 
     final settings = GlobalDataManager().billReceiptSettings;
-    final printerProvider = Provider.of<PrinterProviderpos>(context, listen: false);
+    final printerProvider = Provider.of<PrinterProviderpos>(
+      context,
+      listen: false,
+    );
 
     String printerIp = printerProvider.getOverallPrinterIp().toString();
 
     final profile = await CapabilityProfile.load();
     final printer = NetworkPrinter(PaperSize.mm80, profile);
 
-    final PosPrintResult res = await printer.connect("192.168.1.87", port: 9100);
+    final PosPrintResult res = await printer.connect(printerIp, port: 9100);
     bool hasHoldBills = cartItems.any((item) => item['status'] == 'hold');
 
     if (hasHoldBills) {
-      developer.log('Yes, there are hold bills in the cart.', name: 'PrintReceiptLog');
+      developer.log(
+        'Yes, there are hold bills in the cart.',
+        name: 'PrintReceiptLog',
+      );
     } else {
-      developer.log('No hold bills found in the cart.', name: 'PrintReceiptLog');
+      developer.log(
+        'No hold bills found in the cart.',
+        name: 'PrintReceiptLog',
+      );
     }
 
     if (res == PosPrintResult.success) {
       List<int> bytes = [];
       final generator = Generator(PaperSize.mm80, profile);
-      try {
-        final box = Hive.box('logo');
-        final Uint8List? imageBytes = box.get('BMlogo_bytes');
-        final String? logoName = box.get('BMlogo_name');
-        final String? logoPath = box.get('BMlogo_path');
 
-        if (imageBytes != null) {
-          print("✅ Loaded logo from Hive ($logoName) | Size: ${imageBytes.lengthInBytes} bytes");
-          final img.Image? logo = img.decodeImage(imageBytes);
-
-          if (logo != null) {
-            print("🖼 Original Logo: ${logo.width}x${logo.height}");
-            final img.Image whiteBg = img.Image(logo.width, logo.height);
-            img.fill(whiteBg, img.getColor(255, 255, 255));
-            img.copyInto(whiteBg, logo, blend: true);
-
-            final img.Image gray = img.grayscale(whiteBg);
-            img.Image binaryThreshold(img.Image src, int threshold) {
-              final out = img.Image.from(src);
-              for (int y = 0; y < out.height; y++) {
-                for (int x = 0; x < out.width; x++) {
-                  final int p = out.getPixel(x, y);
-                  final int r = img.getRed(p);
-                  final int g = img.getGreen(p);
-                  final int b = img.getBlue(p);
-                  final int lum = ((r * 299 + g * 587 + b * 114) ~/ 1000);
-                  if (lum < threshold) {
-                    out.setPixelRgba(x, y, 0, 0, 0, 255);
-                  } else {
-                    out.setPixelRgba(x, y, 255, 255, 255, 255);
-                  }
-                }
-              }
-              return out;
-            }
-
-            final img.Image thresholded = binaryThreshold(gray, 180);
-            final img.Image resized = img.copyResize(thresholded, width: 250);
-            final int remainder = resized.height % 8;
-            img.Image aligned = resized;
-            if (remainder != 0) {
-              final int newHeight = resized.height + (8 - remainder);
-              aligned = img.Image(resized.width, newHeight);
-              img.fill(aligned, img.getColor(255, 255, 255));
-              img.copyInto(aligned, resized, dstY: 0);
-            }
-
-            bytes += generator.image(aligned, align: PosAlign.center);
-            print("🖨 Sent logo image to printer");
-          }
-        } else {
-          print("⚠️ Logo not found in Hive!");
-        }
-      } catch (e, st) {
-        print('🛑 Logo Print Error: $e');
-        print(st);
-      }
       bytes += generator.row([
         createPosColumn(
           width: 2,
@@ -261,8 +216,10 @@ class ReceiptPrinter {
       }
 
       double grossTotal = originalSubTotal;
-      double discountPercentage = double.tryParse(discountController.text) ?? 0.0;
-      double discountAmount = (grossTotal * (discountPercentage / 100)).toDouble();
+      double discountPercentage =
+          double.tryParse(discountController.text) ?? 0.0;
+      double discountAmount = (grossTotal * (discountPercentage / 100))
+          .toDouble();
       double discountedGrossTotal = grossTotal - discountAmount;
 
       Map<double, double> cgstMap = {};
@@ -272,7 +229,8 @@ class ReceiptPrinter {
       if (isGSTEnabled) {
         itemTotalsMap.forEach((taxRate, grossWithTax) {
           double proportion = grossWithTax / grossTotal;
-          double discountedGrossForRate = grossWithTax - (discountAmount * proportion);
+          double discountedGrossForRate =
+              grossWithTax - (discountAmount * proportion);
 
           double netForRate = discountedGrossForRate / (1 + (taxRate / 100));
           double taxForRate = discountedGrossForRate - netForRate;
@@ -285,10 +243,14 @@ class ReceiptPrinter {
         });
       }
 
-      double totalNetAmount = isGSTEnabled ? netMap.values.fold(0.0, (a, b) => a + b) : discountedGrossTotal;
+      double totalNetAmount = isGSTEnabled
+          ? netMap.values.fold(0.0, (a, b) => a + b)
+          : discountedGrossTotal;
       double totalCGST = cgstMap.values.fold(0.0, (a, b) => a + b);
       double totalSGST = sgstMap.values.fold(0.0, (a, b) => a + b);
-      double discountedTotal = isGSTEnabled ? totalNetAmount + totalCGST + totalSGST : discountedGrossTotal;
+      double discountedTotal = isGSTEnabled
+          ? totalNetAmount + totalCGST + totalSGST
+          : discountedGrossTotal;
       final custom = double.tryParse(customChargeController.text) ?? 0.0;
       double receivedAmount = cashAmount + cardAmount + upiAmount;
       double finalTotal = discountedTotal + custom;
@@ -300,8 +262,10 @@ class ReceiptPrinter {
         final item = cartItems[i];
 
         final String itemName = item['itemData']['itemName'] ?? 'N/A';
-        final String varianceName = item['varianceData']['varianceName'] ?? 'N/A';
-        final double price = item['varianceData']['variance_Defaultprice']?.toDouble() ?? 0.0;
+        final String varianceName =
+            item['varianceData']['varianceName'] ?? 'N/A';
+        final double price =
+            item['varianceData']['variance_Defaultprice']?.toDouble() ?? 0.0;
         final double weight = (item['weight'] ?? 0.0).toDouble();
         final double qty = (item['quantity'] as num).toDouble();
         final double orig_amount = cartProvider.calculateItemTotal(item);
@@ -352,7 +316,10 @@ class ReceiptPrinter {
         developer.log('Card Amount: $cardAmount');
         developer.log('UPI Amount: $upiAmount');
 
-        List<String> itemNameLines = splitText(item['varianceData']['varianceName'] ?? '', 15);
+        List<String> itemNameLines = splitText(
+          item['varianceData']['varianceName'] ?? '',
+          15,
+        );
 
         bytes += generator.row([
           createPosColumn(
@@ -383,7 +350,10 @@ class ReceiptPrinter {
               createPosColumn(
                 width: 11,
                 text: itemNameLines[j],
-                styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
+                styles: createPosStyles(
+                  align: PosAlign.left,
+                  codeTable: 'CP1252',
+                ),
               ),
               // createPosColumn(
               //   width: 3,
@@ -412,17 +382,27 @@ class ReceiptPrinter {
             createPosColumn(
               width: 1,
               text: '',
-              styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
+              styles: createPosStyles(
+                align: PosAlign.left,
+                codeTable: 'CP1252',
+              ),
             ),
             createPosColumn(
               width: 8,
-              text: "Disc Amt($discountPercentage%): Rs ${item_discount_amt.toStringAsFixed(2)}",
-              styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
+              text:
+                  "Disc Amt($discountPercentage%): Rs ${item_discount_amt.toStringAsFixed(2)}",
+              styles: createPosStyles(
+                align: PosAlign.left,
+                codeTable: 'CP1252',
+              ),
             ),
             createPosColumn(
               width: 3,
               text: "Rs ${item_disc_amount.toStringAsFixed(2)}",
-              styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
+              styles: createPosStyles(
+                align: PosAlign.right,
+                codeTable: 'CP1252',
+              ),
             ),
           ]);
         } else {
@@ -435,12 +415,18 @@ class ReceiptPrinter {
             createPosColumn(
               width: 8,
               text: priceDescription,
-              styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
+              styles: createPosStyles(
+                align: PosAlign.left,
+                codeTable: 'CP1252',
+              ),
             ),
             createPosColumn(
               width: 3,
               text: "Rs ${orig_amount.toStringAsFixed(2)}",
-              styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
+              styles: createPosStyles(
+                align: PosAlign.right,
+                codeTable: 'CP1252',
+              ),
             ),
           ]);
         }
@@ -472,7 +458,8 @@ class ReceiptPrinter {
           ),
           createPosColumn(
             width: 8,
-            text: "Disc Amt($discountPercentage%): Rs ${discountAmount.toStringAsFixed(2)}",
+            text:
+                "Disc Amt($discountPercentage%): Rs ${discountAmount.toStringAsFixed(2)}",
             styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
           ),
           createPosColumn(
@@ -517,7 +504,12 @@ class ReceiptPrinter {
         createPosColumn(
           width: 12,
           text: 'TOTAL Rs ${total.round().toString()}',
-          styles: PosStyles(align: PosAlign.right, codeTable: 'CP1252', width: PosTextSize.size2, bold: true),
+          styles: PosStyles(
+            align: PosAlign.right,
+            codeTable: 'CP1252',
+            width: PosTextSize.size2,
+            bold: true,
+          ),
         ),
       ]);
 
@@ -528,28 +520,48 @@ class ReceiptPrinter {
           createPosColumn(
             width: 12,
             text: '****************************************',
-            styles: PosStyles(align: PosAlign.center, codeTable: 'CP1252', width: PosTextSize.size1, bold: true),
+            styles: PosStyles(
+              align: PosAlign.center,
+              codeTable: 'CP1252',
+              width: PosTextSize.size1,
+              bold: true,
+            ),
           ),
         ]);
         bytes += generator.row([
           createPosColumn(
             width: 12,
             text: 'You Saved in this Purchase!',
-            styles: PosStyles(align: PosAlign.center, codeTable: 'CP1252', width: PosTextSize.size1, bold: true),
+            styles: PosStyles(
+              align: PosAlign.center,
+              codeTable: 'CP1252',
+              width: PosTextSize.size1,
+              bold: true,
+            ),
           ),
         ]);
         bytes += generator.row([
           createPosColumn(
             width: 12,
             text: 'RS ${discountAmount.toStringAsFixed(2)}',
-            styles: PosStyles(align: PosAlign.center, codeTable: 'CP1252', width: PosTextSize.size2, bold: true),
+            styles: PosStyles(
+              align: PosAlign.center,
+              codeTable: 'CP1252',
+              width: PosTextSize.size2,
+              bold: true,
+            ),
           ),
         ]);
         bytes += generator.row([
           createPosColumn(
             width: 12,
             text: '****************************************',
-            styles: PosStyles(align: PosAlign.center, codeTable: 'CP1252', width: PosTextSize.size1, bold: true),
+            styles: PosStyles(
+              align: PosAlign.center,
+              codeTable: 'CP1252',
+              width: PosTextSize.size1,
+              bold: true,
+            ),
           ),
         ]);
       }
@@ -561,7 +573,11 @@ class ReceiptPrinter {
         createPosColumn(
           width: 12,
           text: "Payment Details",
-          styles: PosStyles(bold: true, codeTable: 'CP1252', align: PosAlign.left),
+          styles: PosStyles(
+            bold: true,
+            codeTable: 'CP1252',
+            align: PosAlign.left,
+          ),
         ),
       ]);
       bytes += generator.feed(1);
@@ -576,7 +592,10 @@ class ReceiptPrinter {
           createPosColumn(
             width: 2,
             text: ":",
-            styles: createPosStyles(align: PosAlign.center, codeTable: 'CP1252'),
+            styles: createPosStyles(
+              align: PosAlign.center,
+              codeTable: 'CP1252',
+            ),
           ),
           createPosColumn(
             width: 5,
@@ -595,7 +614,10 @@ class ReceiptPrinter {
           createPosColumn(
             width: 2,
             text: ":",
-            styles: createPosStyles(align: PosAlign.center, codeTable: 'CP1252'),
+            styles: createPosStyles(
+              align: PosAlign.center,
+              codeTable: 'CP1252',
+            ),
           ),
           createPosColumn(
             width: 5,
@@ -614,7 +636,10 @@ class ReceiptPrinter {
           createPosColumn(
             width: 2,
             text: ":",
-            styles: createPosStyles(align: PosAlign.center, codeTable: 'CP1252'),
+            styles: createPosStyles(
+              align: PosAlign.center,
+              codeTable: 'CP1252',
+            ),
           ),
           createPosColumn(
             width: 5,
@@ -667,7 +692,11 @@ class ReceiptPrinter {
           createPosColumn(
             width: 12,
             text: "Invoice Breakup",
-            styles: PosStyles(bold: true, codeTable: 'CP1252', align: PosAlign.left),
+            styles: PosStyles(
+              bold: true,
+              codeTable: 'CP1252',
+              align: PosAlign.left,
+            ),
           ),
         ]);
         bytes += generator.feed(1);
@@ -681,7 +710,10 @@ class ReceiptPrinter {
           createPosColumn(
             width: 2,
             text: ":",
-            styles: createPosStyles(align: PosAlign.center, codeTable: 'CP1252'),
+            styles: createPosStyles(
+              align: PosAlign.center,
+              codeTable: 'CP1252',
+            ),
           ),
           createPosColumn(
             width: 5,
@@ -697,24 +729,38 @@ class ReceiptPrinter {
             createPosColumn(
               text: "GST($rate%)}",
               width: 6,
-              styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
+              styles: createPosStyles(
+                align: PosAlign.left,
+                codeTable: 'CP1252',
+              ),
             ),
             createPosColumn(
               text: "${gst.toStringAsFixed(2)}",
               width: 6,
-              styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
+              styles: createPosStyles(
+                align: PosAlign.right,
+                codeTable: 'CP1252',
+              ),
             ),
           ]);
           bytes += generator.row([
             createPosColumn(
-              text: "SGST(${(rate / 2).toStringAsFixed(1)}%): ${sgstAmount.toStringAsFixed(2)}",
+              text:
+                  "SGST(${(rate / 2).toStringAsFixed(1)}%): ${sgstAmount.toStringAsFixed(2)}",
               width: 6,
-              styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
+              styles: createPosStyles(
+                align: PosAlign.left,
+                codeTable: 'CP1252',
+              ),
             ),
             createPosColumn(
-              text: "CGST(${(rate / 2).toStringAsFixed(1)}%): ${cgstAmount.toStringAsFixed(2)}",
+              text:
+                  "CGST(${(rate / 2).toStringAsFixed(1)}%): ${cgstAmount.toStringAsFixed(2)}",
               width: 6,
-              styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
+              styles: createPosStyles(
+                align: PosAlign.left,
+                codeTable: 'CP1252',
+              ),
             ),
           ]);
         });
@@ -724,7 +770,11 @@ class ReceiptPrinter {
         createPosColumn(
           width: 12,
           text: 'TOTAL Rs ${total.round().toStringAsFixed(2)}',
-          styles: PosStyles(align: PosAlign.right, codeTable: 'CP1252', width: PosTextSize.size1),
+          styles: PosStyles(
+            align: PosAlign.right,
+            codeTable: 'CP1252',
+            width: PosTextSize.size1,
+          ),
         ),
       ]);
 
@@ -734,20 +784,29 @@ class ReceiptPrinter {
         createPosColumn(
           width: 12,
           text: 'Thank You ! Visit Again !',
-          styles: PosStyles(align: PosAlign.center, codeTable: 'CP1252', bold: true),
+          styles: PosStyles(
+            align: PosAlign.center,
+            codeTable: 'CP1252',
+            bold: true,
+          ),
         ),
       ]);
 
       bytes += generator.feed(1);
 
-      List<String> addressLines = splitAddress("No.72, Salai Bazaar, Ramanathapuram, Tamil Nadu-623501");
+      List<String> addressLines = splitAddress(
+        "No.72, Salai Bazaar, Ramanathapuram, Tamil Nadu-623501",
+      );
 
       for (int i = 0; i < addressLines.length; i++) {
         bytes += generator.row([
           createPosColumn(
             width: 12,
             text: addressLines[i],
-            styles: createPosStyles(align: PosAlign.center, codeTable: 'CP1252'),
+            styles: createPosStyles(
+              align: PosAlign.center,
+              codeTable: 'CP1252',
+            ),
           ),
         ]);
       }
@@ -778,17 +837,73 @@ class ReceiptPrinter {
       printer.cut();
 
       printer.disconnect();
+      // Optional: Remove from pending if it was there (in case of retry)
+      //final pendingBox = Hive.box<PendingPrintInvoice>('pending_prints');
+      // final pendingBox = HiveService().pendingBox;
+      // await pendingBox.delete(newInvoiceNumber); // Use the same key!
+      developer.log(
+        'Print successful for $newInvoiceNumber',
+        name: 'PrintReceiptLog',
+      );
     } else {
       developer.log('Printer connection failed: $res', name: 'PrintReceiptLog');
-      // await saveInvoiceToHiveAndPrint();
+      // final pendingBox = Hive.box<PendingPrintInvoice>('pending_prints');
+      //  final pendingBox = HiveService().pendingBox;
+
+      //  final printData = {
+      //     'employeeNumberController': employeeNumberController,
+      //     'customerNumberController': customerNumberController.text,
+      //     'discountController': discountController.text,
+      //     'customChargeController': customChargeController.text,
+      //     'selectedPaymentOptionValue': selectedPaymentOptionValue,
+      //     'totalAmount': totalAmount,
+      //     'selectedPaymentOption': selectedPaymentOption,
+      //     'discountAmount': discountAmount,
+      //     'invoiceNo': invoiceNo,
+      //     'cashAmount': cashAmount,
+      //     'cardAmount': cardAmount,
+      //     'upiAmount': upiAmount,
+      //     'newInvoiceNumber': newInvoiceNumber,
+
+      //     // CRITICAL: Save cart + settings
+      //     'cartItems': cartItems.map((e) => Map<String, dynamic>.from(e)).toList(),
+      //     'discountPercentage': discountPercentage,
+      //     'customCharge': customCharge,
+      //     //'isGSTEnabled': GlobalDataManager().isGSTEnabled, // or your global flag
+      //   };
+
+      //   final pendingInvoice = PendingPrintInvoice(
+      //     invoiceNo: newInvoiceNumber,
+      //     timestamp: DateTime.now(),
+      //     printData: printData,
+      //   );
+
+      //   await pendingBox.put(newInvoiceNumber, pendingInvoice);
+
+      //   ScaffoldMessenger.of(context).showSnackBar(
+      //     SnackBar(
+      //       content: Text("Printer offline! Bill $newInvoiceNumber saved for reprint."),
+      //       backgroundColor: Colors.orange[700],
+      //       duration: Duration(seconds: 6),
+      //     ),
+      //   );
+
+      printer.disconnect();
     }
   }
 
-  Future<img.Image> textWithStrikeImage({required String snoText, required String itemName, required String amountText}) async {
+  Future<img.Image> textWithStrikeImage({
+    required String snoText,
+    required String itemName,
+    required String amountText,
+  }) async {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
 
-    final textStyle = TextStyle(color: const ui.Color(0xFF000000), fontSize: 24);
+    final textStyle = TextStyle(
+      color: const ui.Color(0xFF000000),
+      fontSize: 24,
+    );
 
     final textPainter1 = TextPainter(
       text: TextSpan(text: "$snoText$itemName", style: textStyle),
@@ -809,7 +924,11 @@ class ReceiptPrinter {
     final itemOffset = 0.0;
     final amountOffsetX = fixedWidth - textPainter2.width;
 
-    final totalHeight = (textPainter1.height > textPainter2.height ? textPainter1.height : textPainter2.height).ceil();
+    final totalHeight =
+        (textPainter1.height > textPainter2.height
+                ? textPainter1.height
+                : textPainter2.height)
+            .ceil();
 
     textPainter1.paint(canvas, ui.Offset(itemOffset, 0));
     textPainter2.paint(canvas, ui.Offset(amountOffsetX, 0));
@@ -818,7 +937,11 @@ class ReceiptPrinter {
       ..color = const ui.Color(0xFF000000)
       ..strokeWidth = 2;
     final lineY = textPainter2.height / 2;
-    canvas.drawLine(ui.Offset(amountOffsetX, lineY), ui.Offset(amountOffsetX + textPainter2.width, lineY), linePaint);
+    canvas.drawLine(
+      ui.Offset(amountOffsetX, lineY),
+      ui.Offset(amountOffsetX + textPainter2.width, lineY),
+      linePaint,
+    );
 
     final picture = recorder.endRecording();
     final imgUi = await picture.toImage(fixedWidth.ceil(), totalHeight);
@@ -868,7 +991,6 @@ class ReceiptPrinter {
     }
 
     lines.add(remainingText);
-
 
     return lines;
   }
@@ -1419,3 +1541,62 @@ class ReceiptPrinter {
 //     return '$timestamp-$randomId';
 //   }
 // }
+
+
+  // try {
+      //   final box = Hive.box('logo');
+      //   final Uint8List? imageBytes = box.get('BMlogo_bytes');
+      //   final String? logoName = box.get('BMlogo_name');
+      //   final String? logoPath = box.get('BMlogo_path');
+
+      //   if (imageBytes != null) {
+      //     print("✅ Loaded logo from Hive ($logoName) | Size: ${imageBytes.lengthInBytes} bytes");
+      //     final img.Image? logo = img.decodeImage(imageBytes);
+
+      //     if (logo != null) {
+      //       print("🖼 Original Logo: ${logo.width}x${logo.height}");
+      //       final img.Image whiteBg = img.Image(logo.width, logo.height);
+      //       img.fill(whiteBg, img.getColor(255, 255, 255));
+      //       img.copyInto(whiteBg, logo, blend: true);
+
+      //       final img.Image gray = img.grayscale(whiteBg);
+      //       img.Image binaryThreshold(img.Image src, int threshold) {
+      //         final out = img.Image.from(src);
+      //         for (int y = 0; y < out.height; y++) {
+      //           for (int x = 0; x < out.width; x++) {
+      //             final int p = out.getPixel(x, y);
+      //             final int r = img.getRed(p);
+      //             final int g = img.getGreen(p);
+      //             final int b = img.getBlue(p);
+      //             final int lum = ((r * 299 + g * 587 + b * 114) ~/ 1000);
+      //             if (lum < threshold) {
+      //               out.setPixelRgba(x, y, 0, 0, 0, 255);
+      //             } else {
+      //               out.setPixelRgba(x, y, 255, 255, 255, 255);
+      //             }
+      //           }
+      //         }
+      //         return out;
+      //       }
+
+      //       final img.Image thresholded = binaryThreshold(gray, 180);
+      //       final img.Image resized = img.copyResize(thresholded, width: 250);
+      //       final int remainder = resized.height % 8;
+      //       img.Image aligned = resized;
+      //       if (remainder != 0) {
+      //         final int newHeight = resized.height + (8 - remainder);
+      //         aligned = img.Image(resized.width, newHeight);
+      //         img.fill(aligned, img.getColor(255, 255, 255));
+      //         img.copyInto(aligned, resized, dstY: 0);
+      //       }
+
+      //       bytes += generator.image(aligned, align: PosAlign.center);
+      //       print("🖨 Sent logo image to printer");
+      //     }
+      //   } else {
+      //     print("⚠️ Logo not found in Hive!");
+      //   }
+      // } catch (e, st) {
+      //   print('🛑 Logo Print Error: $e');
+      //   print(st);
+      // }

@@ -15,7 +15,6 @@ import '../../Global/Widget/custom_textWidgets.dart';
 import 'package:intl/intl.dart';
 import 'dart:developer' as developer;
 
-
 class SalesInvoicePayAndPrint extends StatefulWidget {
   final double totalAmount;
   final String holdBillId; // Added holdBillId to identify the bill
@@ -69,13 +68,17 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
     super.initState();
     _channel = WebSocketChannel.connect(
       Uri.parse(
-          'ws://$serverip:$port'), // Replace `port` with your WebSocket server's port
+        'ws://$serverip:$port',
+      ), // Replace `port` with your WebSocket server's port
     );
 
     // Add a listener for WebSocket messages if needed
-    _channel.stream.listen((data) {}, onError: (error) {
-      // print('WebSocket error: $error');
-    });
+    _channel.stream.listen(
+      (data) {},
+      onError: (error) {
+        // print('WebSocket error: $error');
+      },
+    );
     cashOptions.addAll(_generateCashOptions(widget.totalAmount));
     _balanceAmount =
         widget.totalAmount; // Initially, balance equals the total amount
@@ -103,7 +106,8 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
       bool isPaymentOptionSelected = _selectedPaymentOption.isNotEmpty;
 
       // Enable the print button only if all conditions are met
-      _isPrintButtonEnabled = isEmployeeSelected &&
+      _isPrintButtonEnabled =
+          isEmployeeSelected &&
           isCustomerNumberValid &&
           isPaymentOptionSelected;
     });
@@ -140,9 +144,10 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
     });
   }
 
-// Method to get employee suggestions from Hive based on the query
+  // Method to get employee suggestions from Hive based on the query
   Future<List<Map<String, dynamic>>> _fetchEmployeeSuggestions(
-      String query) async {
+    String query,
+  ) async {
     var box = await Hive.openBox('employeeBox');
     final List<Map<String, dynamic>> employees =
         List<Map<String, dynamic>>.from(box.get('employees', defaultValue: []));
@@ -159,16 +164,16 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
     }).toList();
   }
 
-// Set to track invoices that have been sent to prevent duplicates
+  // Set to track invoices that have been sent to prevent duplicates
   Set<String> _sentInvoices = {};
 
-// Function to load the sent invoices from Hive
+  // Function to load the sent invoices from Hive
   Future<void> loadSentInvoices() async {
     var box = await Hive.openBox('sentInvoicesBox');
     _sentInvoices = Set<String>.from(box.get('sentInvoices', defaultValue: []));
   }
 
-// Function to save the sent invoices to Hive
+  // Function to save the sent invoices to Hive
   Future<void> saveSentInvoices() async {
     var box = await Hive.openBox('sentInvoicesBox');
     await box.put('sentInvoices', _sentInvoices.toList());
@@ -181,7 +186,7 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
     } catch (e) {}
   }
 
-    Future<void> saveInvoiceToHiveAndPrint1() async {
+  Future<void> saveInvoiceToHiveAndPrint1() async {
     // Step 1: Generate a unique HiveInvoiceId
     String hiveInvoiceId = _invoiceService.generateShortHiveInvoiceId();
 
@@ -203,7 +208,8 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
       itemNames.add(item['itemData']['itemName'] ?? 'N/A');
       varianceNames.add(item['varianceData']['varianceName'] ?? 'N/A');
       prices.add(
-          item['varianceData']['variance_Defaultprice']?.toDouble() ?? 0.0);
+        item['varianceData']['variance_Defaultprice']?.toDouble() ?? 0.0,
+      );
       weights.add((item['weight'] ?? 0.0).toDouble());
       quantities.add((item['quantity'] as num).toDouble());
       amounts.add(cartProvider.calculateItemTotal(item).toDouble());
@@ -215,9 +221,9 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
         double.tryParse(_discountController.text) ?? 0.0;
     double discountAmount = (widget.totalAmount * (discountPercentage / 100));
 
-// Round and format the discount amount
+    // Round and format the discount amount
 
-// Helper function to round and format discount amount
+    // Helper function to round and format discount amount
     double _roundDiscountAmount(double amount) {
       return (amount * 10).round() / 10.0; // Rounds to the nearest tenth
     }
@@ -231,8 +237,8 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
         '$formattedDate-${widget.totalAmount}-${_customerNumberController.text}';
 
     var invoiceNumberGenerator = InvoiceNumberGenerator();
-    String newInvoiceNumber =
-        await invoiceNumberGenerator.generateInvoiceNumber();
+    String newInvoiceNumber = await invoiceNumberGenerator
+        .generateInvoiceNumber();
     setState(() {
       invoiceNumber = newInvoiceNumber;
     });
@@ -288,9 +294,11 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
 
     // Step 5: Save the invoice to Hive only if it doesn't already exist
     var box = await Hive.openBox('invoiceBox');
-    bool exists = box.values.any((invoice) =>
-        invoice is Map<String, dynamic> &&
-        invoice['uniqueIdentifier'] == uniqueIdentifier);
+    bool exists = box.values.any(
+      (invoice) =>
+          invoice is Map<String, dynamic> &&
+          invoice['uniqueIdentifier'] == uniqueIdentifier,
+    );
 
     if (!exists) {
       await box.add(invoiceData);
@@ -298,7 +306,6 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
     } else {}
     // ignore: unused_local_variable
     await sendInvoiceDataToServer(invoiceData);
-    
   }
 
   Future<void> printInvoiceData() async {
@@ -314,11 +321,14 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
   }
 
   Future<void> updateInvoice(
-      String invoiceId, Map<String, dynamic> updatedFields) async {
+    String invoiceId,
+    Map<String, dynamic> updatedFields,
+  ) async {
     var box = await Hive.openBox('invoiceBox');
     if (box.containsKey(invoiceId)) {
-      Map<String, dynamic> currentInvoice =
-          box.get(invoiceId).cast<String, dynamic>();
+      Map<String, dynamic> currentInvoice = box
+          .get(invoiceId)
+          .cast<String, dynamic>();
       // Update fields
       currentInvoice.addAll(updatedFields);
 
@@ -327,8 +337,10 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
   }
 
   void _applyDiscount(String discount) {
-    final saleProvider =
-        Provider.of<CurrentSaleProvider>(context, listen: false);
+    final saleProvider = Provider.of<CurrentSaleProvider>(
+      context,
+      listen: false,
+    );
     setState(() {
       double discountValue = double.tryParse(discount) ?? 0.0;
       saleProvider.discountPercentage = discountValue;
@@ -341,8 +353,10 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
   // Method to calculate balance based on selected payment
   void _updateBalance() {
     // ignore: unused_local_variable
-    final saleProvider =
-        Provider.of<CurrentSaleProvider>(context, listen: false);
+    final saleProvider = Provider.of<CurrentSaleProvider>(
+      context,
+      listen: false,
+    );
 
     // Convert the integer payment values to double explicitly
     double totalPayments =
@@ -377,7 +391,8 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
 
       // Enable the print button if the balance is zero or negative
       // and if all required fields are filled
-      _isPrintButtonEnabled = _balanceAmount <= 0 &&
+      _isPrintButtonEnabled =
+          _balanceAmount <= 0 &&
           _employeeNumberController.text.isNotEmpty &&
           _customerNumberController.text.isNotEmpty;
     });
@@ -385,8 +400,8 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
 
   List<String> _generateCashOptions(double amount) {
     List<String> options = [];
-    int exactAmount =
-        amount.ceil(); // Ensure it covers the total even if it's a fraction
+    int exactAmount = amount
+        .ceil(); // Ensure it covers the total even if it's a fraction
     options.add(exactAmount.toString()); // Add exact amount
 
     // Determine the next immediate round figure close to the exact amount
@@ -407,8 +422,6 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
     // Ensure we have exactly three distinct options (this is to handle edge cases where amounts could overlap)
     return options.toSet().toList();
   }
-
-
 
   void _selectPaymentOption(String method, String amount) {
     setState(() {
@@ -514,7 +527,8 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
         child: TextField(
           controller: controller,
           keyboardType: TextInputType.numberWithOptions(
-              decimal: true), // Allow decimal input
+            decimal: true,
+          ), // Allow decimal input
           decoration: InputDecoration(
             border: const OutlineInputBorder(),
             labelText: 'Custom Cash Amount', // Custom label for clarity
@@ -533,7 +547,8 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
         child: TextField(
           controller: controller,
           keyboardType: TextInputType.numberWithOptions(
-              decimal: true), // Allow decimal input
+            decimal: true,
+          ), // Allow decimal input
           decoration: InputDecoration(
             border: const OutlineInputBorder(),
             labelText: 'Custom UPI Amount', // Custom label for clarity
@@ -552,7 +567,8 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
         child: TextField(
           controller: controller,
           keyboardType: TextInputType.numberWithOptions(
-              decimal: true), // Allow decimal input
+            decimal: true,
+          ), // Allow decimal input
           decoration: InputDecoration(
             border: const OutlineInputBorder(),
             labelText: 'Custom Card Amount', // Custom label for clarity
@@ -571,7 +587,8 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
         child: TextField(
           controller: controller,
           keyboardType: TextInputType.numberWithOptions(
-              decimal: true), // Allow decimal input
+            decimal: true,
+          ), // Allow decimal input
           decoration: InputDecoration(
             border: const OutlineInputBorder(),
             labelText: 'Custom Amount', // Custom label for clarity
@@ -593,14 +610,13 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
           },
           style: ButtonStyle(
             backgroundColor: WidgetStateProperty.resolveWith<Color>(
-                (states) => isSelected ? Colors.blue : Colors.white),
+              (states) => isSelected ? Colors.blue : Colors.white,
+            ),
             foregroundColor: WidgetStateProperty.resolveWith<Color>(
-                (states) => isSelected ? Colors.white : Colors.blue),
+              (states) => isSelected ? Colors.white : Colors.blue,
+            ),
           ),
-          child: CustomText(
-            text: amount,
-            style: const TextStyle(fontSize: 16),
-          ),
+          child: CustomText(text: amount, style: const TextStyle(fontSize: 16)),
         ),
       );
     }
@@ -692,8 +708,10 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
 
   bool get _showCakeFields {
     // Get the provider without listening for changes (or with listen: true if you want rebuilds)
-    final saleProvider =
-        Provider.of<CurrentSaleProvider>(context, listen: false);
+    final saleProvider = Provider.of<CurrentSaleProvider>(
+      context,
+      listen: false,
+    );
     return saleProvider.currentSaleItems.any((item) {
       final data = item['itemData'];
       if (data == null) return false;
@@ -750,8 +768,10 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
-                                borderSide:
-                                    BorderSide(color: Colors.blue, width: 2),
+                                borderSide: BorderSide(
+                                  color: Colors.blue,
+                                  width: 2,
+                                ),
                               ),
                               contentPadding: const EdgeInsets.symmetric(
                                 vertical: 15,
@@ -781,7 +801,8 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
 
                                   return ListTile(
                                     title: Text(
-                                        '${employee['employeeNumber']} - ${employee['firstName']}'),
+                                      '${employee['employeeNumber']} - ${employee['firstName']}',
+                                    ),
                                     onTap: () => _selectEmployee(employee),
                                   );
                                 },
@@ -805,8 +826,10 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
-                            borderSide:
-                                BorderSide(color: Colors.blue, width: 2),
+                            borderSide: BorderSide(
+                              color: Colors.blue,
+                              width: 2,
+                            ),
                           ),
                           contentPadding: const EdgeInsets.symmetric(
                             vertical: 15,
@@ -820,9 +843,7 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
                     ),
                   ],
                 ),
-                const SizedBox(
-                  height: 10,
-                ),
+                const SizedBox(height: 10),
                 if (_showCakeFields)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -842,8 +863,10 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: Colors.blue, width: 2),
+                              borderSide: BorderSide(
+                                color: Colors.blue,
+                                width: 2,
+                              ),
                             ),
                             contentPadding: const EdgeInsets.symmetric(
                               vertical: 15,
@@ -856,12 +879,14 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
                               _discountController.text = value.substring(0, 2);
                               _discountController.selection =
                                   TextSelection.fromPosition(
-                                TextPosition(
-                                    offset: _discountController.text.length),
-                              );
+                                    TextPosition(
+                                      offset: _discountController.text.length,
+                                    ),
+                                  );
                             }
-                            _applyDiscount(_discountController
-                                .text); // Apply discount and update total
+                            _applyDiscount(
+                              _discountController.text,
+                            ); // Apply discount and update total
                           },
                         ),
                       ),
@@ -879,8 +904,10 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: Colors.blue, width: 2),
+                              borderSide: BorderSide(
+                                color: Colors.blue,
+                                width: 2,
+                              ),
                             ),
                             contentPadding: const EdgeInsets.symmetric(
                               vertical: 15,
@@ -891,9 +918,9 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
                             // Show the date picker when the user taps on the field.
                             final DateTime? picked = await showDatePicker(
                               context: context,
-                              initialDate: _selectedBirthday ??
-                                  DateTime
-                                      .now(), // Use current date if none selected.
+                              initialDate:
+                                  _selectedBirthday ??
+                                  DateTime.now(), // Use current date if none selected.
                               firstDate: DateTime(1900),
                               lastDate: DateTime.now(),
                               builder: (context, child) {
@@ -919,18 +946,17 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
                             if (picked != null) {
                               setState(() {
                                 _selectedBirthday = picked;
-                                _birthdayController.text =
-                                    DateFormat('dd-MM-yyyy').format(picked);
+                                _birthdayController.text = DateFormat(
+                                  'dd-MM-yyyy',
+                                ).format(picked);
                               });
                             }
                           },
                         ),
-                      )
+                      ),
                     ],
                   ),
-                const SizedBox(
-                  height: 10,
-                ),
+                const SizedBox(height: 10),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -949,8 +975,10 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
-                            borderSide:
-                                BorderSide(color: Colors.blue, width: 2),
+                            borderSide: BorderSide(
+                              color: Colors.blue,
+                              width: 2,
+                            ),
                           ),
                           contentPadding: const EdgeInsets.symmetric(
                             vertical: 15,
@@ -963,12 +991,14 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
                             _discountController.text = value.substring(0, 2);
                             _discountController.selection =
                                 TextSelection.fromPosition(
-                              TextPosition(
-                                  offset: _discountController.text.length),
-                            );
+                                  TextPosition(
+                                    offset: _discountController.text.length,
+                                  ),
+                                );
                           }
-                          _applyDiscount(_discountController
-                              .text); // Apply discount and update total
+                          _applyDiscount(
+                            _discountController.text,
+                          ); // Apply discount and update total
                         },
                       ),
                     ),
@@ -988,8 +1018,10 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
-                            borderSide:
-                                BorderSide(color: Colors.blue, width: 2),
+                            borderSide: BorderSide(
+                              color: Colors.blue,
+                              width: 2,
+                            ),
                           ),
                           contentPadding: const EdgeInsets.symmetric(
                             vertical: 15,
@@ -999,14 +1031,15 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
                         onChanged: (value) {
                           double charge =
                               double.tryParse(_customChargeController.text) ??
-                                  0.0;
-                          Provider.of<CurrentSaleProvider>(context,
-                                  listen: false)
-                              .customCharge = charge;
+                              0.0;
+                          Provider.of<CurrentSaleProvider>(
+                            context,
+                            listen: false,
+                          ).customCharge = charge;
                           _updateBalance(); // Recalculate balance whenever custom charge changes
                         },
                       ),
-                    )
+                    ),
                   ],
                 ),
                 const CustomSizedBox(height: 20),
@@ -1042,21 +1075,27 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
                           : Colors.grey,
                     ), // Button is blue if both conditions are true, grey otherwise
                     foregroundColor: WidgetStateProperty.all<Color>(
-                        Colors.white), // Text color
+                      Colors.white,
+                    ), // Text color
                     padding: WidgetStateProperty.all<EdgeInsets>(
                       const EdgeInsets.symmetric(
-                          horizontal: 30.0, vertical: 18.0), // Padding
+                        horizontal: 30.0,
+                        vertical: 18.0,
+                      ), // Padding
                     ),
                     shape: WidgetStateProperty.all<RoundedRectangleBorder>(
                       RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(8.0), // Rounded corners
+                        borderRadius: BorderRadius.circular(
+                          8.0,
+                        ), // Rounded corners
                       ),
                     ),
-                    elevation:
-                        WidgetStateProperty.all<double>(5.0), // Elevation
+                    elevation: WidgetStateProperty.all<double>(
+                      5.0,
+                    ), // Elevation
                   ),
-                  onPressed: (_selectedEmployeeFirstName != null &&
+                  onPressed:
+                      (_selectedEmployeeFirstName != null &&
                           _customerNumberController.text.length == 10)
                       ? _printReceiptDetails
                       : null, // Enable the button only when both conditions are true
@@ -1076,7 +1115,7 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
     );
   }
 
-// Widget for displaying employee suggestions dropdown
+  // Widget for displaying employee suggestions dropdown
   Widget _buildEmployeeSuggestionsDropdown() {
     return Container(
       height: 200, // Set a fixed height for the dropdown
@@ -1088,7 +1127,8 @@ class _SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
           final employee = _employeeSuggestions[index];
           return ListTile(
             title: Text(
-                '${employee['employeeNumber']} - ${employee['firstName']}'),
+              '${employee['employeeNumber']} - ${employee['firstName']}',
+            ),
             onTap: () => _selectEmployee(employee),
           );
         },
@@ -1103,8 +1143,9 @@ class CustomNumberInputFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    final regExp =
-        RegExp(r'^[6-9][0-9]{0,9}$'); // Starts with 6-9, up to 10 digits
+    final regExp = RegExp(
+      r'^[6-9][0-9]{0,9}$',
+    ); // Starts with 6-9, up to 10 digits
 
     // Check if the new value is empty to allow clearing the input
     if (newValue.text.isEmpty) {
@@ -1130,20 +1171,23 @@ class InvoiceNumberGenerator {
 
   // Ensures the invoice box is open for access
   Future<Box<dynamic>> get _getInvoiceBox async {
-    _invoiceBox ??= await Hive.openBox('invoiceData');
+    _invoiceBox ??= await Hive.openBox('invoices');
     return _invoiceBox!;
   }
 
   /// Retrieves the current count of invoices for the current year and increments it
   Future<int> _getCurrentYearInvoiceCount() async {
     var now = DateTime.now();
-    String year =
-        DateFormat('yy').format(now); // Use intl to format the year as 'yyyy'
+    String year = DateFormat(
+      'yy',
+    ).format(now); // Use intl to format the year as 'yyyy'
     var box = await _getInvoiceBox;
     String yearKey = 'invoiceCount_$year';
     int currentCount = box.get(yearKey, defaultValue: 0);
     await box.put(
-        yearKey, currentCount + 1); // Increment the count for this year
+      yearKey,
+      currentCount + 1,
+    ); // Increment the count for this year
     return currentCount + 1; // Return the new count
   }
 
@@ -1152,9 +1196,10 @@ class InvoiceNumberGenerator {
     var now = DateTime.now();
     String year = DateFormat('yy').format(now); // Format year as 'yyyy'
     int count = await _getCurrentYearInvoiceCount();
-    String countStr = count
-        .toString()
-        .padLeft(4, '0'); // Ensure the count is at least four digits
+    String countStr = count.toString().padLeft(
+      4,
+      '0',
+    ); // Ensure the count is at least four digits
     return '$_prefix/$year/$countStr';
   }
 }

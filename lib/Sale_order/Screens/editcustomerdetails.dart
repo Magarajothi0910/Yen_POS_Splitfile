@@ -4,12 +4,15 @@ import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 // import 'package:outletmanager/widgets/common_layout.dart';
 import 'package:provider/provider.dart';
+import 'package:yenpos/Global/global_data_manager.dart';
 import 'package:yenpos/Global/globals_data.dart';
 import 'package:yenpos/Sale_order/Models/sales_order_display_model.dart';
 import 'package:yenpos/Sale_order/Provider/detailsProvider.dart';
 import 'package:yenpos/Sale_order/Provider/editcustomerscreenProvider.dart';
+import 'package:yenpos/Sale_order/Provider/get_sales_order_service.dart';
 import 'package:yenpos/Sale_order/Screens/all_orders.dart';
 import 'package:yenpos/Sale_order/Screens/edit_customerr_dropdown.dart';
+import 'package:yenpos/Sale_order/Widgets/date_handler.dart';
 import 'package:yenpos/Sale_order/Widgets/image-picker-widget.dart';
 import 'package:yenpos/Sale_order/Widgets/photoScreen.dart';
 import 'package:yenpos/Sale_order/Widgets/voice_recording.dart';
@@ -21,49 +24,43 @@ import '../../../../Global/Audio Player/audio_screen.dart';
 import 'editsalesperson_dropdown.dart';
 
 class EditCustomerDetails extends StatefulWidget {
-  final SalesOrderDisplay? selectedOrder;
-  final bool isEditing;
-  final String? orderType;
-
   const EditCustomerDetails({
     super.key,
     this.selectedOrder,
     this.isEditing = false,
     this.orderType,
   });
+
+  final bool isEditing;
+  final String? orderType;
+  final SalesOrderDisplay? selectedOrder;
+
   @override
   _EditCustomerDetailsState createState() => _EditCustomerDetailsState();
 }
 
 class _EditCustomerDetailsState extends State<EditCustomerDetails> {
-  final _formKey = GlobalKey<FormState>();
-  bool _isFormValid = false;
+  TextEditingController customersearchController = TextEditingController();
+  String customersearchQuery = '';
+  List<Map<String, String>> filteredCustomers = [];
+  String? holdId;
+  bool isSuggestionsVisible = false;
+  List<Map<String, String>> suggestions = [];
 
   // String recordedFilePath = '';
   // File? _pickedImage1;
   // File? _pickedImage2;
   final String _customerType = 'Normal';
-  final int _selectedRadioValue = 0;
+
+  final _formKey = GlobalKey<FormState>();
   // String? audioPlayerId;
 
   bool _isEditing = false;
-  String? holdId;
-  List<Map<String, String>> suggestions = [];
-  bool isSuggestionsVisible = false;
+
+  bool _isFormValid = false;
+  final int _selectedRadioValue = 0;
   bool _showMinusButtonforaudio = true;
   bool _showMinusButtonforimage = true;
-  TextEditingController customersearchController = TextEditingController();
-  List<Map<String, String>> filteredCustomers = [];
-  String customersearchQuery = '';
-
-  @override
-  void initState() {
-    super.initState();
-    _isEditing = widget.isEditing;
-    if (widget.selectedOrder != null) {
-      _populateFields();
-    }
-  }
 
   @override
   void didUpdateWidget(EditCustomerDetails oldWidget) {
@@ -75,6 +72,61 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
     }
   }
 
+  @override
+  void dispose() {
+    final customerScreenProvider = context.read<EditCustomerScreenProvider>();
+
+    customerScreenProvider.customChargeController.removeListener(
+      _customChargeListener,
+    );
+
+    quantityChangesNotifier.dispose();
+
+    super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    _isEditing = widget.isEditing;
+
+    if (widget.selectedOrder != null) {
+      _populateFields();
+    }
+
+    quantityChangesNotifier = ValueNotifier<Map<int, double>>({});
+
+    final customerScreenProvider = context.read<EditCustomerScreenProvider>();
+
+    customerScreenProvider.customChargeController.addListener(
+      _customChargeListener,
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final apiService = context.read<ApiServiceSalesOrderProvider>();
+
+      final initialCharge =
+          double.tryParse(customerScreenProvider.customChargeController.text) ??
+          0.0;
+
+      customerScreenProvider.setCustomCharge(initialCharge);
+    });
+  }
+
+  // Private listener method
+  void _customChargeListener() {
+    final customerScreenProvider = Provider.of<EditCustomerScreenProvider>(
+      context,
+      listen: false,
+    );
+    final text = customerScreenProvider.customChargeController.text;
+    final charge = double.tryParse(text) ?? 0.0;
+    customerScreenProvider.setCustomCharge(
+      charge,
+    ); // Triggers notifyListeners()
+  }
+
   void _populateFields() {
     final customerScreenProvider = Provider.of<EditCustomerScreenProvider>(
       context,
@@ -83,43 +135,54 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
 
     if (widget.selectedOrder != null) {
       String deliveryDate = widget.selectedOrder!.deliveryDate;
-      customerScreenProvider.dateController.text = deliveryDate;
 
+      customerScreenProvider.dateController.text = DateFormat(
+        'dd-MM-yyyy',
+      ).format(DateTime.parse(deliveryDate));
       String formattedEventDate = widget.selectedOrder!.eventDate ?? '';
 
-      customerScreenProvider.birthdaydateController.text = formattedEventDate;
+      // ✅ Use helper method
+      if (formattedEventDate != null && formattedEventDate.isNotEmpty) {
+        String? formattedDate = DateFormatHelper.validateAndConvert(
+          formattedEventDate,
+        );
+        if (formattedDate != null) {
+          customerScreenProvider.birthdaydateController.text = formattedDate;
+        }
+      }
 
       customerScreenProvider.timeController.text =
-          widget.selectedOrder!.deliveryTime ?? '';
+          widget.selectedOrder!.deliveryTime;
       customerScreenProvider.selectedOrderType =
-          widget.selectedOrder!.orderType ?? '';
-      customerScreenProvider.setSelectedEvent(
-        widget.selectedOrder!.event ?? '',
-      );
+          widget.selectedOrder!.orderType;
+      customerScreenProvider.setSelectedEvent(widget.selectedOrder!.event);
 
       customerScreenProvider.setSelectedDeliveryType(
-        widget.selectedOrder!.deliveryType ?? '',
+        widget.selectedOrder!.deliveryType,
+      );
+      customerScreenProvider.setSelectedCustomChargeType(
+        widget.selectedOrder!.customChargeType,
       );
 
       if (widget.selectedOrder!.deliveryType == 'Door Delivery') {
         customerScreenProvider.landmarkController.text =
-            widget.selectedOrder!.landmark ?? '';
+            widget.selectedOrder!.landmark;
         customerScreenProvider.addressController.text =
-            widget.selectedOrder!.address ?? '';
+            widget.selectedOrder!.address;
       }
 
       customerScreenProvider.customerNameController.text =
-          widget.selectedOrder!.customerName ?? '';
+          widget.selectedOrder!.customerName;
       customerScreenProvider.customChargeController.text =
-          (widget.selectedOrder!.customCharge ?? '').toString();
+          (widget.selectedOrder!.customCharge).toString();
+      customerScreenProvider.modifiedCustomCharge =
+          widget.selectedOrder!.customCharge;
 
-      customerScreenProvider.selectedChargeType =
-          widget.selectedOrder!.customChargeType ?? '';
       customerScreenProvider.mobileNoController.text =
-          widget.selectedOrder!.customerNumber ?? '';
+          widget.selectedOrder!.customerNumber;
 
       customerScreenProvider.searchController.text =
-          widget.selectedOrder!.employeeName ?? '';
+          widget.selectedOrder!.employeeName;
 
       customerScreenProvider.audioPlayerId = widget.selectedOrder!.salesOrderId;
       customerScreenProvider.photoScreenId = widget.selectedOrder!.salesOrderId;
@@ -128,7 +191,6 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
 
   @override
   Widget build(BuildContext context) {
-    final detailsProvider = Provider.of<DetailsProvider>(context);
     // final cartProvider = Provider.of<CartProvider>(context);
     final customerScreenProvider = Provider.of<EditCustomerScreenProvider>(
       context,
@@ -190,88 +252,6 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                       const SizedBox(height: 10),
 
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _isEditing // Check if modifyMode is true
-                              ? Expanded(
-                                  child: DropdownButtonFormField<String>(
-                                    autovalidateMode:
-                                        AutovalidateMode.onUserInteraction,
-                                    value: customerScreenProvider
-                                        .selectedOrderType,
-                                    hint: const Text(
-                                      'Select Order Type',
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    items: ['In House', 'Warehouse'].map((
-                                      String type,
-                                    ) {
-                                      return DropdownMenuItem<String>(
-                                        value: type,
-                                        child: Text(type),
-                                      );
-                                    }).toList(),
-                                    onChanged: _isEditing
-                                        ? (String? newValue) {
-                                            customerScreenProvider
-                                                .setSelectedOrderType(newValue);
-                                          }
-                                        : null,
-                                    decoration: InputDecoration(
-                                      border: OutlineInputBorder(),
-                                      labelText: "Order Type",
-                                      labelStyle: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                      contentPadding: EdgeInsets.symmetric(
-                                        horizontal: 20,
-                                        vertical: 10,
-                                      ),
-                                    ),
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      color: Colors.black,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'Please select an order type';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                )
-                              : Text(
-                                  '${widget.selectedOrder!.orderType} ',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                        ],
-                      ),
-
-                      // const SizedBox(height: 10),
-                      // Row(
-                      //   mainAxisAlignment:
-                      //       MainAxisAlignment.spaceBetween, // Centers the text
-                      //   children: [
-                      //     Text(
-                      //       'saleOrderNo :${widget.selectedOrder!.saleOrderNo}',
-                      //       style: TextStyle(
-                      //         fontSize: 16,
-                      //         color: Colors.black,
-                      //       ),
-                      //     ),
-                      //   ],
-                      // ),
-                      SizedBox(height: 10),
-                      // Row for Date and Time
-                      Row(
                         children: [
                           const Padding(padding: EdgeInsets.all(5)),
                           Expanded(
@@ -296,11 +276,35 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                 DateTime now = DateTime.now();
                                 DateTime? pickedDate = await showDatePicker(
                                   context: context,
-                                  initialDate: DateTime.now(),
-                                  firstDate: DateTime.now(),
+                                  initialDate: now,
+                                  firstDate: now,
                                   lastDate: now.add(const Duration(days: 180)),
+                                  builder: (context, child) {
+                                    return Theme(
+                                      data: Theme.of(context).copyWith(
+                                        colorScheme: ColorScheme.light(
+                                          primary: Colors.blue,
+                                          onPrimary: Colors.white,
+                                          onSurface: Colors.black,
+                                        ),
+                                        textButtonTheme: TextButtonThemeData(
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: Colors.blue,
+                                          ),
+                                        ),
+                                      ),
+                                      child: child!,
+                                    );
+                                  },
                                 );
+
                                 if (pickedDate != null) {
+                                  // 💾 Store ISO string internally
+                                  customerScreenProvider
+                                      .selectedDeliveryDateIso = pickedDate
+                                      .toIso8601String();
+
+                                  // 📝 Show in controller as dd-MM-yyyy
                                   String formattedDate = DateFormat(
                                     'dd-MM-yyyy',
                                   ).format(pickedDate);
@@ -328,44 +332,79 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                 border: OutlineInputBorder(),
                                 labelText: 'Delivery Time',
                                 labelStyle: TextStyle(fontSize: 14),
-                                isDense: false, // Makes the field more compact
+                                isDense: false,
                                 contentPadding: EdgeInsets.symmetric(
                                   horizontal: 20,
                                   vertical: 10,
                                 ),
                               ),
                               style: TextStyle(fontSize: 14),
+                              readOnly: true,
                               onTap: () async {
                                 DateTime now = DateTime.now();
-                                TimeOfDay time = TimeOfDay.now();
+                                TimeOfDay currentTime = TimeOfDay.now();
+
                                 DateTime
                                 selectedDate = DateFormat('dd-MM-yyyy').parse(
                                   customerScreenProvider.dateController.text,
                                 );
+
                                 bool isToday =
                                     selectedDate.year == now.year &&
                                     selectedDate.month == now.month &&
                                     selectedDate.day == now.day;
+
                                 FocusScope.of(
                                   context,
                                 ).requestFocus(FocusNode());
+
                                 TimeOfDay? pickedTime = await showTimePicker(
                                   context: context,
+                                  useRootNavigator:
+                                      false, // 🔥 FIX: Prevents Tooltip crash
                                   initialTime: isToday
                                       ? TimeOfDay.fromDateTime(
                                           now.add(const Duration(minutes: 1)),
                                         )
                                       : const TimeOfDay(hour: 0, minute: 0),
+
+                                  // ---- 📌 CUSTOM TIME PICKER THEME ----
+                                  builder: (context, child) {
+                                    return Theme(
+                                      data: Theme.of(context).copyWith(
+                                        colorScheme: ColorScheme.light(
+                                          primary: Colors
+                                              .blue, // Selected time, accents
+                                          onPrimary: Colors
+                                              .white, // Text on selected background
+                                          onSurface:
+                                              Colors.black, // Normal text
+                                        ),
+                                        timePickerTheme: TimePickerThemeData(
+                                          dialHandColor: Colors.blue,
+                                          dialBackgroundColor: Colors.white,
+                                          hourMinuteColor: Colors.blue
+                                              .withOpacity(0.1),
+                                          hourMinuteTextColor: Colors.blue,
+                                          dayPeriodColor: Colors.blue
+                                              .withOpacity(0.1),
+                                          dayPeriodTextColor: Colors.blue,
+                                        ),
+                                      ),
+                                      child: child!,
+                                    );
+                                  },
                                 );
 
                                 if (pickedTime != null) {
                                   if (isToday &&
-                                      (pickedTime.hour < time.hour ||
-                                          (pickedTime.hour == time.hour &&
+                                      (pickedTime.hour < currentTime.hour ||
+                                          (pickedTime.hour ==
+                                                  currentTime.hour &&
                                               pickedTime.minute <=
-                                                  time.minute))) {
+                                                  currentTime.minute))) {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
+                                      SnackBar(
                                         content: Text(
                                           'Delivery time must be in the future',
                                         ),
@@ -402,46 +441,49 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                               child: DropdownButtonFormField<String>(
                                 autovalidateMode:
                                     AutovalidateMode.onUserInteraction,
-                                value: customerScreenProvider.selectedEvent,
+                                value:
+                                    customerScreenProvider
+                                        .getEventList()
+                                        .contains(
+                                          customerScreenProvider.selectedEvent,
+                                        )
+                                    ? customerScreenProvider.selectedEvent
+                                    : null,
                                 hint: const Text(
                                   'Select Event',
                                   style: TextStyle(fontSize: 14),
                                 ),
-                                items:
-                                    [
-                                      'Birthday',
-                                      'Anniversary',
-                                      'Wedding',
-                                      'Others',
-                                    ].map((String event) {
+                                items: customerScreenProvider
+                                    .getEventList()
+                                    .map((event) {
                                       return DropdownMenuItem<String>(
                                         value: event,
                                         child: Text(event),
                                       );
-                                    }).toList(),
-
-                                // onChanged: (String? newValue) {
-                                //   customerScreenProvider
-                                //       .setSelectedEvent(newValue);
+                                    })
+                                    .toList(),
                                 onChanged: _isEditing
                                     ? (String? newValue) {
-                                        customerScreenProvider.setSelectedEvent(
-                                          newValue,
-                                        );
+                                        if (newValue != null) {
+                                          customerScreenProvider
+                                              .setSelectedEvent(newValue);
+
+                                          // Trigger rebuild
+                                          setState(() {});
+                                        }
                                       }
-                                    : null, //
+                                    : null,
                                 decoration: InputDecoration(
                                   border: OutlineInputBorder(),
                                   labelText: 'Event',
                                   enabled: _isEditing,
-                                  isDense:
-                                      false, // Makes the field more compact
-                                  contentPadding: EdgeInsets.symmetric(
+                                  isDense: false,
+                                  contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 16,
                                     vertical: 8,
                                   ),
                                 ),
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontSize: 14,
                                   color: Colors.black,
                                 ),
@@ -456,8 +498,7 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                               ),
                             ),
                             const Padding(padding: EdgeInsets.all(5)),
-
-                            // Show date field only if an event is selected and it's not "Others"
+                            // Date field - conditional rendering with key to force rebuild
                             if (customerScreenProvider.selectedEvent != null &&
                                 customerScreenProvider
                                     .selectedEvent!
@@ -466,6 +507,9 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                     "Others")
                               Expanded(
                                 child: TextFormField(
+                                  key: ValueKey(
+                                    'date_field_${customerScreenProvider.selectedEvent}',
+                                  ),
                                   autovalidateMode:
                                       AutovalidateMode.onUserInteraction,
                                   controller: customerScreenProvider
@@ -475,34 +519,39 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                     border: OutlineInputBorder(),
                                     labelText:
                                         "${customerScreenProvider.selectedEvent} Date",
-                                    labelStyle: TextStyle(fontSize: 14),
-                                    isDense:
-                                        false, // Makes the field more compact
-                                    contentPadding: EdgeInsets.symmetric(
+                                    labelStyle: const TextStyle(fontSize: 14),
+                                    isDense: false,
+                                    contentPadding: const EdgeInsets.symmetric(
                                       horizontal: 20,
                                       vertical: 10,
-                                    ), // Reduced padding
+                                    ),
                                   ),
-                                  style: TextStyle(fontSize: 14),
+                                  style: const TextStyle(fontSize: 14),
                                   readOnly: true,
                                   onTap: () async {
-                                    DateTime now = DateTime.now();
-                                    DateTime? pickedDate = await showDatePicker(
-                                      context: context,
-                                      initialDate: DateTime.now(),
-                                      firstDate: DateTime.now(),
-                                      lastDate: now.add(
-                                        const Duration(days: 180),
-                                      ),
-                                    );
-                                    if (pickedDate != null) {
-                                      String formattedDate = DateFormat(
-                                        'dd-MM-yyyy',
-                                      ).format(pickedDate);
-                                      customerScreenProvider
-                                              .birthdaydateController
-                                              .text =
-                                          formattedDate;
+                                    if (_isEditing) {
+                                      DateTime now = DateTime.now();
+                                      DateTime? pickedDate =
+                                          await showDatePicker(
+                                            context: context,
+                                            initialDate: DateTime.now(),
+                                            firstDate: DateTime.now(),
+                                            lastDate: now.add(
+                                              const Duration(days: 180),
+                                            ),
+                                          );
+
+                                      if (pickedDate != null) {
+                                        // ✅ Always format as 'dd-MM-yyyy'
+                                        String formattedDate = DateFormat(
+                                          'dd-MM-yyyy',
+                                        ).format(pickedDate);
+                                        customerScreenProvider
+                                                .birthdaydateController
+                                                .text =
+                                            formattedDate;
+                                        setState(() {});
+                                      }
                                     }
                                   },
                                   validator: (value) {
@@ -518,16 +567,9 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                           ],
                         ],
                       ),
-
-                      // const Padding(padding: EdgeInsets.all(5)),
-                      //   ],
                       const Padding(padding: EdgeInsets.all(5)),
                       Row(
                         children: [
-                          if (_customerType != 'Normal' ||
-                              _customerType != 'Company') ...[
-                            const SizedBox(),
-                          ],
                           if (_customerType == 'Normal' ||
                               _customerType == 'Company') ...[
                             const Padding(padding: EdgeInsets.all(5)),
@@ -542,37 +584,46 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                 'Delivery Type',
                                 style: TextStyle(fontSize: 11),
                               ),
-                              items: ['Pickup by Customer', 'Door Delivery']
-                                  .map((String type) {
+                              items: GlobalDataManager().deliveryTypes
+                                  .map<DropdownMenuItem<String>>((item) {
                                     return DropdownMenuItem<String>(
-                                      value: type,
-                                      child: Text(type),
+                                      value: item['deliveryType'],
+                                      child: Text(item['deliveryType']),
                                     );
                                   })
                                   .toList(),
-                              // onChanged: (String? newValue) {
-                              //   customerScreenProvider
-                              //       .setSelectedDeliveryType(newValue);
-                              // },
                               onChanged: _isEditing
                                   ? (String? newValue) {
-                                      customerScreenProvider
-                                          .setSelectedDeliveryType(newValue);
+                                      if (newValue != null) {
+                                        customerScreenProvider
+                                            .setSelectedDeliveryType(newValue);
+                                        // Clear address fields when delivery type changes
+                                        if (newValue.toLowerCase() !=
+                                            'door delivery') {
+                                          customerScreenProvider
+                                              .landmarkController
+                                              .clear();
+                                          customerScreenProvider
+                                              .addressController
+                                              .clear();
+                                        }
+                                        // Force rebuild to show/hide landmark and address fields
+                                        setState(() {});
+                                      }
                                     }
-                                  : null, //
+                                  : null,
                               decoration: InputDecoration(
                                 enabled: _isEditing,
                                 border: OutlineInputBorder(),
-
                                 labelText: 'Delivery Type',
-                                labelStyle: TextStyle(fontSize: 11),
-                                isDense: false, // Makes the field more compact
-                                contentPadding: EdgeInsets.symmetric(
+                                labelStyle: const TextStyle(fontSize: 11),
+                                isDense: false,
+                                contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 13,
                                   vertical: 8,
                                 ),
                               ),
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 13,
                                 color: Colors.black,
                               ),
@@ -595,18 +646,17 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                           const Padding(padding: EdgeInsets.all(5)),
                         ],
                       ),
-
                       const Padding(padding: EdgeInsets.all(5)),
-
-                      // Conditionally show Address and Landmark Fields if "Door Delivery" is selected
-                      if (customerScreenProvider.selectedDeliveryType ==
-                          'Door Delivery') ...[
-                        // Row for Landmark and Address
+                      // Conditional Address and Landmark Fields
+                      if ((customerScreenProvider.selectedDeliveryType ?? '')
+                              .toLowerCase() ==
+                          'door delivery') ...[
                         Row(
                           children: [
                             const Padding(padding: EdgeInsets.all(5)),
                             Expanded(
                               child: TextFormField(
+                                key: const ValueKey('landmark_field'),
                                 autovalidateMode:
                                     AutovalidateMode.onUserInteraction,
                                 controller:
@@ -615,18 +665,19 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                   border: OutlineInputBorder(),
                                   labelText: 'Landmark',
                                   enabled: _isEditing,
-                                  labelStyle: TextStyle(fontSize: 14),
-                                  isDense:
-                                      false, // Makes the field more compact
-                                  contentPadding: EdgeInsets.symmetric(
+                                  labelStyle: const TextStyle(fontSize: 14),
+                                  isDense: false,
+                                  contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 20,
                                     vertical: 10,
                                   ),
                                   hintText:
                                       'e.g., Near ABC Park, Opposite XYZ Mall',
-                                  hintStyle: TextStyle(color: Colors.grey),
+                                  hintStyle: const TextStyle(
+                                    color: Colors.grey,
+                                  ),
                                 ),
-                                style: TextStyle(fontSize: 14),
+                                style: const TextStyle(fontSize: 14),
                                 validator: (value) {
                                   if (_isFormValid &&
                                       (value == null || value.isEmpty)) {
@@ -639,26 +690,28 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                             const Padding(padding: EdgeInsets.all(5)),
                             Expanded(
                               child: TextFormField(
+                                key: const ValueKey('address_field'),
                                 autovalidateMode:
                                     AutovalidateMode.onUserInteraction,
                                 controller:
                                     customerScreenProvider.addressController,
-                                // readOnly: !_isEditing,
                                 decoration: InputDecoration(
                                   border: OutlineInputBorder(),
                                   labelText: 'Address',
                                   enabled: _isEditing,
-                                  labelStyle: TextStyle(fontSize: 14),
-                                  isDense:
-                                      false, // Makes the field more compact
-                                  contentPadding: EdgeInsets.symmetric(
+                                  labelStyle: const TextStyle(fontSize: 14),
+                                  isDense: false,
+                                  contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 20,
                                     vertical: 10,
                                   ),
                                   hintText:
                                       'e.g., 1234 Main Street, Apartment 12',
-                                  hintStyle: TextStyle(color: Colors.grey),
+                                  hintStyle: const TextStyle(
+                                    color: Colors.grey,
+                                  ),
                                 ),
+                                style: const TextStyle(fontSize: 14),
                                 validator: (value) {
                                   if (_isFormValid &&
                                       (value == null || value.isEmpty)) {
@@ -673,16 +726,6 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                         ),
                       ],
 
-                      if (_customerType == 'Company')
-                        Row(
-                          children: [
-                            // const Padding(padding: EdgeInsets.all(5)),
-                            Expanded(
-                              child: customerScreenProvider
-                                  .buildCompanyInputFields(context),
-                            ),
-                          ],
-                        ),
                       const Padding(padding: EdgeInsets.all(5)),
 
                       Row(
@@ -730,6 +773,9 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                 ),
                                 child: StatefulBuilder(
                                   builder: (context, setState) {
+                                    final chargeList = customerScreenProvider
+                                        .getChargesList();
+
                                     return Row(
                                       children: [
                                         // ---------------------- Dropdown -----------------------
@@ -740,7 +786,6 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                               value: customerScreenProvider
                                                   .selectedChargeType,
                                               isExpanded: true,
-
                                               dropdownColor: Colors.white,
                                               icon: const Icon(
                                                 Icons.arrow_drop_down_rounded,
@@ -751,41 +796,23 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                                 fontWeight: FontWeight.w600,
                                                 color: Colors.black87,
                                               ),
-                                              items: customerScreenProvider.chargeTypes.map((
-                                                value,
-                                              ) {
+
+                                              items: chargeList.map((value) {
                                                 return DropdownMenuItem(
                                                   value: value,
-                                                  child: Row(
-                                                    children: [
-                                                      Icon(
-                                                        value == "Custom Charge"
-                                                            ? Icons
-                                                                  .price_change_rounded
-                                                            : value ==
-                                                                  "Delivery Charge"
-                                                            ? Icons
-                                                                  .local_shipping_rounded
-                                                            : Icons
-                                                                  .attach_money_rounded,
-                                                        size: 18,
-                                                        color:
-                                                            Colors.blueAccent,
-                                                      ),
-                                                      const SizedBox(width: 6),
-                                                      Text(value),
-                                                    ],
-                                                  ),
+                                                  child: Text(value),
                                                 );
                                               }).toList(),
+
                                               onChanged: _isEditing
-                                                  ? (String? newValue) {
+                                                  ? (newValue) {
                                                       customerScreenProvider
                                                           .setSelectedCustomChargeType(
                                                             newValue,
                                                           );
+                                                      setState(() {});
                                                     }
-                                                  : null, //
+                                                  : null,
                                             ),
                                           ),
                                         ),
@@ -796,7 +823,6 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                         Expanded(
                                           flex: 3,
                                           child: TextFormField(
-                                            showCursor: true,
                                             controller: customerScreenProvider
                                                 .customChargeController,
                                             enabled: _isEditing,
@@ -832,18 +858,6 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                                 ),
                                               ),
                                             ),
-                                            onTap: () {
-                                              ActiveField.activate(
-                                                context: context,
-                                                ctrl: customerScreenProvider
-                                                    .customChargeController,
-                                                node: customerScreenProvider
-                                                    .customChargeFocus,
-                                                numeric: true,
-                                                customCharge: true,
-                                                fieldType: "custom charge",
-                                              );
-                                            },
                                           ),
                                         ),
                                       ],
@@ -998,9 +1012,10 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                   if (customerScreenProvider.photoScreenId == null &&
                       _isEditing)
                     Flexible(
-                      child: ImagePickerWidget(
-                        onImagesSelected:
-                            customerScreenProvider.onImagesSelected,
+                      child: MultiImagePickerWidget(
+                        onImagesSelected: (images) {
+                          customerScreenProvider.pickedImages = images;
+                        },
                       ),
                     ),
                 ],

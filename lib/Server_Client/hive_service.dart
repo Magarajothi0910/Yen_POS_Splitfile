@@ -66,7 +66,7 @@ String generateShortHiveInvoiceId() {
     6,
   ); // Shortened timestamp
   const characters =
-      'ABCDEFGHIJKLMNOPQRSTUVWXYZ0125678989'; // Alphanumeric characters
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZ0122345689'; // Alphanumeric characters
   final randomId =
       List<int>.generate(6, (_) => random.nextInt(characters.length))
           .map((index) => characters[index])
@@ -119,32 +119,91 @@ Future<void> saveKotInvoiceToHive(Map<String, dynamic> invoice) async {
   savePosInvoiceToHive(savedInvoice);
 }
 
-Future<void> savePosInvoiceToHive(Map<String, dynamic> posInvoice) async {
-  print("🟢 [savePosInvoiceToHive] STARTED");
-  print("🟢 Invoice data to save: $posInvoice");
+// Future<void> savePosInvoiceToHive(Map<String, dynamic> posInvoice) async {
+//   print("🟢 [savePosInvoiceToHive] STARTED");
+//   print("🟢 Invoice data to save: $posInvoice");
 
+//   try {
+//     // Step 1: Open the Hive box
+//     var posInvoiceBox = await HiveManager.invoiceBox;
+//     print("🟢 Hive box opened successfully");
+
+//     // Step 2: Save the invoice to Hive
+//     final key = await posInvoiceBox.add(posInvoice);
+//     print("✅ Invoice saved successfully with key: $key");
+
+//     // Step 3: Debug: Current count of invoices in Hive
+//     final count = posInvoiceBox.length;
+//     print("🟢 Current total invoices in Hive: $count");
+
+//     // Optional: Log the last saved invoice
+//     final lastInvoice = posInvoiceBox.getAt(count - 1);
+//     print("🟢 Last saved invoice in Hive: $lastInvoice");
+//   } catch (e, st) {
+//     print("❌ Error saving invoice to Hive: $e");
+//     print("❌ StackTrace: $st");
+//   }
+
+//   print("🟢 [savePosInvoiceToHive] FINISHED");
+// }
+
+// Future<void> savePosInvoiceToHive(Map<String, dynamic> posInvoice) async {
+//   print("🟢 [savePosInvoiceToHive] STARTED");
+//   print("🟢 Full invoice data received: $posInvoice");
+
+//   try {
+//     // 🔥 Extract ONLY the salesOrderId object
+//     final Map<String, dynamic> invoiceToSave = posInvoice["salesOrderId"];
+//     print("🟢 Extracted invoice to save: $invoiceToSave");
+
+//     // Step 1: Open the Hive box
+//     var posInvoiceBox = await HiveManager.invoiceBox;
+//     print("🟢 Hive box opened successfully");
+
+//     // Step 2: Save ONLY the extracted part
+//     final key = await posInvoiceBox.add(invoiceToSave);
+//     print("✅ Invoice saved successfully with key: $key");
+
+//     // Step 3: Debug: Current count of invoices in Hive
+//     final count = posInvoiceBox.length;
+//     print("🟢 Current total invoices in Hive: $count");
+
+//     // Optional: Log the last saved invoice
+//     final lastInvoice = posInvoiceBox.getAt(count - 1);
+//     print("🟢 Last saved invoice in Hive: $lastInvoice");
+//   } catch (e, st) {
+//     print("❌ Error saving invoice to Hive: $e");
+//     print("❌ StackTrace: $st");
+//   }
+
+//   print("🟢 [savePosInvoiceToHive] FINISHED");
+// }
+
+Future<void> savePosInvoiceToHive(Map<String, dynamic> message) async {
   try {
-    // Step 1: Open the Hive box
-    var posInvoiceBox = await HiveManager.invoiceBox;
-    print("🟢 Hive box opened successfully");
+    final salesOrder = message['salesOrderId'];
+    if (salesOrder is! Map<String, dynamic>) return;
 
-    // Step 2: Save the invoice to Hive
-    final key = await posInvoiceBox.add(posInvoice);
-    print("✅ Invoice saved successfully with key: $key");
+    final String? invoiceNo = salesOrder['invoiceNo']?.toString();
+    if (invoiceNo == null || invoiceNo.isEmpty) {
+      print("Missing invoiceNo → skip save");
+      return;
+    }
 
-    // Step 3: Debug: Current count of invoices in Hive
-    final count = posInvoiceBox.length;
-    print("🟢 Current total invoices in Hive: $count");
+    final box = HiveManager.invoiceBox;
 
-    // Optional: Log the last saved invoice
-    final lastInvoice = posInvoiceBox.getAt(count - 1);
-    print("🟢 Last saved invoice in Hive: $lastInvoice");
+    // PREVENT DUPLICATES — Critical!
+    if (box.containsKey(invoiceNo)) {
+      print("Invoice $invoiceNo already exists locally → skip");
+      return;
+    }
+
+    // Save the actual sales order (clean data)
+    await box.put(invoiceNo, salesOrder);
+    print("Invoice saved locally → $invoiceNo");
   } catch (e, st) {
-    print("❌ Error saving invoice to Hive: $e");
-    print("❌ StackTrace: $st");
+    print("Error in savePosInvoiceToHive: $e\n$st");
   }
-
-  print("🟢 [savePosInvoiceToHive] FINISHED");
 }
 
 /// Save hold order using the 'holdOrders' box

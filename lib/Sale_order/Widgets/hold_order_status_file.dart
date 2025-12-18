@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:yenpos/Sale_order/Models/held_order_model.dart';
+import 'package:yenpos/Sale_order/Provider/cartProvider.dart';
 import 'package:yenpos/Sale_order/Provider/customerScreen_provider.dart';
 import 'package:yenpos/Sale_order/Provider/get_sales_order_service.dart';
 import 'package:yenpos/Sale_order/Widgets/restore_order_date.dart';
@@ -11,7 +12,7 @@ void showHoldOrdersSheet(
 ) {
   showModalBottomSheet(
     isScrollControlled: true,
-    backgroundColor: Colors.transparent, // for glass effect
+    backgroundColor: Colors.transparent,
     context: context,
     builder: (BuildContext context) {
       return DraggableScrollableSheet(
@@ -39,7 +40,7 @@ void showHoldOrdersSheet(
               ),
               child: Column(
                 children: [
-                  // ---------- Header ----------
+                  // -------- HEADER --------
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 20),
@@ -84,12 +85,11 @@ void showHoldOrdersSheet(
                     ),
                   ),
 
-                  // ---------- Orders List ----------
+                  // -------- HELD ORDERS LIST --------
                   Expanded(
                     child: Consumer<CustomerScreenProvider>(
                       builder: (context, provider, _) {
-                        final orders = provider
-                            .hiveholdSalesOrders; // expose getter in provider
+                        final orders = provider.hiveholdSalesOrders;
 
                         if (orders.isEmpty) {
                           return const Center(
@@ -133,11 +133,23 @@ void showHoldOrdersSheet(
                               child: InkWell(
                                 borderRadius: BorderRadius.circular(18),
                                 onTap: () async {
+                                  // Restore held order safely
                                   final heldOrder = HeldOrder.fromMap(order);
                                   await restoreHeldOrderData(
                                     context,
                                     heldOrder,
                                   );
+
+                                  // Reset controllers before updating cart
+                                  final cartProvider =
+                                      Provider.of<CartProvider>(
+                                        context,
+                                        listen: false,
+                                      );
+                                  customerScreenProvider
+                                      .resetControllers(); // NEW method to clear old data
+                                  cartProvider.updateCart();
+
                                   Navigator.of(context).pop();
                                 },
                                 child: Padding(
@@ -149,7 +161,7 @@ void showHoldOrdersSheet(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      // Customer & Status Row
+                                      // Customer & Status
                                       Row(
                                         mainAxisAlignment:
                                             MainAxisAlignment.spaceBetween,
@@ -203,7 +215,7 @@ void showHoldOrdersSheet(
                                       ),
                                       const SizedBox(height: 12),
 
-                                      // Date & Time Row with Delete
+                                      // Date & Time + Delete
                                       Row(
                                         mainAxisAlignment:
                                             MainAxisAlignment.spaceBetween,
@@ -241,27 +253,18 @@ void showHoldOrdersSheet(
                                               ),
                                             ],
                                           ),
-                                          Container(
-                                            decoration: BoxDecoration(
-                                              color: Colors.red.shade50,
-                                              shape: BoxShape.circle,
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.delete_outline_rounded,
                                             ),
-                                            child: IconButton(
-                                              icon: const Icon(
-                                                Icons.delete_outline_rounded,
-                                              ),
-                                              color: Colors.red.shade400,
-                                              splashRadius: 22,
-                                              onPressed: () async {
-                                                print(
-                                                  '🖱️ Delete button clicked for ${order['holdOrderId']}',
-                                                );
-                                                await provider
-                                                    .deleteHoldOrderFromHive(
-                                                      order['holdOrderId'],
-                                                    );
-                                              },
-                                            ),
+                                            color: Colors.red.shade400,
+                                            splashRadius: 22,
+                                            onPressed: () async {
+                                              await provider
+                                                  .deleteHoldOrderFromHive(
+                                                    order['holdOrderId'],
+                                                  );
+                                            },
                                           ),
                                         ],
                                       ),

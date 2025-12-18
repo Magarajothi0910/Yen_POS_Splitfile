@@ -5,8 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:yenpos/Global/Provider/branchwise_item_fetch.dart';
 import 'package:yenpos/Global/globals_data.dart';
-import 'package:yenpos/Mode_page/Regular_mode/Provider/regular_mode_screen_provider.dart';
 import 'package:yenpos/Sale_order/Provider/cartProvider.dart';
+import 'package:yenpos/Sale_order/Provider/regularmode_provider_saleorder.dart';
 import '../../Global/Widget/custom_textWidgets.dart';
 import 'numeric_Calculator.dart';
 
@@ -32,6 +32,7 @@ class _SearchDropdownState extends State<SearchDropdown> {
   void initState() {
     super.initState();
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
+
     _controller.addListener(_updateOverlay);
   }
 
@@ -47,7 +48,10 @@ class _SearchDropdownState extends State<SearchDropdown> {
   }
 
   void _updateOverlay() {
-    final provider = Provider.of<RegularModeProvider>(context, listen: false);
+    final provider = Provider.of<SaleOrderRegularModeProvider>(
+      context,
+      listen: false,
+    );
     provider.filterVarianceNamesBySearchQuery(_controller.text.trim());
     if (_controller.text.isEmpty) {
       _removeOverlay();
@@ -91,7 +95,7 @@ class _SearchDropdownState extends State<SearchDropdown> {
                   elevation: 6.0,
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(8),
-                  child: Consumer<RegularModeProvider>(
+                  child: Consumer<SaleOrderRegularModeProvider>(
                     builder: (_, provider, __) {
                       return Container(
                         decoration: BoxDecoration(
@@ -138,23 +142,17 @@ class _SearchDropdownState extends State<SearchDropdown> {
                                             provider
                                                 .filteredVarianceNames
                                                 .length) {
-                                          final selectedItem = provider
-                                              .getVarianceDetails(varianceName);
-                                          if (selectedItem != null) {
-                                            final varianceData = provider
-                                                .getVarianceDetails(
-                                                  varianceName,
-                                                );
-                                            final itemName =
-                                                varianceData['itemName'] ??
-                                                'Unknown Item';
+                                          final varianceData = provider
+                                              .getVarianceFullDetails(
+                                                varianceName,
+                                              );
+                                          if (varianceData.isNotEmpty) {
                                             final varianceUOM =
                                                 provider.getUOMForVariance(
                                                   varianceName,
                                                 ) ??
                                                 'Unknown UOM';
                                             _handleItemSelection(
-                                              selectedItem,
                                               varianceData,
                                               varianceUOM,
                                             );
@@ -189,33 +187,44 @@ class _SearchDropdownState extends State<SearchDropdown> {
 
   void _handleItemSelection(
     Map<String, dynamic> selectedItem,
-    Map<String, dynamic> variancedata,
-    String? varianceUOM,
+    String varianceUOM,
   ) {
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
 
-    String varianceName = selectedItem['varianceName']?.toString() ?? '';
-    String itemCode =
-        selectedItem['varianceItemCode']?.toString() ??
-        variancedata['varianceItemCode']?.toString() ??
-        variancedata['varianceitemCode']?.toString() ??
-        '';
-    String itemName = variancedata['itemName']?.toString() ?? '';
-    varianceUOM = varianceUOM ?? '';
+    final varianceName = selectedItem['varianceName']?.toString() ?? '';
+    final itemCode = selectedItem['itemCode']?.toString() ?? '';
 
-    double price = 0.0;
+    final itemName = selectedItem['itemName']?.toString() ?? '';
+
+    // ✅ Price handling
+    int price = 0;
     final rawPrice =
         selectedItem['varianceDefaultPrice'] ??
-        variancedata['variance_Defaultprice'];
+        selectedItem['variance_Defaultprice'];
     if (rawPrice is num) {
-      price = rawPrice.toDouble();
+      price = rawPrice.round();
     } else if (rawPrice is String && rawPrice.trim().isNotEmpty) {
-      price = double.tryParse(rawPrice) ?? 0.0;
+      price = double.tryParse(rawPrice)?.round() ?? 0;
     }
 
-    final tax = variancedata['variancetax'] ?? 0;
+    // ✅ Tax handling (variance tax preferred)
+    int tax = 0;
+    final rawTax = selectedItem['tax'];
+    if (rawTax is num) {
+      tax = rawTax.round();
+    } else if (rawTax is String && rawTax.trim().isNotEmpty) {
+      tax = double.tryParse(rawTax)?.round() ?? 0;
+    } else {
+      tax = 0; // default tax if missing
+    }
 
-    if (varianceUOM == 'Kgs' || varianceUOM == 'Kg') {
+    print(
+      "Selected item: $itemName, Tax: $tax%, Price: $price, , itemCode: $itemCode, ",
+    );
+
+    if (varianceUOM.toLowerCase() == 'kgs' ||
+        varianceUOM.toLowerCase() == 'kg') {
+      // Weighted items
       showDialog(
         context: context,
         builder: (context) {
@@ -224,17 +233,18 @@ class _SearchDropdownState extends State<SearchDropdown> {
             onValueSelected: (weight) {
               cartProvider.addItemToCart(
                 CartItem(
+                  rowId: UniqueKey().toString(), // 🔥 NEVER reuse
                   varianceName: varianceName,
-                  pricePerKg: price.toInt(),
+                  pricePerKg: price,
                   itemName: itemName,
-                  uom: varianceUOM!,
+                  uom: varianceUOM,
                   weight: weight,
                   quantity: 1,
                   isBoxItem: 'no',
                   tax: tax,
                   itemCode: itemCode,
-                  itemWiseDiscountAmount: 0.0,
-                  itemWiseDiscount: 0.0,
+                  itemWiseDiscountAmount: 0,
+                  itemWiseDiscount: 0,
                 ),
               );
             },
@@ -244,8 +254,9 @@ class _SearchDropdownState extends State<SearchDropdown> {
     } else {
       cartProvider.addItemToCart(
         CartItem(
+          rowId: UniqueKey().toString(), // 🔥 NEVER reuse
           varianceName: varianceName,
-          pricePerKg: price.toInt(),
+          pricePerKg: price,
           itemName: itemName,
           uom: varianceUOM,
           weight: 0,
@@ -253,12 +264,12 @@ class _SearchDropdownState extends State<SearchDropdown> {
           isBoxItem: 'no',
           tax: tax,
           itemCode: itemCode,
-          itemWiseDiscountAmount: 0.0,
-          itemWiseDiscount: 0.0,
+          itemWiseDiscountAmount: 0,
+          itemWiseDiscount: 0,
         ),
       );
     }
-    setState(() {});
+
     _clearSelection();
   }
 
@@ -295,11 +306,14 @@ class _SearchDropdownState extends State<SearchDropdown> {
         final uom = scannedData['UOM'] ?? '';
 
         final itemProvider = Provider.of<ItemProvider>(context, listen: false);
-        final provider = Provider.of<RegularModeProvider>(
+        final provider = Provider.of<SaleOrderRegularModeProvider>(
           context,
           listen: false,
         );
-        final result = itemProvider.checkVarianceItemCode(itemCode);
+        final result = await itemProvider.checkVarianceItemCode(
+          itemCode,
+          aliasname,
+        );
 
         if (result.isNotEmpty) {
           final itemData = result.first;
@@ -310,7 +324,7 @@ class _SearchDropdownState extends State<SearchDropdown> {
             final itemName = varianceData['itemName'] ?? 'Unknown Item';
             final varianceUOM =
                 provider.getUOMForVariance(varianceName) ?? 'Unknown UOM';
-            _handleItemSelection(selectedItem, varianceData, varianceUOM);
+            _handleItemSelection(selectedItem, varianceUOM);
           }
         } else {
           ScaffoldMessenger.of(context).showSnackBar(

@@ -6,57 +6,65 @@ Future<void> handleInvoice(
   Map<String, dynamic> jsonData,
   SalesInvoiceReceiptPrinter printer,
 ) async {
-  print("🟢 [handleInvoice] STARTED");
-  print("🟢 Incoming JSON data: $jsonData");
+  print("🚀 [handleInvoice] Function called");
 
   // Step 1: Extract invoice
   final invoice = jsonData['invoice'];
+  print("json data:$jsonData ");
   if (invoice == null) {
-    print("⚠️ No invoice found in JSON data");
+    print("❌ [handleInvoice] No 'invoice' field found in JSON data");
     return;
   }
-  print("🟢 Invoice extracted: $invoice");
+  print("📥 [handleInvoice] Invoice data found");
 
   // Step 2: Extract sales order from invoice
   final salesOrder = invoice['salesOrderId'];
   if (salesOrder == null) {
-    print("⚠️ No salesOrderId found in invoice");
+    print("❌ [handleInvoice] No 'salesOrderId' found in invoice");
     return;
   }
-  print("🟢 Sales Order extracted: $salesOrder");
+  print(
+    "🧾 [handleInvoice] Sales order extracted: ${salesOrder['invoiceNo'] ?? 'Unknown InvoiceNo'}",
+  );
 
-  // Step 3: Get order invoice number
+  // Step 3: Get order invoice number correctly
   final orderInvoiceNo = salesOrder['invoiceNo']?.toString();
   if (orderInvoiceNo == null || orderInvoiceNo.isEmpty) {
-    print("⚠️ Invalid or missing orderInvoiceNo in sales order");
+    print("❌ [handleInvoice] Invalid or empty 'invoiceNo' in sales order");
     return;
   }
-  print("🟢 Order Invoice No: $orderInvoiceNo");
+  print("🔢 [handleInvoice] Order Invoice No: $orderInvoiceNo");
 
-  // Step 4: Check if invoice already exists in Hive
-  final box = await HiveManager.invoiceBox;
-  if (box.containsKey(orderInvoiceNo)) {
-    print(
-      "⚠️ Invoice already exists in Hive for orderInvoiceNo: $orderInvoiceNo",
-    );
-    return;
-  }
-  print("🟢 Invoice not found in Hive, ready to save");
+  // // Step 4: Check if invoice already exists in Hive
+  // final box = HiveManager.invoiceBox;
+  // if (box.containsKey(orderInvoiceNo)) {
+  //   print(
+  //     "⚠️ [handleInvoice] Invoice already exists in Hive: $orderInvoiceNo → Skipping save",
+  //   );
+  //   return;
+  // }
+  // print("✅ [handleInvoice] Invoice does not exist in Hive. Proceeding to save");
 
   // Step 5: Save invoice to Hive
   try {
-    print("🟢 Saving invoice to Hive...");
     await saveInvoiceToHive(invoice);
-    print("✅ Invoice saved to Hive successfully");
+    print(
+      "💾 [handleInvoice] Invoice saved successfully in Hive: $orderInvoiceNo",
+    );
 
     // Step 6: Update printer with receipt data
-    print("🟢 Updating printer with sales order data...");
     printer.updateReceiptData(salesOrder);
-    print("✅ Receipt printed for invoice $orderInvoiceNo");
+    print(
+      "🖨️ [handleInvoice] Receipt printer updated for Invoice No: $orderInvoiceNo",
+    );
   } catch (e, st) {
-    print("❌ Error occurred while saving invoice or printing: $e");
-    print("❌ StackTrace: $st");
+    print(
+      "🔥 [handleInvoice] Exception while saving invoice or updating printer: $e",
+    );
+    print("📄 StackTrace: $st");
   }
 
-  print("🟢 [handleInvoice] FINISHED for orderInvoiceNo: $orderInvoiceNo");
+  print(
+    "🏁 [handleInvoice] Function execution completed for Invoice No: $orderInvoiceNo",
+  );
 }

@@ -1,6 +1,5 @@
 import 'package:hive/hive.dart';
 import 'dart:async';
-
 import 'package:synchronized/synchronized.dart';
 
 class PatchHandler {

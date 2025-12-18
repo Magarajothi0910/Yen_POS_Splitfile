@@ -1,9 +1,9 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:yenpos/Global/globals_data.dart';
 
 final List<Map<String, dynamic>> _receivedData = [];
 
@@ -11,24 +11,61 @@ Future<void> handleNewClientConnected(
   Map<String, dynamic> data,
   WebSocketChannel channel,
 ) async {
-  final deviceCode = data['deviceCode'];
+  // Safely extract deviceCode
+  final dynamic rawDeviceCode = data['deviceCode'];
 
-  // Store the device information in Hive
-  var deviceBox = await Hive.openBox('deviceData');
-  await deviceBox.put(deviceCode, {
-    'connectedAt': DateTime.now().toIso8601String(),
-    'status': 'active',
-  });
+  // 1. Null or missing check
+  if (rawDeviceCode == null) {
+    channel.sink.add(
+      jsonEncode({
+        'action': 'error',
+        'message': 'deviceCode is missing or null',
+      }),
+    );
+    return;
+  }
 
-  await sendReceivedDataToNewClient(channel);
+  // 2. Convert to String (Hive loves String keys)
+  // This works whether it's String, int, double, etc.
+  final String deviceCode = rawDeviceCode.toString().trim();
 
-  // Optionally send an acknowledgment back to the client
-  var response = jsonEncode({
-    'action': 'deviceCodeStored',
-    'status': 'success',
-    'message': 'Device code $deviceCode stored successfully.',
-  });
-  channel.sink.add(response);
+  // 3. Optional: reject empty strings
+  if (deviceCode.isEmpty) {
+    channel.sink.add(
+      jsonEncode({'action': 'error', 'message': 'deviceCode is empty'}),
+    );
+    return;
+  }
+
+  try {
+    final deviceBox = await Hive.openBox('deviceData');
+
+    // Now 100% safe: key is always a String
+    await deviceBox.put(deviceCode, {
+      'connectedAt': DateTime.now().toIso8601String(),
+      'status': 'active',
+    });
+
+    // Send existing data to the newly connected device
+    await sendReceivedDataToNewClient(channel);
+
+    // Success response
+    channel.sink.add(
+      jsonEncode({
+        'action': 'deviceCodeStored',
+        'status': 'success',
+        'message': 'Device $deviceCode connected and stored.',
+      }),
+    );
+  } catch (e, stackTrace) {
+    developer.log('Hive put failed: $e', stackTrace: stackTrace);
+    channel.sink.add(
+      jsonEncode({
+        'action': 'error',
+        'message': 'Failed to save device info: $e',
+      }),
+    );
+  }
 }
 
 Future<void> sendReceivedDataToNewClient(WebSocketChannel channel) async {
@@ -76,16 +113,13 @@ void sendDataToClients(
   WebSocketChannel? sender,
 }) {
   final message = jsonEncode(data);
-  print("📤 [Server] Broadcasting to ${clients.length} clients");
 
   final List<WebSocketChannel> disconnected = [];
 
   for (var client in clients) {
     try {
       client.sink.add(message);
-      print("✅ Sent message to client: ${client.hashCode}");
     } catch (e) {
-      print("❌ Error sending to client ${client.hashCode}: $e");
       disconnected.add(client);
     }
   }
@@ -94,11 +128,8 @@ void sendDataToClients(
   if (disconnected.isNotEmpty) {
     for (var dead in disconnected) {
       clients.remove(dead);
-      print("🗑️ Removed disconnected client: ${dead.hashCode}");
     }
   }
-
-  print("📦 Broadcast done. Active clients: ${clients.length}");
 }
 
 void handleRemovePrinter(

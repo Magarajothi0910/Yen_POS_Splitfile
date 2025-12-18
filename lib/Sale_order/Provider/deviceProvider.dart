@@ -7,7 +7,7 @@
 //   Map<String, dynamic>? deviceData;
 
 //   Future<void> fetchDeviceData(String deviceCode) async {
-//     const url = 'https://yenerp.com/fastapi/devicecode/';
+//     const url = 'https://yenerp.com/nextjstestapi/devicecode/';
 //     try {
 //       final response = await http.get(Uri.parse(url));
 //       if (response.statusCode == 200) {
@@ -46,7 +46,7 @@
 //   }
 
 //   Future<void> patchDeviceStatus(String deviceCodeId) async {
-//     final url = 'https://yenerp.com/fastapi/devicecode/$deviceCodeId';
+//     final url = 'https://yenerp.com/nextjstestapi/devicecode/$deviceCodeId';
 //     try {
 //       final response = await http.patch(
 //         Uri.parse(url),

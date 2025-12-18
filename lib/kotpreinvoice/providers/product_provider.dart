@@ -514,11 +514,36 @@ class ProductProvider with ChangeNotifier {
   }
 
   bool hasAddOns(String varianceName) {
+    final data = _addOnBox.get('data');
+
     return _addons.any((addon) {
       final addOnItems = addon['addOnItems'] as List<dynamic>;
       return addOnItems.contains(varianceName);
     });
   }
+
+  // bool hasAddOns(String varianceName) {
+  //   print("varianceName is $varianceName");
+
+  //   List<dynamic> addONS = [
+  //     "SPL GHEELADDU BOX",
+  //     "BUTTER BUN",
+  //     "BUTTERSCOTCH 1Kg",
+  //     "CHOCOTRUFFLE CAKE 1/2Kg",
+  //     "ROSE MILK CAKE 1/2Kg",
+  //     "RED VELVET CAKE 1Kg",
+  //     "ROSE MILK CAKE 1Kg",
+  //     "ROSE MILK CAKE BOX",
+  //     "ROLL CREAM CAKE",
+  //     "CASHEW BOX 50g",
+  //     "DATES FUDGE BOX",
+  //   ];
+
+  //   print("addONS is: $addONS");
+
+  //   // Just check if varianceName exists in addONS list
+  //   return addONS.contains(varianceName);
+  // }
 
   Future<void> fetchAddOnsAndSaveInHive() async {
     final dio = Dio();
@@ -535,6 +560,7 @@ class ProductProvider with ChangeNotifier {
         final data = response.data is List
             ? response.data
             : List.from(response.data);
+        print("addon data is $data");
         await _addOnBox.put('data', data);
         await _loadAddOnsFromHive();
         print("✅ Add-ons loaded successfully.");

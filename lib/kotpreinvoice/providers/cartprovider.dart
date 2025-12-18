@@ -12,6 +12,18 @@ class CartProviderKOT with ChangeNotifier {
   bool _isToggled = false;
   bool get isToggled => _isToggled;
 
+  final ValueNotifier<String> currentTableNumber = ValueNotifier('');
+  final ValueNotifier<String> currentSeat = ValueNotifier('');
+  final ValueNotifier<String> currentAreaName = ValueNotifier('');
+  final ValueNotifier<String> currentSeathiveOrderId = ValueNotifier('');
+
+  void clearTableSeat() {
+    currentTableNumber.value = '';
+    currentSeat.value = '';
+    currentAreaName.value = '';
+    currentSeathiveOrderId.value = '';
+  }
+
   void setToggled(bool value) {
     _isToggled = value;
     notifyListeners();
@@ -46,8 +58,10 @@ class CartProviderKOT with ChangeNotifier {
     }
 
     // Initialize selectedAddOns and totalAmount if they are null
-    _cart[varianceName]['selectedAddOns'] = _cart[varianceName]['selectedAddOns'] ?? [];
-    _cart[varianceName]['totalAmount'] = _cart[varianceName]['totalAmount'] ?? 0;
+    _cart[varianceName]['selectedAddOns'] =
+        _cart[varianceName]['selectedAddOns'] ?? [];
+    _cart[varianceName]['totalAmount'] =
+        _cart[varianceName]['totalAmount'] ?? 0;
 
     // Add the selected add-on to the list
     (_cart[varianceName]['selectedAddOns'] as List).add({
@@ -80,7 +94,12 @@ class CartProviderKOT with ChangeNotifier {
     }
   }
 
-  void removeItemFromCart(BuildContext context, String varianceName, String tableNumber, String seat) {
+  void removeItemFromCart(
+    BuildContext context,
+    String varianceName,
+    String tableNumber,
+    String seat,
+  ) {
     if (_cart.containsKey(varianceName)) {
       final currentQty = _cart[varianceName]['qty'];
 
@@ -97,7 +116,11 @@ class CartProviderKOT with ChangeNotifier {
       }
 
       notifyListeners();
-      _updateHoldOrder(context, tableNumber, seat); // Update hold order after change
+      _updateHoldOrder(
+        context,
+        tableNumber,
+        seat,
+      ); // Update hold order after change
     }
   }
 
@@ -115,7 +138,12 @@ class CartProviderKOT with ChangeNotifier {
     }
   }
 
-  void removeItemFromCard(BuildContext context, String productId, String tableNumber, String seat) {
+  void removeItemFromCard(
+    BuildContext context,
+    String productId,
+    String tableNumber,
+    String seat,
+  ) {
     if (_cart.containsKey(productId)) {
       int currentQty = _cart[productId]['qty'];
 
@@ -126,15 +154,25 @@ class CartProviderKOT with ChangeNotifier {
       }
 
       notifyListeners();
-      _updateHoldOrder(context, tableNumber, seat); // Ensure hold order is updated
+      _updateHoldOrder(
+        context,
+        tableNumber,
+        seat,
+      ); // Ensure hold order is updated
     }
   }
 
   void _updateHoldOrder(BuildContext context, String tableNumber, String seat) {
     if (_cart.isEmpty) {
-      Provider.of<HoldOrderProvider>(context, listen: false).removeHoldOrder(tableNumber, seat);
+      Provider.of<HoldOrderProvider>(
+        context,
+        listen: false,
+      ).removeHoldOrder(tableNumber, seat);
     } else {
-      Provider.of<HoldOrderProvider>(context, listen: false).saveHoldOrder(tableNumber, seat, _cart);
+      Provider.of<HoldOrderProvider>(
+        context,
+        listen: false,
+      ).saveHoldOrder(tableNumber, seat, _cart);
     }
   }
 
@@ -152,11 +190,33 @@ class CartProviderKOT with ChangeNotifier {
     }
   }
 
-  void removeFromCart(BuildContext context, String productId, String tableNumber, String seat) {
+  void removeFromCart(
+    BuildContext context,
+    String productId,
+    String tableNumber,
+    String seat,
+  ) {
     if (_cart.containsKey(productId)) {
       _cart.remove(productId); // Directly remove the item from the cart
       notifyListeners();
-      _updateHoldOrder(context, tableNumber, seat); // Notify listeners after the item is removed
+      _updateHoldOrder(
+        context,
+        tableNumber,
+        seat,
+      ); // Notify listeners after the item is removed
+    }
+  }
+
+  void debugCartState() {
+    debugPrint('🛒 Current Cart State:');
+    if (cart.isEmpty) {
+      debugPrint('   - Cart is empty');
+    } else {
+      cart.forEach((productName, productData) {
+        debugPrint(
+          '   - $productName: ${productData['qty']} qty, Data: $productData',
+        );
+      });
     }
   }
 
@@ -187,7 +247,7 @@ class CartProviderKOT with ChangeNotifier {
         'qty': 1,
         'selectedAddOns': {
           addOn: {'qty': 1, 'value': addOnValue},
-        }
+        },
       };
     }
     notifyListeners();
@@ -215,7 +275,9 @@ class CartProviderKOT with ChangeNotifier {
     _cart = holdOrder.map((key, value) {
       return MapEntry(
         key.toString(), // Ensure key is a String
-        Map<String, dynamic>.from(value), // Convert value to Map<String, dynamic>
+        Map<String, dynamic>.from(
+          value,
+        ), // Convert value to Map<String, dynamic>
       );
     });
 
@@ -270,12 +332,20 @@ class CartProviderKOT with ChangeNotifier {
       // Adjust remarks and toggleRemarks lengths without calling notifyListeners
       List<String> remarks = List.generate(
         quantity,
-        (i) => (_cart[productId]['remarks'] != null && i < _cart[productId]['remarks'].length) ? _cart[productId]['remarks'][i] : "", // Default remark
+        (i) =>
+            (_cart[productId]['remarks'] != null &&
+                i < _cart[productId]['remarks'].length)
+            ? _cart[productId]['remarks'][i]
+            : "", // Default remark
       );
 
       List<bool> toggleRemarks = List.generate(
         quantity,
-        (i) => (_cart[productId]['toggleRemarks'] != null && i < _cart[productId]['toggleRemarks'].length) ? _cart[productId]['toggleRemarks'][i] : false, // Default toggle state
+        (i) =>
+            (_cart[productId]['toggleRemarks'] != null &&
+                i < _cart[productId]['toggleRemarks'].length)
+            ? _cart[productId]['toggleRemarks'][i]
+            : false, // Default toggle state
       );
 
       // Update internal state without notifying listeners during build

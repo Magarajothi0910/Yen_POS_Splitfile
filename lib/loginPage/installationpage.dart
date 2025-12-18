@@ -28,38 +28,61 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
   }
 
   Future<void> checkForStoredDeviceCode() async {
+    debugPrint("🔍 checkForStoredDeviceCode() called");
+
     try {
+      debugPrint("📦 Opening Hive box: deviceData");
       var box = await Hive.openBox('deviceData');
 
+      debugPrint("📥 Fetching stored values from Hive");
+
       final storedDeviceCode = box.get('deviceCode');
-      final storedBranchName = box.get('branchName');
+      final storedBranchName = box.get('BranchName'); // ✅ FIXED
+      final dcStatus = box.get('dcStatus');
 
-      // ✅ If both device code and branch name exist
+      debugPrint("🧾 Stored Device Code : $storedDeviceCode");
+      debugPrint("🏢 Stored Branch Name : $storedBranchName");
+      debugPrint("🔐 Stored dcStatus   : $dcStatus");
+
+      debugPrint("📦 Full Hive Box Values: ${box.toMap()}");
+
       if (storedDeviceCode != null &&
-          storedDeviceCode.isNotEmpty &&
+          storedDeviceCode.toString().isNotEmpty &&
           storedBranchName != null &&
-          storedBranchName.isNotEmpty) {
-        // Set global alias name
+          storedBranchName.toString().isNotEmpty &&
+          dcStatus == 'active') {
+        debugPrint("✅ Valid device data found");
+
         globals.aliasname = storedBranchName;
+        debugPrint("🌍 Global aliasname set to: ${globals.aliasname}");
 
-        if (!mounted) return;
+        if (!mounted) {
+          debugPrint("⚠️ Widget not mounted, navigation skipped");
+          return;
+        }
 
-        // Navigate to login directly
+        debugPrint("➡️ Navigating to LoginScreen");
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => LoginScreen()),
         );
       } else {
-        // No stored data → show device code dialog
+        debugPrint("❌ Invalid or missing device data");
+
         if (!mounted) return;
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
+          debugPrint("🪟 Showing Device Code Dialog");
           showDeviceCodeDialog();
         });
       }
     } catch (e, stackTrace) {
-      debugPrint("Error checking stored device data: $e");
+      debugPrint("🚨 Error checking stored device data");
+      debugPrint("Error: $e");
+      debugPrint("StackTrace: $stackTrace");
     }
+
+    debugPrint("🏁 checkForStoredDeviceCode() completed");
   }
 
   Future<void> showDeviceCodeDialog() async {
@@ -246,65 +269,128 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
   }
 
   Future<void> fetchDeviceData(String deviceCode) async {
-    const url = 'https://yenerp.com/fastapi/devicecode/';
+    const url = 'https://yenerp.com/nextjstestapi/devicecode/';
+
+    debugPrint("🔍 fetchDeviceData() called");
+    debugPrint("📨 Device Code Entered: $deviceCode");
+    debugPrint("🌐 API URL: $url");
 
     try {
+      debugPrint("⏳ Sending GET request...");
       final response = await http.get(Uri.parse(url));
-      if (!mounted) return;
+
+      debugPrint("📡 Response received");
+      debugPrint("📊 Status Code: ${response.statusCode}");
+      debugPrint("📄 Response Body: ${response.body}");
+
+      if (!mounted) {
+        debugPrint("⚠️ Widget not mounted after API call");
+        return;
+      }
 
       if (response.statusCode == 200) {
+        debugPrint("✅ API call successful");
+
         final data = json.decode(response.body);
+        debugPrint("🧩 Decoded JSON data type: ${data.runtimeType}");
+
         final List<dynamic> devices = data;
+        debugPrint("📦 Total devices received: ${devices.length}");
+
+        debugPrint("🔎 Searching for device code: $deviceCode");
         final device = devices.firstWhere(
           (device) => device['deviceCode'] == deviceCode,
           orElse: () => null,
         );
 
         if (device != null) {
+          debugPrint("✅ Device found");
+          debugPrint("🧾 Device Data: $device");
+
           setState(() {
             deviceData = device;
           });
+          debugPrint("🧠 Device data stored in state");
 
-          if (device['status'] == 'active') {
-            if (!mounted) return;
+          debugPrint("🔐 Device Status: ${device['dcStatus']}");
+
+          if (device['dcStatus'] == 'active') {
+            debugPrint("🟢 Device is ACTIVE");
+
+            if (!mounted) {
+              debugPrint("⚠️ Widget not mounted before showing dialog");
+              return;
+            }
+
+            debugPrint("🪟 Showing confirmation dialog");
             showConfirmationDialog(device['branchName']);
           } else {
+            debugPrint("🔴 Device is EXPIRED or INACTIVE");
+
             if (mounted) {
               showSnackbar("Device code is expired.");
             }
           }
         } else {
+          debugPrint("❌ Device not found for code: $deviceCode");
+
           if (mounted) {
             showSnackbar("Device not found.");
           }
         }
       } else {
+        debugPrint("❌ API call failed");
+        debugPrint("📛 Status Code: ${response.statusCode}");
+
         if (mounted) {
           showSnackbar(
             "Failed to fetch device data. Status code: ${response.statusCode}",
           );
         }
       }
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint("🚨 Exception occurred while fetching device data");
+      debugPrint("Error: $error");
+      debugPrint("StackTrace: $stackTrace");
+
       if (mounted) {
         showSnackbar("Failed to fetch device data.");
       }
     }
+
+    debugPrint("🏁 fetchDeviceData() completed");
   }
 
   Future<void> showConfirmationDialog(String branchName) async {
-    if (!mounted) return;
+    debugPrint("🔔 showConfirmationDialog called with branchName: $branchName");
+
+    if (!mounted) {
+      debugPrint("❌ Widget not mounted. Dialog will not be shown.");
+      return;
+    }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      debugPrint(
+        "🧩 Post frame callback triggered. Opening confirmation dialog.",
+      );
+
       showGeneralDialog(
         context: context,
         barrierDismissible: false,
         barrierLabel: "Branch Confirmation",
         transitionDuration: const Duration(milliseconds: 300),
-        pageBuilder: (context, animation1, animation2) =>
-            const SizedBox.shrink(),
+
+        pageBuilder: (context, animation1, animation2) {
+          debugPrint("📄 pageBuilder executed");
+          return const SizedBox.shrink();
+        },
+
         transitionBuilder: (context, anim, secondary, child) {
           final curved = Curves.easeOutBack.transform(anim.value);
+          debugPrint(
+            "🎞 Dialog animation progress: value=${anim.value.toStringAsFixed(2)}",
+          );
+
           return Transform.scale(
             scale: curved,
             child: Opacity(
@@ -339,10 +425,11 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
                       width: 1.2,
                     ),
                   ),
+
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Icon with glow
+                      /// ICON
                       Container(
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
@@ -351,8 +438,6 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
                               Colors.blueAccent.withOpacity(0.7),
                               Colors.lightBlueAccent.withOpacity(0.5),
                             ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
                           ),
                           boxShadow: [
                             BoxShadow(
@@ -369,7 +454,9 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
                           size: 40,
                         ),
                       ),
+
                       const SizedBox(height: 14),
+
                       Text(
                         "Confirm Your Branch",
                         style: TextStyle(
@@ -378,7 +465,9 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
                           color: Colors.blueGrey.shade900,
                         ),
                       ),
+
                       const SizedBox(height: 8),
+
                       Text(
                         'Are you part of the branch:\n"$branchName"?',
                         textAlign: TextAlign.center,
@@ -387,12 +476,14 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
                           color: Colors.grey.shade700,
                         ),
                       ),
+
                       const SizedBox(height: 24),
 
-                      // Buttons row
+                      /// BUTTONS
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
+                          /// YES BUTTON
                           ElevatedButton.icon(
                             icon: const Icon(
                               Icons.check_circle_outline,
@@ -409,46 +500,65 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
                                 borderRadius: BorderRadius.circular(14),
                               ),
                               elevation: 6,
-                              shadowColor: Colors.blueAccent.withOpacity(0.4),
                             ),
                             onPressed: () async {
+                              debugPrint("✅ YES button clicked");
+
                               final deviceProvider =
                                   Provider.of<DeviceProvider>(
                                     context,
                                     listen: false,
                                   );
+
                               try {
+                                debugPrint(
+                                  "📦 Device data received: $deviceData",
+                                );
+
                                 globals.aliasname = deviceData!['aliasName'];
-                                // Store the device data
+                                debugPrint(
+                                  "🌍 Global alias set: ${globals.aliasname}",
+                                );
+
                                 await deviceProvider.storeDeviceData(
                                   deviceData!['deviceCode'],
                                   deviceData!['aliasName'],
                                   deviceData!['deviceCodeId'],
                                 );
 
-                                // Close dialog
-                                if (mounted) Navigator.of(context).pop();
+                                debugPrint(
+                                  "💾 Device data stored successfully",
+                                );
 
-                                // Show success SnackBar
+                                if (mounted) {
+                                  Navigator.of(context).pop();
+                                  debugPrint("🚪 Confirmation dialog closed");
+                                }
+
                                 if (mounted) {
                                   TopMessage.show(
                                     context,
                                     message: "Branch confirmed successfully!",
                                     backgroundColor: Colors.green.shade600,
                                   );
+                                  debugPrint("🎉 Success message shown");
                                 }
-                              } catch (e) {
-                                // Optional: handle error
+                              } catch (e, stackTrace) {
+                                debugPrint("❌ Error confirming branch: $e");
+                                debugPrint("📛 StackTrace: $stackTrace");
+
                                 if (mounted) {
                                   TopMessage.show(
                                     context,
                                     message: "Failed to confirm branch.",
-                                    backgroundColor: Colors.green.shade600,
+                                    backgroundColor: Colors.red.shade600,
                                   );
                                 }
                               }
                             },
                           ),
+
+                          /// NO BUTTON
                           OutlinedButton.icon(
                             icon: const Icon(
                               Icons.cancel_outlined,
@@ -467,11 +577,20 @@ class _InstallKOTAppState extends State<InstallPOSApp> {
                               ),
                             ),
                             onPressed: () {
+                              debugPrint("❌ NO button clicked");
+
                               if (mounted) {
                                 Navigator.of(context).pop();
+                                debugPrint(
+                                  "🚪 Confirmation dialog closed (No)",
+                                );
+
                                 showErrorDialog(
                                   "Branch mismatch. Please enter the correct device code.",
                                 ).then((_) {
+                                  debugPrint(
+                                    "⚠️ Error dialog closed. Opening device code dialog.",
+                                  );
                                   if (mounted) showDeviceCodeDialog();
                                 });
                               }

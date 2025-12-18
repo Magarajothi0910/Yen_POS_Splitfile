@@ -5,6 +5,7 @@ import 'dart:convert';
 
 import 'package:yenpos/Global/Model/employee.dart';
 
+
 class EmployeeProvider with ChangeNotifier {
   List<Employee> _employees = [];
   List<Employee> get employees => _employees;
@@ -34,19 +35,16 @@ class EmployeeProvider with ChangeNotifier {
         List<dynamic> employeesData = json.decode(response.body);
 
         // Filter employees who have the position "Sales"
-        _employees = employeesData
-            .where((data) {
-              return data['position'] == 'Sales';
-            })
-            .map((data) {
-              return Employee(
-                employeeNumber: data['employeeNumber'],
-                firstName: data['firstName'],
-                lastName: data['lastname'],
-                position: data['position'],
-              );
-            })
-            .toList();
+        _employees = employeesData.where((data) {
+          return data['position'] == 'Sales';
+        }).map((data) {
+          return Employee(
+            employeeNumber: data['employeeNumber'],
+            firstName: data['firstName'],
+            lastName: data['lastname'],
+            position: data['position'],
+          );
+        }).toList();
 
         // Store data in Hive (only "Sales" employees)
         var box = Hive.box('employeeData');
@@ -70,12 +68,10 @@ class EmployeeProvider with ChangeNotifier {
 
   List<Employee> searchEmployees(String query) {
     return _employees
-        .where(
-          (employee) =>
-              employee.firstName.toLowerCase().contains(query.toLowerCase()) ||
-              (employee.lastName?.toLowerCase().contains(query.toLowerCase()) ??
-                  false),
-        )
+        .where((employee) =>
+            employee.firstName.toLowerCase().contains(query.toLowerCase()) ||
+            (employee.lastName?.toLowerCase().contains(query.toLowerCase()) ??
+                false))
         .toList();
   }
 }

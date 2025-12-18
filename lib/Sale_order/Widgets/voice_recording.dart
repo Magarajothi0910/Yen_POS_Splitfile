@@ -67,9 +67,7 @@ class VoiceRecorderState extends ChangeNotifier {
           notifyListeners();
         }
       });
-
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   Future<void> startRecording() async {
@@ -79,7 +77,8 @@ class VoiceRecorderState extends ChangeNotifier {
     }
 
     final appDocDir = await getApplicationDocumentsDirectory();
-    _filePath = '${appDocDir.path}/audio.aac';
+    _filePath =
+        '${appDocDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.aac';
 
     await _recorder?.openRecorder();
     await _recorder?.startRecorder(
@@ -123,7 +122,8 @@ class VoiceRecorderState extends ChangeNotifier {
 
     var audioBox = Hive.box<String>('audioFiles');
     await audioBox.add(_filePath);
-
+    await playerController?.stopPlayer();
+    playerController = audio_waveforms.PlayerController();
     await _preparePlayback();
   }
 
@@ -133,17 +133,13 @@ class VoiceRecorderState extends ChangeNotifier {
     }
 
     try {
-      await playerController?.preparePlayer(
-        path: _filePath,
-        noOfSamples: 100,
-      );
+      await playerController?.preparePlayer(path: _filePath, noOfSamples: 100);
 
       final durationInMillis = await playerController?.getDuration();
       _totalDuration = Duration(milliseconds: durationInMillis ?? 0);
       _playbackDuration = Duration.zero;
       notifyListeners();
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   Future<void> togglePlayback() async {
@@ -250,7 +246,7 @@ class VoiceRecorder extends StatelessWidget {
   final Function(String) onRecordingComplete;
 
   const VoiceRecorder({required this.onRecordingComplete, Key? key})
-      : super(key: key);
+    : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -266,7 +262,7 @@ class VoiceRecorderView extends StatelessWidget {
   final Function(String) onRecordingComplete;
 
   const VoiceRecorderView({required this.onRecordingComplete, Key? key})
-      : super(key: key);
+    : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -298,9 +294,11 @@ class VoiceRecorderView extends StatelessWidget {
                           if (!state.isRecording && state.filePath.isNotEmpty)
                             IconButton(
                               onPressed: state.togglePlayback,
-                              icon: Icon(state.isPlaying
-                                  ? Icons.pause
-                                  : Icons.play_arrow),
+                              icon: Icon(
+                                state.isPlaying
+                                    ? Icons.pause
+                                    : Icons.play_arrow,
+                              ),
                               color: Colors.blue,
                               iconSize: 30,
                             )
@@ -315,27 +313,27 @@ class VoiceRecorderView extends StatelessWidget {
                                       size: Size(double.infinity, 50),
                                       waveStyle:
                                           const audio_waveforms.WaveStyle(
-                                        waveColor: Colors.blue,
-                                        extendWaveform: true,
-                                        showMiddleLine: false,
-                                      ),
+                                            waveColor: Colors.blue,
+                                            extendWaveform: true,
+                                            showMiddleLine: false,
+                                          ),
                                     )
                                   : state.filePath.isNotEmpty
-                                      ? audio_waveforms.AudioFileWaveforms(
-                                          size: Size(double.infinity, 50),
-                                          playerController: state.player!,
-                                          enableSeekGesture: true,
-                                          waveformType: audio_waveforms
-                                              .WaveformType.fitWidth,
-                                          playerWaveStyle: const audio_waveforms
-                                              .PlayerWaveStyle(
+                                  ? audio_waveforms.AudioFileWaveforms(
+                                      size: Size(double.infinity, 50),
+                                      playerController: state.player!,
+                                      enableSeekGesture: true,
+                                      waveformType:
+                                          audio_waveforms.WaveformType.fitWidth,
+                                      playerWaveStyle:
+                                          const audio_waveforms.PlayerWaveStyle(
                                             fixedWaveColor: Colors.grey,
                                             liveWaveColor: Colors.blue,
                                             seekLineColor: Colors.red,
                                             showBottom: false,
                                           ),
-                                        )
-                                      : const SizedBox(),
+                                    )
+                                  : const SizedBox(),
                             ),
                           ),
                           GestureDetector(
@@ -370,10 +368,12 @@ class VoiceRecorderView extends StatelessWidget {
                       state.isRecording
                           ? "${state.formatDuration(state.elapsedDuration)} / ${state.formatDuration(state.maxDuration)}"
                           : state.filePath.isNotEmpty
-                              ? "${state.formatDuration(state.playbackDuration)} / ${state.formatDuration(state.totalDuration)}"
-                              : "",
+                          ? "${state.formatDuration(state.playbackDuration)} / ${state.formatDuration(state.totalDuration)}"
+                          : "",
                       style: const TextStyle(
-                          fontSize: 8, fontWeight: FontWeight.w800),
+                        fontSize: 8,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ],
                 ),

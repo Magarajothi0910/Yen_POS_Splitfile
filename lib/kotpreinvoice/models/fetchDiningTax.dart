@@ -8,9 +8,7 @@ Future<void> fetchAndStoreTaxDetails() async {
     final response = await dio.get('https://yenerp.com/fastapi/details/');
     if (response.statusCode == 200) {
       List<dynamic> data = response.data;
-      double diningTax = double.parse(
-        data.firstWhere((item) => item['details'] == 'diningTax')['value'],
-      );
+      double diningTax = double.parse(data.firstWhere((item) => item['details'] == 'diningTax')['value']);
 
       // Store in Hive
       var box = Hive.box('settings');

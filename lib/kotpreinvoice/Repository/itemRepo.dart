@@ -20,7 +20,6 @@ Future<Map<String, dynamic>> getBranchwiseItemsFromLazyBox() async {
   final box = Hive.box('branchwise_items');
   final wrapper = box.get('data');
 
-  print("📦 Raw wrapper from box: $wrapper");
 
   // Validate wrapper
   if (wrapper == null) {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:yenpos/Global/Widget/custom_sized_box.dart';
 import 'package:yenpos/more_page/configurations/weigheing_scale_configration.dart';
+import 'package:yenpos/printer_screen/kotPrint.dart';
 import 'package:yenpos/printer_screen/printer_config.dart';
 
 
@@ -36,6 +37,12 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
                 isSelected: configurationView == 'Weight Scale Configuration',
                 onPressed: () => setState(() => configurationView = 'Weight Scale Configuration'),
               ),
+               _buildConfigurationButton(
+                icon: Icons.scale,
+                label: 'KOT Printer Configuration',
+                isSelected: configurationView == 'KOT Printer Configuration',
+                onPressed: () => setState(() => configurationView = 'KOT Printer Configuration'),
+              ),
             ],
           ),
         ),
@@ -50,6 +57,9 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
                   Expanded(child: PrinterSettingsScreen()),
                 if (configurationView == 'Weight Scale Configuration')
                   const Expanded(child: ConnectWeighingScale()),
+                   if (configurationView == 'KOT Printer Configuration')
+                  Expanded(child: KOTPrinterSettingsScreen()),
+                  // Expanded(child: ConnectWeighingScale()),
               ],
             ),
           ),
@@ -76,8 +86,8 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 28, color: isSelected ? Colors.white : Colors.black),
-              const SizedBox(width: 16),
+              Icon(icon, size: 24, color: isSelected ? Colors.white : Colors.black),
+              const SizedBox(width: 10),
               Text(
                 label,
                 style: TextStyle(fontFamily: 'Poppins',

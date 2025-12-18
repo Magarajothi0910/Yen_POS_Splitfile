@@ -138,10 +138,10 @@ Future<List<Map<String, dynamic>>> loadOrdersFromHive() async {
 
 Future<List<Map<String, dynamic>>> loadPrintersFromHive() async {
   try {
-    var printerBox = await Hive.openBox('printers');
+    var printerBox = await Hive.openBox('KOTprinters');
     List<Map<String, dynamic>> printers = [];
 
-    print('🔍 Opening printers box, length: ${printerBox.length}');
+    print('🔍 Opening KOTprinters box, length: ${printerBox.length}');
 
     final data = printerBox.get('data');
     if (data != null && data is List) {
@@ -192,7 +192,7 @@ Future<void> deleteOrderFromHive(String hiveOrderId) async {
 }
 
 Future<void> saveKotInvoiceToHive(Map<String, dynamic> invoice) async {
-  final invoiceBox = Hive.box('invoices');
+  final invoiceBox = Hive.box('invoicesKOT');
 
   // ✅ Ensure date is stored in dd-MM-yyyy format (so filtering works later)
   if (invoice['invoiceDate'] is DateTime) {
@@ -214,7 +214,7 @@ Future<void> savePosInvoiceToHive(Map<String, dynamic> posInvoice) async {
 
 Future<void> savePrinterDetailsToHive(Map<String, dynamic> printerData) async {
   try {
-    var printerBox = await Hive.openBox('printers');
+    var printerBox = await Hive.openBox('KOTprinters');
     var provider =
         PrinterProviderDine(); // Note: Ideally, inject PrinterProvider via context or singleton
     await provider.printerInitializeHive();

@@ -11,7 +11,7 @@ class BirthdayCakesProvider with ChangeNotifier {
   bool _isTextFieldFocused = false;
   Offset _keyboardPosition = const Offset(50, 200);
 
-  bool _showExpiry = false; // <-- NEW
+  bool _showExpiry = false;               // <-- NEW
   bool get showExpiry => _showExpiry;
   void toggleDateView() {
     _showExpiry = !_showExpiry;
@@ -24,12 +24,7 @@ class BirthdayCakesProvider with ChangeNotifier {
   bool get isTextFieldFocused => _isTextFieldFocused;
   Offset get keyboardPosition => _keyboardPosition;
 
-  final Dio _dio = Dio(
-    BaseOptions(
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 10),
-    ),
-  );
+  final Dio _dio = Dio(BaseOptions(connectTimeout: const Duration(seconds: 10), receiveTimeout: const Duration(seconds: 10)));
 
   Future<void> fetchCakes() async {
     print('Fetching cakes...');
@@ -41,20 +36,14 @@ class BirthdayCakesProvider with ChangeNotifier {
         "https://yenerp.com/fastapi/birthdaycakes/cakes/by-branch/?branchName=$branchName&status=Recieved",
       );
       debugPrint("branchName:$branchName");
-      print(
-        'API response status: ${response.statusCode}, data: ${response.data}',
-      );
+      print('API response status: ${response.statusCode}, data: ${response.data}');
 
       if (response.statusCode == 200) {
         if (response.data is List) {
-          cakes = (response.data as List)
-              .map((item) => BirthDayCake.fromJson(item))
-              .toList();
+          cakes = (response.data as List).map((item) => BirthDayCake.fromJson(item)).toList();
           print('Parsed ${cakes.length} cakes');
         } else {
-          throw Exception(
-            "Unexpected response type: ${response.data.runtimeType}",
-          );
+          throw Exception("Unexpected response type: ${response.data.runtimeType}");
         }
       } else {
         throw Exception("Failed to fetch cakes: ${response.statusCode}");

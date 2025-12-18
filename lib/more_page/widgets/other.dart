@@ -52,14 +52,32 @@ class _OthersScreenState extends State<OthersScreen> {
                             _buildTicketInput(prov),
                             _buildSectionTitle("Payment Settings"),
                             buildSettingsRow(
-                              title: "Online Payment",
+                              title: "POS Online Payment",
                               value: isPaymentEnabled,
                               Function: prov.togglePaymentButton,
                             ),
+                             buildSettingsRow(
+                              title: "KOT Online Payment",
+                              value: isKOTPaymentEnabled,
+                              Function: () => prov.toggleKOTPaymentButton(context),
+                            ),
+                            buildSettingsRow(
+                              title: "SO Online Payment",
+                              value: isSOPaymentEnabled,
+                              Function:prov.toggleSOPaymentButton,
+                            ),
                             _buildSectionTitle("Bill Settings"),
+                            _buildSectionSubTitle("Dine in"),
+                             buildSettingsRow(title: "KOT Overall Print", value: isKOTPrintEnabled, Function: prov.toggleKOTPrintButton),
+                              buildSettingsRow(title: "WhatsApp", value: isKOTWhatsappEnabled, Function: prov.toggleKOTWhatsappButton),
+                            _buildSectionSubTitle("Take Away"),
                             buildSettingsRow(title: "Print", value: isPrintEnabled, Function: prov.togglePrintButton),
                             buildSettingsRow(title: "WhatsApp", value: isWhatsAppEnabled, Function: prov.toggleWhatsAppButton),
                             buildSettingsRow(title: "SMS", value: isSMSEnabled, Function: prov.toggleSMSButton),
+                            _buildSectionSubTitle("Sale Order"),
+                            buildSettingsRow(title: "Print", value: isSOPrintEnabled, Function: prov.toggleSOPrintButton),
+                            buildSettingsRow(title: "WhatsApp", value: isSOWhatsAppEnabled, Function: prov.toggleSOWhatsappTButton),
+                            buildSettingsRow(title: "SMS", value: isSOSMSEnabled, Function: prov.toggleSOSMSButton),
                             _buildSectionTitle("GST Settings"),
                             buildSettingsRow(title: "Remove GST in Print", value: isGSTEnabled, Function: prov.toggleGSTButton),
                             SizedBox(height: 20),
@@ -124,6 +142,20 @@ class _OthersScreenState extends State<OthersScreen> {
         child: Text(
           title,
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: CustomColors.whiteColor, fontFamily: "Poppins"),
+        ),
+      ),
+    );
+  }
+   Widget _buildSectionSubTitle(String title) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(5),
+      margin: EdgeInsets.only(bottom: 5, top: 10),
+      decoration: BoxDecoration(color: CustomColors.blueColor.withOpacity(0.4), borderRadius: BorderRadius.circular(3)),
+      child: Center(
+        child: Text(
+          title,
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: CustomColors.black.withOpacity(0.8), fontFamily: "Poppins"),
         ),
       ),
     );

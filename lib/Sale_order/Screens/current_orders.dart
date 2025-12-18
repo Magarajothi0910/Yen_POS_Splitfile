@@ -116,6 +116,7 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
                   filteredSalesOrders,
                   _selectedTransactionIndex,
                   apiService,
+                  customerScreenProvider,
                 ),
               ),
             ],
@@ -288,9 +289,7 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(18),
                             gradient: LinearGradient(
-                              colors: order.status == "dispatched"
-                                  ? [Colors.red.shade200, Colors.red.shade100]
-                                  : [Colors.white, Colors.grey.shade100],
+                              colors: [Colors.white, Colors.grey.shade100],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
@@ -460,6 +459,7 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
     List<SalesOrderDisplay> hivefilteredSalesOrders,
     int? selectedIndex,
     ApiServiceSalesOrderProvider apiService,
+    EditCustomerScreenProvider customerprovider,
   ) {
     if (selectedIndex == null || hivefilteredSalesOrders.isEmpty) {
       return _buildEmptyOrderState();
@@ -474,7 +474,7 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
           _buildOrderHeader(salesOrder),
           Divider(color: Colors.grey[400]),
           _buildOrderItemsList(salesOrder),
-          _buildOrderSummary(salesOrder),
+          _buildOrderSummary(salesOrder, customerprovider),
           _buildOrderActions(context, salesOrder),
         ],
       ),
@@ -731,136 +731,193 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
     );
   }
 
-  Widget _buildOrderSummary(SalesOrderDisplay salesOrder) {
-    final dateFormatter = DateFormat('dd-MM-yyyy');
-    final timeFormatter = DateFormat('hh:mm a'); // 12-hour format
+  Widget _buildOrderSummary(
+    SalesOrderDisplay salesOrder,
+    EditCustomerScreenProvider customerprovider,
+  ) {
+    // Safe totals
+    double totalAdvanceAmount = (salesOrder.advanceAmount ?? []).fold(
+      0.0,
+      (sum, value) => (value ?? 0.0).toDouble() + sum,
+    );
 
-    // Ensure both lists exist
-    final advanceAmounts = salesOrder.advanceAmount ?? [];
-    final advanceDates = salesOrder.advanceDateTime ?? [];
+    double modifiedTotal = customerprovider.isModifyMode.value
+        ? customerprovider.calculateModifiedTotal(salesOrder)
+        : (salesOrder.totalAmount ?? 0.0).toDouble();
 
-    // Take the shorter list length to avoid RangeError
-    final int minLength = advanceAmounts.length < advanceDates.length
+    // double customCharge = (salesOrder.customCharge ?? 0.0).toDouble();
+    double customCharge = customerprovider.modifiedCustomCharge;
+    print("custom charge: $customCharge");
+    double totalAmount2 =
+        (salesOrder.totalAmount2 ?? salesOrder.totalAmount ?? 0.0).toDouble();
+    double discount = (salesOrder.discount ?? 0.0).toDouble();
+    double discountAmount = (salesOrder.discountAmount ?? 0.0).toDouble();
+    double finalPrice = (salesOrder.finalPrice ?? totalAmount2).toDouble();
+
+    List<double> advanceAmounts = (salesOrder.advanceAmount ?? [])
+        .map((e) => (e ?? 0.0).toDouble())
+        .toList();
+    List<String> advanceDates = salesOrder.advanceDateTime ?? [];
+
+    int advanceLength = advanceAmounts.length < advanceDates.length
         ? advanceAmounts.length
         : advanceDates.length;
 
-    return Align(
-      alignment: Alignment.centerRight,
+    return Padding(
+      padding: const EdgeInsets.all(8.0), // reduced from 12
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Total Amount
-          Text(
-            'Total: ₹${salesOrder.totalAmount.toStringAsFixed(0)}',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
+          _summaryRow("Total", salesOrder.totalAmount),
+          if (customCharge > 0)
+            _summaryRow("Custom Charge", customCharge, color: Colors.orange),
+          if (customCharge > 0) _summaryRow("Total Amount", totalAmount2),
+          if (discount > 0)
+            _summaryRow(
+              "Discount",
+              discountAmount,
+              prefix: "${discount.toStringAsFixed(0)}% (-)",
+              color: Colors.red,
             ),
-          ),
+          if (discount > 0) _summaryRow("Order Amount", finalPrice),
 
-          // Custom Charge
-          if (salesOrder.customCharge > 0)
-            Text(
-              'Custom Charge: ₹${salesOrder.customCharge.toStringAsFixed(0)}',
+          // ---- Modification Summary ----
+          if (customerprovider.isModifyMode.value &&
+              (customerprovider.increasedItems.value.isNotEmpty ||
+                  customerprovider.decreasedItems.value.isNotEmpty)) ...[
+            const SizedBox(height: 6),
+            const Divider(height: 12),
+            const Text(
+              "Modification Summary",
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: FontWeight.bold,
-                color: Colors.orange,
+                color: Colors.blueGrey,
               ),
             ),
-          if (salesOrder.customCharge > 0)
-            // Total Amount 2
+            const SizedBox(height: 4),
             Text(
-              'Total Amount: ₹${salesOrder.totalAmount2?.toStringAsFixed(0) ?? '0'}',
-              style: TextStyle(
-                fontSize: 12,
+              "Original Total: ₹${(salesOrder.totalAmount ?? 0.0).toStringAsFixed(2)}",
+              style: const TextStyle(
+                fontSize: 10.5,
                 fontWeight: FontWeight.bold,
-                color: Colors.black,
+                decoration: TextDecoration.lineThrough,
+                color: Colors.grey,
               ),
             ),
-
-          // Discount
-          if (salesOrder.discount > 0)
-            Text(
-              'Discount: ${salesOrder.discount}%(-): ₹${salesOrder.discountAmount.toStringAsFixed(0)}',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Colors.red,
-              ),
-            ),
-          if (salesOrder.discount > 0)
-            // Order Amount
-            Text(
-              'Order Amount: ₹${salesOrder.finalPrice.toStringAsFixed(0)}',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
-            ),
-
-          // Advance Amount with Date & Time
-          Column(
-            children: List.generate(minLength, (index) {
-              DateTime? dt;
-              final dateStr = advanceDates[index];
-
-              try {
-                dt = DateTime.tryParse(dateStr);
-              } catch (e) {
-                dt = null;
-              }
-
-              final formattedDate = dt != null
-                  ? dateFormatter.format(dt)
-                  : dateStr;
-              final formattedTime = dt != null ? timeFormatter.format(dt) : '';
-
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Date & Time
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Paid on : $formattedDate - $formattedTime',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    // Advance Amount
-                    Text(
-                      'Advance: ₹${advanceAmounts[index].toStringAsFixed(0)}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green,
-                      ),
-                    ),
-                  ],
+            if (customerprovider.increasedItems.value.isNotEmpty)
+              _summaryRow(
+                "Added Items",
+                customerprovider.increasedItems.value.fold<double>(
+                  0.0,
+                  (sum, item) =>
+                      sum + ((item['amount'] ?? 0.0) as num).toDouble(),
                 ),
-              );
-            }),
-          ),
+                color: Colors.green,
+                prefix: "+",
+              ),
+            if (customerprovider.decreasedItems.value.isNotEmpty)
+              _summaryRow(
+                "Removed Items",
+                customerprovider.decreasedItems.value.fold<double>(
+                  0.0,
+                  (sum, item) =>
+                      sum + ((item['amount'] ?? 0.0) as num).toDouble(),
+                ),
+                color: Colors.red,
+                prefix: "-",
+              ),
+            _summaryRow("Modified Total", modifiedTotal, color: Colors.blue),
+          ],
 
-          // Balance Amount
+          // ---- Advance Payments ----
+          if (advanceLength > 0) ...[
+            const Divider(height: 14),
+            const Text(
+              "Advance Payments",
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Colors.blueGrey,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Column(
+              children: List.generate(advanceLength, (index) {
+                String formattedDate;
+                try {
+                  formattedDate = DateFormat(
+                    'dd-MM-yyyy',
+                  ).format(DateTime.parse(advanceDates[index]));
+                } catch (_) {
+                  formattedDate = advanceDates[index];
+                }
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        formattedDate,
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      Text(
+                        "₹${advanceAmounts[index].toStringAsFixed(2)}",
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ),
+          ],
+
+          const Divider(height: 14),
+          _summaryRow(
+            "Balance",
+            modifiedTotal - totalAdvanceAmount + customCharge,
+            color: Colors.blue,
+            bold: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryRow(
+    String label,
+    double? value, {
+    String prefix = "",
+    Color? color,
+    bool bold = true,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.0), // reduced from 3
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
           Text(
-            'Balance Amount: ₹${salesOrder.finalPrice.toStringAsFixed(0)}',
+            label,
             style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: Colors.blue,
+              fontSize: 10.5,
+              fontWeight: bold ? FontWeight.w600 : FontWeight.w500,
+              color: Colors.black87,
+            ),
+          ),
+          Text(
+            "$prefix ₹${(value ?? 0.0).toStringAsFixed(2)}",
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: bold ? FontWeight.w600 : FontWeight.w500,
+              color: color ?? Colors.black,
             ),
           ),
         ],

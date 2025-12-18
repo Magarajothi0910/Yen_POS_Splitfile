@@ -7,6 +7,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import 'package:yenpos/Global/Provider/branchwise_item_fetch.dart';
 import 'package:yenpos/Global/Widget/custom_colors.dart';
+import 'package:yenpos/Global/globals_data.dart';
 import 'package:yenpos/birthday_cakes_screen/models/birthdayCake_model.dart';
 import 'package:yenpos/birthday_cakes_screen/provider/birthdayCake_provider.dart';
 import 'package:yenpos/invoice_pay_and_print_page.dart/salesInvoicePayandPrint.dart';
@@ -21,7 +22,8 @@ class BirthdayCakesScreen extends StatefulWidget {
   State<BirthdayCakesScreen> createState() => _BirthdayCakesScreenState();
 }
 
-class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAware {
+class _BirthdayCakesScreenState extends State<BirthdayCakesScreen>
+    with RouteAware {
   final FocusNode _qrFocusNode = FocusNode();
   final FocusNode _manualFocusNode = FocusNode();
   final TextEditingController _manualController = TextEditingController();
@@ -44,22 +46,31 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
     // Ensure keyboard is hidden initially
     _manualFocusNode.unfocus();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final provider = Provider.of<BirthdayCakesProvider>(context, listen: false);
+      final provider = Provider.of<BirthdayCakesProvider>(
+        context,
+        listen: false,
+      );
       provider.setTextFieldFocused(false);
       provider
           .fetchCakes()
           .then((_) {
-            print('Fetched cakes: ${provider.cakes.map((c) => c.cakeId).toList()}');
+            print(
+              'Fetched cakes: ${provider.cakes.map((c) => c.cakeId).toList()}',
+            );
           })
           .catchError((e) {
             print('Error fetching cakes: $e');
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text('Failed to load cakes: $e'), duration: const Duration(seconds: 2)));
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to load cakes: $e'),
+                duration: const Duration(seconds: 2),
+              ),
+            );
           });
       if (provider.isQrMode) {
-        Future.delayed(const Duration(milliseconds: 300), () {
-          _qrFocusNode.requestFocus(); // ensure scanner field is ready
+        Future.delayed(const Duration(milliseconds: 500), () {
+          _qrFocusNode.requestFocus();
+          debugPrint('QR Mode: Focus requested on hidden scanner field');
         });
       }
     });
@@ -106,7 +117,10 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
         AudioContext(
           iOS: AudioContextIOS(
             category: AVAudioSessionCategory.playback,
-            options: [AVAudioSessionOptions.defaultToSpeaker, AVAudioSessionOptions.mixWithOthers],
+            options: [
+              AVAudioSessionOptions.defaultToSpeaker,
+              AVAudioSessionOptions.mixWithOthers,
+            ],
           ),
         ),
       );
@@ -116,9 +130,12 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
       print('Error playing beep sound: $e\nStack trace: $stackTrace');
       // Fallback to vibration
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Scan successful, but audio failed: $e'), duration: Duration(milliseconds: 500)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Scan successful, but audio failed: $e'),
+          duration: Duration(milliseconds: 500),
+        ),
+      );
     }
   }
 
@@ -131,7 +148,9 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
 
   void _onFocusChange() {
     final provider = Provider.of<BirthdayCakesProvider>(context, listen: false);
-    print('Focus changed: _manualFocusNode.hasFocus = ${_manualFocusNode.hasFocus}');
+    print(
+      'Focus changed: _manualFocusNode.hasFocus = ${_manualFocusNode.hasFocus}',
+    );
     provider.setTextFieldFocused(_manualFocusNode.hasFocus);
   }
 
@@ -141,9 +160,10 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
     provider.toggleQrMode();
     provider.setCameraMode(false);
     if (provider.isQrMode) {
-      _qrFocusNode.requestFocus();
-      _manualFocusNode.unfocus();
-      provider.setTextFieldFocused(false);
+      Future.delayed(const Duration(milliseconds: 100), () {
+        _qrFocusNode.requestFocus();
+        debugPrint('QR Mode ON: Focus forced');
+      });
     } else {
       _manualFocusNode.requestFocus();
       _qrFocusNode.unfocus();
@@ -170,7 +190,9 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
 
   void _handleInput(String value) async {
     final provider = Provider.of<BirthdayCakesProvider>(context, listen: false);
-    if (_isProcessing || (!provider.isQrMode && !provider.isCameraMode) || value.isEmpty) {
+    if (_isProcessing ||
+        (!provider.isQrMode && !provider.isCameraMode) ||
+        value.isEmpty) {
       return;
     }
 
@@ -184,14 +206,18 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
 
       final Map<String, dynamic> scannedData = _parseScannedData(value);
 
-      if (scannedData.containsKey('CakeID') && scannedData.containsKey('ItemCode')) {
+      if (scannedData.containsKey('CakeID') &&
+          scannedData.containsKey('ItemCode')) {
         final itemCode = scannedData['ItemCode'];
         final cakeId = scannedData['CakeID'];
         final quantity = scannedData['Qty'] ?? 1;
         final uom = scannedData['UOM'] ?? '';
 
         final itemProvider = Provider.of<ItemProvider>(context, listen: false);
-        final saleProvider = Provider.of<CurrentSaleProvider>(context, listen: false);
+        final saleProvider = Provider.of<CurrentSaleProvider>(
+          context,
+          listen: false,
+        );
 
         print('Scanned CakeID: $cakeId');
 
@@ -215,13 +241,19 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
           final expiryDate = matchingCake.expiryDate.toLocal();
           final now = DateTime.now();
           final nowDate = DateTime(now.year, now.month, now.day);
-          final expiryDateOnly = DateTime(expiryDate.year, expiryDate.month, expiryDate.day);
+          final expiryDateOnly = DateTime(
+            expiryDate.year,
+            expiryDate.month,
+            expiryDate.day,
+          );
           final daysRemaining = expiryDateOnly.difference(nowDate).inDays;
 
           if (daysRemaining < 0) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text("Cannot add to cart: Cake with CakeID $cakeId is expired."),
+                content: Text(
+                  "Cannot add to cart: Cake with CakeID $cakeId is expired.",
+                ),
                 duration: const Duration(milliseconds: 500),
               ),
             );
@@ -230,32 +262,45 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
 
           provider.removeCakeById(cakeId);
 
-          final result = itemProvider.checkVarianceItemCode(itemCode);
+          final result =await itemProvider.checkVarianceItemCode(itemCode,aliasname);
 
           if (result.isNotEmpty) {
             final itemData = result.first;
 
-            saleProvider.addItemToCart({...itemData, 'quantity': parseToDouble(quantity), 'uom': uom, 'cakeId': cakeId});
+            saleProvider.addItemToCart({
+              ...itemData,
+              'quantity': parseToDouble(quantity),
+              'uom': uom,
+              'cakeId': cakeId,
+            });
 
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 backgroundColor: CustomColors.blueColor,
                 content: Text(
                   "Item added to cart: ${itemData['varianceData']['varianceName']}",
-                  style: const TextStyle(fontFamily: 'Poppins',color: CustomColors.whiteColor),
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    color: CustomColors.whiteColor,
+                  ),
                 ),
                 duration: const Duration(milliseconds: 500),
               ),
             );
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("Item not found for ItemCode: $itemCode"), duration: const Duration(milliseconds: 500)),
+              SnackBar(
+                content: Text("Item not found for ItemCode: $itemCode"),
+                duration: const Duration(milliseconds: 500),
+              ),
             );
           }
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text("No cake found with CakeID: $cakeId. Item not added to cart."),
+              content: Text(
+                "No cake found with CakeID: $cakeId. Item not added to cart.",
+              ),
               duration: const Duration(milliseconds: 500),
             ),
           );
@@ -270,9 +315,12 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
       }
     } catch (e) {
       print('Error processing QR input: $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Error: ${e.toString()}"), duration: const Duration(milliseconds: 500)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error: ${e.toString()}"),
+          duration: const Duration(milliseconds: 500),
+        ),
+      );
     } finally {
       _qrController.clear();
       if (provider.isCameraMode) {
@@ -286,14 +334,15 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
     }
   }
 
-  // ... Rest of your existing methods remain the same (handleManualAdd, parseScannedData, etc.)
-
   void _handleManualAdd(String cakeId) async {
     final provider = Provider.of<BirthdayCakesProvider>(context, listen: false);
     if (cakeId.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Please enter a valid Cake ID."), duration: Duration(milliseconds: 500)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Please enter a valid Cake ID."),
+          duration: Duration(milliseconds: 500),
+        ),
+      );
       return;
     }
 
@@ -302,7 +351,10 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
       await _playBeepSound();
 
       final itemProvider = Provider.of<ItemProvider>(context, listen: false);
-      final saleProvider = Provider.of<CurrentSaleProvider>(context, listen: false);
+      final saleProvider = Provider.of<CurrentSaleProvider>(
+        context,
+        listen: false,
+      );
 
       final matchingCake =
           provider.getCakeById(cakeId) ??
@@ -324,13 +376,19 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
         final expiryDate = matchingCake.expiryDate.toLocal();
         final now = DateTime.now();
         final nowDate = DateTime(now.year, now.month, now.day);
-        final expiryDateOnly = DateTime(expiryDate.year, expiryDate.month, expiryDate.day);
+        final expiryDateOnly = DateTime(
+          expiryDate.year,
+          expiryDate.month,
+          expiryDate.day,
+        );
         final daysRemaining = expiryDateOnly.difference(nowDate).inDays;
 
         if (daysRemaining < 0) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text("Cannot add to cart: Cake with CakeID $cakeId is expired."),
+              content: Text(
+                "Cannot add to cart: Cake with CakeID $cakeId is expired.",
+              ),
               duration: const Duration(milliseconds: 500),
             ),
           );
@@ -339,37 +397,54 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
 
         provider.removeCakeById(cakeId);
 
-        final result = itemProvider.checkVarianceItemCode(matchingCake.itemCode);
+        final result = await itemProvider.checkVarianceItemCode(
+          matchingCake.itemCode,aliasname
+        );
 
         if (result.isNotEmpty) {
           final itemData = result.first;
 
-          saleProvider.addItemToCart({...itemData, 'quantity': 1.0, 'uom': '', 'cakeId': cakeId});
+          saleProvider.addItemToCart({
+            ...itemData,
+            'quantity': 1.0,
+            'uom': '',
+            'cakeId': cakeId,
+          });
 
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text("Item added to cart: ${itemData['varianceData']['varianceName']}"),
+              content: Text(
+                "Item added to cart: ${itemData['varianceData']['varianceName']}",
+              ),
               duration: const Duration(milliseconds: 500),
             ),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Item not found for CakeID: $cakeId"), duration: const Duration(milliseconds: 500)),
+            SnackBar(
+              content: Text("Item not found for CakeID: $cakeId"),
+              duration: const Duration(milliseconds: 500),
+            ),
           );
         }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("No cake found with CakeID: $cakeId. Item not added to cart."),
+            content: Text(
+              "No cake found with CakeID: $cakeId. Item not added to cart.",
+            ),
             duration: const Duration(milliseconds: 500),
           ),
         );
       }
     } catch (e) {
       print('Error processing manual input: $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Error: ${e.toString()}"), duration: const Duration(milliseconds: 500)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error: ${e.toString()}"),
+          duration: const Duration(milliseconds: 500),
+        ),
+      );
     } finally {
       _manualController.clear();
       if (!provider.isQrMode && !provider.isCameraMode) {
@@ -395,7 +470,9 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
     }
   }
 
-  Map<String, List<Map<String, dynamic>>> groupCakesByDateAndItem(List<BirthDayCake> cakes) {
+  Map<String, List<Map<String, dynamic>>> groupCakesByDateAndItem(
+    List<BirthDayCake> cakes,
+  ) {
     Map<String, List<Map<String, dynamic>>> grouped = {};
 
     for (var cake in cakes) {
@@ -403,7 +480,10 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
 
       if (!grouped.containsKey(dateKey)) grouped[dateKey] = [];
 
-      var existing = grouped[dateKey]!.firstWhere((e) => e['itemCode'] == cake.itemCode, orElse: () => {});
+      var existing = grouped[dateKey]!.firstWhere(
+        (e) => e['itemCode'] == cake.itemCode,
+        orElse: () => {},
+      );
 
       if (existing.isNotEmpty) {
         existing['count'] += 1;
@@ -445,21 +525,34 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
             _isAtTopNotifier.value = false;
           });
     } else {
-      _scrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut).then((_) {
-        _isAtTopNotifier.value = true;
-      });
+      _scrollController
+          .animateTo(
+            0,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          )
+          .then((_) {
+            _isAtTopNotifier.value = true;
+          });
     }
   }
 
-  Map<String, List<Map<String, dynamic>>> _groupByReceived(List<BirthDayCake> cakes) {
+  Map<String, List<Map<String, dynamic>>> _groupByReceived(
+    List<BirthDayCake> cakes,
+  ) {
     return _groupCakes(cakes, (c) => c.recievedDate);
   }
 
-  Map<String, List<Map<String, dynamic>>> _groupByExpiry(List<BirthDayCake> cakes) {
+  Map<String, List<Map<String, dynamic>>> _groupByExpiry(
+    List<BirthDayCake> cakes,
+  ) {
     return _groupCakes(cakes, (c) => c.expiryDate);
   }
 
-  Map<String, List<Map<String, dynamic>>> _groupCakes(List<BirthDayCake> cakes, DateTime Function(BirthDayCake) dateGetter) {
+  Map<String, List<Map<String, dynamic>>> _groupCakes(
+    List<BirthDayCake> cakes,
+    DateTime Function(BirthDayCake) dateGetter,
+  ) {
     final Map<String, List<Map<String, dynamic>>> grouped = {};
 
     for (var cake in cakes) {
@@ -467,7 +560,9 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
 
       grouped.putIfAbsent(dateKey, () => []);
 
-      final existing = grouped[dateKey]!.firstWhereOrNull((e) => e['itemCode'] == cake.itemCode);
+      final existing = grouped[dateKey]!.firstWhereOrNull(
+        (e) => e['itemCode'] == cake.itemCode,
+      );
 
       if (existing != null) {
         existing['count'] += 1;
@@ -483,7 +578,8 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
     }
 
     // ---- FIFO sorting (oldest first) ----
-    final sortedKeys = grouped.keys.toList()..sort((a, b) => a.compareTo(b)); // ascending = FIFO
+    final sortedKeys = grouped.keys.toList()
+      ..sort((a, b) => a.compareTo(b)); // ascending = FIFO
 
     final ordered = <String, List<Map<String, dynamic>>>{};
     for (final k in sortedKeys) ordered[k] = grouped[k]!;
@@ -514,44 +610,90 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
                                   Padding(
                                     padding: const EdgeInsets.all(8.0),
                                     child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceAround,
                                       children: [
                                         Expanded(
                                           flex: 1,
                                           child: Padding(
-                                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 16.0,
+                                            ),
                                             child: Column(
                                               children: [
                                                 TextField(
-                                                  cursorColor: CustomColors.blueColor,
+                                                  cursorColor:
+                                                      CustomColors.blueColor,
                                                   controller: _manualController,
                                                   focusNode: _manualFocusNode,
-                                                  style: const TextStyle(fontFamily: 'Poppins',color: CustomColors.black),
-                                                  keyboardType: TextInputType.none,
+                                                  style: const TextStyle(
+                                                    fontFamily: 'Poppins',
+                                                    color: CustomColors.black,
+                                                  ),
+                                                  keyboardType:
+                                                      TextInputType.none,
                                                   decoration: const InputDecoration(
                                                     labelText: 'Enter Cake ID',
-                                                    labelStyle: TextStyle(fontFamily: 'Poppins',color: CustomColors.black),
+                                                    labelStyle: TextStyle(
+                                                      fontFamily: 'Poppins',
+                                                      color: CustomColors.black,
+                                                    ),
                                                     border: OutlineInputBorder(
-                                                      borderRadius: BorderRadius.all(Radius.circular(9)),
+                                                      borderRadius:
+                                                          BorderRadius.all(
+                                                            Radius.circular(9),
+                                                          ),
                                                     ),
-                                                    focusedBorder: OutlineInputBorder(
-                                                      borderSide: BorderSide(color: CustomColors.blueColor, width: 2.0),
-                                                      borderRadius: BorderRadius.all(Radius.circular(9)),
-                                                    ),
-                                                    enabledBorder: OutlineInputBorder(
-                                                      borderSide: BorderSide(color: CustomColors.grey, width: 1.5),
-                                                      borderRadius: BorderRadius.all(Radius.circular(9)),
-                                                    ),
+                                                    focusedBorder:
+                                                        OutlineInputBorder(
+                                                          borderSide: BorderSide(
+                                                            color: CustomColors
+                                                                .blueColor,
+                                                            width: 2.0,
+                                                          ),
+                                                          borderRadius:
+                                                              BorderRadius.all(
+                                                                Radius.circular(
+                                                                  9,
+                                                                ),
+                                                              ),
+                                                        ),
+                                                    enabledBorder:
+                                                        OutlineInputBorder(
+                                                          borderSide:
+                                                              BorderSide(
+                                                                color:
+                                                                    CustomColors
+                                                                        .grey,
+                                                                width: 1.5,
+                                                              ),
+                                                          borderRadius:
+                                                              BorderRadius.all(
+                                                                Radius.circular(
+                                                                  9,
+                                                                ),
+                                                              ),
+                                                        ),
                                                   ),
-                                                  enabled: !provider.isQrMode && !provider.isCameraMode,
+                                                  enabled:
+                                                      !provider.isQrMode &&
+                                                      !provider.isCameraMode,
                                                   onTap: () {
                                                     print(
                                                       'TextField tapped, isQrMode: ${provider.isQrMode}, isCameraMode: ${provider.isCameraMode}',
                                                     );
-                                                    if (!provider.isQrMode && !provider.isCameraMode) {
-                                                      _manualFocusNode.requestFocus();
-                                                      provider.setTextFieldFocused(true);
-                                                      print('Requesting focus for manual TextField');
+                                                    if (!provider.isQrMode &&
+                                                        !provider
+                                                            .isCameraMode) {
+                                                      _manualFocusNode
+                                                          .requestFocus();
+                                                      provider
+                                                          .setTextFieldFocused(
+                                                            true,
+                                                          );
+                                                      print(
+                                                        'Requesting focus for manual TextField',
+                                                      );
                                                     }
                                                   },
                                                 ),
@@ -564,18 +706,39 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
                                             return Column(
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
-                                                const Text('View', style: TextStyle(fontFamily: 'Poppins',fontSize: 12, color: CustomColors.grey)),
+                                                const Text(
+                                                  'View',
+                                                  style: TextStyle(
+                                                    fontFamily: 'Poppins',
+                                                    fontSize: 12,
+                                                    color: CustomColors.grey,
+                                                  ),
+                                                ),
                                                 Switch(
                                                   value: provider.showExpiry,
-                                                  activeColor: CustomColors.redColor,
-                                                  onChanged: (_) => provider.toggleDateView(),
-                                                  inactiveThumbColor: CustomColors.blueColor,
-                                                  inactiveTrackColor: CustomColors.blueColor.withOpacity(0.3),
-                                                  trackOutlineColor: MaterialStateProperty.all(CustomColors.whiteColor),
+                                                  activeColor:
+                                                      CustomColors.redColor,
+                                                  onChanged: (_) =>
+                                                      provider.toggleDateView(),
+                                                  inactiveThumbColor:
+                                                      CustomColors.blueColor,
+                                                  inactiveTrackColor:
+                                                      CustomColors.blueColor
+                                                          .withOpacity(0.3),
+                                                  trackOutlineColor:
+                                                      MaterialStateProperty.all(
+                                                        CustomColors.whiteColor,
+                                                      ),
                                                 ),
                                                 Text(
-                                                  provider.showExpiry ? 'Expiry' : 'Received',
-                                                  style: const TextStyle(fontFamily: 'Poppins',fontSize: 11, fontWeight: FontWeight.w600),
+                                                  provider.showExpiry
+                                                      ? 'Expiry'
+                                                      : 'Received',
+                                                  style: const TextStyle(
+                                                    fontFamily: 'Poppins',
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
                                                 ),
                                               ],
                                             );
@@ -584,13 +747,16 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
                                         Padding(
                                           padding: const EdgeInsets.all(8.0),
                                           child: Row(
-                                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceAround,
                                             children: [
                                               IconButton(
                                                 icon: Icon(
                                                   Icons.qr_code_scanner,
                                                   size: 32,
-                                                  color: provider.isQrMode ? CustomColors.blueColor : CustomColors.grey,
+                                                  color: provider.isQrMode
+                                                      ? CustomColors.blueColor
+                                                      : CustomColors.grey,
                                                 ),
                                                 onPressed: _toggleQrMode,
                                               ),
@@ -598,7 +764,9 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
                                                 icon: Icon(
                                                   Icons.camera_alt,
                                                   size: 32,
-                                                  color: provider.isCameraMode ? CustomColors.blueColor : CustomColors.grey,
+                                                  color: provider.isCameraMode
+                                                      ? CustomColors.blueColor
+                                                      : CustomColors.grey,
                                                 ),
                                                 onPressed: _toggleCameraMode,
                                               ),
@@ -606,37 +774,64 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
                                           ),
                                         ),
                                         Row(
-                                          mainAxisAlignment: MainAxisAlignment.end,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.end,
                                           children: [
                                             Padding(
-                                              padding: const EdgeInsets.only(right: 25, left: 8),
+                                              padding: const EdgeInsets.only(
+                                                right: 25,
+                                                left: 8,
+                                              ),
                                               child: Material(
                                                 elevation: 4,
                                                 shadowColor: CustomColors.black,
-                                                borderRadius: BorderRadius.circular(6),
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
                                                 child: Container(
                                                   decoration: BoxDecoration(
-                                                    borderRadius: BorderRadius.circular(7),
-                                                    color: CustomColors.blueColor,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          7,
+                                                        ),
+                                                    color:
+                                                        CustomColors.blueColor,
                                                   ),
                                                   child: Padding(
-                                                    padding: const EdgeInsets.all(8.0),
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                          8.0,
+                                                        ),
                                                     child: Row(
                                                       children: [
-                                                        const Icon(Icons.cake_rounded, color: CustomColors.whiteColor),
-                                                        const SizedBox(width: 4),
+                                                        const Icon(
+                                                          Icons.cake_rounded,
+                                                          color: CustomColors
+                                                              .whiteColor,
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 4,
+                                                        ),
                                                         const Text(
                                                           'Total Cakes: ',
-                                                          style: TextStyle(fontFamily: 'Poppins',
-                                                            fontWeight: FontWeight.w600,
-                                                            color: CustomColors.whiteColor,
+                                                          style: TextStyle(
+                                                            fontFamily:
+                                                                'Poppins',
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                            color: CustomColors
+                                                                .whiteColor,
                                                           ),
                                                         ),
                                                         Text(
-                                                          provider.cakes.length.toString(),
-                                                          style: TextStyle(fontFamily: 'Poppins',
-                                                            fontWeight: FontWeight.w600,
-                                                            color: CustomColors.whiteColor,
+                                                          provider.cakes.length
+                                                              .toString(),
+                                                          style: TextStyle(
+                                                            fontFamily:
+                                                                'Poppins',
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                            color: CustomColors
+                                                                .whiteColor,
                                                           ),
                                                         ),
                                                       ],
@@ -655,11 +850,14 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
                                         ? MobileScanner(
                                             controller: _scannerController,
                                             onDetect: (BarcodeCapture capture) {
-                                              final List<Barcode> barcodes = capture.barcodes;
+                                              final List<Barcode> barcodes =
+                                                  capture.barcodes;
                                               for (final barcode in barcodes) {
                                                 if (_isProcessing) return;
-                                                final scannedValue = barcode.rawValue;
-                                                if (scannedValue != null && scannedValue.isNotEmpty) {
+                                                final scannedValue =
+                                                    barcode.rawValue;
+                                                if (scannedValue != null &&
+                                                    scannedValue.isNotEmpty) {
                                                   _handleInput(scannedValue);
                                                 }
                                               }
@@ -668,7 +866,8 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
                                         : provider.isLoading
                                         ? const Center(
                                             child: Column(
-                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
                                               children: [
                                                 CircularProgressIndicator(),
                                                 SizedBox(height: 16),
@@ -677,15 +876,24 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
                                             ),
                                           )
                                         : provider.cakes.isEmpty
-                                        ? const Center(child: Text("No cakes available"))
+                                        ? const Center(
+                                            child: Text("No cakes available"),
+                                          )
                                         : Padding(
-                                            padding: const EdgeInsets.only(left: 12, right: 12),
+                                            padding: const EdgeInsets.only(
+                                              left: 12,
+                                              right: 12,
+                                            ),
                                             child: CustomScrollView(
                                               controller: _scrollController,
                                               slivers: _buildSliverList(
                                                 provider.showExpiry
-                                                    ? _groupByExpiry(provider.cakes)
-                                                    : _groupByReceived(provider.cakes),
+                                                    ? _groupByExpiry(
+                                                        provider.cakes,
+                                                      )
+                                                    : _groupByReceived(
+                                                        provider.cakes,
+                                                      ),
                                               ),
                                             ),
                                           ),
@@ -694,7 +902,12 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
                               ),
                             ),
                             const VerticalDivider(width: 1),
-                            Expanded(flex: 1, child: RepaintBoundary(child: CurrentSaleSection())),
+                            Expanded(
+                              flex: 1,
+                              child: RepaintBoundary(
+                                child: CurrentSaleSection(),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -710,14 +923,22 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
                           onPressed: _toggleScrollPosition,
                           backgroundColor: CustomColors.blueColor,
                           elevation: 6,
-                          tooltip: isAtTop ? 'Scroll to bottom' : 'Scroll to top',
+                          tooltip: isAtTop
+                              ? 'Scroll to bottom'
+                              : 'Scroll to top',
                           child: AnimatedSwitcher(
                             duration: const Duration(milliseconds: 300),
-                            transitionBuilder: (Widget child, Animation<double> animation) {
-                              return ScaleTransition(scale: animation, child: child);
-                            },
+                            transitionBuilder:
+                                (Widget child, Animation<double> animation) {
+                                  return ScaleTransition(
+                                    scale: animation,
+                                    child: child,
+                                  );
+                                },
                             child: Icon(
-                              isAtTop ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up,
+                              isAtTop
+                                  ? Icons.keyboard_arrow_down
+                                  : Icons.keyboard_arrow_up,
                               key: ValueKey<bool>(isAtTop),
                               size: 28,
                               color: CustomColors.whiteColor,
@@ -729,60 +950,88 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
                   ),
                   if (provider.isQrMode)
                     Positioned(
-                      left: 0,
-                      top: 0,
-                      width: 1,
-                      height: 1,
-                      child: TextField(
-                        key: const Key('posScannerField'), // for safety
-                        focusNode: _qrFocusNode,
-                        controller: _qrController,
-                        autofocus: true, // auto-focus when QR mode is active
-                        showCursor: false,
-                        readOnly: true,
-                        enableInteractiveSelection: false,
-                        decoration: const InputDecoration(border: InputBorder.none),
-                        style: const TextStyle(fontFamily: 'Poppins',fontSize: 1, color: Colors.transparent),
+                      left: -100,
+                      top: -100,
+                      child: Opacity(
+                        opacity: 0,
+                        child: SizedBox(
+                          width: 1,
+                          height: 1,
+                          child: TextField(
+                            key: const Key('posScannerField'),
+                            controller: _qrController,
+                            focusNode: _qrFocusNode,
+                            autofocus: true,
+                          //  readOnly: true,
+                            showCursor: false,
+                            enableInteractiveSelection: false,
+                            keyboardType: TextInputType.none,
+                            style: const TextStyle(
+                              fontSize: 1,
+                              color: Colors.transparent,
+                            ),
+                            decoration: const InputDecoration(
+                              border: InputBorder.none,
+                            ),
 
-                        // ✅ IMPORTANT: allow normal keyboard input (from scanner)
-                        keyboardType: TextInputType.text,
+                            // Debug: Log every input
+                            onChanged: (value) {
+                              debugPrint(
+                                'Scanner Input: "$value" (length: ${value.length})',
+                              );
+                              final trimmed = value.trim();
 
-                        // ✅ Handles scan completion when Enter key is sent
-                        onChanged: (value) {
-                          if (value.endsWith('\n') || value.endsWith('\r')) {
-                            final scannedValue = value.trim();
-                            if (scannedValue.isNotEmpty) {
-                              _handleInput(scannedValue);
-                            }
-                            _qrController.clear();
-                            _qrFocusNode.requestFocus(); // refocus for next scan
-                          }
-                        },
+                              // Handle Enter key (\n, \r, \r\n), Tab, or any whitespace suffix
+                              if (value.endsWith('\n') ||
+                                  value.endsWith('\r') ||
+                                  value.endsWith('\t') ||
+                                  value.contains(RegExp(r'[\n\r\t]'))) {
+                                final clean = trimmed.replaceAll(
+                                  RegExp(r'[\n\r\t]'),
+                                  '',
+                                );
+                                if (clean.isNotEmpty && !_isProcessing) {
+                                  debugPrint('Processing scan: $clean');
+                                  _handleInput(clean);
+                                }
+                                _qrController.clear();
+                              }
+                            },
 
-                        onSubmitted: (value) {
-                          final scannedValue = value.trim();
-                          if (scannedValue.isNotEmpty) {
-                            _handleInput(scannedValue);
-                          }
-                          _qrController.clear();
-                          _qrFocusNode.requestFocus(); // refocus again
-                        },
+                            onSubmitted: (value) {
+                              final clean = value.trim();
+                              debugPrint('onSubmitted: "$clean"');
+                              if (clean.isNotEmpty && !_isProcessing) {
+                                _handleInput(clean);
+                              }
+                              _qrController.clear();
+                            },
+                          ),
+                        ),
                       ),
                     ),
 
-                  if (!provider.isQrMode && !provider.isCameraMode && provider.isTextFieldFocused)
+                  if (!provider.isQrMode &&
+                      !provider.isCameraMode &&
+                      provider.isTextFieldFocused)
                     Positioned(
                       left: provider.keyboardPosition.dx,
                       top: provider.keyboardPosition.dy,
                       child: GestureDetector(
                         onPanUpdate: (details) {
-                          provider.updateKeyboardPosition(provider.keyboardPosition + details.delta, MediaQuery.of(context).size);
+                          provider.updateKeyboardPosition(
+                            provider.keyboardPosition + details.delta,
+                            MediaQuery.of(context).size,
+                          );
                         },
                         child: Material(
                           shadowColor: CustomColors.black,
                           child: Container(
                             width: 300,
-                            decoration: BoxDecoration(color: CustomColors.whiteColor, borderRadius: BorderRadius.circular(8)),
+                            decoration: BoxDecoration(
+                              color: CustomColors.whiteColor,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                             child: NumericKeyboard(
                               focusNode: _manualFocusNode,
                               controller: _manualController,
@@ -790,20 +1039,31 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
                                 final currentText = _manualController.text;
                                 final newText = currentText + text;
                                 _manualController.text = newText;
-                                _manualController.selection = TextSelection.collapsed(offset: newText.length);
+                                _manualController.selection =
+                                    TextSelection.collapsed(
+                                      offset: newText.length,
+                                    );
                                 print('Text input: $newText');
                               },
                               onBackspace: () {
                                 final currentText = _manualController.text;
                                 if (currentText.isNotEmpty) {
-                                  final newText = currentText.substring(0, currentText.length - 1);
+                                  final newText = currentText.substring(
+                                    0,
+                                    currentText.length - 1,
+                                  );
                                   _manualController.text = newText;
-                                  _manualController.selection = TextSelection.collapsed(offset: newText.length);
+                                  _manualController.selection =
+                                      TextSelection.collapsed(
+                                        offset: newText.length,
+                                      );
                                   print('Backspace: $newText');
                                 }
                               },
                               onOk: () {
-                                print('OK pressed, submitting: ${_manualController.text}');
+                                print(
+                                  'OK pressed, submitting: ${_manualController.text}',
+                                );
                                 _handleManualAdd(_manualController.text);
                                 _manualFocusNode.unfocus();
                                 provider.setTextFieldFocused(false);
@@ -823,7 +1083,9 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
     );
   }
 
-  List<Widget> _buildSliverList(Map<String, List<Map<String, dynamic>>> groupedCakes) {
+  List<Widget> _buildSliverList(
+    Map<String, List<Map<String, dynamic>>> groupedCakes,
+  ) {
     List<Widget> slivers = [];
 
     final dates = groupedCakes.keys.toList();
@@ -833,7 +1095,10 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
       final date = DateTime.parse(dateKey);
       final formattedDate = DateFormat('dd-MM-yy').format(date);
       final dateCakes = groupedCakes[dateKey]!;
-      final totalCakesForDate = dateCakes.fold<int>(0, (sum, group) => sum + (group['count'] as int));
+      final totalCakesForDate = dateCakes.fold<int>(
+        0,
+        (sum, group) => sum + (group['count'] as int),
+      );
 
       slivers.add(
         SliverPersistentHeader(
@@ -854,11 +1119,18 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
                           builder: (context, provider, _) {
                             return Row(
                               children: [
-                                const Icon(Icons.calendar_month_rounded, size: 17),
+                                const Icon(
+                                  Icons.calendar_month_rounded,
+                                  size: 17,
+                                ),
                                 const SizedBox(width: 8),
                                 Text(
                                   "${DateFormat('dd-MM-yy').format(date)} - (${provider.showExpiry ? 'Expiry Date' : 'Received Date'})",
-                                  style: const TextStyle(fontFamily: 'Poppins',fontSize: 15, fontWeight: FontWeight.w600),
+                                  style: const TextStyle(
+                                    fontFamily: 'Poppins',
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ],
                             );
@@ -867,7 +1139,14 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
                         Row(
                           children: [
                             const Icon(Icons.cake_sharp, size: 17),
-                            Text(" $totalCakesForDate", style: const TextStyle(fontFamily: 'Poppins',fontSize: 16, fontWeight: FontWeight.bold)),
+                            Text(
+                              " $totalCakesForDate",
+                              style: const TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ],
                         ),
                       ],
@@ -906,7 +1185,10 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
                         elevation: 4,
                         child: Container(
                           height: 40,
-                          decoration: BoxDecoration(color: CustomColors.blueColor, borderRadius: BorderRadius.circular(12)),
+                          decoration: BoxDecoration(
+                            color: CustomColors.blueColor,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -915,7 +1197,12 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
                                 children: [
                                   Text(
                                     cakeGroup['varianceName'],
-                                    style: TextStyle(fontFamily: 'Poppins',color: CustomColors.whiteColor, fontSize: 20, fontWeight: FontWeight.w400),
+                                    style: TextStyle(
+                                      fontFamily: 'Poppins',
+                                      color: CustomColors.whiteColor,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w400,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -927,15 +1214,29 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
                         width: 700,
                         child: GridView.builder(
                           shrinkWrap: true,
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, childAspectRatio: 2),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 3,
+                                childAspectRatio: 2,
+                              ),
                           itemCount: cakeGroup['cakes'].length,
                           itemBuilder: (context, index) {
                             final cake = cakeGroup['cakes'][index];
                             final expiryDate = cake.expiryDate.toLocal();
                             final now = DateTime.now();
-                            final nowDate = DateTime(now.year, now.month, now.day);
-                            final expiryDateOnly = DateTime(expiryDate.year, expiryDate.month, expiryDate.day);
-                            final daysRemaining = expiryDateOnly.difference(nowDate).inDays;
+                            final nowDate = DateTime(
+                              now.year,
+                              now.month,
+                              now.day,
+                            );
+                            final expiryDateOnly = DateTime(
+                              expiryDate.year,
+                              expiryDate.month,
+                              expiryDate.day,
+                            );
+                            final daysRemaining = expiryDateOnly
+                                .difference(nowDate)
+                                .inDays;
                             DateTime d = cake.expiryDate.toLocal();
 
                             final formatter = DateFormat('dd-MM-yy');
@@ -961,27 +1262,47 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
                                 padding: const EdgeInsets.only(left: 20),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceEvenly,
                                   children: [
                                     Row(
                                       children: [
-                                        const Text('QR CODE: ', style: TextStyle(fontFamily: 'Poppins',fontWeight: FontWeight.bold)),
+                                        const Text(
+                                          'QR CODE: ',
+                                          style: TextStyle(
+                                            fontFamily: 'Poppins',
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
                                         Text('${cake.cakeId}'),
                                       ],
                                     ),
                                     Row(
                                       children: [
-                                        const Text('Expiry Date:', style: TextStyle(fontFamily: 'Poppins',fontWeight: FontWeight.bold)),
+                                        const Text(
+                                          'Expiry Date:',
+                                          style: TextStyle(
+                                            fontFamily: 'Poppins',
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
                                         Text(' $formatted'),
                                       ],
                                     ),
                                     Container(
                                       margin: const EdgeInsets.only(top: 4),
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                      decoration: BoxDecoration(color: badgeColor, borderRadius: BorderRadius.circular(12)),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: badgeColor,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
                                       child: Text(
                                         expiryText,
-                                        style: const TextStyle(fontFamily: 'Poppins',
+                                        style: const TextStyle(
+                                          fontFamily: 'Poppins',
                                           color: CustomColors.whiteColor,
                                           fontSize: 10,
                                           fontWeight: FontWeight.bold,
@@ -1009,7 +1330,11 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
                             color: CustomColors.whiteColor,
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: [
-                              BoxShadow(color: CustomColors.grey.withOpacity(0.3), blurRadius: 6, offset: const Offset(0, 3)),
+                              BoxShadow(
+                                color: CustomColors.grey.withOpacity(0.3),
+                                blurRadius: 6,
+                                offset: const Offset(0, 3),
+                              ),
                             ],
                           ),
                           child: Column(
@@ -1025,19 +1350,34 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
                                   child: Image.asset(
                                     "assets/cakes.png",
                                     fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) => Container(
-                                      color: CustomColors.grey.withOpacity(0.2),
-                                      child: const Icon(Icons.cake, color: CustomColors.grey, size: 50),
-                                    ),
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            Container(
+                                              color: CustomColors.grey
+                                                  .withOpacity(0.2),
+                                              child: const Icon(
+                                                Icons.cake,
+                                                color: CustomColors.grey,
+                                                size: 50,
+                                              ),
+                                            ),
                                   ),
                                 ),
                               ),
                               Expanded(
                                 child: Padding(
-                                  padding: const EdgeInsets.only(top: 4, left: 2, right: 2),
+                                  padding: const EdgeInsets.only(
+                                    top: 4,
+                                    left: 2,
+                                    right: 2,
+                                  ),
                                   child: Text(
                                     cakeGroup['varianceName'],
-                                    style: const TextStyle(fontFamily: 'Poppins',fontSize: 11, fontWeight: FontWeight.w600),
+                                    style: const TextStyle(
+                                      fontFamily: 'Poppins',
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
                                     textAlign: TextAlign.center,
@@ -1058,11 +1398,19 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
                           decoration: BoxDecoration(
                             color: CustomColors.redColor,
                             shape: BoxShape.circle,
-                            border: Border.all(color: CustomColors.whiteColor, width: 2),
+                            border: Border.all(
+                              color: CustomColors.whiteColor,
+                              width: 2,
+                            ),
                           ),
                           child: Text(
                             '${cakeGroup['count']}',
-                            style: const TextStyle(fontFamily: 'Poppins',color: CustomColors.whiteColor, fontSize: 12, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                              fontFamily: 'Poppins',
+                              color: CustomColors.whiteColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),
@@ -1077,7 +1425,13 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen> with RouteAwa
       if (dateIndex < dates.length - 1) {
         slivers.add(
           SliverToBoxAdapter(
-            child: Divider(height: 1, thickness: 1, color: CustomColors.grey.withOpacity(0.2), indent: 20, endIndent: 20),
+            child: Divider(
+              height: 1,
+              thickness: 1,
+              color: CustomColors.grey.withOpacity(0.2),
+              indent: 20,
+              endIndent: 20,
+            ),
           ),
         );
       }
@@ -1092,7 +1446,11 @@ class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
   final double maxHeight;
   final Widget child;
 
-  _StickyHeaderDelegate({required this.minHeight, required this.maxHeight, required this.child});
+  _StickyHeaderDelegate({
+    required this.minHeight,
+    required this.maxHeight,
+    required this.child,
+  });
 
   @override
   double get minExtent => minHeight;
@@ -1101,12 +1459,18 @@ class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent => maxHeight;
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
     return SizedBox.expand(child: child);
   }
 
   @override
   bool shouldRebuild(_StickyHeaderDelegate oldDelegate) {
-    return maxHeight != oldDelegate.maxHeight || minHeight != oldDelegate.minHeight || child != oldDelegate.child;
+    return maxHeight != oldDelegate.maxHeight ||
+        minHeight != oldDelegate.minHeight ||
+        child != oldDelegate.child;
   }
 }

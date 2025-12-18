@@ -4,6 +4,8 @@ import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 import 'package:yenpos/Global/Widget/custom_sized_box.dart';
 import 'package:yenpos/Global/globals_data.dart';
+import 'package:yenpos/Mode_page/bottomNavigation_Regular_Page/bottom_navigation_bar_regular_mode.dart';
+import 'package:yenpos/Mode_page/bottomNavigation_Regular_Page/widgets/bottom_navigaton_bar_for_expressMode.dart';
 import 'package:yenpos/Server_Client/serverScreen.dart';
 import 'package:yenpos/invoice_pay_and_print_page.dart/provider/options_provider.dart';
 import 'package:yenpos/more_page/screen/cash_management_screen.dart';
@@ -1908,11 +1910,7 @@ class _MorePageState extends State<MorePage> {
         elevation: 0,
         title: const Text(
           'Settings',
-          style: TextStyle(
-            color: Colors.black,
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: Colors.black, fontSize: 24, fontWeight: FontWeight.bold),
         ),
       ),
       body: Row(
@@ -1922,33 +1920,19 @@ class _MorePageState extends State<MorePage> {
             width: 250,
             decoration: BoxDecoration(
               color: Colors.white,
-              border: Border(
-                right: BorderSide(
-                  color: Colors.blue[200] ?? Colors.blue,
-                  width: 2,
-                ),
-              ),
+              border: Border(right: BorderSide(color: Colors.blue[200] ?? Colors.blue, width: 2)),
               borderRadius: BorderRadius.circular(8),
             ),
             child: ListView(
               children: options.map((title) {
                 final isSelected = selectedOption == title;
                 return ListTile(
-                  tileColor: isSelected
-                      ? Colors.blue.withOpacity(0.2)
-                      : Colors.transparent,
+                  tileColor: isSelected ? Colors.blue.withOpacity(0.2) : Colors.transparent,
                   title: Text(
                     title,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w500,
-                      color: isSelected ? Colors.blue : Colors.black,
-                    ),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: isSelected ? Colors.blue : Colors.black),
                   ),
-                  trailing: Icon(
-                    Icons.chevron_right,
-                    color: isSelected ? Colors.blue : Colors.black,
-                  ),
+                  trailing: Icon(Icons.chevron_right, color: isSelected ? Colors.blue : Colors.black),
                   onTap: () => setState(() => selectedOption = title),
                 );
               }).toList(),
@@ -1959,6 +1943,7 @@ class _MorePageState extends State<MorePage> {
           Expanded(child: _buildRightSideContent()),
         ],
       ),
+      //bottomNavigationBar:BottomNavigationPageRegularModeScreen(),
     );
   }
 

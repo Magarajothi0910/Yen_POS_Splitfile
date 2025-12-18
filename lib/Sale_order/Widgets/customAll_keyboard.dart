@@ -111,12 +111,11 @@ class CustomKeyboardWidgetAll2 extends StatelessWidget {
     }
   }
 
-  /// Numeric Keyboard Layout
+  /// Numeric / Special Keyboard Layout
   List<List<String>> get _numericLayout => [
-    ['1', '2', '3'],
-    ['4', '5', '6'],
-    ['7', '8', '9'],
-    ['ABC', '0', '⌫'],
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
+    ['@', '#', '\$', '%', '&', '*', '-', '+', '(', ')'],
+    ['ABC', '.', ',', '?', '!', '⌫'],
   ];
 
   /// Alphabetic Keyboard Layout
@@ -125,8 +124,9 @@ class CustomKeyboardWidgetAll2 extends StatelessWidget {
       ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
       ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
       ['⇧', 'z', 'x', 'c', 'v', 'b', 'n', 'm', '⌫'],
-      ['123', 'SPACE'],
+      ['123', 'SPACE', '.', ','],
     ];
+
     return base
         .map(
           (row) => row

@@ -4,7 +4,9 @@ import 'package:hive/hive.dart';
 import 'isolation/sales_caculate.dart';
 
 class CurrentSaleProvider with ChangeNotifier {
-  late SaleCalculator _saleCalculator = SaleCalculator([]); // Initialize with an empty list
+  late SaleCalculator _saleCalculator = SaleCalculator(
+    [],
+  ); // Initialize with an empty list
 
   List<Map<String, dynamic>> _currentSaleItems = [];
   final double _discountPercentage = 0.0; // Initial discount percentage
@@ -56,6 +58,8 @@ class CurrentSaleProvider with ChangeNotifier {
   CurrentSaleProvider() {
     loadCartItems();
   }
+
+  
 
   set discountPercentage(double value) {
     _saleCalculator.discountPercentage = value;
@@ -127,9 +131,13 @@ class CurrentSaleProvider with ChangeNotifier {
   // }
 
   Future<void> addItemToCart(Map<String, dynamic> newItem) async {
-    print("DEBUG: Adding item with quantity: ${newItem['quantity']}, totalPrice: ${newItem['totalPrice']}");
+    print(
+      "DEBUG: Adding item with quantity: ${newItem['quantity']}, totalPrice: ${newItem['totalPrice']}",
+    );
 
-    final uom = newItem['varianceData']?['variance_Uom']?.toString().toLowerCase() ?? 'pcs';
+    final uom =
+        newItem['varianceData']?['variance_Uom']?.toString().toLowerCase() ??
+        'pcs';
     newItem['quantity'] = (newItem['quantity'] ?? 1.0).toDouble();
 
     if (uom == 'kgs') {
@@ -138,26 +146,41 @@ class CurrentSaleProvider with ChangeNotifier {
 
     newItem['totalPrice'] =
         newItem['totalPrice']?.toDouble() ??
-        (newItem['varianceData']?['variance_Defaultprice']?.toDouble() ?? 0.0) * newItem['quantity'];
+        (newItem['varianceData']?['variance_Defaultprice']?.toDouble() ?? 0.0) *
+            newItem['quantity'];
 
     // Normalize & Create unique key
-    final itemId = newItem['itemData']['itemId']?.toString().trim().toLowerCase() ?? '';
-    final varianceName = newItem['varianceData']?['varianceName']?.toString().trim().toLowerCase() ?? '';
+    final itemId =
+        newItem['itemData']['itemId']?.toString().trim().toLowerCase() ?? '';
+    final varianceName =
+        newItem['varianceData']?['varianceName']
+            ?.toString()
+            .trim()
+            .toLowerCase() ??
+        '';
     newItem['cartKey'] = "${itemId}_$varianceName";
 
     if (uom == 'pcs') {
-      final existingIndex = _currentSaleItems.indexWhere((item) => item['cartKey'] == newItem['cartKey']);
+      final existingIndex = _currentSaleItems.indexWhere(
+        (item) => item['cartKey'] == newItem['cartKey'],
+      );
 
       if (existingIndex != -1) {
-        final oldQty = (_currentSaleItems[existingIndex]['quantity'] ?? 0).toDouble();
+        final oldQty = (_currentSaleItems[existingIndex]['quantity'] ?? 0)
+            .toDouble();
         final addQty = newItem['quantity'];
         final updatedQty = oldQty + addQty;
 
         _currentSaleItems[existingIndex]['quantity'] = updatedQty;
         _currentSaleItems[existingIndex]['totalPrice'] =
-            updatedQty * (_currentSaleItems[existingIndex]['varianceData']?['variance_Defaultprice']?.toDouble() ?? 0.0);
+            updatedQty *
+            (_currentSaleItems[existingIndex]['varianceData']?['variance_Defaultprice']
+                    ?.toDouble() ??
+                0.0);
 
-        print("✅ Merged existing item: ${newItem['cartKey']} → Qty $oldQty + $addQty = $updatedQty");
+        print(
+          "✅ Merged existing item: ${newItem['cartKey']} → Qty $oldQty + $addQty = $updatedQty",
+        );
       } else {
         _currentSaleItems.insert(0, newItem);
         print("🆕 Added new Pcs item: ${newItem['cartKey']}");
@@ -178,39 +201,55 @@ class CurrentSaleProvider with ChangeNotifier {
 
   void addItemToCartExpressMode(Map<String, dynamic> newItem) async {
     // Normalize new item
-    final uom = newItem['varianceData']?['variance_Uom']?.toString().toLowerCase() ?? 'pcs';
+    final uom =
+        newItem['varianceData']?['variance_Uom']?.toString().toLowerCase() ??
+        'pcs';
     if (uom == 'kgs') {
-      newItem['quantity'] = newItem['quantity'] != null ? newItem['quantity'].toDouble() : 1.0;
+      newItem['quantity'] = newItem['quantity'] != null
+          ? newItem['quantity'].toDouble()
+          : 1.0;
       newItem['weight'] = newItem['weight']?.toDouble() ?? newItem['quantity'];
     } else {
-      newItem['quantity'] = newItem['quantity'] != null ? int.tryParse(newItem['quantity'].toString()) ?? 1 : 1;
+      newItem['quantity'] = newItem['quantity'] != null
+          ? int.tryParse(newItem['quantity'].toString()) ?? 1
+          : 1;
     }
-    newItem['id'] = newItem['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString();
+    newItem['id'] =
+        newItem['id']?.toString() ??
+        DateTime.now().millisecondsSinceEpoch.toString();
 
     // Check for existing item only for Pcs units
     if (uom == 'pcs') {
       bool exists = _currentSaleItems.any(
         (item) =>
             item['itemData']['itemId'] == newItem['itemData']['itemId'] &&
-            item['varianceData']['varianceName'] == newItem['varianceData']['varianceName'],
+            item['varianceData']['varianceName'] ==
+                newItem['varianceData']['varianceName'],
       );
 
       if (exists) {
         _currentSaleItems = _currentSaleItems.map((item) {
           if (item['itemData']['itemId'] == newItem['itemData']['itemId'] &&
-              item['varianceData']['varianceName'] == newItem['varianceData']['varianceName']) {
+              item['varianceData']['varianceName'] ==
+                  newItem['varianceData']['varianceName']) {
             item['quantity'] += newItem['quantity'];
-            print("DEBUG: CurrentSaleProvider - Updated express Pcs item: $item");
+            print(
+              "DEBUG: CurrentSaleProvider - Updated express Pcs item: $item",
+            );
           }
           return item;
         }).toList();
       } else {
         _currentSaleItems.insert(0, newItem);
-        print("DEBUG: CurrentSaleProvider - Added new express Pcs item: $newItem");
+        print(
+          "DEBUG: CurrentSaleProvider - Added new express Pcs item: $newItem",
+        );
       }
     } else {
       _currentSaleItems.insert(0, newItem);
-      print("DEBUG: CurrentSaleProvider - Added new express Kgs item: $newItem");
+      print(
+        "DEBUG: CurrentSaleProvider - Added new express Kgs item: $newItem",
+      );
     }
 
     _saleCalculator = SaleCalculator(_currentSaleItems);
@@ -222,34 +261,46 @@ class CurrentSaleProvider with ChangeNotifier {
 
   void addItemsToCurrentSale(List<Map<String, dynamic>> newItems) {
     for (var newItem in newItems) {
-      final uom = newItem['varianceData']?['variance_Uom']?.toString().toLowerCase() ?? 'pcs';
+      final uom =
+          newItem['varianceData']?['variance_Uom']?.toString().toLowerCase() ??
+          'pcs';
       if (uom == 'kgs') {
         newItem['quantity'] = newItem['quantity']?.toDouble() ?? 1.0;
-        newItem['weight'] = newItem['weight']?.toDouble() ?? newItem['quantity'];
+        newItem['weight'] =
+            newItem['weight']?.toDouble() ?? newItem['quantity'];
       } else {
-        newItem['quantity'] = int.tryParse(newItem['quantity']?.toString() ?? '1') ?? 1;
+        newItem['quantity'] =
+            int.tryParse(newItem['quantity']?.toString() ?? '1') ?? 1;
       }
-      newItem['id'] = newItem['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString();
+      newItem['id'] =
+          newItem['id']?.toString() ??
+          DateTime.now().millisecondsSinceEpoch.toString();
 
       if (uom == 'pcs') {
         bool exists = _currentSaleItems.any(
           (item) =>
               item['itemData']['itemId'] == newItem['itemData']['itemId'] &&
-              item['varianceData']['varianceName'] == newItem['varianceData']['varianceName'],
+              item['varianceData']['varianceName'] ==
+                  newItem['varianceData']['varianceName'],
         );
 
         if (exists) {
           _currentSaleItems = _currentSaleItems.map((item) {
             if (item['itemData']['itemId'] == newItem['itemData']['itemId'] &&
-                item['varianceData']['varianceName'] == newItem['varianceData']['varianceName']) {
+                item['varianceData']['varianceName'] ==
+                    newItem['varianceData']['varianceName']) {
               item['quantity'] += newItem['quantity'];
-              print("DEBUG: CurrentSaleProvider - Updated bulk Pcs item: $item");
+              print(
+                "DEBUG: CurrentSaleProvider - Updated bulk Pcs item: $item",
+              );
             }
             return item;
           }).toList();
         } else {
           _currentSaleItems.add(newItem);
-          print("DEBUG: CurrentSaleProvider - Added new bulk Pcs item: $newItem");
+          print(
+            "DEBUG: CurrentSaleProvider - Added new bulk Pcs item: $newItem",
+          );
         }
       } else {
         _currentSaleItems.add(newItem);
@@ -268,25 +319,40 @@ class CurrentSaleProvider with ChangeNotifier {
       _currentSaleItems = rawItems
           .map((item) {
             final map = Map<String, dynamic>.from(item);
-            final uom = map['varianceData']?['variance_Uom']?.toString().toLowerCase() ?? 'pcs';
+            final uom =
+                map['varianceData']?['variance_Uom']
+                    ?.toString()
+                    .toLowerCase() ??
+                'pcs';
             // Use double for all quantities to preserve precision
             map['quantity'] = (map['quantity'] as num?)?.toDouble() ?? 1.0;
-            map['weight'] = (map['weight'] as num?)?.toDouble() ?? (uom == 'kgs' ? map['quantity'] : 0.0);
+            map['weight'] =
+                (map['weight'] as num?)?.toDouble() ??
+                (uom == 'kgs' ? map['quantity'] : 0.0);
             map['totalPrice'] = (map['totalPrice'] as num?)?.toDouble() ?? 0.0;
             if (map['varianceData'] != null && map['varianceData'] is Map) {
-              final varianceMap = Map<String, dynamic>.from(map['varianceData']);
-              varianceMap['variance_Defaultprice'] = (varianceMap['variance_Defaultprice'] as num?)?.toDouble() ?? 0.0;
-              varianceMap['variance_Uom'] = varianceMap['variance_Uom']?.toString() ?? 'Pcs';
+              final varianceMap = Map<String, dynamic>.from(
+                map['varianceData'],
+              );
+              varianceMap['variance_Defaultprice'] =
+                  (varianceMap['variance_Defaultprice'] as num?)?.toDouble() ??
+                  0.0;
+              varianceMap['variance_Uom'] =
+                  varianceMap['variance_Uom']?.toString() ?? 'Pcs';
               map['varianceData'] = varianceMap;
             }
-            map['id'] = map['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString();
+            map['id'] =
+                map['id']?.toString() ??
+                DateTime.now().millisecondsSinceEpoch.toString();
             return map;
           })
           .where((item) => (item['quantity'] ?? 0.0) > 0)
           .toList();
 
       _saleCalculator = SaleCalculator(_currentSaleItems, debug: true);
-      print("DEBUG: CurrentSaleProvider - Loaded cart items: $_currentSaleItems");
+      print(
+        "DEBUG: CurrentSaleProvider - Loaded cart items: $_currentSaleItems",
+      );
       notifyListeners();
     } catch (e) {
       print("DEBUG: CurrentSaleProvider - Error loading cart items: $e");
@@ -332,7 +398,11 @@ class CurrentSaleProvider with ChangeNotifier {
 
   // In your CurrentSaleProvider class
 
-  void loadItemsFromBill(List<Map<String, dynamic>> items, {bool merge = false, String? holdId}) {
+  void loadItemsFromBill(
+    List<Map<String, dynamic>> items, {
+    bool merge = false,
+    String? holdId,
+  }) {
     try {
       if (!merge) {
         // Clear current items when loading a single bill
@@ -346,15 +416,22 @@ class CurrentSaleProvider with ChangeNotifier {
 
         // Check if item already exists in cart (only for quantity items in merge mode)
         if (merge) {
-          final String uom = (processedItem['varianceData']?['variance_Uom']?.toString().toLowerCase() ?? '');
-          final bool isWeightItem = uom.contains('kg') || uom.contains('kgs') || uom.contains('gm');
+          final String uom =
+              (processedItem['varianceData']?['variance_Uom']
+                  ?.toString()
+                  .toLowerCase() ??
+              '');
+          final bool isWeightItem =
+              uom.contains('kg') || uom.contains('kgs') || uom.contains('gm');
 
           if (!isWeightItem) {
             // For quantity items in merge mode, check if same item exists
             int existingIndex = _findExistingQuantityItem(processedItem);
             if (existingIndex != -1) {
               // Combine quantities
-              double currentQty = (currentSaleItems[existingIndex]['quantity'] as num).toDouble();
+              double currentQty =
+                  (currentSaleItems[existingIndex]['quantity'] as num)
+                      .toDouble();
               double newQty = (processedItem['quantity'] as num).toDouble();
               currentSaleItems[existingIndex]['quantity'] = currentQty + newQty;
               continue;
@@ -372,7 +449,9 @@ class CurrentSaleProvider with ChangeNotifier {
 
       notifyListeners();
 
-      print('DEBUG: Loaded ${items.length} items to cart. Total items: ${currentSaleItems.length}');
+      print(
+        'DEBUG: Loaded ${items.length} items to cart. Total items: ${currentSaleItems.length}',
+      );
     } catch (e) {
       print('Error loading items from bill: $e');
       throw e;
@@ -381,24 +460,40 @@ class CurrentSaleProvider with ChangeNotifier {
 
   int _findExistingQuantityItem(Map<String, dynamic> newItem) {
     final String newItemCode = newItem['itemCode']?.toString() ?? '';
-    final String newVarianceName = newItem['varianceData']?['varianceName']?.toString() ?? '';
-    final String newUom = (newItem['varianceData']?['variance_Uom']?.toString().toLowerCase() ?? '');
+    final String newVarianceName =
+        newItem['varianceData']?['varianceName']?.toString() ?? '';
+    final String newUom =
+        (newItem['varianceData']?['variance_Uom']?.toString().toLowerCase() ??
+        '');
 
     // Only look for quantity items (non-weight items)
-    final bool isWeightItem = newUom.contains('kg') || newUom.contains('kgs') || newUom.contains('gm');
+    final bool isWeightItem =
+        newUom.contains('kg') ||
+        newUom.contains('kgs') ||
+        newUom.contains('gm');
     if (isWeightItem) return -1;
 
     for (int i = 0; i < currentSaleItems.length; i++) {
       final existingItem = currentSaleItems[i];
-      final String existingItemCode = existingItem['itemCode']?.toString() ?? '';
-      final String existingVarianceName = existingItem['varianceData']?['varianceName']?.toString() ?? '';
-      final String existingUom = (existingItem['varianceData']?['variance_Uom']?.toString().toLowerCase() ?? '');
+      final String existingItemCode =
+          existingItem['itemCode']?.toString() ?? '';
+      final String existingVarianceName =
+          existingItem['varianceData']?['varianceName']?.toString() ?? '';
+      final String existingUom =
+          (existingItem['varianceData']?['variance_Uom']
+              ?.toString()
+              .toLowerCase() ??
+          '');
 
       // Skip weight items in existing cart
-      final bool existingIsWeightItem = existingUom.contains('kg') || existingUom.contains('kgs') || existingUom.contains('gm');
+      final bool existingIsWeightItem =
+          existingUom.contains('kg') ||
+          existingUom.contains('kgs') ||
+          existingUom.contains('gm');
       if (existingIsWeightItem) continue;
 
-      if (existingItemCode == newItemCode && existingVarianceName == newVarianceName) {
+      if (existingItemCode == newItemCode &&
+          existingVarianceName == newVarianceName) {
         return i;
       }
     }
@@ -406,31 +501,78 @@ class CurrentSaleProvider with ChangeNotifier {
   }
 
   Map<String, dynamic> _processItemForCart(Map<String, dynamic> item) {
-    // Ensure the item has all required fields and proper structure
+    // Deep clone itemData and varianceData
+    final Map<String, dynamic> itemData = item['itemData'] != null
+        ? Map<String, dynamic>.from(item['itemData'] as Map)
+        : <String, dynamic>{};
+
+    final Map<String, dynamic> varianceData = item['varianceData'] != null
+        ? Map<String, dynamic>.from(item['varianceData'] as Map)
+        : <String, dynamic>{};
+
+    // CRITICAL: RESTORE TAX — THIS WAS MISSING BEFORE!
+    if (itemData['tax'] == null || itemData['tax'] == 0.0) {
+      // Try from varianceData
+      final taxFromVariance =
+          varianceData['tax'] ??
+          varianceData['variance_Tax'] ??
+          varianceData['itemTax'];
+      if (taxFromVariance != null) {
+        itemData['tax'] = (taxFromVariance is num)
+            ? taxFromVariance.toDouble()
+            : double.tryParse(taxFromVariance.toString()) ?? 5.0;
+      } else {
+        itemData['tax'] = 5.0; // Default Indian GST
+      }
+    }
+
+    // Ensure itemName exists
+    itemData['itemName'] ??=
+        varianceData['varianceName'] ?? item['itemName'] ?? 'Unknown Item';
+
+    // Ensure itemCode
+    itemData['itemCode'] ??=
+        item['itemCode'] ?? varianceData['varianceitemCode'] ?? '';
+
     return {
-      'itemCode': item['itemCode'] ?? '',
-      'itemName': item['itemName'] ?? 'Unknown Item',
+      'itemData': itemData, // MUST BE HERE
+      'varianceData': varianceData, // MUST BE HERE
       'quantity': (item['quantity'] as num?)?.toDouble() ?? 1.0,
       'weight': (item['weight'] as num?)?.toDouble() ?? 0.0,
-      'varianceData': Map<String, dynamic>.from(item['varianceData'] ?? {}),
-      'uniqueId': item['uniqueId'] ?? '${DateTime.now().millisecondsSinceEpoch}-${item['itemCode']}',
-      // Add any other required fields
+      'price':
+          (item['price'] as num?)?.toDouble() ??
+          (varianceData['variance_Defaultprice'] as num?)?.toDouble() ??
+          0.0,
+      'amount': item['amount'],
+      'uniqueId':
+          item['uniqueId'] ??
+          '${DateTime.now().millisecondsSinceEpoch}-${itemData['itemCode']}',
     };
   }
 
   String buildQuantityPriceDisplay(Map<String, dynamic> item) {
     try {
-      final String uom = (item['varianceData']?['variance_Uom']?.toString().toLowerCase() ?? '');
-      final bool isWeightItem = uom.contains('kg') || uom.contains('kgs') || uom.contains('gm');
+      final String uom =
+          (item['varianceData']?['variance_Uom']?.toString().toLowerCase() ??
+          '');
+      final bool isWeightItem =
+          uom.contains('kg') || uom.contains('kgs') || uom.contains('gm');
 
       if (isWeightItem) {
-        double weight = (item['weight'] as num?)?.toDouble() ?? (item['quantity'] as num?)?.toDouble() ?? 0.0;
-        double price = (item['varianceData']?['variance_Defaultprice'] ?? 0.0).toDouble();
+        double weight =
+            (item['weight'] as num?)?.toDouble() ??
+            (item['quantity'] as num?)?.toDouble() ??
+            0.0;
+        double price = (item['varianceData']?['variance_Defaultprice'] ?? 0.0)
+            .toDouble();
+        String uom = (item['varianceData']?['variance_Uom'] ?? '');
         return '${weight.toStringAsFixed(3)} kg × ₹${price.toStringAsFixed(2)}';
       } else {
         double quantity = (item['quantity'] as num?)?.toDouble() ?? 0.0;
-        double price = (item['varianceData']?['variance_Defaultprice'] ?? 0.0).toDouble();
-        return '${quantity.toStringAsFixed(0)} × ₹${price.toStringAsFixed(2)}';
+        double price = (item['varianceData']?['variance_Defaultprice'] ?? 0.0)
+            .toDouble();
+        String uom = (item['varianceData']?['variance_Uom'] ?? '');
+        return '${quantity.toStringAsFixed(0)} $uom × ₹${price.toStringAsFixed(2)}';
       }
     } catch (e) {
       print('Error building display: $e for item: $item');
@@ -440,7 +582,8 @@ class CurrentSaleProvider with ChangeNotifier {
 
   double calculateItemTotal(Map<String, dynamic> item) {
     try {
-      double price = (item['varianceData']?['variance_Defaultprice'] ?? 0.0).toDouble();
+      double price = (item['varianceData']?['variance_Defaultprice'] ?? 0.0)
+          .toDouble();
       double quantity = (item['quantity'] as num?)?.toDouble() ?? 0.0;
       return price * quantity;
     } catch (e) {
@@ -502,11 +645,18 @@ class CurrentSaleProvider with ChangeNotifier {
 
   // In your CurrentSaleProvider class
 
-  Future<void> saveBillWithTitle(BuildContext context, String ticketTitle) async {
+  Future<void> saveBillWithTitle(
+    BuildContext context,
+    String ticketTitle,
+  ) async {
     if (currentSaleItems.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('No items to save!'), backgroundColor: Colors.red, duration: Duration(seconds: 2)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No items to save!'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 2),
+        ),
+      );
       return;
     }
 
@@ -515,7 +665,9 @@ class CurrentSaleProvider with ChangeNotifier {
 
       Map<String, dynamic> billData = {
         'holdId': DateTime.now().millisecondsSinceEpoch.toString(),
-        'items': currentSaleItems.map((item) => _prepareItemForStorage(item)).toList(),
+        'items': currentSaleItems
+            .map((item) => _prepareItemForStorage(item))
+            .toList(),
         'total': calculateTotal(),
         'date': DateTime.now().toIso8601String(),
         'status': 'hold',
@@ -529,16 +681,27 @@ class CurrentSaleProvider with ChangeNotifier {
     } catch (e) {
       print('Error saving bill: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error saving bill: $e'), backgroundColor: Colors.red, duration: Duration(seconds: 2)),
+        SnackBar(
+          content: Text('Error saving bill: $e'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 2),
+        ),
       );
     }
   }
 
   Map<String, dynamic> _prepareItemForStorage(Map<String, dynamic> item) {
-    return {...item, 'varianceData': Map<String, dynamic>.from(item['varianceData'] ?? {})};
+    return {
+      ...item,
+      'varianceData': Map<String, dynamic>.from(item['varianceData'] ?? {}),
+    };
   }
 
-  void saveBillsplitBill(BuildContext context, List<List<Map<String, dynamic>>> tickets, List<String> ticketTitles) async {
+  void saveBillsplitBill(
+    BuildContext context,
+    List<List<Map<String, dynamic>>> tickets,
+    List<String> ticketTitles,
+  ) async {
     try {
       var box = await Hive.openBox('cartBox');
 
@@ -546,7 +709,9 @@ class CurrentSaleProvider with ChangeNotifier {
         if (tickets[i].isNotEmpty) {
           Map<String, dynamic> billData = {
             'holdId': '${DateTime.now().millisecondsSinceEpoch}-$i',
-            'items': tickets[i].map((item) => _prepareItemForStorage(item)).toList(),
+            'items': tickets[i]
+                .map((item) => _prepareItemForStorage(item))
+                .toList(),
             'total': _calculateTicketTotal(tickets[i]),
             'date': DateTime.now().toIso8601String(),
             'status': 'hold',
@@ -570,14 +735,19 @@ class CurrentSaleProvider with ChangeNotifier {
     } catch (e) {
       print('Error saving split bills: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error saving tickets: $e'), backgroundColor: Colors.red, duration: Duration(seconds: 2)),
+        SnackBar(
+          content: Text('Error saving tickets: $e'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 2),
+        ),
       );
     }
   }
 
   double _calculateTicketTotal(List<Map<String, dynamic>> items) {
     return items.fold(0.0, (sum, item) {
-      double price = (item['varianceData']?['variance_Defaultprice'] ?? 0.0).toDouble();
+      double price = (item['varianceData']?['variance_Defaultprice'] ?? 0.0)
+          .toDouble();
       double quantity = (item['quantity'] ?? 0).toDouble();
       return sum + (price * quantity);
     });
@@ -654,13 +824,16 @@ class CurrentSaleProvider with ChangeNotifier {
     if (index < 0 || index >= _currentSaleItems.length) return;
 
     final item = _currentSaleItems[index];
-    final double price = (item['varianceData']['variance_Defaultprice'] as num?)?.toDouble() ?? 0.0;
+    final double price =
+        (item['varianceData']['variance_Defaultprice'] as num?)?.toDouble() ??
+        0.0;
     final double qty = (newValue is num) ? newValue.toDouble() : 1.0;
 
     item['quantity'] = qty;
     item['totalPrice'] = price * qty;
 
-    if (item['varianceData']['variance_Uom']?.toString().toLowerCase() == 'kgs') {
+    if (item['varianceData']['variance_Uom']?.toString().toLowerCase() ==
+        'kgs') {
       item['weight'] = qty;
     } else {
       item['weight'] = null;
@@ -679,7 +852,9 @@ class CurrentSaleProvider with ChangeNotifier {
     }
 
     var box = await Hive.openBox('cartBox');
-    List<Map<String, dynamic>> itemsWithStatus = _currentSaleItems.map((item) => {...item, 'status': 'hold'}).toList();
+    List<Map<String, dynamic>> itemsWithStatus = _currentSaleItems
+        .map((item) => {...item, 'status': 'hold'})
+        .toList();
 
     var randomId = generatetheholdrandomId();
 
@@ -705,16 +880,38 @@ class CurrentSaleProvider with ChangeNotifier {
     // ignore: unused_local_variable
     Map<String, dynamic> hivedatpostsapledata = {
       "holdId": randomId.toString(),
-      "itemId": itemsWithStatus.map((item) => item['itemData']['itemId'] ?? "").toList(),
-      "itemCode": itemsWithStatus.map((item) => item['varianceData']['varianceitemCode'] ?? "").toList(),
-      "itemName": itemsWithStatus.map((item) => item['itemData']['itemName'] ?? "").toList(),
-      "weight": itemsWithStatus.map((item) => item['varianceData']['variance_Uom'] ?? "").toList(),
-      "price": itemsWithStatus.map((item) => item['varianceData']['variance_Defaultprice'].toString()).toList(),
-      "category": itemsWithStatus.map((item) => item['itemData']['category'] ?? "").toList(),
-      "qty": itemsWithStatus.map((item) => item['quantity'].toString()).toList(),
-      "amount": itemsWithStatus.map((item) => calculateItemTotal(item).toString()).toList(),
-      "tax": itemsWithStatus.map((item) => item['itemData']['tax'].toString()).toList(),
-      "uom": itemsWithStatus.map((item) => item['itemData']['item_Uom'] ?? "").toList(),
+      "itemId": itemsWithStatus
+          .map((item) => item['itemData']['itemId'] ?? "")
+          .toList(),
+      "itemCode": itemsWithStatus
+          .map((item) => item['varianceData']['varianceitemCode'] ?? "")
+          .toList(),
+      "itemName": itemsWithStatus
+          .map((item) => item['itemData']['itemName'] ?? "")
+          .toList(),
+      "weight": itemsWithStatus
+          .map((item) => item['varianceData']['variance_Uom'] ?? "")
+          .toList(),
+      "price": itemsWithStatus
+          .map(
+            (item) => item['varianceData']['variance_Defaultprice'].toString(),
+          )
+          .toList(),
+      "category": itemsWithStatus
+          .map((item) => item['itemData']['category'] ?? "")
+          .toList(),
+      "qty": itemsWithStatus
+          .map((item) => item['quantity'].toString())
+          .toList(),
+      "amount": itemsWithStatus
+          .map((item) => calculateItemTotal(item).toString())
+          .toList(),
+      "tax": itemsWithStatus
+          .map((item) => item['itemData']['tax'].toString())
+          .toList(),
+      "uom": itemsWithStatus
+          .map((item) => item['itemData']['item_Uom'] ?? "")
+          .toList(),
       "totalAmount": calculateTotal().toString(),
       "totalAmount2": "0",
       "totalAmount3": "0",
@@ -819,7 +1016,11 @@ class CurrentSaleProvider with ChangeNotifier {
     // }
 
     await box.add(billData);
-    _showSnackBar(context, 'Bill saved as hold (Hold ID: $randomId)', Colors.green);
+    _showSnackBar(
+      context,
+      'Bill saved as hold (Hold ID: $randomId)',
+      Colors.green,
+    );
     clearItems();
   }
 
@@ -941,7 +1142,8 @@ class CurrentSaleProvider with ChangeNotifier {
 
   double calculateTotal2(List<Map<String, dynamic>> items) {
     return items.fold(0.0, (sum, item) {
-      double price = (item['varianceData']?['variance_Defaultprice'] ?? 0.0).toDouble(); // Get price safely
+      double price = (item['varianceData']?['variance_Defaultprice'] ?? 0.0)
+          .toDouble(); // Get price safely
       int quantity = (item['quantity'] ?? 0).toInt(); // Get quantity safely
       return sum + (price * quantity);
     });

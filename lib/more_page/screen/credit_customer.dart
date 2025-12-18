@@ -57,11 +57,8 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
     } catch (error) {}
   }
 
-  Future<void> fetchCreditBills({
-    String? customerNumber,
-    DateTime? startDate,
-    DateTime? endDate,
-  }) async {
+  Future<void> fetchCreditBills(
+      {String? customerNumber, DateTime? startDate, DateTime? endDate}) async {
     // Define both API URLs
     var apiUrl1 =
         'https://yenerp.com/fastapi/salesorders/?filter-credit-customer=true';
@@ -104,9 +101,8 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
         setState(() {
           creditBills = List<Map<String, dynamic>>.from(data1);
           filteredBills = creditBills;
-          filteredBills2 = List<Map<String, dynamic>>.from(
-            data2,
-          ); // Store data from apiUrl2
+          filteredBills2 =
+              List<Map<String, dynamic>>.from(data2); // Store data from apiUrl2
         });
       } else {}
     } catch (error) {}
@@ -115,10 +111,10 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
   void applyFilters() {
     setState(() {
       filteredBills = creditBills.where((bill) {
-        final matchesSearch =
-            bill['customerName']?.toString().toLowerCase().contains(
-              searchQuery.toLowerCase(),
-            ) ??
+        final matchesSearch = bill['customerName']
+                ?.toString()
+                .toLowerCase()
+                .contains(searchQuery.toLowerCase()) ??
             false;
 
         final matchesDate = () {
@@ -152,10 +148,9 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
         startDate = picked;
       });
       fetchCreditBills(
-        customerNumber: searchQuery,
-        startDate: startDate,
-        endDate: endDate,
-      ); // Update API call
+          customerNumber: searchQuery,
+          startDate: startDate,
+          endDate: endDate); // Update API call
     }
   }
 
@@ -171,10 +166,9 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
         endDate = picked;
       });
       fetchCreditBills(
-        customerNumber: searchQuery,
-        startDate: startDate,
-        endDate: endDate,
-      ); // Update API call
+          customerNumber: searchQuery,
+          startDate: startDate,
+          endDate: endDate); // Update API call
     }
   }
 
@@ -222,30 +216,21 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
               children: const [
                 Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 8.0,
-                  ), // Add spacing
-                  child: const Text(
-                    'All Credit Bill',
-                    textAlign: TextAlign.center,
-                  ),
+                      horizontal: 8.0), // Add spacing
+                  child: const Text('All Credit Bill',
+                      textAlign: TextAlign.center),
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 8.0,
-                  ), // Add spacing
-                  child: const Text(
-                    'Credit Sales Orders',
-                    textAlign: TextAlign.center,
-                  ),
+                      horizontal: 8.0), // Add spacing
+                  child: const Text('Credit Sales Orders',
+                      textAlign: TextAlign.center),
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 8.0,
-                  ), // Add spacing
-                  child: const Text(
-                    'Credit Sales Invoice',
-                    textAlign: TextAlign.center,
-                  ),
+                      horizontal: 8.0), // Add spacing
+                  child: const Text('Credit Sales Invoice',
+                      textAlign: TextAlign.center),
                 ),
               ],
             ),
@@ -265,9 +250,8 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
                   selectedBorderColor:
                       Colors.blue, // Border color for selected button
                   selectedColor: Colors.blue, // Text color for selected button
-                  fillColor: Colors.blueAccent.withOpacity(
-                    0.2,
-                  ), // Background for selected button
+                  fillColor: Colors.blueAccent
+                      .withOpacity(0.2), // Background for selected button
                   color: Colors.black, // Default text color
                   borderColor: Colors.grey[300], // Default border color
                   constraints: const BoxConstraints(
@@ -276,7 +260,7 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
                   ),
                   isSelected: [
                     showPreInvoice,
-                    !showPreInvoice,
+                    !showPreInvoice
                   ], // Selection state
                   onPressed: (int index) {
                     setState(() {
@@ -288,16 +272,12 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
                     fetchCreditBills(); // Fetch updated bills
                   },
                   children: const [
-                    Text(
-                      'Credit Bill Pre-Invoice',
-                      textAlign: TextAlign.center,
-                    ), // Button 1
-                    Text(
-                      'Credit Invoice',
-                      textAlign: TextAlign.center,
-                    ), // Button 2
+                    Text('Credit Bill Pre-Invoice',
+                        textAlign: TextAlign.center), // Button 1
+                    Text('Credit Invoice',
+                        textAlign: TextAlign.center), // Button 2
                   ],
-                ),
+                )
               ],
             ),
           ),
@@ -333,26 +313,21 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
                       },
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
-                        ),
+                            horizontal: 24, vertical: 12),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                            8,
-                          ), // Rounded corners
+                          borderRadius:
+                              BorderRadius.circular(8), // Rounded corners
                         ),
                         elevation: 5, // Shadow effect for 3D look
                       ),
                       child: Text(
                         'Create Credit Bill', // Toggle text
-                        style: TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
+                        style: TextStyle(fontFamily: 'Poppins',
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black),
                       ),
-                    ),
+                    )
                   ],
                 ),
                 SizedBox(height: 10),
@@ -363,16 +338,14 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
                     Padding(
                       padding: const EdgeInsets.only(left: 10.0),
                       child: ToggleButtons(
-                        borderRadius: BorderRadius.circular(
-                          8,
-                        ), // Rounded corners
+                        borderRadius:
+                            BorderRadius.circular(8), // Rounded corners
                         selectedBorderColor:
                             Colors.blue, // Border color for selected button
                         selectedColor:
                             Colors.blue, // Text color for selected button
-                        fillColor: Colors.blueAccent.withOpacity(
-                          0.2,
-                        ), // Background for selected button
+                        fillColor: Colors.blueAccent
+                            .withOpacity(0.2), // Background for selected button
                         color: Colors.black, // Default text color
                         borderColor: Colors.grey[300], // Default border color
                         constraints: const BoxConstraints(
@@ -381,7 +354,7 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
                         ),
                         isSelected: [
                           startDate != null,
-                          endDate != null,
+                          endDate != null
                         ], // Selection state
                         onPressed: (int index) {
                           if (index == 0) {
@@ -401,7 +374,7 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
                           ),
                         ],
                       ),
-                    ),
+                    )
                   ],
                 ),
               ],
@@ -416,118 +389,104 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
                 Expanded(
                   child: showCreditSalesInvoice
                       ? (creditSalesInvoices.isEmpty
-                            ? Center(
-                                child: Text('No Credit Sales Invoices Found'),
-                              )
-                            : ListView.builder(
-                                itemCount: creditSalesInvoices.length,
-                                itemBuilder: (context, index) {
-                                  final invoice = creditSalesInvoices[index];
-                                  return Card(
-                                    color: selectedBills.contains(invoice)
-                                        ? Colors.blue[100]
-                                        : Colors.white,
-                                    margin: const EdgeInsets.symmetric(
-                                      vertical: 4,
-                                      horizontal: 8,
+                          ? Center(
+                              child: Text('No Credit Sales Invoices Found'))
+                          : ListView.builder(
+                              itemCount: creditSalesInvoices.length,
+                              itemBuilder: (context, index) {
+                                final invoice = creditSalesInvoices[index];
+                                return Card(
+                                  color: selectedBills.contains(invoice)
+                                      ? Colors.blue[100]
+                                      : Colors.white,
+                                  margin: const EdgeInsets.symmetric(
+                                      vertical: 4, horizontal: 8),
+                                  child: ListTile(
+                                    leading: CircleAvatar(
+                                      backgroundColor: Colors.blue[50],
+                                      child: Text("INV"),
                                     ),
-                                    child: ListTile(
-                                      leading: CircleAvatar(
-                                        backgroundColor: Colors.blue[50],
-                                        child: Text("INV"),
-                                      ),
-                                      title: Text(
-                                        invoice['customerName'] ??
-                                            'Unknown Customer',
-                                      ),
-                                      subtitle: Text(
-                                        'Date: ${invoice['deliveryDate'] ?? 'N/A'}',
-                                      ),
-                                      trailing: Text(
-                                        '₹${invoice['totalAmount']?.toStringAsFixed(2) ?? '0.00'}',
-                                        style: const TextStyle(
-                                          fontFamily: 'Poppins',
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      onTap: () {
-                                        setState(() {
-                                          selectedBill = invoice;
-                                        });
-                                      },
-                                      onLongPress: () {
-                                        setState(() {
-                                          if (selectedBills.contains(invoice)) {
-                                            selectedBills.remove(invoice);
-                                          } else {
-                                            selectedBills.add(invoice);
-                                          }
-                                        });
-                                      },
-                                      selected: selectedBills.contains(invoice),
-                                      selectedTileColor: Colors.blue[200],
+                                    title: Text(invoice['customerName'] ??
+                                        'Unknown Customer'),
+                                    subtitle: Text(
+                                        'Date: ${invoice['deliveryDate'] ?? 'N/A'}'),
+                                    trailing: Text(
+                                      '₹${invoice['totalAmount']?.toStringAsFixed(2) ?? '0.00'}',
+                                      style: const TextStyle(fontFamily: 'Poppins',
+                                          fontWeight: FontWeight.bold),
                                     ),
-                                  );
-                                },
-                              ))
-                      : (showPreInvoice ? filteredBills : filteredBills2)
-                            .isEmpty
-                      ? Center(child: Text('No Credit Bills Found'))
-                      : ListView.builder(
-                          itemCount:
-                              (showPreInvoice ? filteredBills : filteredBills2)
-                                  .length,
-                          itemBuilder: (context, index) {
-                            final bill = (showPreInvoice
-                                ? filteredBills
-                                : filteredBills2)[index];
-                            return Card(
-                              color: selectedBills.contains(bill)
-                                  ? Colors.blue[100]
-                                  : Colors.white,
-                              margin: const EdgeInsets.symmetric(
-                                vertical: 4,
-                                horizontal: 8,
-                              ),
-                              child: ListTile(
-                                leading: CircleAvatar(
-                                  backgroundColor: Colors.blue[50],
-                                  child: Text("SO"),
-                                ),
-                                title: Text(
-                                  bill['customerName'] ?? 'Unknown Customer',
-                                ),
-                                subtitle: Text(
-                                  'Date: ${bill['deliveryDate'] ?? 'N/A'}',
-                                ),
-                                trailing: Text(
-                                  '₹${bill['totalAmount']?.toStringAsFixed(2) ?? '0.00'}',
-                                  style: const TextStyle(
-                                    fontFamily: 'Poppins',
-                                    fontWeight: FontWeight.bold,
+                                    onTap: () {
+                                      setState(() {
+                                        selectedBill = invoice;
+                                      });
+                                    },
+                                    onLongPress: () {
+                                      setState(() {
+                                        if (selectedBills.contains(invoice)) {
+                                          selectedBills.remove(invoice);
+                                        } else {
+                                          selectedBills.add(invoice);
+                                        }
+                                      });
+                                    },
+                                    selected: selectedBills.contains(invoice),
+                                    selectedTileColor: Colors.blue[200],
                                   ),
-                                ),
-                                onTap: () {
-                                  setState(() {
-                                    selectedBill =
-                                        bill; // Set this bill as the selectedBill to view details
-                                  });
-                                },
-                                onLongPress: () {
-                                  setState(() {
-                                    if (selectedBills.contains(bill)) {
-                                      selectedBills.remove(bill);
-                                    } else {
-                                      selectedBills.add(bill);
-                                    }
-                                  });
-                                },
-                                selected: selectedBills.contains(bill),
-                                selectedTileColor: Colors.blue[200],
-                              ),
-                            );
-                          },
-                        ),
+                                );
+                              },
+                            ))
+                      : (showPreInvoice ? filteredBills : filteredBills2)
+                              .isEmpty
+                          ? Center(child: Text('No Credit Bills Found'))
+                          : ListView.builder(
+                              itemCount: (showPreInvoice
+                                      ? filteredBills
+                                      : filteredBills2)
+                                  .length,
+                              itemBuilder: (context, index) {
+                                final bill = (showPreInvoice
+                                    ? filteredBills
+                                    : filteredBills2)[index];
+                                return Card(
+                                  color: selectedBills.contains(bill)
+                                      ? Colors.blue[100]
+                                      : Colors.white,
+                                  margin: const EdgeInsets.symmetric(
+                                      vertical: 4, horizontal: 8),
+                                  child: ListTile(
+                                    leading: CircleAvatar(
+                                        backgroundColor: Colors.blue[50],
+                                        child: Text("SO")),
+                                    title: Text(bill['customerName'] ??
+                                        'Unknown Customer'),
+                                    subtitle: Text(
+                                        'Date: ${bill['deliveryDate'] ?? 'N/A'}'),
+                                    trailing: Text(
+                                      '₹${bill['totalAmount']?.toStringAsFixed(2) ?? '0.00'}',
+                                      style: const TextStyle(fontFamily: 'Poppins',
+                                          fontWeight: FontWeight.bold),
+                                    ),
+                                    onTap: () {
+                                      setState(() {
+                                        selectedBill =
+                                            bill; // Set this bill as the selectedBill to view details
+                                      });
+                                    },
+                                    onLongPress: () {
+                                      setState(() {
+                                        if (selectedBills.contains(bill)) {
+                                          selectedBills.remove(bill);
+                                        } else {
+                                          selectedBills.add(bill);
+                                        }
+                                      });
+                                    },
+                                    selected: selectedBills.contains(bill),
+                                    selectedTileColor: Colors.blue[200],
+                                  ),
+                                );
+                              },
+                            ),
                 ),
                 VerticalDivider(width: 1, color: Colors.grey),
 
@@ -536,17 +495,14 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
                   child: selectedBills.isNotEmpty
                       ? _buildTotalsDisplay() // Show totals if multiple bills are selected
                       : (selectedBill != null
-                            ? _buildCreditBillDetailView() // Show details if a single bill is selected
-                            : Center(
-                                child: Text(
-                                  'Select a bill to view details', // Placeholder text
-                                  style: TextStyle(
-                                    fontFamily: 'Poppins',
-                                    fontSize: 18,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              )),
+                          ? _buildCreditBillDetailView() // Show details if a single bill is selected
+                          : Center(
+                              child: Text(
+                                'Select a bill to view details', // Placeholder text
+                                style:
+                                    TextStyle(fontFamily: 'Poppins',fontSize: 18, color: Colors.grey),
+                              ),
+                            )),
                 ),
               ],
             ),
@@ -612,11 +568,7 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
           children: [
             Text(
               'Customer Details',
-              style: TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontFamily: 'Poppins',fontSize: 18, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 16),
             GridView(
@@ -628,56 +580,32 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
                 childAspectRatio: 5, // Adjust height-to-width ratio
               ),
               children: [
+                _buildDetailTile('Customer Name',
+                    selectedBill!['customerName'] ?? 'Unknown'),
                 _buildDetailTile(
-                  'Customer Name',
-                  selectedBill!['customerName'] ?? 'Unknown',
-                ),
+                    'Delivery Date', selectedBill!['deliveryDate'] ?? 'N/A'),
                 _buildDetailTile(
-                  'Delivery Date',
-                  selectedBill!['deliveryDate'] ?? 'N/A',
-                ),
+                    'Delivery Time', selectedBill!['deliveryTime'] ?? 'N/A'),
+                _buildDetailTile('Total Amount',
+                    '₹${selectedBill!['totalAmount']?.toStringAsFixed(2) ?? '0.00'}'),
+                _buildDetailTile('Discount',
+                    '₹${selectedBill!['discountAmount']?.toStringAsFixed(2) ?? '0.00'}'),
+                _buildDetailTile('Custom Charge',
+                    '₹${selectedBill!['customCharge'] ?? '0.00'}'),
                 _buildDetailTile(
-                  'Delivery Time',
-                  selectedBill!['deliveryTime'] ?? 'N/A',
-                ),
-                _buildDetailTile(
-                  'Total Amount',
-                  '₹${selectedBill!['totalAmount']?.toStringAsFixed(2) ?? '0.00'}',
-                ),
-                _buildDetailTile(
-                  'Discount',
-                  '₹${selectedBill!['discountAmount']?.toStringAsFixed(2) ?? '0.00'}',
-                ),
-                _buildDetailTile(
-                  'Custom Charge',
-                  '₹${selectedBill!['customCharge'] ?? '0.00'}',
-                ),
-                _buildDetailTile(
-                  'Payment Type',
-                  selectedBill!['paymentType'] ?? 'Unknown',
-                ),
-                _buildDetailTile(
-                  'Delivery Type',
-                  selectedBill!['deliveryType'] ?? 'Unknown',
-                ),
-                _buildDetailTile(
-                  'Employee Name',
-                  selectedBill!['employeeName'] ?? 'Not Assigned',
-                ),
-                _buildDetailTile(
-                  'Status',
-                  selectedBill!['creditCustomerOrder'] ?? 'Unknown',
-                ),
+                    'Payment Type', selectedBill!['paymentType'] ?? 'Unknown'),
+                _buildDetailTile('Delivery Type',
+                    selectedBill!['deliveryType'] ?? 'Unknown'),
+                _buildDetailTile('Employee Name',
+                    selectedBill!['employeeName'] ?? 'Not Assigned'),
+                _buildDetailTile('Status',
+                    selectedBill!['creditCustomerOrder'] ?? 'Unknown'),
               ],
             ),
             SizedBox(height: 16),
             Text(
               'Items:',
-              style: TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontFamily: 'Poppins',fontSize: 16, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 8),
             ..._buildItemList(selectedBill!),
@@ -693,8 +621,8 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
                             child: CustomSizedBox(
                               width: MediaQuery.of(context).size.width * 0.5,
                               child: SalesInvoicePayAndPrint(
-                                totalAmount: selectedBill!['totalAmount']
-                                    .toDouble(),
+                                totalAmount:
+                                    selectedBill!['totalAmount'].toDouble(),
                                 holdBillId:
                                     '', // Fallback to empty string if null
                               ),
@@ -717,8 +645,7 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
       children: [
         Text(
           title,
-          style: TextStyle(
-            fontFamily: 'Poppins',
+          style: TextStyle(fontFamily: 'Poppins',
             fontSize: 14,
             fontWeight: FontWeight.bold,
             color: Colors.grey[600],
@@ -726,11 +653,7 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
         ),
         Text(
           value,
-          style: TextStyle(
-            fontFamily: 'Poppins',
-            fontSize: 16,
-            color: Colors.black,
-          ),
+          style: TextStyle(fontFamily: 'Poppins',fontSize: 16, color: Colors.black),
         ),
       ],
     );
@@ -749,9 +672,11 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
             : Colors.transparent, // Default background
         foregroundColor: isSelected ? Colors.blue : Colors.black,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
       ),
-      child: Text(title, style: TextStyle(fontFamily: 'Poppins', fontSize: 14)),
+      child: Text(title, style: TextStyle(fontFamily: 'Poppins',fontSize: 14)),
     );
   }
 
@@ -778,11 +703,7 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
                 children: [
                   Text(
                     '${bill['itemName'][i]}',
-                    style: TextStyle(
-                      fontFamily: 'Poppins',
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
+                    style: TextStyle(fontFamily: 'Poppins',fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                   SizedBox(height: 4),
                   Row(
@@ -801,7 +722,9 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
                   ),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [Text('Tax: ${bill['tax'][i]}%')],
+                    children: [
+                      Text('Tax: ${bill['tax'][i]}%'),
+                    ],
                   ),
                 ],
               ),
@@ -811,11 +734,7 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
       }
     } else {
       items.add(
-        Text(
-          'No items available',
-          style: TextStyle(fontFamily: 'Poppins', color: Colors.grey),
-        ),
-      );
+          Text('No items available', style: TextStyle(fontFamily: 'Poppins',color: Colors.grey)));
     }
 
     return items;
@@ -832,18 +751,13 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
       overallTotal += amount;
 
       String date = bill['deliveryDate'] ?? 'Unknown Date';
-      newTotalsByDate.update(
-        date,
-        (existingTotal) => existingTotal + amount,
-        ifAbsent: () => amount,
-      );
+      newTotalsByDate.update(date, (existingTotal) => existingTotal + amount,
+          ifAbsent: () => amount);
 
       String customerNumber = bill['customerNumber'] ?? 'Unknown Customer';
       newTotalsByCustomer.update(
-        customerNumber,
-        (existingTotal) => existingTotal + amount,
-        ifAbsent: () => amount,
-      );
+          customerNumber, (existingTotal) => existingTotal + amount,
+          ifAbsent: () => amount);
     }
 
     // Update state with new totals
@@ -888,11 +802,9 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
         ),
       );
 
-      overallTotal +=
-          double.tryParse(
-            (double.tryParse(bill['totalAmount']?.toString() ?? '0') ?? 0)
-                .toStringAsFixed(0),
-          ) ??
+      overallTotal += double.tryParse(
+              (double.tryParse(bill['totalAmount']?.toString() ?? '0') ?? 0)
+                  .toStringAsFixed(0)) ??
           0;
     }
 
@@ -917,26 +829,18 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
           Center(
             child: Text(
               'No bills selected.',
-              style: TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 16,
-                color: Colors.grey,
-              ),
+              style: TextStyle(fontFamily: 'Poppins',fontSize: 16, color: Colors.grey),
             ),
           ),
         // Add the overall total at the bottom
         if (selectedBills.isNotEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 12.0),
-            child: Text(
-              'Overall Total: ₹${overallTotal.toStringAsFixed(2)}',
-              style: TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.red,
-              ),
-            ),
+            child: Text('Overall Total: ₹${overallTotal.toStringAsFixed(2)}',
+                style: TextStyle(fontFamily: 'Poppins',
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red)),
           ),
         // Add the "Make Invoice" button at the bottom
         Padding(
@@ -952,8 +856,8 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
                           child: CustomSizedBox(
                             width: MediaQuery.of(context).size.width * 0.5,
                             child: SalesInvoicePayAndPrint(
-                              totalAmount: selectedBill!['totalAmount']
-                                  .toDouble(),
+                              totalAmount:
+                                  selectedBill!['totalAmount'].toDouble(),
                               holdBillId:
                                   '', // Fallback to empty string if null
                             ),
@@ -963,20 +867,18 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
                     );
             },
             style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(
-                vertical: 12.0,
-                horizontal: 20,
-              ),
+              padding:
+                  const EdgeInsets.symmetric(vertical: 12.0, horizontal: 20),
               backgroundColor: Colors.blueAccent.withOpacity(0.1),
               foregroundColor: Colors.blueAccent,
             ),
             child: Text(
               selectedBills.isNotEmpty
                   ? (showPreInvoice
-                        ? 'Make Pre Invoice for Selected Bills'
-                        : 'Make Invoice for Selected Bills')
+                      ? 'Make Pre Invoice for Selected Bills'
+                      : 'Make Invoice for Selected Bills')
                   : 'No Bills Selected',
-              style: TextStyle(fontFamily: 'Poppins', fontSize: 16),
+              style: TextStyle(fontFamily: 'Poppins',fontSize: 16),
             ),
           ),
         ),
@@ -989,11 +891,7 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
       padding: const EdgeInsets.all(8.0),
       child: Text(
         title,
-        style: TextStyle(
-          fontFamily: 'Poppins',
-          fontWeight: FontWeight.bold,
-          color: Colors.black,
-        ),
+        style: TextStyle(fontFamily: 'Poppins',fontWeight: FontWeight.bold, color: Colors.black),
         textAlign: TextAlign.center,
       ),
     );
@@ -1002,9 +900,14 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
   Widget _buildTableCell(String value) {
     return Padding(
       padding: const EdgeInsets.all(8.0),
-      child: Text(value, textAlign: TextAlign.center),
+      child: Text(
+        value,
+        textAlign: TextAlign.center,
+      ),
     );
   }
+
+
 
   void handleInvoicePrinting() async {
     if (selectedBills.isNotEmpty) {
@@ -1055,9 +958,8 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
 
       for (var bill in selectedBills) {
         consolidatedInvoiceData["itemName"].addAll(bill['itemName'] ?? []);
-        consolidatedInvoiceData["varianceName"].addAll(
-          bill['varianceName'] ?? [],
-        );
+        consolidatedInvoiceData["varianceName"]
+            .addAll(bill['varianceName'] ?? []);
         consolidatedInvoiceData["price"].addAll(bill['price'] ?? []);
         consolidatedInvoiceData["weight"].addAll(bill['weight'] ?? []);
         consolidatedInvoiceData["qty"].addAll(bill['qty'] ?? []);
@@ -1168,9 +1070,8 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
 
       for (var bill in selectedBills) {
         consolidatedInvoiceData["itemName"].addAll(bill['itemName'] ?? []);
-        consolidatedInvoiceData["varianceName"].addAll(
-          bill['varianceName'] ?? [],
-        );
+        consolidatedInvoiceData["varianceName"]
+            .addAll(bill['varianceName'] ?? []);
         consolidatedInvoiceData["price"].addAll(bill['price'] ?? []);
         consolidatedInvoiceData["weight"].addAll(bill['weight'] ?? []);
         consolidatedInvoiceData["qty"].addAll(bill['qty'] ?? []);
@@ -1260,11 +1161,9 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
               setModalState(() {
                 searchQuery = query;
                 filteredItems = staticItems
-                    .where(
-                      (item) => item['name'].toLowerCase().contains(
-                        query.toLowerCase(),
-                      ),
-                    )
+                    .where((item) => item['name']
+                        .toLowerCase()
+                        .contains(query.toLowerCase()))
                     .toList();
               });
             }
@@ -1287,8 +1186,7 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
                           // Popup Header
                           Text(
                             'Select Items',
-                            style: TextStyle(
-                              fontFamily: 'Poppins',
+                            style: TextStyle(fontFamily: 'Poppins',
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
@@ -1306,9 +1204,7 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
                                 return Card(
                                   elevation: 3,
                                   margin: const EdgeInsets.symmetric(
-                                    vertical: 6,
-                                    horizontal: 10,
-                                  ),
+                                      vertical: 6, horizontal: 10),
                                   child: ListTile(
                                     title: Text(item['name']),
                                     subtitle: Text('Price: ₹${item['price']}'),
@@ -1344,11 +1240,8 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
                           // Cart Header
                           Text(
                             'Cart Items',
-                            style: TextStyle(
-                              fontFamily: 'Poppins',
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
+                            style: TextStyle(fontFamily: 'Poppins',
+                                fontWeight: FontWeight.bold, fontSize: 16),
                           ),
                           const SizedBox(height: 10),
 
@@ -1361,19 +1254,14 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
                                 return Card(
                                   elevation: 2,
                                   margin: const EdgeInsets.symmetric(
-                                    vertical: 4,
-                                    horizontal: 8,
-                                  ),
+                                      vertical: 4, horizontal: 8),
                                   child: ListTile(
                                     title: Text(cartItem['name']),
                                     subtitle: Text(
-                                      '₹${cartItem['price']} x ${cartItem['quantity']}',
-                                    ),
+                                        '₹${cartItem['price']} x ${cartItem['quantity']}'),
                                     trailing: IconButton(
-                                      icon: Icon(
-                                        Icons.delete,
-                                        color: Colors.red,
-                                      ),
+                                      icon:
+                                          Icon(Icons.delete, color: Colors.red),
                                       onPressed: () {
                                         setModalState(() {
                                           removeFromCart(cartItem);
@@ -1393,11 +1281,8 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
                             children: [
                               Text(
                                 'Total: ₹${totalAmount.toStringAsFixed(2)}',
-                                style: TextStyle(
-                                  fontFamily: 'Poppins',
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                style: TextStyle(fontFamily: 'Poppins',
+                                    fontSize: 16, fontWeight: FontWeight.bold),
                               ),
                               ElevatedButton(
                                 onPressed: () {
@@ -1406,9 +1291,7 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
                                 },
                                 style: ElevatedButton.styleFrom(
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 24,
-                                    vertical: 12,
-                                  ),
+                                      horizontal: 24, vertical: 12),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8),
                                   ),
@@ -1446,7 +1329,10 @@ class _CreditCustomerPageState extends State<CreditCustomerPage> {
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Cart is empty!'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('Cart is empty!'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }

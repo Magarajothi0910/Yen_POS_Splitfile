@@ -8,6 +8,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 // import '../../model/sales_order_model.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
+import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:yenpos/Notification/notification_service.dart';
 import 'package:yenpos/Notification/websocket_service.dart';
 import 'package:yenpos/Sale_order/Models/sales_order_display_model.dart';
@@ -20,89 +21,156 @@ import 'package:yenpos/transactionPage/Model/transaction_model.dart';
 class ApiServiceSalesOrderProvider extends ChangeNotifier {
   final NotificationWebSocketService _wsService =
       NotificationWebSocketService();
-  final String _wsUrl = 'wss://yenerp.com/fastapi/salesorders/ws';
+
+  final List<String> _wsUrls = [
+    'wss://yenerp.com/fluttertestapi/salesorders/ws',
+    'wss://yenerp.com/fluttertestapi/dispatches/ws',
+    'wss://yenerp.com/fluttertestapi/heldorders/ws',
+  ];
+
+  final Map<String, WebSocketChannel> _wsConnections = {};
   bool _isDisposed = false;
   String _lastUpdateMessage = '';
+
   String get lastUpdateMessage => _lastUpdateMessage;
 
   ApiServiceSalesOrderProvider() {
     fetchOrdersFromHive();
+
     setupHiveListener();
 
-    // Initialize notifications
     NotificationService.init();
 
-    // Connect after short delay
     Future.delayed(const Duration(seconds: 2), () {
-      connectWebSocket();
+      for (var url in _wsUrls) {
+        connectWebSocket(url);
+      }
     });
   }
 
   @override
   void dispose() {
     _isDisposed = true;
-    _wsService.disconnect();
+
+    _wsService.disconnectAll();
+
     super.dispose();
   }
 
-  /// 🔗 Connects to WebSocket safely with auto-reconnect
-  void connectWebSocket() {
-    if (_isDisposed) return;
+  /// Connect with auto-reconnect
+  void connectWebSocket(String url) {
+    if (_isDisposed) {
+      return;
+    }
 
     try {
-      _wsService.connect(_wsUrl);
+      final channel = _wsService.connect(url);
+      _wsConnections[url] = channel;
 
-      _wsService.channel?.stream.listen(
-        _handleWebSocketMessage,
-        onError: (error) {
-          print("⚠️ WebSocket error: $error. Reconnecting in 5s...");
-          _reconnect();
+      // LISTEN FOR STREAM
+
+      channel.stream.listen(
+        (data) {
+          _handleWebSocketMessage(data);
+        },
+        onError: (e) {
+          _scheduleReconnect(url);
         },
         onDone: () {
-          print("⚠️ WebSocket closed. Reconnecting in 5s...");
-          _reconnect();
+          _scheduleReconnect(url);
         },
         cancelOnError: true,
       );
     } catch (e) {
-      print("❌ WebSocket connect exception: $e");
-      _reconnect();
+      _scheduleReconnect(url);
     }
   }
 
-  void _reconnect() {
-    if (_isDisposed) return;
-    _wsService.disconnect();
+  /// Schedules reconnect
+  void _scheduleReconnect(String url) {
+    if (_isDisposed) {
+      return;
+    }
+
     Future.delayed(const Duration(seconds: 5), () {
-      if (!_isDisposed) connectWebSocket();
+      if (_isDisposed) {
+        return;
+      }
+
+      _wsService.disconnect(url);
+
+      connectWebSocket(url);
     });
   }
 
+  /// Handles incoming WebSocket messages
   Future<void> _handleWebSocketMessage(dynamic rawMessage) async {
+    print(
+      "\n================= 🔵 WEBSOCKET MESSAGE RECEIVED =================",
+    );
+    print("📩 RAW Message: $rawMessage");
+    print(
+      "=================================================================\n",
+    );
+
     try {
+      print("👉 Step 1: Decoding JSON...");
       final data = jsonDecode(rawMessage);
+      print("✅ JSON Decoded Successfully: $data\n");
+
+      print("👉 Step 2: Extracting fields...");
       final type = data['type'];
       final messageText = data['message'] ?? 'Update received';
       final payload = data['data'] ?? {};
 
-      print("📩 WebSocket message → $data");
-      if (type == 'salesOrder_updated' || type == 'dispatch_received') {
-        _lastUpdateMessage = messageText;
-        notifyListeners();
+      print("🔍 Extracted Details:");
+      print("   • Type            : $type");
+      print("   • Message Text    : $messageText");
+      print("   • Payload Data    : $payload\n");
 
-        // Show notification
+      print("👉 Step 3: Preparing notification titles...");
+      final notificationTitles = {
+        'salesOrder_updated': 'Sale Order Updated',
+        'Approved_salesOrder_updated': 'Order Approved',
+        'dispatch_received': 'Dispatch Received',
+        'salesOrder_created': 'Open Order Created',
+        'salesOrder_approval_updated': 'Sale Order Approval Updated',
+        'approval_updated': 'Approval Approved',
+        'salesOrder_created_confirm': "Confirm Order Created",
+      };
+      print("✅ Notification Titles Loaded\n");
+
+      print("👉 Step 4: Checking notification type...");
+      if (notificationTitles.containsKey(type)) {
+        print("🎯 Valid notification type detected: $type");
+        print("📌 Notification Title: ${notificationTitles[type]}\n");
+
+        _lastUpdateMessage = messageText;
+        print("📝 Updated last message: $_lastUpdateMessage");
+
+        print("🔔 Triggering UI update via notifyListeners()...");
+        notifyListeners();
+        print("✅ UI Updated\n");
+
+        print("👉 Step 5: Showing local notification...");
         await NotificationService.showNotification(
-          type == 'salesOrder_updated'
-              ? 'Sale Order Updated'
-              : 'Dispatch Received',
+          notificationTitles[type]!,
           messageText,
         );
+        print("✅ Notification Shown\n");
 
-        // Sync updated data to server
+        print("👉 Step 6: Sending data to server...");
         await sendataToServer({"type": type, "data": payload});
+        print("✅ Data sent to server successfully\n");
+      } else {
+        print("⚠️ Unknown message type received: $type");
+        print("❌ No action taken for this message\n");
       }
-    } catch (e) {
-      print("❌ Failed to parse WebSocket message: $rawMessage | Error: $e");
+    } catch (e, stack) {
+      print("\n================= ❌ ERROR OCCURRED =================");
+      print("Error: $e");
+      print("Stack Trace: $stack");
+      print("=====================================================\n");
     }
   }
 
@@ -169,14 +237,9 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
   }
 
   void filterOrdersByStatus(String selectedFilter) {
-    print("🔹 [FILTER] Requested filter: $selectedFilter");
-
     // Step 1: Handle "All Order" case
     if (selectedFilter == "All Order") {
       _hivefilteredAllOrders = List.from(_rawOrders);
-      print(
-        "✅ [FILTER] Showing all orders. Total: ${_hivefilteredAllOrders.length}",
-      );
     } else {
       // Step 2: Map display name to actual status string
       String targetStatus = selectedFilter;
@@ -189,8 +252,6 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
         targetStatus = "Waiting for approval";
       }
 
-      print("🧭 [FILTER] Mapped '$selectedFilter' → '$targetStatus'");
-
       // Step 3: Filter the list
       _hivefilteredAllOrders = _rawOrders.where((order) {
         // Check if order has a valid data structure
@@ -200,27 +261,15 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
               orderStatus.toLowerCase() == targetStatus.toLowerCase();
 
           // Detailed per-item debug
-          print(
-            "🔍 Checking order ID: ${order['data']['id'] ?? 'N/A'} "
-            "| Status: $orderStatus | Match: $isMatch",
-          );
 
           return isMatch;
         } else {
-          print(
-            "⚠️ Skipping invalid order entry: Missing 'data' or 'status' field",
-          );
           return false;
         }
       }).toList();
-
-      print("📊 [FILTER] Matched orders: ${_hivefilteredAllOrders.length}");
     }
 
     // Step 4: Update UI
-    print(
-      "🔁 [FILTER] UI notified to refresh with ${_hivefilteredAllOrders.length} items.",
-    );
     notifyListeners();
   }
 
@@ -330,104 +379,6 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
     }).toList();
   }
 
-  Future<void> fetchAllOrders() async {
-    try {
-      // Fetch original sales orders
-      final salesOrderResponse = await http.get(
-        Uri.parse('https://yenerp.com/fastapi/salesorders/withoutpagination/'),
-      );
-
-      if (salesOrderResponse.statusCode == 200) {
-        // final salesOrderData = jsonDecode(salesOrderResponse.body) as List;
-        final responseBody = jsonDecode(salesOrderResponse.body);
-        if (responseBody is List) {
-          final salesOrderData = responseBody
-              .map((json) => SalesOrderDisplay.fromMap(json))
-              .toList();
-          //  _allSalesOrders = salesOrderData
-          //     .map((json) => SalesOrderDisplay.fromMap(json))
-          //     .toList();
-          _filteredAllSalesOrders = salesOrderData
-              .where((order) => order.status == "Confirm Order")
-              .toList()
-              .reversed
-              .toList();
-          _originalSalesOrder = _filteredAllSalesOrders;
-          _allSalesOrders = _filteredAllSalesOrders;
-        } else if (responseBody is Map<String, dynamic>) {
-          final salesOrderData = responseBody['data'] as List;
-          _allSalesOrders = salesOrderData
-              .map((json) => SalesOrderDisplay.fromMap(json))
-              .toList();
-          _filteredAllSalesOrders = _allSalesOrders
-              .where((order) => order.status == "Confirm Order")
-              .toList()
-              .reversed
-              .toList();
-          _originalSalesOrder = _filteredAllSalesOrders;
-          _allSalesOrders = _filteredAllSalesOrders;
-        } else {
-          throw Exception('Failed to load sales orders');
-        }
-      }
-
-      // Fetch modified orders
-      final modifiedOrderResponse = await http.get(
-        Uri.parse('https://yenerp.com/fastapi/modify/'),
-      );
-      if (modifiedOrderResponse.statusCode == 200) {
-        final modifiedOrderData =
-            jsonDecode(modifiedOrderResponse.body) as List;
-        _modifiedOrders = modifiedOrderData
-            .map((json) => ModifyOrder.fromJson(json))
-            .toList();
-      } else {
-        throw Exception('Failed to load modified orders');
-      }
-
-      // Fetch toApprove orders
-      final toApproveResponse = await http.get(
-        Uri.parse('https://yenerp.com/fastapi/toapprove/'),
-      );
-      if (toApproveResponse.statusCode == 200) {
-        final toApproveData = jsonDecode(toApproveResponse.body) as List;
-        _toApprove = toApproveData
-            .map((json) => ToApprove.fromJson(json))
-            .toList();
-      } else {
-        throw Exception('Failed to load toApprove orders');
-      }
-
-      // Merge modified and toApprove data into sales orders
-      _allSalesOrders = _allSalesOrders.map((order) {
-        // Find matching modified orders
-        final matchingModifiedOrders = _modifiedOrders
-            .where(
-              (modOrder) =>
-                  modOrder.previousId == order.salesOrderId ||
-                  modOrder.saleOrderNo == order.saleOrderNo,
-            )
-            .toList();
-
-        // Find matching toApprove orders
-        final matchingToApproveOrders = _toApprove
-            .where(
-              (approveOrder) =>
-                  approveOrder.previousId == order.salesOrderId ||
-                  approveOrder.saleOrderNo == order.saleOrderNo,
-            )
-            .toList();
-
-        // Return order with matched modifications and approvals
-        return order
-            .copyWith(modifiedOrders: matchingModifiedOrders)
-            .copytoapprove(toApprove: matchingToApproveOrders);
-      }).toList();
-
-      notifyListeners();
-    } catch (e) {}
-  }
-
   void toggleGrouping() {
     _groupByDeliveryDate = !_groupByDeliveryDate;
     // _allSalesOrders.clear();
@@ -526,11 +477,8 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
   }
 
   void searchOrders(String query) {
-    print("🔍 searchOrders called with query: '$query'");
-
     try {
       final trimmedQuery = query.trim().toLowerCase();
-      print("📏 Trimmed Query: '$trimmedQuery'");
 
       // Function to filter a list of orders
       List<Map<String, dynamic>> filterOrders(
@@ -558,15 +506,10 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
                 salesOrderId.contains(trimmedQuery) ||
                 event.contains(trimmedQuery);
 
-            if (match) {
-              print(
-                "✅ Match found: customer=$customerName, number=$customerNumber, orderNo=$salesOrderId, event=$event",
-              );
-            }
+            if (match) {}
 
             return match;
           } else {
-            print("⚠️ Skipping non-Map order: $order");
             return false;
           }
         }).toList();
@@ -576,28 +519,17 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
       _hivefilteredOrders = filterOrders(_rawOrders);
       _hivefilteredAllOrders = filterOrders(_rawOrders);
 
-      print("🔎 Filtered current orders count: ${_hivefilteredOrders.length}");
-      print("🔎 Filtered all orders count: ${_hivefilteredAllOrders.length}");
-
       // Notify listeners
       if (hasListeners) {
         notifyListeners();
       }
-    } catch (e, st) {
-      print("❌ Error in searchOrders: $e");
-      print("📜 Stack trace:\n$st");
-    }
-
-    print("✅ searchOrders completed.\n");
+    } catch (e, st) {}
   }
 
   // 🔍 Search only hivefilteredOrders
   void searchHiveFilteredOrders(String query) {
-    print("🔍 searchHiveFilteredOrders called with query: '$query'");
-
     try {
       final trimmedQuery = query.trim().toLowerCase();
-      print("📏 Trimmed Query: '$trimmedQuery'");
 
       List<Map<String, dynamic>> filterOrders(
         List<Map<String, dynamic>> orders,
@@ -628,21 +560,14 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
       }
 
       _hivefilteredOrders = filterOrders(_rawOrders);
-      print("✅ hivefilteredOrders count: ${_hivefilteredOrders.length}");
 
       if (hasListeners) notifyListeners();
-    } catch (e, st) {
-      print("❌ Error in searchHiveFilteredOrders: $e");
-      print(st);
-    }
+    } catch (e, st) {}
   }
 
   void searchHiveFilteredAllOrders(String query) {
-    print("🔍 searchHiveFilteredAllOrders called with query: '$query'");
-
     try {
       final trimmedQuery = query.trim().toLowerCase();
-      print("📏 Trimmed Query: '$trimmedQuery'");
 
       List<Map<String, dynamic>> filterOrders(
         List<Map<String, dynamic>> orders,
@@ -673,13 +598,9 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
       }
 
       _hivefilteredAllOrders = filterOrders(_rawOrders);
-      print("✅ hivefilteredAllOrders count: ${_hivefilteredAllOrders.length}");
 
       if (hasListeners) notifyListeners();
-    } catch (e, st) {
-      print("❌ Error in searchHiveFilteredAllOrders: $e");
-      print(st);
-    }
+    } catch (e, st) {}
   }
 
   // bool _isLoading = false;

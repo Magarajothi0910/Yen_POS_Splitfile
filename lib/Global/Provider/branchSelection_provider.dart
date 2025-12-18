@@ -5,6 +5,7 @@ import 'package:hive/hive.dart';
 import 'package:yenpos/Global/Model/branch_model.dart';
 import '../globals_data.dart' as global;
 
+
 class BranchProvider with ChangeNotifier {
   BranchProvider() {
     fetchAndStoreBranch();
@@ -40,7 +41,10 @@ class BranchProvider with ChangeNotifier {
 
             // Store the branch in Hive
             final box = await Hive.openBox('branchesBox');
-            box.put(branchNameToCheck, _matchedBranch!.toMap());
+            box.put(
+              branchNameToCheck,
+              _matchedBranch!.toMap(),
+            );
           } else {}
         } else {}
       } else {

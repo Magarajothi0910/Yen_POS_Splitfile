@@ -1,11 +1,13 @@
 // common_quantity_dialog.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hive/hive.dart';
 import 'package:provider/provider.dart';
 import 'package:yenpos/Global/Widget/custom_colors.dart';
 import 'package:yenpos/Global/global_data_manager.dart';
 import 'package:yenpos/Global/globals_data.dart';
 import 'package:yenpos/regular_mode_page/provider/quantity_provider.dart';
+import 'package:yenpos/regular_mode_page/widget/custom_reusable_widget/scafflodMesseger.dart';
 
 /// Shows a quantity dialog that works everywhere:
 ///  • Adding from SearchDropdown
@@ -30,7 +32,13 @@ void showCommonQuantityDialog({
       return AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
         backgroundColor: CustomColors.whiteColor,
-        title: Text("$varianceName - ₹${price.toStringAsFixed(2)}", style: const TextStyle(fontFamily: 'Poppins',fontWeight: FontWeight.bold)),
+        title: Text(
+          "$varianceName - ₹${price.toStringAsFixed(2)}",
+          style: const TextStyle(
+            fontFamily: 'Poppins',
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -40,11 +48,15 @@ void showCommonQuantityDialog({
             Consumer<QuantityProvider>(
               builder: (ctx, provider, _) {
                 final currentQty = provider.quantity;
-                final controller = TextEditingController(text: currentQty.toString());
+                final controller = TextEditingController(
+                  text: currentQty.toString(),
+                );
 
                 // Keep controller in sync with provider
                 controller.text = currentQty.toString();
-                controller.selection = TextSelection.fromPosition(TextPosition(offset: controller.text.length));
+                controller.selection = TextSelection.fromPosition(
+                  TextPosition(offset: controller.text.length),
+                );
 
                 return Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -53,7 +65,10 @@ void showCommonQuantityDialog({
                     IconButton(
                       iconSize: 40,
                       onPressed: provider.decrement,
-                      icon: const Icon(Icons.remove_circle, color: CustomColors.blueColor),
+                      icon: const Icon(
+                        Icons.remove_circle,
+                        color: CustomColors.blueColor,
+                      ),
                     ),
                     const SizedBox(width: 10),
 
@@ -68,8 +83,15 @@ void showCommonQuantityDialog({
                           controller: controller,
                           keyboardType: TextInputType.number,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(fontFamily: 'Poppins',fontSize: 22, fontWeight: FontWeight.bold),
-                          inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(5)],
+                          style: const TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(5),
+                          ],
                           onChanged: (value) {
                             if (value.isEmpty) {
                               return;
@@ -80,7 +102,10 @@ void showCommonQuantityDialog({
                             }
                           },
                           onTap: () {
-                            controller.selection = TextSelection(baseOffset: 0, extentOffset: controller.text.length);
+                            controller.selection = TextSelection(
+                              baseOffset: 0,
+                              extentOffset: controller.text.length,
+                            );
                           },
                         ),
                       ),
@@ -91,7 +116,10 @@ void showCommonQuantityDialog({
                     IconButton(
                       iconSize: 40,
                       onPressed: provider.increment,
-                      icon: const Icon(Icons.add_circle, color: CustomColors.blueColor),
+                      icon: const Icon(
+                        Icons.add_circle,
+                        color: CustomColors.blueColor,
+                      ),
                     ),
                   ],
                 );
@@ -106,10 +134,15 @@ void showCommonQuantityDialog({
               backgroundColor: CustomColors.grey.withOpacity(0.1),
               foregroundColor: CustomColors.black.withOpacity(0.2),
               padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text("Cancel", style: TextStyle(fontFamily: 'Poppins',fontSize: 16)),
+            child: const Text(
+              "Cancel",
+              style: TextStyle(fontFamily: 'Poppins', fontSize: 16),
+            ),
           ),
 
           // ---------- ADD TO CART ----------
@@ -123,7 +156,9 @@ void showCommonQuantityDialog({
                   if (selectedQty <= 0) {
                     ScaffoldMessenger.of(dialogContext).showSnackBar(
                       const SnackBar(
-                        content: Text('Please enter a valid quantity (minimum 1).'),
+                        content: Text(
+                          'Please enter a valid quantity (minimum 1).',
+                        ),
                         backgroundColor: CustomColors.redColor,
                         duration: Duration(seconds: 2),
                       ),
@@ -134,20 +169,39 @@ void showCommonQuantityDialog({
                   // ---- STOCK VALIDATION ----
                   double systemStock = systemStockOverride ?? 0.0;
                   if (systemStock <= 0) {
-                    final branchwiseItems = GlobalDataManager().branchwiseItems['data'] as Map<dynamic, dynamic>?;
+                    // final branchwiseItems = GlobalDataManager().branchwiseItems['data'] as Map<dynamic, dynamic>?;
+                    final lazyBox = await Hive.openBox('items');
+                    final storedData = await lazyBox.get(
+                      'branchwiseItems_$aliasname',
+                    );
+
+                    final branchwiseItems =
+                        storedData?['data'] as Map<dynamic, dynamic>?;
+
                     final itemData = branchwiseItems?[itemName];
                     final varianceData = itemData?['variance']?[varianceName];
-                    systemStock = (varianceData?['branchwise']?[aliasname]?['systemStock_$aliasname'] as num?)?.toDouble() ?? 0.0;
+                    systemStock =
+                        (varianceData?['branchwise']?[aliasname]?['systemStock_$aliasname']
+                                as num?)
+                            ?.toDouble() ??
+                        0.0;
                   }
 
                   if (selectedQty > systemStock) {
-                    ScaffoldMessenger.of(dialogContext).showSnackBar(
-                      SnackBar(
-                        content: Text("Selected quantity ($selectedQty) exceeds available stock ($systemStock)."),
-                        backgroundColor: CustomColors.redColor,
-                        duration: const Duration(seconds: 2),
-                      ),
-                    );
+                     showAutoDismissMessage(
+                      context,
+                      "Selected quantity ($selectedQty) exceeds available stock ($systemStock)"
+                      ,
+                      backgroundColor: const Color.fromARGB(255, 231, 63, 61));
+                    // ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    //   SnackBar(
+                    //     content: Text(
+                    //       "Selected quantity ($selectedQty) exceeds available stock ($systemStock).",
+                    //     ),
+                    //     backgroundColor: CustomColors.redColor,
+                    //     duration: const Duration(seconds: 2),
+                    //   ),
+                    // );
                     return;
                   }
 
@@ -158,10 +212,18 @@ void showCommonQuantityDialog({
                 style: TextButton.styleFrom(
                   backgroundColor: CustomColors.blueColor.withOpacity(0.1),
                   foregroundColor: CustomColors.blueColor,
-                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 22,
+                    vertical: 15,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
-                child: const Text('Add to Cart', style: TextStyle(fontFamily: 'Poppins',fontSize: 16)),
+                child: const Text(
+                  'Add to Cart',
+                  style: TextStyle(fontFamily: 'Poppins', fontSize: 16),
+                ),
               );
             },
           ),

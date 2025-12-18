@@ -10,7 +10,6 @@
 // import 'package:yenpos/Sale_order/Provider/customerScreen_provider.dart';
 // import 'package:yenpos/Server_Client/handlers/message_Router.dart';
 
-
 // class WebSocketService with ChangeNotifier {
 //   static WebSocketService? _instance;
 
@@ -148,13 +147,11 @@ import 'package:provider/provider.dart';
 import 'package:yenpos/Global/globals_data.dart' as globals;
 import 'package:yenpos/Server_Client/handlers/message_Router.dart';
 import 'package:yenpos/Server_Client/handlers/websocket_handler.dart';
-import 'package:yenpos/kotpreinvoice/models/globals.dart';
 import 'package:yenpos/Sale_order/Print_Receipt/invoicePrint.dart';
 import 'package:yenpos/Sale_order/Provider/customerScreen_provider.dart';
 import 'package:yenpos/Server_Client/handlers/message_Router.dart';
-import 'package:yenpos/kotpreinvoice/models/globals.dart' as kotGlobals;
 import 'package:yenpos/Server_Client/sendDataToClients.dart'; // sendDataToClientsKOT
-import 'package:yenpos/kotpreinvoice/models/printer.dart' show Printer;
+import 'package:yenpos/kotpreinvoice/models/printer.dart';
 import 'package:yenpos/kotpreinvoice/providers/order_provider.dart';
 import 'package:yenpos/kotpreinvoice/providers/order_type_provider.dart';
 import 'package:yenpos/kotpreinvoice/providers/printer_provider.dart';
@@ -171,7 +168,9 @@ class WebSocketService with ChangeNotifier {
   static WebSocketService? _instance;
   static WebSocketService get instance {
     if (_instance == null) {
-      throw StateError('UnifiedWebSocketService not initialized. Call init(...) first.');
+      throw StateError(
+        'UnifiedWebSocketService not initialized. Call init(...) first.',
+      );
     }
     return _instance!;
   }
@@ -224,7 +223,8 @@ class WebSocketService with ChangeNotifier {
   bool _isConnecting = false;
 
   HttpServer? _wsServer;
-  final List<WebSocketChannel> _clients = []; // local connected clients (server mode)
+  final List<WebSocketChannel> _clients =
+      []; // local connected clients (server mode)
   final Map<String, String> _itemPrinterIpCache = {};
 
   Timer? _heartbeatTimer;
@@ -246,10 +246,14 @@ class WebSocketService with ChangeNotifier {
         await Hive.openBox('serverBox');
       }
       // print some debug
-      debugPrint('UnifiedWebSocketService: serverip=${globals.serverip}, appType=${globals.appType}');
+      debugPrint(
+        'UnifiedWebSocketService: serverip=${globals.serverip}, appType=${globals.appType}',
+      );
       if (globals.appType == 'server') {
         await _startLocalWebSocketServer();
-        debugPrint('UnifiedWebSocketService: server mode - local WebSocket server started.');
+        debugPrint(
+          'UnifiedWebSocketService: server mode - local WebSocket server started.',
+        );
       } else {
         // only start client logic; actual connect may be triggered later by UI
         debugPrint('UnifiedWebSocketService: client mode - ready to connect.');
@@ -260,8 +264,8 @@ class WebSocketService with ChangeNotifier {
       debugPrint('Error during initializeHiveAndStart: $e\n$st');
     }
   }
-   void sendMessage(Map<String, dynamic> data) => _sendClient(data);
-  
+
+  void sendMessage(Map<String, dynamic> data) => _sendClient(data);
 
   // -------------------------
   // Local WebSocket SERVER
@@ -283,37 +287,49 @@ class WebSocketService with ChangeNotifier {
 
       _wsServer!
           .transform(WebSocketTransformer())
-          .listen((WebSocket socket) {
-        final channel = IOWebSocketChannel(socket);
-        _clients.add(channel);
-        debugPrint('New client connected (local server). total clients=${_clients.length}');
+          .listen(
+            (WebSocket socket) {
+              final channel = IOWebSocketChannel(socket);
+              _clients.add(channel);
+              debugPrint(
+                'New client connected (local server). total clients=${_clients.length}',
+              );
 
-        // optional: notify new client that server is ready
-        try {
-          channel.sink.add(jsonEncode({
-            'action': 'server_connected',
-            'message': 'Welcome client',
-            'serverTime': DateTime.now().toIso8601String(),
-          }));
-        } catch (_) {}
+              // optional: notify new client that server is ready
+              try {
+                channel.sink.add(
+                  jsonEncode({
+                    'action': 'server_connected',
+                    'message': 'Welcome client',
+                    'serverTime': DateTime.now().toIso8601String(),
+                  }),
+                );
+              } catch (_) {}
 
-        // setup message handling for this client
-        channel.stream.listen((data) {
-          try {
-            // router in your original server handled Map or String - we reuse _handleIncomingMessage
-            _handleIncomingMessage(data, channel: channel);
-          } catch (e, st) {
-            debugPrint('Error handling message from client: $e\n$st');
-          }
-        }, onError: (err) {
-          debugPrint('Local client error: $err');
-        }, onDone: () {
-          debugPrint('Local client disconnected.');
-          _clients.remove(channel);
-        }, cancelOnError: true);
-      }, onError: (err) {
-        debugPrint('Local WebSocket server listen error: $err');
-      });
+              // setup message handling for this client
+              channel.stream.listen(
+                (data) {
+                  try {
+                    // router in your original server handled Map or String - we reuse _handleIncomingMessage
+                    _handleIncomingMessage(data, channel: channel);
+                  } catch (e, st) {
+                    debugPrint('Error handling message from client: $e\n$st');
+                  }
+                },
+                onError: (err) {
+                  debugPrint('Local client error: $err');
+                },
+                onDone: () {
+                  debugPrint('Local client disconnected.');
+                  _clients.remove(channel);
+                },
+                cancelOnError: true,
+              );
+            },
+            onError: (err) {
+              debugPrint('Local WebSocket server listen error: $err');
+            },
+          );
 
       debugPrint('Local WebSocket server started on port $port');
     } catch (e, st) {
@@ -473,7 +489,10 @@ class WebSocketService with ChangeNotifier {
         final navigatorState = MyApp.navigatorKey.currentState;
         final isOnLoginScreen = navigatorState?.canPop() == false;
 
-        if (!_isConnected && !_isConnecting && !isOnLoginScreen && retryCount < maxRetries) {
+        if (!_isConnected &&
+            !_isConnecting &&
+            !isOnLoginScreen &&
+            retryCount < maxRetries) {
           debugPrint('Reconnect attempt ${retryCount + 1}/$maxRetries');
           await connect();
           retryCount++;
@@ -490,22 +509,23 @@ class WebSocketService with ChangeNotifier {
               try {
                 _showConnectionLostDialog();
                 showDialog(
-                    context: navigatorState.context,
-                    builder: (ctx) {
-                      return AlertDialog(
-                        title: const Text('Connection Lost'),
-                        content: const Text('Failed to reconnect to server.'),
-                        actions: [
-                          TextButton(
-                            onPressed: () {
-                              Navigator.of(ctx).pop();
-                              reconnect();
-                            },
-                            child: const Text('Retry'),
-                          ),
-                        ],
-                      );
-                    });
+                  context: navigatorState.context,
+                  builder: (ctx) {
+                    return AlertDialog(
+                      title: const Text('Connection Lost'),
+                      content: const Text('Failed to reconnect to server.'),
+                      actions: [
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(ctx).pop();
+                            reconnect();
+                          },
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    );
+                  },
+                );
               } catch (e, st) {
                 debugPrint('Exception while showing reconnect UI: $e\n$st');
               }
@@ -533,7 +553,7 @@ class WebSocketService with ChangeNotifier {
     notifyListeners();
   }
 
-    void sendUpiState(bool isEnabled) {
+  void sendUpiState(bool isEnabled) {
     if (globals.appType == 'server') {
       _handleLocalUpiUpdate(isEnabled);
       sendDataToClientsKOT({
@@ -544,7 +564,6 @@ class WebSocketService with ChangeNotifier {
     }
 
     if (!_isConnected) {
-      debugPrint("Cannot send UPI state: WebSocket not connected");
       reconnect();
       return;
     }
@@ -552,9 +571,7 @@ class WebSocketService with ChangeNotifier {
     try {
       final data = {'action': 'updateUpiState', 'isUpiEnabled': isEnabled};
       channel?.sink.add(jsonEncode(data));
-      debugPrint("📤 Sent UPI state: $isEnabled");
     } catch (e) {
-      debugPrint("❌ Failed to send UPI state: $e");
       _handleDisconnect();
     }
   }
@@ -578,7 +595,6 @@ class WebSocketService with ChangeNotifier {
       debugPrint('⚠️ Failed to update local UPI state: $e');
     }
   }
-
 
   // -------------------------
   // Incoming message handler (shared)
@@ -633,10 +649,12 @@ class WebSocketService with ChangeNotifier {
       }
 
       if (action == 'seat_returned') {
-        _receivedActions.removeWhere((actionMap) =>
-            actionMap['action'] == 'seat_tapped' &&
-            actionMap['tableNumber'] == jsonData['tableNumber'] &&
-            actionMap['seat'] == jsonData['seat']);
+        _receivedActions.removeWhere(
+          (actionMap) =>
+              actionMap['action'] == 'seat_tapped' &&
+              actionMap['tableNumber'] == jsonData['tableNumber'] &&
+              actionMap['seat'] == jsonData['seat'],
+        );
       }
 
       if (action == 'seat_transfer') {
@@ -656,7 +674,12 @@ class WebSocketService with ChangeNotifier {
       // Reuse your MessageRouter.handle if appropriate
       try {
         // MessageRouter expects a String; pass JSON string
-        MessageRouter.handle(jsonEncode(jsonData), customerProvider, receiptPrinter, this);
+        MessageRouter.handle(
+          jsonEncode(jsonData),
+          customerProvider,
+          receiptPrinter,
+          this,
+        );
       } catch (e) {
         // Some messages may be handled elsewhere; ignore if router not suitable
       }
@@ -680,7 +703,6 @@ class WebSocketService with ChangeNotifier {
       return;
     }
     if (!_isConnected) {
-      debugPrint("Cannot send remove printer request: WebSocket not connected");
       reconnect();
       return;
     }
@@ -691,9 +713,7 @@ class WebSocketService with ChangeNotifier {
         'orderSource': orderProvider.orderSource,
       };
       channel?.sink.add(jsonEncode(data));
-      debugPrint("📤 Sent remove printer: $printerName");
     } catch (e) {
-      debugPrint("Failed to send remove printer request: $e");
       _handleDisconnect();
     }
   }
@@ -712,23 +732,27 @@ class WebSocketService with ChangeNotifier {
         order['seat'] = targetSeat;
         updated = true;
         saveOrderToHive(order);
-        debugPrint('Updated order $orderId to table $targetTable seat $targetSeat');
+        debugPrint(
+          'Updated order $orderId to table $targetTable seat $targetSeat',
+        );
         break;
       }
     }
     if (!updated) debugPrint('Order not found for seat transfer: $orderId');
 
     // Remove conflicting seat_tapped actions
-    _receivedActions.removeWhere((action) =>
-        action['action'] == 'seat_tapped' &&
-        action['tableNumber'] == jsonData['currentTable'] &&
-        action['seat'] == jsonData['currentSeat']);
+    _receivedActions.removeWhere(
+      (action) =>
+          action['action'] == 'seat_tapped' &&
+          action['tableNumber'] == jsonData['currentTable'] &&
+          action['seat'] == jsonData['currentSeat'],
+    );
   }
 
   // -------------------------
   // Printer update handling
   // -------------------------
-   void sendPrinterDetails(Printer printer) {
+  void sendPrinterDetails(Printer printer) {
     if (globals.appType == 'server') {
       _handleLocalPrinterUpdate(printer);
       sendDataToClientsKOT({
@@ -739,7 +763,6 @@ class WebSocketService with ChangeNotifier {
       return;
     }
     if (!_isConnected) {
-      debugPrint("Cannot send printer details: WebSocket not connected");
       reconnect();
       return;
     }
@@ -750,14 +773,12 @@ class WebSocketService with ChangeNotifier {
         'orderSource': orderProvider.orderSource,
       };
       channel?.sink.add(jsonEncode(data));
-      debugPrint("📤 Sent printer details: ${printer.name}");
     } catch (e) {
-      debugPrint("Failed to send printer details: $e");
       _handleDisconnect();
     }
   }
 
-   void _handleLocalPrinterUpdate(Printer printer) {
+  void _handleLocalPrinterUpdate(Printer printer) {
     final existingPrinterIndex = printerProvider.printers.indexWhere(
       (p) => p.name == printer.name,
     );
@@ -771,10 +792,7 @@ class WebSocketService with ChangeNotifier {
       'printer': printer.toJson(),
       'orderSource': orderProvider.orderSource,
     });
-    debugPrint("✅ Handled local printer update: ${printer.name}");
   }
-
-
 
   // -------------------------
   // Hive helpers
@@ -819,7 +837,10 @@ class WebSocketService with ChangeNotifier {
           children: [
             Icon(Icons.wifi_off, size: 60, color: Colors.red),
             SizedBox(height: 20),
-            Text('Server is Offline! Please check your server device or Wifi Connection', textAlign: TextAlign.center),
+            Text(
+              'Server is Offline! Please check your server device or Wifi Connection',
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
         actions: [
@@ -841,7 +862,10 @@ class WebSocketService with ChangeNotifier {
   void _hideConnectionLostDialog() {
     final context = MyApp.navigatorKey.currentState?.overlay?.context;
     if (context != null && context.mounted) {
-      Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
+      Navigator.of(
+        context,
+        rootNavigator: true,
+      ).popUntil((route) => route.isFirst);
     }
     _dialogShown = false;
   }
@@ -857,7 +881,9 @@ class WebSocketService with ChangeNotifier {
       if (broadcastToLocal) _broadcastToLocalClients(data);
       // optionally call global helper sendDataToClientsKOT (if you use it)
       try {
-        sendDataToClientsKOT(data); // your global function that notifies other subsystems
+        sendDataToClientsKOT(
+          data,
+        ); // your global function that notifies other subsystems
       } catch (_) {}
       return;
     }
@@ -875,7 +901,9 @@ class WebSocketService with ChangeNotifier {
   void sendDeviceCode(String deviceCode) {
     if (globals.appType == 'server') {
       // on server, treat as local register
-      debugPrint('sendDeviceCode called on server mode -> no-op or local handling');
+      debugPrint(
+        'sendDeviceCode called on server mode -> no-op or local handling',
+      );
       return;
     }
     if (!_isConnected) {
@@ -954,6 +982,6 @@ class WebSocketService with ChangeNotifier {
   // -------------------------
   // Convenience debug helpers
   // -------------------------
-  String _shorten(String s, [int limit = 200]) => s.length <= limit ? s : '${s.substring(0, limit)}...';
+  String _shorten(String s, [int limit = 200]) =>
+      s.length <= limit ? s : '${s.substring(0, limit)}...';
 }
-

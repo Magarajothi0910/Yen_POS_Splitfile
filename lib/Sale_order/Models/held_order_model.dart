@@ -47,7 +47,8 @@ class HeldOrder {
   List<int> price;
   String? branchName;
   String? aliasName;
-
+  List<double> sellingAmount;
+  List<int> sellingPrice;
   final String? imagePath1;
   final String? imagePath2;
   final String? audioPath;
@@ -69,13 +70,14 @@ class HeldOrder {
   double discountAmount;
   String? remark;
   double? customCharge;
+  List<String>? imagePaths;
 
   double totalAmount;
   double? totalAmount2;
   double? cash;
   double? card;
   double? upi;
-
+  String? customChargeType;
   double finalPrice;
   double? balanceAmount;
   String saleOrderNo;
@@ -84,7 +86,7 @@ class HeldOrder {
   String? orderTime;
   String employeeName;
   String status;
-  String? shiftId;
+  List<String>? shiftId;
   String? companyName;
   String? companyAddress;
   String? companyGST;
@@ -108,10 +110,13 @@ class HeldOrder {
     this.branchId,
     this.itemWiseDiscount,
     this.itemWiseDiscountAmount,
+    required this.customChargeType,
     required this.weight,
     required this.amount,
     required this.tax,
     this.totalAmount2,
+    required this.sellingPrice,
+    required this.sellingAmount,
     required this.uom,
     required this.qty,
     required this.price,
@@ -125,6 +130,8 @@ class HeldOrder {
     this.cash,
     this.card,
     this.upi,
+    this.imagePaths,
+
     required this.customerNumber,
     required this.customerName,
     required this.deliveryType,
@@ -166,9 +173,13 @@ class HeldOrder {
       'uom': uom,
       'amount': amount,
       'branchId': branchId,
+      'customChargeType': customChargeType,
       'branchName': branchName,
       'price': price,
       'weight': weight,
+      'sellingPrice': sellingPrice,
+      'sellingAmount': sellingAmount,
+
       'totalAmount2': totalAmount2,
       'deliveryDate': deliveryDate,
       'deliveryTime': deliveryTime,
@@ -195,6 +206,7 @@ class HeldOrder {
       'cash': cash,
       'card': card,
       'upi': upi,
+      "imagePaths": imagePaths,
       'holdOrderId': holdOrderId,
       'advanceDateTime': advanceDateTime,
       'companyGST': companyGST,
@@ -231,8 +243,15 @@ class HeldOrder {
               (map['amount'] as List).map((e) => (e as num).toDouble()),
             )
           : [],
+      sellingAmount: map['sellingAmount'] != null
+          ? List<double>.from(
+              (map['sellingAmount'] as List).map((e) => (e as num).toDouble()),
+            )
+          : [],
+      sellingPrice: List<int>.from(map['sellingPrice'] ?? []),
       tax: List<int>.from(map['tax'] ?? []),
       qty: List<int>.from(map['qty'] ?? []),
+      customChargeType: map["customChargeType"]?.toString(),
       price: List<int>.from(map['price'] ?? []),
       totalAmount: (map['totalAmount'] ?? 0).toDouble(),
       totalAmount2: map['totalAmount2'] != null
@@ -268,7 +287,8 @@ class HeldOrder {
       orderTime: map['orderTime']?.toString(),
       employeeName: map['employeeName']?.toString() ?? '',
       status: map['status']?.toString() ?? '',
-      shiftId: map['shiftId']?.toString(),
+      shiftId: List<String>.from(map['shiftId'] ?? []),
+
       companyName: map['companyName']?.toString(),
       companyAddress: map['companyAddress']?.toString(),
       companyGST: map['companyGST']?.toString(),
@@ -308,6 +328,9 @@ class HeldOrder {
       imagePath1: map['imagePath1']?.toString(),
       imagePath2: map['imagePath2']?.toString(),
       audioPath: map['audioPath']?.toString(),
+      imagePaths: map['imagePaths'] != null
+          ? List<String>.from(map['imagePaths'].map((x) => x.toString()))
+          : null,
     );
   }
 

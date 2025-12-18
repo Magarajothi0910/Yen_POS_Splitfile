@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:yenpos/Global/globals_data.dart' as globals;
 import 'package:yenpos/Sale_order/Models/sales_invoicemodel.dart';
 import 'package:yenpos/Sale_order/Print_Receipt/allorderprint.dart';
+import 'package:yenpos/printer_screen/provider/printer_config_provider.dart';
 
 class SalesInvoiceReceiptPrinter with ChangeNotifier {
   Map<String, dynamic>? receiptData;
   late salesInvoiceReceiptPrinter receiptPrinter;
-
-  SalesInvoiceReceiptPrinter() {
+  final PrinterProviderpos printerProvider;
+  SalesInvoiceReceiptPrinter({required this.printerProvider}) {
     receiptPrinter = salesInvoiceReceiptPrinter(
       employeeNameController: TextEditingController(),
       customerNumberController: TextEditingController(),
@@ -26,6 +27,8 @@ class SalesInvoiceReceiptPrinter with ChangeNotifier {
       cardAmount: 0.0,
       upiAmount: 0.0,
       invoiceNo: '',
+      saleOrderNo: "",
+      printerProvider: printerProvider,
     );
   }
   num safeNum(value) {
@@ -44,8 +47,6 @@ class SalesInvoiceReceiptPrinter with ChangeNotifier {
     final data = orderData.containsKey('data') && orderData['data'] is Map
         ? orderData['data']
         : orderData;
-
-    debugPrint("📦 Extracted data keys: ${data.keys.toList()}");
 
     try {
       // 🔹 Employee & Customer Info
@@ -84,7 +85,6 @@ class SalesInvoiceReceiptPrinter with ChangeNotifier {
         "💵 Cash: ${receiptPrinter.cashAmount}, "
         "💳 Card: ${receiptPrinter.cardAmount}, 🆙 UPI: ${receiptPrinter.upiAmount}",
       );
-      debugPrint("📊 Total Amount: ${receiptPrinter.totalAmount}");
 
       // 🔹 Advance Amount
       if (data['advanceAmount'] is List && data['advanceAmount'].isNotEmpty) {
@@ -94,12 +94,12 @@ class SalesInvoiceReceiptPrinter with ChangeNotifier {
         receiptPrinter.advanceAmount = (data['advanceAmount'] ?? 0.0)
             .toDouble();
       }
-      debugPrint("💎 Advance Amount: ${receiptPrinter.advanceAmount}");
 
       // 🔹 Balance & Other Info
       receiptPrinter.balanceAmount = (data['balanceAmount'] ?? 0.0).toDouble();
       receiptPrinter.customerType = data['customerType']?.toString() ?? '';
       receiptPrinter.invoiceNo = data['invoiceNo']?.toString() ?? '';
+      receiptPrinter.saleOrderNo = data['saleOrderNo']?.toString() ?? '';
 
       debugPrint(
         "📄 Invoice No: ${receiptPrinter.invoiceNo}, "
@@ -142,15 +142,12 @@ class SalesInvoiceReceiptPrinter with ChangeNotifier {
       } else if (data['advanceDateTime'] != null) {
         advanceDateTime = data['advanceDateTime'].toString();
       }
-      debugPrint("🕒 Advance DateTime: $advanceDateTime");
 
       // 🔹 Load Items into Globals
       globals.invoiceItems = [];
-      debugPrint("🧾 Starting to load invoice items...");
 
       if (data.containsKey('varianceName') && data['varianceName'] is List) {
         int totalItems = data['varianceName'].length;
-        debugPrint("📋 Found $totalItems items in order data");
 
         for (int i = 0; i < totalItems; i++) {
           try {
@@ -198,42 +195,25 @@ class SalesInvoiceReceiptPrinter with ChangeNotifier {
             debugPrint(
               "✅ Added item ${i + 1}: ${item.itemName} | Qty: ${item.qty}, Price: ${item.price}, Amount: ${item.amount}",
             );
-          } catch (itemErr) {
-            debugPrint("❌ Error adding item at index $i → $itemErr");
-          }
+          } catch (itemErr) {}
         }
-      } else {
-        debugPrint("⚠️ No valid 'varianceName' list found in data");
-      }
+      } else {}
 
       debugPrint(
         "✅ Total items loaded into globals.invoiceItems: ${globals.invoiceItems.length}",
       );
 
       // 🔹 Print Receipt
-      debugPrint("🖨️ Initiating printReceipt()...");
       printReceipt();
 
       // 🔹 Notify Listeners
-      debugPrint("📢 Notifying listeners...");
       notifyListeners();
-
-      debugPrint("🎉 [updateReceiptData] Completed Successfully!");
-    } catch (e, st) {
-      debugPrint("🚨 [updateReceiptData] ERROR: $e");
-      debugPrint("📜 Stack Trace: $st");
-    }
+    } catch (e, st) {}
   }
 
   Future<void> printReceipt() async {
     try {
-      debugPrint("🖨️ [printReceipt] Printing started...");
       await receiptPrinter.printReceiptDetails();
-
-      debugPrint("✅ [printReceipt] Printing completed and connection closed.");
-    } catch (e, st) {
-      debugPrint("🚨 [printReceipt] ERROR: $e");
-      debugPrint("📜 Stack Trace: $st");
-    }
+    } catch (e, st) {}
   }
 }

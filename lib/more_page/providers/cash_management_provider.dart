@@ -9,9 +9,12 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:esc_pos_printer/esc_pos_printer.dart';
 import 'package:esc_pos_utils/esc_pos_utils.dart';
+import 'package:provider/provider.dart';
 
 // Keep your globals (ensure these imports exist in your app)
 import 'package:yenpos/Global/globals_data.dart';
+import 'package:yenpos/Server_Client/serverScreen.dart';
+import 'package:yenpos/printer_screen/provider/printer_config_provider.dart';
 import 'package:yenpos/shift_managment_page/openshift/open_shift.dart';
 
 // External print services you already have
@@ -31,6 +34,8 @@ class CashManagementProvider extends ChangeNotifier {
   static final ValueNotifier<int> physicalCashSales = ValueNotifier<int>(0);
   static final ValueNotifier<int> manualOpeningBalance = ValueNotifier<int>(0);
   static final ValueNotifier<Map<int, int>> denominationCounts =
+      ValueNotifier<Map<int, int>>({});
+  static final ValueNotifier<Map<int, int>> openDenominationCounts =
       ValueNotifier<Map<int, int>>({});
   //static final manualOpeningBalance = ValueNotifier<int>(0);
   static final cashTotal = ValueNotifier<int>(0);
@@ -179,9 +184,9 @@ class CashManagementProvider extends ChangeNotifier {
 
   static Future<List<Map<String, String>>> fetchShiftDetails() async {
     //const String apiUrl = "http://yenerp.com/fastapi/shifts/";
-    final String apiUrl =
-        "https://yenerp.com/fastapi/shifts/all?branchName=$branchName";
-    //const String apiUrl = "http://192.168.29.8:8888/shift/all/?branchName=$branchName";
+    // final String apiUrl =
+    //     "https://yenerp.com/fastapi/shifts/all?branchName=$branchName";
+     String apiUrl = "https://yenerp.com/fluttertestapi/shifts/all/?branchName=$branchName";
     try {
       final response = await _dio.get(apiUrl);
       if (response.statusCode == 200) {
@@ -299,8 +304,8 @@ class CashManagementProvider extends ChangeNotifier {
   /// Fetch day-end details from API
 
   Future<List<Map<String, String>>> fetchDayEndDetails() async {
-    const String apiUrl = "https://yenerp.com/fastapi/dayends/";
-    //const String apiUrl = "http://192.168.29.8:8888/dayEnd/";
+    //const String apiUrl = "https://yenerp.com/fastapi/dayends/";
+    const String apiUrl = "https://yenerp.com/fluttertestapi/dayends/";
 
     try {
       final response = await _dio.get(apiUrl);
@@ -390,7 +395,7 @@ class CashManagementProvider extends ChangeNotifier {
 
   Future<void> printOpenDayEndShifts(
     Map<String, dynamic> dayEnd,
-    List<Map<String, dynamic>> shifts,
+    List<Map<String, dynamic>> shifts, BuildContext context
   ) async {
     CapabilityProfile profile;
     NetworkPrinter printer;
@@ -408,6 +413,8 @@ class CashManagementProvider extends ChangeNotifier {
     // Connect to printer
     PosPrintResult res;
     try {
+      final printerProvider = Provider.of<PrinterProviderpos>(context, listen: false);
+       String printerIp = printerProvider.getOverallPrinterIp().toString();
       res = await printer.connect("192.168.1.87", port: 9100);
       if (res != PosPrintResult.success) {
         return;
@@ -893,11 +900,143 @@ class CashManagementProvider extends ChangeNotifier {
     } catch (e, st) {}
   }
 
+  // static Future<void> patchShiftClosingData(String shiftID, BuildContext context) async {
+  //   if (shiftID.isEmpty) {
+  //     if (context.mounted) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         const SnackBar(
+  //           backgroundColor: Colors.red,
+  //           content: Text('Shift ID is empty. Cannot close shift.'),
+  //           duration: Duration(seconds: 3),
+  //         ),
+  //       );
+  //     }
+  //     return;
+  //   }
+
+  //   final patchUrl = "https://yenerp.com/fastapi/shifts/close-shift/$shiftID";
+  //   // final patchUrl = "http://192.168.1.111:8888/fastapi/shifts/close-shift/$shiftID";
+
+  //   try {
+  //     // Convert denomination_counts keys to strings for JSON serialization
+  //     final stringDenominationCounts = <String, int>{};
+  //     denominationCounts.value.forEach((key, value) {
+  //       stringDenominationCounts[key.toString()] = value;
+  //     });
+
+  //     final closingDifferenceAmount = (manualOpeningBalance.value - actualOpeningCash).toStringAsFixed(2);
+  //     final closingDifferenceAmountNum = double.tryParse(closingDifferenceAmount) ?? 0.0;
+
+  //     final closingDifferenceType = closingDifferenceAmountNum > 0
+  //         ? "excess"
+  //         : (closingDifferenceAmountNum < 0 ? "shortage" : "no difference");
+
+  //     final payload = {
+  //       "status": "closed",
+  //       "manualCashsales": physicalCashSales.value,
+  //       "manualUpisales": double.tryParse(upiSalesController.value) ?? 0.0,
+  //       "manualCardsales": double.tryParse(cardSalesController.value) ?? 0.0,
+  //       "manualClosingBalance": manualOpeningBalance.value.toString(),
+  //       "closingDifferenceAmount": closingDifferenceAmount,
+  //       "closingDifferenceType": closingDifferenceType,
+  //     };
+
+  //     final response = await _dio.patch(patchUrl, data: payload);
+
+  //     // Immediately check context after await
+  //     if (!context.mounted) return;
+
+  //     if (response.statusCode == 200) {
+  //       isShiftClosed.value = true;
+
+  //       // Print denomination bill
+  //       //DenominationBill.printDenominationBill(context);
+
+  //       // Fetch updated shift data
+  //       final shifts = await fetchShiftDetails();
+  //       if (!context.mounted) return;
+
+  //       final currentShift = shifts.firstWhere((s) => s['shiftId'] == shiftID, orElse: () => {});
+
+  //       if (currentShift.isNotEmpty) {
+  //         // Debug log in console
+  //         StringBuffer buffer = StringBuffer();
+  //         buffer.writeln('=== Shift End Report ===');
+  //         buffer.writeln('-----------------------');
+  //         currentShift.forEach((key, value) {
+  //           buffer.writeln('$key: $value');
+  //         });
+  //         buffer.writeln('-----------------------');
+  //         debugPrint(buffer.toString());
+
+  //         // Print to thermal printer
+  //         await printShiftData(currentShift);
+  //       }
+
+  //       // Clear all fields after successful shift close
+  //       physicalCashSales.value = 0;
+  //       manualOpeningBalance.value = 0;
+  //       denominationCounts.value = {};
+  //       cashSalesController.value = "";
+  //       upiSalesController.value = "";
+  //       cardSalesController.value = "";
+  //       ActiveField.controller.value?.clear();
+  //       ActiveField.controller.value = null;
+
+  //       // Show snackbar safely
+  //       if (context.mounted) {
+  //         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Shift Closed & Report Printed')));
+  //       }
+  //       debugPrint('s1');
+
+  //       // Add a small delay before navigation to prevent context disposal issues
+  //       await Future.delayed(const Duration(milliseconds: 400));
+  //       debugPrint('s2');
+
+  //       // Navigate to OpenShift screen safely
+  //       if (context.mounted) {
+  //         debugPrint('s3');
+
+  //         Navigator.of(context).push(MaterialPageRoute(builder: (context) => OpenShift()));
+  //         debugPrint('s4');
+  //       }
+  //     } else {
+  //       // Handle non-200 responses
+  //       if (context.mounted) {
+  //         ScaffoldMessenger.of(context).showSnackBar(
+  //           SnackBar(
+  //             backgroundColor: Colors.red,
+  //             content: Text('Failed to close shift: Server returned status ${response.statusCode}'),
+  //             duration: const Duration(seconds: 3),
+  //           ),
+  //         );
+  //       }
+  //     }
+  //   } catch (e) {
+  //     String errorMessage = 'Failed to close shift: $e';
+
+  //     if (e is DioException && e.response != null) {
+  //       errorMessage = 'Failed to close shift: ${e.response?.statusCode} - ${e.response?.data.toString() ?? e.message}';
+  //     }
+
+  //     // Show error snackbar safely
+  //     if (context.mounted) {
+  //       ScaffoldMessenger.of(
+  //         context,
+  //       ).showSnackBar(SnackBar(backgroundColor: Colors.red, content: Text(errorMessage), duration: const Duration(seconds: 5)));
+  //     }
+  //   }
+  // }
+
   static Future<void> patchShiftClosingData(
     String shiftID,
     BuildContext context,
   ) async {
+    debugPrint("🔵 patchShiftClosingData() CALLED with shiftID = $shiftID");
+
     if (shiftID.isEmpty) {
+      debugPrint("❌ ERROR: shiftID is EMPTY");
+
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -910,15 +1049,19 @@ class CashManagementProvider extends ChangeNotifier {
       return;
     }
 
-    final patchUrl = "https://yenerp.com/fastapi/shifts/close-shift/$shiftID";
-    // final patchUrl = "http://192.168.29.8:8888/shift/close-shift/$shiftID";
+    //final patchUrl = "https://yenerp.com/fastapi/shifts/close-shift/$shiftID";
+    final patchUrl = "https://yenerp.com/fluttertestapi/shifts/close-shift/$shiftID";
+    debugPrint("🌐 PATCH URL: $patchUrl");
 
     try {
-      // Convert denomination_counts keys to strings for JSON serialization
+      debugPrint("🟦 Preparing payload...");
+
+      // Convert denomination keys
       final stringDenominationCounts = <String, int>{};
       denominationCounts.value.forEach((key, value) {
         stringDenominationCounts[key.toString()] = value;
       });
+      debugPrint("💰 denominationCounts: $stringDenominationCounts");
 
       final closingDifferenceAmount =
           (manualOpeningBalance.value - actualOpeningCash).toStringAsFixed(2);
@@ -939,42 +1082,59 @@ class CashManagementProvider extends ChangeNotifier {
         "closingDifferenceType": closingDifferenceType,
       };
 
-      final response = await _dio.patch(patchUrl, data: payload);
+      debugPrint("📦 Payload to send: $payload");
 
-      // Immediately check context after await
-      if (!context.mounted) return;
+      debugPrint("🚀 Sending PATCH request...");
+      final response = await _dio.patch(patchUrl, data: payload);
+      debugPrint("📥 Response received with status: ${response.statusCode}");
+
+      // Immediately check context
+      if (!context.mounted) {
+        debugPrint("⚠️ context NOT mounted after response — stopping.");
+        return;
+      }
 
       if (response.statusCode == 200) {
+        debugPrint("✅ Shift Closed successfully!");
+
         isShiftClosed.value = true;
 
-        // Print denomination bill
-        DenominationBill.printDenominationBill(context);
-
         // Fetch updated shift data
+        debugPrint("🔄 Fetching updated shift details...");
         final shifts = await fetchShiftDetails();
-        if (!context.mounted) return;
+
+        if (!context.mounted) {
+          debugPrint(
+            "⚠️ context NOT mounted after fetching shifts — stopping.",
+          );
+          return;
+        }
 
         final currentShift = shifts.firstWhere(
           (s) => s['shiftId'] == shiftID,
           orElse: () => {},
         );
 
+        debugPrint("📝 currentShift data: $currentShift");
+
         if (currentShift.isNotEmpty) {
-          // Debug log in console
+          // Print log in readable format
           StringBuffer buffer = StringBuffer();
-          buffer.writeln('=== Shift End Report ===');
-          buffer.writeln('-----------------------');
+          buffer.writeln('📄 === Shift End Report ===');
+          buffer.writeln('----------------------------');
           currentShift.forEach((key, value) {
             buffer.writeln('$key: $value');
           });
-          buffer.writeln('-----------------------');
+          buffer.writeln('----------------------------');
           debugPrint(buffer.toString());
 
-          // Print to thermal printer
-          await printShiftData(currentShift);
+          debugPrint("🖨 Printing shift report...");
+          await printShiftData(currentShift,context);
+          debugPrint("🖨 Printing completed!");
         }
 
-        // Clear all fields after successful shift close
+        // Clear fields
+        debugPrint("🧹 Clearing all shift closing fields...");
         physicalCashSales.value = 0;
         manualOpeningBalance.value = 0;
         denominationCounts.value = {};
@@ -984,29 +1144,27 @@ class CashManagementProvider extends ChangeNotifier {
         ActiveField.controller.value?.clear();
         ActiveField.controller.value = null;
 
-        // Show snackbar safely
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Shift Closed & Report Printed')),
-          );
-        }
-        debugPrint('s1');
+        debugPrint("📢 Showing success snackbar...");
+        // if (context.mounted) {
+        //   ScaffoldMessenger.of(context).showSnackBar(
+        //     const SnackBar(content: Text('Shift Closed & Report Printed')),
+        //   );
+        // }
 
-        // Add a small delay before navigation to prevent context disposal issues
+        debugPrint("⏳ Waiting 400ms before navigation...");
         await Future.delayed(const Duration(milliseconds: 400));
-        debugPrint('s2');
 
-        // Navigate to OpenShift screen safely
         if (context.mounted) {
-          debugPrint('s3');
-
+          debugPrint("➡ Navigating to OpenShift()");
           Navigator.of(
             context,
-          ).push(MaterialPageRoute(builder: (context) => OpenShift()));
-          debugPrint('s4');
+          ).push(MaterialPageRoute(builder: (context) => LoginScreen()));
+          debugPrint("✔ Navigation completed.");
         }
       } else {
-        // Handle non-200 responses
+        debugPrint("❌ Server returned status: ${response.statusCode}");
+        debugPrint("❌ Response data: ${response.data}");
+
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -1020,14 +1178,16 @@ class CashManagementProvider extends ChangeNotifier {
         }
       }
     } catch (e) {
+      debugPrint("❌ EXCEPTION OCCURRED: $e");
+
       String errorMessage = 'Failed to close shift: $e';
 
       if (e is DioException && e.response != null) {
+        debugPrint("❌ Dio Error Response: ${e.response?.data}");
         errorMessage =
             'Failed to close shift: ${e.response?.statusCode} - ${e.response?.data.toString() ?? e.message}';
       }
 
-      // Show error snackbar safely
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1153,7 +1313,7 @@ class CashManagementProvider extends ChangeNotifier {
 
   /// Print shift report to thermal printer
 
-  static Future<void> printShiftData(Map<String, dynamic> shift) async {
+  static Future<void> printShiftData(Map<String, dynamic> shift,BuildContext context) async {
     CapabilityProfile profile;
     NetworkPrinter printer;
     Generator generator;
@@ -1168,6 +1328,10 @@ class CashManagementProvider extends ChangeNotifier {
 
     PosPrintResult res;
     try {
+      final printerProvider = Provider.of<PrinterProviderpos>(context, listen: false);
+
+    String printerIp = printerProvider.getOverallPrinterIp().toString();
+
       res = await printer.connect("192.168.1.87", port: 9100);
       if (res != PosPrintResult.success) {
         return;
@@ -1644,8 +1808,8 @@ class CashManagementProvider extends ChangeNotifier {
     context,
   ) async {
     //const String url = 'http://192.168.29.8:8888/dayEnd/dayend';
-    const String url = 'https://yenerp.com/fastapi/dayends/dayend';
-    // const String url = 'https://www.yenerp.com/fastapi/dayends/';
+    const String url = 'https://yenerp.com/fluttertestapi/dayends/dayend';
+    // const String url = 'https://www.yenerp.com/fastapi/dayends/dayend';
     try {
       final response = await _dio.post(url, data: json.encode(dayEndPost));
       final shifts = await CashManagementProvider.fetchShiftDetails();
@@ -1655,7 +1819,7 @@ class CashManagementProvider extends ChangeNotifier {
           ? dayEndList.last
           : <String, dynamic>{};
 
-      await CashManagementProvider().printOpenDayEndShifts(dayEnd, shifts);
+      await CashManagementProvider().printOpenDayEndShifts(dayEnd, shifts,context);
       await CashManagementProvider().patchDayEnd(branchName);
       await fetchDispatchDetails();
       if (context.mounted) {
@@ -1665,7 +1829,9 @@ class CashManagementProvider extends ChangeNotifier {
       }
 
       if (response.statusCode != 200) {}
-    } catch (e) {}
+    } catch (e) {
+      debugPrint("❌ Error posting day-end data: $e");
+    }
   }
 
   static Future<List<Map<String, String>>> fetchValidationDetails() async {
@@ -1750,7 +1916,7 @@ class CashManagementProvider extends ChangeNotifier {
 
   static Future<String> fetchShiftOpenCheck() async {
     String apiUrl =
-        "https://yenerp.com/fastapi/dayendvalidations/status?empId=$empId&branchName=$branchName";
+        "https://yenerp.com/fastapi/dayendvalidations/status?empId=$userName&branchName=$branchName";
 
     try {
       final response = await _dio.get(apiUrl);
@@ -1776,8 +1942,8 @@ class CashManagementProvider extends ChangeNotifier {
   // Patch day-end data to API
 
   Future<List<Map<String, dynamic>>> patchDayEnd(String branchName) async {
-    String apiUrl = "https://yenerp.com/fastapi/shifts/dayend/$branchName";
-    //String apiUrl = "http://192.168.29.8:8888/shift/dayend/$branchName";s
+   // String apiUrl = "https://yenerp.com/fastapi/shifts/dayend/$branchName";
+    String apiUrl = "https://yenerp.com/fluttertestapi/shifts/dayend/$branchName";
 
     try {
       final response = await _dio.patch(

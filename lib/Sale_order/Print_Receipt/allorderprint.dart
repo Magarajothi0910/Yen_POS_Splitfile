@@ -9,6 +9,8 @@ import 'package:yenpos/Global/Widget/customposcolumn.dart';
 import 'package:yenpos/Global/globals_data.dart' as globals;
 import 'package:image/image.dart' as img;
 import 'package:yenpos/Global/globals_data.dart';
+import 'package:yenpos/Hive_Manager/hive_manager_saleOrder.dart';
+import 'package:yenpos/printer_screen/provider/printer_config_provider.dart';
 
 class salesInvoiceReceiptPrinter {
   final TextEditingController employeeNameController;
@@ -23,6 +25,7 @@ class salesInvoiceReceiptPrinter {
   double balanceAmount;
   String customerType;
   String invoiceNo;
+  String saleOrderNo;
 
   // final BuildContext context;
   final TextEditingController customAmountController;
@@ -30,6 +33,8 @@ class salesInvoiceReceiptPrinter {
   double cashAmount;
   double cardAmount;
   double upiAmount;
+  // Inject PrinterProvider directly
+  final PrinterProviderpos printerProvider;
 
   // final Function saveInvoiceToHiveAndPrint;
   salesInvoiceReceiptPrinter({
@@ -49,60 +54,70 @@ class salesInvoiceReceiptPrinter {
     required this.selectedPaymentOption,
     required this.cashAmount,
     required this.invoiceNo,
+    required this.saleOrderNo,
 
     required this.cardAmount,
     required this.upiAmount,
-
+    required this.printerProvider, // ✅ inject dependency
     // required this.saveInvoiceToHiveAndPrint,
   });
   Future<void> printReceiptDetails() async {
-    debugPrint("🟦 [printReceiptDetails] STARTED");
+    print("🚀 [printReceiptDetails] Function called");
 
+    // Step 1: Get cart items
     var cartItems = globals.invoiceItems ?? [];
-    debugPrint("🧾 Loaded cart items count: ${cartItems.length}");
+    print("📦 [Step 1] Cart items fetched: ${cartItems.length} items");
 
-    // Current date and time
+    // Step 2: Current date and time
     DateTime now = DateTime.now();
     String formattedDate = DateFormat('dd-MM-yyyy').format(now);
     String formattedTime = DateFormat('hh:mm a').format(now);
-    debugPrint("📅 Date: $formattedDate | ⏰ Time: $formattedTime");
+    print("🕒 [Step 2] Current Date: $formattedDate, Time: $formattedTime");
 
-    // 🔹 Determine payment amount
+    // Step 3: Determine payment amount
     String paymentAmount;
     try {
       if (selectedPaymentOption == 'Cash: Custom' &&
           customAmountController.text.isNotEmpty) {
         paymentAmount = 'Rs ${customAmountController.text}';
-        debugPrint("💵 Payment type: Cash Custom | Amount: $paymentAmount");
+        print("💰 [Step 3] Custom cash payment selected: $paymentAmount");
       } else if (selectedPaymentOption.contains(':')) {
         paymentAmount =
             'Rs ${selectedPaymentOption.split(': ').last.replaceAll('', '').trim()}';
-        debugPrint("💳 Payment Option String parsed → $paymentAmount");
+        print("💰 [Step 3] Payment option parsed: $paymentAmount");
       } else {
         paymentAmount = 'Rs ${totalAmount.toStringAsFixed(0)}';
-        debugPrint("💰 Default Payment Amount used: $paymentAmount");
+        print("💰 [Step 3] Default total amount used: $paymentAmount");
       }
     } catch (e) {
-      debugPrint("❌ Payment parsing error: $e");
       paymentAmount = 'Rs 0';
+      print(
+        "⚠️ [Step 3] Error calculating payment amount: $e. Defaulting to Rs 0",
+      );
     }
+
+    // Step 4: Employee display name
     String fullEmployeeName = employeeNameController.text.trim();
     String employeeDisplayName = fullEmployeeName.contains('-')
         ? fullEmployeeName.split('-').last.trim()
         : fullEmployeeName;
-    // 🔹 Printer Setup
-    String printerIp = '192.168.1.90';
-    debugPrint("🖨 Connecting to printer at IP: $printerIp ...");
+    print("👤 [Step 4] Employee display name: $employeeDisplayName");
+
+    await printerProvider.initializeHive(); // Make sure Hive is loaded
+    // **Fetch printer IP from Hive directly**
+    String? printerIp = printerProvider.getPrinterIpFromHive(type: 'Overall');
+    print("printerIp:$printerIp");
+    print("🖨️ [Step 5] Setting up printer with IP: $printerIp");
 
     final profile = await CapabilityProfile.load();
     final printer = NetworkPrinter(PaperSize.mm80, profile);
 
-    final PosPrintResult res = await printer.connect(printerIp, port: 9100);
-    debugPrint("📡 Printer connection result: ${res.msg}");
+    final PosPrintResult res = await printer.connect(printerIp!, port: 9100);
 
     if (res == PosPrintResult.success) {
       List<int> bytes = [];
       final generator = Generator(PaperSize.mm80, profile);
+
       try {
         final box = Hive.box('logo');
         final Uint8List? imageBytes = box.get('BMlogo_bytes');
@@ -110,13 +125,9 @@ class salesInvoiceReceiptPrinter {
         final String? logoPath = box.get('BMlogo_path');
 
         if (imageBytes != null) {
-          print(
-            "✅ Loaded logo from Hive ($logoName) | Size: ${imageBytes.lengthInBytes} bytes",
-          );
           final img.Image? logo = img.decodeImage(imageBytes);
 
           if (logo != null) {
-            print("🖼 Original Logo: ${logo.width}x${logo.height}");
             final img.Image whiteBg = img.Image(logo.width, logo.height);
             img.fill(whiteBg, img.getColor(255, 255, 255));
             img.copyInto(whiteBg, logo, blend: true);
@@ -153,15 +164,12 @@ class salesInvoiceReceiptPrinter {
             }
 
             bytes += generator.image(aligned, align: PosAlign.center);
-            print("🖨 Sent logo image to printer");
           }
-        } else {
-          print("⚠️ Logo not found in Hive!");
         }
       } catch (e, st) {
-        print('🛑 Logo Print Error: $e');
-        print(st);
+        debugPrint("Logo error: $e");
       }
+
       bytes += generator.row([
         createPosColumn(
           width: 2,
@@ -200,8 +208,6 @@ class salesInvoiceReceiptPrinter {
           styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
         ),
       ]);
-      print("Date: $formattedDate");
-      print("Time: $formattedTime");
 
       bytes += generator.feed(1);
 
@@ -217,8 +223,7 @@ class salesInvoiceReceiptPrinter {
           styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
         ),
       ]);
-      print("Branch: ${globals.branchName}");
-      print("BillNo: $invoiceNo");
+
       bytes += generator.feed(1);
 
       bytes += generator.row([
@@ -233,8 +238,7 @@ class salesInvoiceReceiptPrinter {
           styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
         ),
       ]);
-      print("Sales Person: ${employeeDisplayName}");
-      print("Customer No: ${customerNumberController.text}");
+
       bytes += generator.feed(1);
       bytes += generator.hr();
 
@@ -270,6 +274,7 @@ class salesInvoiceReceiptPrinter {
       bytes += generator.feed(1);
       double originalSubTotal = 0.0;
       Map<double, double> itemTotalsMap = {};
+
       for (var item in cartItems) {
         double itemTotal = item.amount;
         double taxRate = (item.tax).toDouble();
@@ -278,7 +283,6 @@ class salesInvoiceReceiptPrinter {
         );
 
         originalSubTotal += itemTotal;
-        debugPrint("📊 Updated SubTotal: $originalSubTotal");
 
         if (isGSTEnabled) {
           itemTotalsMap[taxRate] = (itemTotalsMap[taxRate] ?? 0.0) + itemTotal;
@@ -289,23 +293,17 @@ class salesInvoiceReceiptPrinter {
       }
 
       double grossTotal = originalSubTotal;
-      debugPrint("💵 Gross Total: $grossTotal");
 
       double discountPercentage = discountController;
       double discountAmount = (grossTotal * (discountPercentage / 100))
           .toDouble();
       double discountedGrossTotal = grossTotal - discountAmount;
 
-      debugPrint("🎯 Discount Percentage: $discountPercentage%");
-      debugPrint("💸 Discount Amount: $discountAmount");
-      debugPrint("✅ Discounted Gross Total: $discountedGrossTotal");
-
       Map<double, double> cgstMap = {};
       Map<double, double> sgstMap = {};
       Map<double, double> netMap = {};
 
       if (isGSTEnabled) {
-        debugPrint("🧮 GST Calculation Started...");
         itemTotalsMap.forEach((taxRate, grossWithTax) {
           double proportion = grossWithTax / grossTotal;
           double discountedGrossForRate =
@@ -338,10 +336,8 @@ class salesInvoiceReceiptPrinter {
       debugPrint(
         "📊 TotalNetAmount: $totalNetAmount | TotalCGST: $totalCGST | TotalSGST: $totalSGST",
       );
-      debugPrint("🧾 DiscountedTotal: $discountedTotal");
 
       final custom = customChargeController;
-      debugPrint("⚙️ Custom Charge: $custom");
 
       double receivedAmount = cashAmount + cardAmount + upiAmount;
       double finalTotal = discountedTotal + custom;
@@ -352,7 +348,7 @@ class salesInvoiceReceiptPrinter {
         "💰 ReceivedAmount: $receivedAmount | FinalTotal: $finalTotal | Change: $changeAmount",
       );
 
-      debugPrint("🛒 Printing Cart Items...");
+      // Print Cart Items
       for (int i = 0; i < cartItems.length; i++) {
         final item = cartItems[i];
 
@@ -384,6 +380,7 @@ class salesInvoiceReceiptPrinter {
             styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
           ),
         ]);
+        debugPrint("variance name : $varianceName");
 
         String priceDescription = '';
         if (item.uom.toLowerCase() == 'kgs' || item.uom.toLowerCase() == 'kg') {
@@ -397,10 +394,9 @@ class salesInvoiceReceiptPrinter {
         if (isGSTEnabled) {
           priceDescription += " (Tax ${item.tax}%)";
         }
-        debugPrint("📝 Price Description: $priceDescription");
+        debugPrint("Price Description : $priceDescription");
 
         if (discountPercentage > 0) {
-          debugPrint("💥 Discount applied for item: $varianceName");
           final imgBytes = await textWithStrikeImage(
             snoText: '         ',
             itemName: priceDescription,
@@ -459,7 +455,7 @@ class salesInvoiceReceiptPrinter {
             ),
           ]);
         }
-
+        print("item name : $itemName");
         bytes += generator.row([
           createPosColumn(
             width: 12,
@@ -470,7 +466,7 @@ class salesInvoiceReceiptPrinter {
       }
 
       bytes += generator.hr();
-
+      print("discount percentage : $discountPercentage");
       if (discountPercentage > 0) {
         final imgBytes = await textWithStrikeImage(
           snoText: '',
@@ -511,7 +507,7 @@ class salesInvoiceReceiptPrinter {
           ),
         ]);
       }
-
+      print("custom charge : $custom");
       if (custom > 0) {
         bytes += generator.row([
           createPosColumn(
@@ -594,10 +590,153 @@ class salesInvoiceReceiptPrinter {
           ),
         ]);
       }
-      if (discountAmount < 0) {
-        bytes += generator.hr();
+
+      // ✅ ADVANCE PAYMENT DETAILS - MATCHED BY SALE ORDER NUMBER
+      try {
+        debugPrint(
+          "🔍 Fetching advance payment details for SaleOrderNo: $saleOrderNo",
+        );
+
+        final saleOrdersBox = HiveManager.salesOrderBox;
+        if (saleOrdersBox != null && saleOrdersBox.isNotEmpty) {
+          Map<String, dynamic>? matchingSaleOrder;
+
+          for (var saleOrder in saleOrdersBox.values) {
+            final saleDataDynamic = (saleOrder as Map)['data'];
+            if (saleDataDynamic != null) {
+              // Safely convert dynamic map to Map<String, dynamic>
+              final saleData = Map<String, dynamic>.from(saleDataDynamic);
+
+              if (saleData.containsKey('saleOrderNo') &&
+                  saleData['saleOrderNo'].toString().trim() ==
+                      saleOrderNo.trim()) {
+                matchingSaleOrder = saleData;
+                debugPrint(
+                  "✅ Found matching SaleOrder: ${saleData['saleOrderNo']}",
+                );
+                break;
+              }
+            }
+          }
+
+          if (matchingSaleOrder != null) {
+            final advanceAmounts =
+                (matchingSaleOrder['advanceAmount'] as List<dynamic>?) ?? [];
+            final advanceDates =
+                (matchingSaleOrder['advanceDateTime'] as List<dynamic>?) ?? [];
+            final advancePaymentTypes =
+                (matchingSaleOrder['advancePaymentType'] as List<dynamic>?) ??
+                [];
+            final modeWiseAmounts =
+                (matchingSaleOrder['modeWiseAmount'] as List<dynamic>?) ?? [];
+            if (advanceAmounts.isNotEmpty) {
+              bytes += generator.row([
+                createPosColumn(
+                  width: 12,
+                  text: "Advance Details",
+                  styles: PosStyles(
+                    bold: true,
+                    codeTable: 'CP1252',
+                    align: PosAlign.left,
+                  ),
+                ),
+              ]);
+              bytes += generator.feed(1);
+              for (int i = 0; i < advanceAmounts.length; i++) {
+                final advAmount = (advanceAmounts[i] as num).toDouble();
+                final advDateTimeStr = advanceDates[i].toString();
+                final advDateTime = DateTime.tryParse(advDateTimeStr);
+
+                final date = advDateTime != null
+                    ? DateFormat('dd-MM-yyyy').format(advDateTime)
+                    : advDateTimeStr;
+
+                final time = advDateTime != null
+                    ? DateFormat('hh:mm a').format(advDateTime)
+                    : "";
+
+                final paymentModes = advancePaymentTypes[i] as List<dynamic>;
+                final modeList = paymentModes.join(", ");
+
+                // ------------ ADVANCE TOTAL ------------
+                double totalAdvance = 0.0;
+
+                if (advanceAmounts.isNotEmpty) {
+                  for (var amt in advanceAmounts) {
+                    totalAdvance += (amt as num).toDouble();
+                  }
+                }
+
+                // ------------ TODAY RECEIVED ------------
+                double todayReceived = receivedAmount;
+
+                // ------------ TOTAL RECEIVED OVERALL ------------
+                double totalReceivedTillNow = totalAdvance + todayReceived;
+
+                // ------------ TOTAL PAYABLE ------------
+                double totalPayable = discountedTotal + custom;
+
+                // ------------ BALANCE AMOUNT ------------
+                double balanceAmount = totalPayable - totalReceivedTillNow;
+                if (balanceAmount < 0) balanceAmount = 0;
+
+                // UPDATE VARIABLE FOR PRINTING
+                changeAmount = balanceAmount;
+                // -----------------------------------
+                // 🔹 LINE 1 → Advance 1 - Cash, Card
+                // -----------------------------------
+                bytes += generator.row([
+                  createPosColumn(
+                    width: 12,
+                    text: "Advance ${i + 1} - $modeList",
+                    styles: createPosStyles(
+                      align: PosAlign.left,
+                      codeTable: 'CP1252',
+                    ),
+                  ),
+                ]);
+
+                // -----------------------------------
+                // 🔹 LINE 2 → Paid On: date | time     amount
+                // -----------------------------------
+                bytes += generator.row([
+                  createPosColumn(
+                    width: 8,
+                    text: "Paid On: $date | $time",
+                    styles: createPosStyles(
+                      align: PosAlign.left,
+                      codeTable: 'CP1252',
+                    ),
+                  ),
+                  createPosColumn(
+                    width: 4,
+                    text: "Rs ${advAmount.toStringAsFixed(2)}",
+                    styles: createPosStyles(
+                      align: PosAlign.right,
+                      codeTable: 'CP1252',
+                    ),
+                  ),
+                ]);
+              }
+            } else {
+              debugPrint(
+                "⚠️ No advance payments found for SaleOrderNo: $saleOrderNo",
+              );
+            }
+          } else {
+            debugPrint(
+              "❌ No matching SaleOrder found for SaleOrderNo: $saleOrderNo",
+            );
+          }
+        } else {
+          debugPrint("❌ SalesOrderBox is empty or null");
+        }
+      } catch (e, st) {
+        debugPrint("❌ Error fetching advance details: $e\n$st");
       }
 
+      // ======================== PAYMENT DETAILS SECTION ========================
+      bytes += generator.hr();
       bytes += generator.row([
         createPosColumn(
           width: 12,
@@ -633,6 +772,7 @@ class salesInvoiceReceiptPrinter {
           ),
         ]);
       }
+
       if (cardAmount > 0) {
         bytes += generator.row([
           createPosColumn(
@@ -655,11 +795,12 @@ class salesInvoiceReceiptPrinter {
           ),
         ]);
       }
+
       if (upiAmount > 0) {
         bytes += generator.row([
           createPosColumn(
             width: 5,
-            text: "Upi",
+            text: "UPI",
             styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
           ),
           createPosColumn(
@@ -714,6 +855,7 @@ class salesInvoiceReceiptPrinter {
         ),
       ]);
 
+      // ======================== GST INVOICE BREAKUP SECTION ========================
       if (isGSTEnabled) {
         bytes += generator.hr();
 
@@ -746,7 +888,7 @@ class salesInvoiceReceiptPrinter {
           ),
           createPosColumn(
             width: 5,
-            text: "${totalNetAmount.toStringAsFixed(2)}",
+            text: "Rs ${totalNetAmount.toStringAsFixed(2)}",
             styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
           ),
         ]);
@@ -754,9 +896,10 @@ class salesInvoiceReceiptPrinter {
         sgstMap.forEach((rate, sgstAmount) {
           double cgstAmount = cgstMap[rate] ?? 0.0;
           final gst = cgstAmount + sgstAmount;
+
           bytes += generator.row([
             createPosColumn(
-              text: "GST($rate%)}",
+              text: "GST($rate%)",
               width: 6,
               styles: createPosStyles(
                 align: PosAlign.left,
@@ -764,7 +907,7 @@ class salesInvoiceReceiptPrinter {
               ),
             ),
             createPosColumn(
-              text: "${gst.toStringAsFixed(2)}",
+              text: "Rs ${gst.toStringAsFixed(2)}",
               width: 6,
               styles: createPosStyles(
                 align: PosAlign.right,
@@ -772,10 +915,11 @@ class salesInvoiceReceiptPrinter {
               ),
             ),
           ]);
+
           bytes += generator.row([
             createPosColumn(
               text:
-                  "SGST(${(rate / 2).toStringAsFixed(1)}%): ${sgstAmount.toStringAsFixed(2)}",
+                  "SGST(${(rate / 2).toStringAsFixed(1)}%): Rs ${sgstAmount.toStringAsFixed(2)}",
               width: 6,
               styles: createPosStyles(
                 align: PosAlign.left,
@@ -784,7 +928,7 @@ class salesInvoiceReceiptPrinter {
             ),
             createPosColumn(
               text:
-                  "CGST(${(rate / 2).toStringAsFixed(1)}%): ${cgstAmount.toStringAsFixed(2)}",
+                  "CGST(${(rate / 2).toStringAsFixed(1)}%): Rs ${cgstAmount.toStringAsFixed(2)}",
               width: 6,
               styles: createPosStyles(
                 align: PosAlign.left,
@@ -794,6 +938,7 @@ class salesInvoiceReceiptPrinter {
           ]);
         });
       }
+
       bytes += generator.hr();
       bytes += generator.row([
         createPosColumn(
@@ -803,6 +948,7 @@ class salesInvoiceReceiptPrinter {
             align: PosAlign.right,
             codeTable: 'CP1252',
             width: PosTextSize.size1,
+            bold: true,
           ),
         ),
       ]);
@@ -825,7 +971,6 @@ class salesInvoiceReceiptPrinter {
 
       List<String> addressLines = splitAddress(globals.branchAddress);
 
-      // Print address lines
       for (var line in addressLines) {
         bytes += generator.row([
           createPosColumn(
@@ -839,7 +984,6 @@ class salesInvoiceReceiptPrinter {
         ]);
       }
 
-      // Print phone number
       if (globals.branchPhoneno.isNotEmpty) {
         bytes += generator.row([
           createPosColumn(
@@ -869,12 +1013,8 @@ class salesInvoiceReceiptPrinter {
       bytes += generator.feed(2);
 
       printer.rawBytes(Uint8List.fromList(bytes));
-
       printer.cut();
-
       printer.disconnect();
-    } else {
-      debugPrint("🛑 Printer connection failed: ${res.msg}");
     }
   }
 
@@ -922,7 +1062,7 @@ class salesInvoiceReceiptPrinter {
         .toString()
         .substring(6); // Shortened timestamp
     const characters =
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZ0125678989'; // Alphanumeric characters
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZ0126565989'; // Alphanumeric characters
     final randomId =
         List<int>.generate(6, (_) => random.nextInt(characters.length))
             .map((index) => characters[index])

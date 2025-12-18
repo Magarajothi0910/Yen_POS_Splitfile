@@ -471,7 +471,7 @@
 //           ),
 //         ],
 //       ),
-//       bottomNavigationBar: const GlobalBottomNav(noSelection: true),
+      // bottomNavigationBar: const GlobalBottomNav(noSelection: true),
 //     );
 //   }
 

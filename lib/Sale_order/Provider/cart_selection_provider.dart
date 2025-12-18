@@ -1,6 +1,5 @@
-
-
 import 'package:flutter/material.dart';
+import 'package:yenpos/Sale_order/Provider/cartProvider.dart';
 
 class CartSelectionProvider extends ChangeNotifier {
   final Map<String, bool> _itemSelectionState = {};
@@ -9,9 +8,59 @@ class CartSelectionProvider extends ChangeNotifier {
   Map<String, bool> get itemSelectionState => _itemSelectionState;
   bool get showCheckBoxes => _showCheckBoxes;
 
+  /// key → varianceName_isBoxItem
+
+  String _key(CartItem item) => '${item.varianceName}_${item.isBoxItem}';
+
+  bool isSelected(CartItem item) {
+    return itemSelectionState[_key(item)] ?? false;
+  }
+
+  void selectItem(CartItem item) {
+    itemSelectionState[_key(item)] = true;
+    notifyListeners();
+  }
+
+  void unselectItem(CartItem item) {
+    itemSelectionState.remove(_key(item));
+    notifyListeners();
+  }
+
+  void clear() {
+    itemSelectionState.clear();
+    notifyListeners();
+  }
+
+  // bool isSelected(dynamic item) {
+  //   final key = '${item.varianceName}_${item.isBoxItem}';
+  //   return itemSelectionState[key] ?? false;
+  // }
+
+  // void selectItem(dynamic item) {
+  //   final key = '${item.varianceName}_${item.isBoxItem}';
+  //   itemSelectionState[key] = true;
+  //   notifyListeners();
+  // }
+
+  // void unselectItem(dynamic item) {
+  //   final key = '${item.varianceName}_${item.isBoxItem}';
+  //   itemSelectionState.remove(key);
+  //   notifyListeners();
+  // }
+
+  // void clear() {
+  //   itemSelectionState.clear();
+  //   notifyListeners();
+  // }
+
   // Toggle selection for a single item
   void toggleItemSelection(String key, bool value) {
     _itemSelectionState[key] = value;
+    notifyListeners();
+  }
+
+  void setShowCheckBoxes(bool value) {
+    _showCheckBoxes = value;
     notifyListeners();
   }
 
@@ -23,7 +72,6 @@ class CartSelectionProvider extends ChangeNotifier {
     _showCheckBoxes = value; // Show checkboxes only if items are selected
     notifyListeners();
   }
-
 
   void toggleCheckBoxVisibility() {
     if (_showCheckBoxes) {

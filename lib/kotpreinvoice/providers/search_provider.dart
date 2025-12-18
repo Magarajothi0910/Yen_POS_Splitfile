@@ -6,7 +6,8 @@ class SearchProviderDine with ChangeNotifier {
   String get searchQuery => _searchQuery;
 
   void updateSearchQuery(String query) {
-    _searchQuery = query;
+    _searchQuery = query.replaceAll(RegExp(r'\s+'), '');
+    print("_searchQuery is $_searchQuery");
     notifyListeners();
   }
 

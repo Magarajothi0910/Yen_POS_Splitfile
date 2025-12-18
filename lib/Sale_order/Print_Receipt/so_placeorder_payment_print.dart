@@ -21,6 +21,7 @@ import 'package:yenpos/invoice_pay_and_print_page.dart/provider/payment_provider
 import 'package:yenpos/invoice_pay_and_print_page.dart/provider/razorpay_provider.dart';
 
 class PlaceOrderPaymentPrint extends StatefulWidget {
+  final CartSelectionProvider cartSelectionProvider;
   final double totalAmount;
   final String holdBillId;
   final String orderId;
@@ -43,7 +44,7 @@ class PlaceOrderPaymentPrint extends StatefulWidget {
 
   const PlaceOrderPaymentPrint({
     super.key,
-
+    required this.cartSelectionProvider,
     required this.totalAmount,
     required this.totalAdvance,
     required this.deductedAmount,
@@ -85,6 +86,7 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
   int _chequeAmount = 0;
   double _originalAmount = 0.0;
   double _upiAndCashAmount = 0.0;
+  List<String> selectedPayments = [];
 
   late salesInvoiceReceiptPrinter receiptPrinter;
   bool _isCompleteButtonEnabled = true; // default enabled
@@ -104,7 +106,7 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
   final FocusNode _customCashFocusNode = FocusNode();
   final FocusNode _customUpiFocusNode = FocusNode();
   final FocusNode _customCardFocusNode = FocusNode();
-
+  String? selectedPayment; // Cash / Card / UPI / Cheque
   // Cheque FocusNodes
   final FocusNode _chequeNumberFocus = FocusNode();
   final FocusNode _chequeAmountFocus = FocusNode();
@@ -175,6 +177,7 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
       _chequeAmount = int.tryParse(chequeAmountController.text) ?? 0;
       _validateAmount(chequeAmountController, "Cheque");
     });
+
     _discountController.addListener(() {
       final value = _discountController.text;
       _applyDiscount(value);
@@ -256,184 +259,223 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<RazorpayQRProvider>(context, listen: false).createQR(amount);
     });
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Row(
-            children: [
-              Icon(Icons.qr_code, color: Colors.blue),
-              SizedBox(width: 8),
-              Text(
-                'UPI QR Code',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          content: SizedBox(
-            height: 600,
-            width: 285,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(16),
+          child: Container(
+            width: 360,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 25,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
             child: Consumer<RazorpayQRProvider>(
               builder: (context, qrProvider, _) {
-                if (qrProvider.isLoading) {
-                  return const Center(child: CircularProgressIndicator());
-                } else if (qrProvider.errorMessage != null) {
-                  // Send error message to client
-                  // _sendState(
-                  //   type: 'upi_payment_error',
-                  //   extraData: {'message': qrProvider.errorMessage},
-                  // );
-                  return Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error, color: Colors.red, size: 48),
-                      const SizedBox(height: 8),
-                      Text(
-                        qrProvider.errorMessage!,
-                        style: const TextStyle(color: Colors.red, fontSize: 16),
-                        textAlign: TextAlign.center,
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    /// 🔷 HEADER
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
                       ),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        icon: const Icon(Icons.close),
-                        label: const Text("Close"),
-                        onPressed: () {
-                          qrProvider.disconnectWebSocket();
-                          Navigator.pop(context);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color.fromARGB(
-                            255,
-                            6,
-                            62,
-                            247,
-                          ),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(7),
-                          ),
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF3F51B5), Color(0xFF2196F3)],
+                        ),
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(20),
                         ),
                       ),
-                    ],
-                  );
-                } else if (qrProvider.paymentSuccess) {
-                  Provider.of<SalesInvoiceState>(
-                    context,
-                    listen: false,
-                  ).updateIsUpiPaid(true);
-                  //_sendState(type: 'upi_payment_success');
-                  return Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Lottie.asset(
-                        'assets/Payment Successful.json',
-                        repeat: false,
-                        height: 580,
-                        //height: double.infinity,
-                        width: double.infinity,
-                        fit: BoxFit.contain,
-                        onLoaded: (composition) {
-                          Future.delayed(
-                            composition.duration + const Duration(seconds: 2),
-                            () {
-                              if (mounted) {
-                                Navigator.pop(context);
-                              }
-                            },
-                          );
-                        },
-                      ),
-                      const Text(
-                        'UPI Payment Successful!',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  );
-                } else if (qrProvider.qrImageUrl != null) {
-                  // _sendState(type: 'show_upi_qr', extraData: {'qrUrl': qrProvider.qrImageUrl, 'amount': amount});
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Image.network(
-                        qrProvider.qrImageUrl!,
-                        height: 535,
-                        //height: double.infinity,
-                        width: double.infinity,
-                        fit: BoxFit.fill,
-                        errorBuilder: (context, error, stackTrace) {
-                          // _sendState(
-                          //   type: 'upi_payment_error',
-                          //   extraData: {'message': 'Failed to load QR code'},
-                          // );
-                          return const Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.error, color: Colors.red, size: 48),
-                              SizedBox(height: 8),
-                              Text(
-                                'Failed to load QR code',
-                                style: TextStyle(
-                                  color: Colors.red,
-                                  fontSize: 16,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
+                      child: Row(
                         children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              icon: const Icon(Icons.close),
-                              label: const Text("Close"),
-                              onPressed: () {
-                                qrProvider.disconnectWebSocket();
-                                Navigator.pop(context);
-                                //_sendState(type: 'upi_payment_cancelled');
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color.fromARGB(
-                                  255,
-                                  6,
-                                  62,
-                                  247,
-                                ),
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(7),
-                                ),
-                              ),
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.qr_code,
+                              color: Colors.white,
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Text(
+                            "UPI Payment",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
                       ),
-                    ],
-                  );
-                } else {
-                  // _sendState(
-                  //   type: 'upi_payment_error',
-                  //   extraData: {'message': 'No QR code generated'},
-                  // );
-                  return const Center(child: Text('No QR generated'));
-                }
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    /// 💰 AMOUNT
+                    Text(
+                      "₹${amount.toStringAsFixed(2)}",
+                      style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      "Scan & Pay using any UPI app",
+                      style: TextStyle(color: Colors.grey, fontSize: 14),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    /// 🔄 STATES
+                    if (qrProvider.isLoading)
+                      const Padding(
+                        padding: EdgeInsets.all(32),
+                        child: CircularProgressIndicator(),
+                      )
+                    else if (qrProvider.errorMessage != null)
+                      _errorView(qrProvider)
+                    else if (qrProvider.paymentSuccess)
+                      _successView()
+                    else if (qrProvider.qrImageUrl != null)
+                      _qrView(qrProvider)
+                    else
+                      const Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text("No QR generated"),
+                      ),
+                  ],
+                );
               },
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _qrView(RazorpayQRProvider qrProvider) {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        child: Column(
+          children: [
+            /// QR FULLY FILLS CONTAINER
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: FittedBox(
+                    fit: BoxFit.cover, // 🔥 KEY CHANGE
+                    child: Image.network(qrProvider.qrImageUrl!),
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 14),
+
+            SizedBox(
+              width: double.infinity,
+              height: 46,
+              child: ElevatedButton(
+                onPressed: () {
+                  qrProvider.disconnectWebSocket();
+                  Navigator.pop(context);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.redAccent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  "Cancel Payment",
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _successView() {
+    return Column(
+      children: [
+        Lottie.asset(
+          'assets/Payment Successful.json',
+          height: 200,
+          repeat: false,
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          "Payment Successful",
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Colors.green,
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  Widget _errorView(RazorpayQRProvider qrProvider) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          const Icon(Icons.error_outline, size: 48, color: Colors.red),
+          const SizedBox(height: 12),
+          Text(
+            qrProvider.errorMessage!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.red),
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            onPressed: () {
+              qrProvider.disconnectWebSocket();
+              Navigator.pop(context);
+            },
+            child: const Text("Close"),
+          ),
+        ],
+      ),
     );
   }
 
@@ -540,7 +582,7 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
     }
   }
 
-  Widget _buildPaymentEntry(
+  Widget _buildPremiumPaymentEntry(
     String method,
     TextEditingController controller,
     FocusNode focus,
@@ -550,92 +592,124 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
       listen: false,
     );
 
+    // Color map for different payment methods
+    final Map<String, Color> methodColors = {
+      "Cash": Colors.green.shade400,
+      "Card": Colors.blue.shade400,
+      "UPI": Colors.purple.shade400,
+      "Cheque": Colors.orange.shade400,
+    };
+
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      padding: const EdgeInsets.all(10),
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        gradient: LinearGradient(
+          colors: [
+            methodColors[method]!.withOpacity(0.1),
+            methodColors[method]!.withOpacity(0.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.3),
-            offset: const Offset(3, 3), // Shadow position for 3D effect
-            blurRadius: 6,
+            color: methodColors[method]!.withOpacity(0.25),
+            offset: const Offset(4, 4),
+            blurRadius: 8,
           ),
-          const BoxShadow(
-            color: Colors.white, // Light reflection
-            offset: Offset(-2, -2),
-            blurRadius: 6,
+          BoxShadow(
+            color: Colors.white,
+            offset: const Offset(-4, -4),
+            blurRadius: 8,
           ),
         ],
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Method Name
-          Expanded(
-            flex: 2,
-            child: Text(
-              method,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          // Icon + method
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: methodColors[method]!.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              method == 'Cash'
+                  ? Icons.money
+                  : method == 'Card'
+                  ? Icons.credit_card
+                  : method == 'UPI'
+                  ? Icons.qr_code
+                  : Icons.receipt_long,
+              color: methodColors[method],
+              size: 28,
             ),
           ),
+          const SizedBox(width: 14),
 
-          // Suggested amount button
-          GestureDetector(
-            onTap: () {
-              String suggested = _getSuggestedAmount(method);
-              controller.text = suggested;
-              _updateBalance();
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.teal[50],
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.teal.withOpacity(0.3),
-                    offset: const Offset(2, 2),
-                    blurRadius: 4,
+          // Method name + suggested amount
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  method,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
                   ),
-                  const BoxShadow(
-                    color: Colors.white,
-                    offset: Offset(-2, -2),
-                    blurRadius: 4,
-                  ),
-                ],
-              ),
-              child: Text(
-                _getSuggestedAmount(method),
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.teal,
                 ),
-              ),
+                const SizedBox(height: 4),
+                GestureDetector(
+                  onTap: () {
+                    controller.text = _getSuggestedAmount(method);
+                    _updateBalance();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: methodColors[method]!.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      "Suggested: ${_getSuggestedAmount(method)}",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: methodColors[method],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
 
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
 
-          // Amount Input (Custom Keyboard Only)
-          Expanded(
-            flex: 3,
+          // Amount Input
+          SizedBox(
+            width: 100,
             child: TextField(
               controller: controller,
               focusNode: focus,
-              readOnly: true, // Prevent system keyboard
-              showCursor: true, // Show blinking cursor
+              readOnly: true,
+              showCursor: true,
+              textAlign: TextAlign.center,
               decoration: InputDecoration(
+                filled: true,
+                fillColor: Colors.grey[100],
+                hintText: 'Enter',
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 8,
                 ),
-                filled: true,
-                fillColor: Colors.grey[50],
-                hintText: 'Enter $method',
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
                 ),
               ),
@@ -647,21 +721,21 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
                   numeric: true,
                 );
               },
-              onChanged: (value) {
-                _updateBalance();
-              },
+              onChanged: (value) => _updateBalance(),
             ),
           ),
 
-          // UPI/Card Payment Icon
+          const SizedBox(width: 12),
+
+          // Optional UPI / Card icon
           if (method == 'UPI' || method == 'Card')
             Consumer<RazorpayQRProvider>(
               builder: (context, qrProvider, _) {
                 return IconButton(
                   icon: Icon(
-                    method == 'UPI' ? Icons.qr_code : Icons.credit_card,
-                    color: method == 'UPI' ? Colors.black : Colors.blue,
-                    size: 24,
+                    method == 'UPI' ? Icons.qr_code_scanner : Icons.credit_card,
+                    color: methodColors[method],
+                    size: 28,
                   ),
                   onPressed:
                       isPaymentEnabled &&
@@ -673,30 +747,10 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
                           if (amountStr.isNotEmpty) {
                             final amount = double.tryParse(amountStr);
                             if (amount != null && amount > 0) {
-                              if (method == 'UPI') {
-                                _showUpiQrDialog(amount);
-                              } else {
-                                _handleCardPayment();
-                              }
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Please enter a valid $method amount greater than 0.',
-                                  ),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
+                              method == 'UPI'
+                                  ? _showUpiQrDialog(amount)
+                                  : _handleCardPayment();
                             }
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Please enter a $method amount first.',
-                                ),
-                                backgroundColor: Colors.orange,
-                              ),
-                            );
                           }
                         }
                       : null,
@@ -756,38 +810,35 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
 
       if (itemWiseDiscounts.isNotEmpty) {
         _discountController.text = ""; // clear entered discount
-
         // 🔹 Get maximum applied item-wise discount percentage
         final maxDiscount = itemWiseDiscounts.reduce((a, b) => a > b ? a : b);
-
         TopMessage.show(
           context,
           message:
               'Item-wise discount of $maxDiscount% already applied. Overall discount cannot be applied.',
           backgroundColor: Colors.redAccent,
         );
+        selectedPaymentMethod = ""; // reset payment method
         return; // stop further discount application
       }
 
       // Step 2: Continue with normal discount logic
       discount = double.tryParse(value) ?? 0;
-
       deductedAmount = (discount / 100) * _originalAmount;
-
       totalAmount = _originalAmount + customCharge - deductedAmount;
 
       if (discount > globaldiscount.globalDiscountPercentage) {
-        // Don't clear, just mark for approval
         TopMessage.show(
           context,
           message: 'Discount exceeds allowed limit. Sending for approval.',
           backgroundColor: Colors.orangeAccent,
         );
-
-        setState(() {
-          selectedPaymentMethod = "Approval"; // 👈 Custom state trigger
-        });
+        selectedPaymentMethod = "Approval"; // 👈 Custom state trigger
+      } else {
+        // ✅ Reset payment method when discount is valid
+        selectedPaymentMethod = "";
       }
+
       _updateBalance();
     });
   }
@@ -807,27 +858,16 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
       body: SafeArea(
         child: Column(
           children: [
-            // 🔹 Scrollable Payment Section
-            Expanded(
-              child: SingleChildScrollView(
-                controller: _scrollController, // ✅ attach controller
-                physics: const BouncingScrollPhysics(),
-                padding: EdgeInsets.fromLTRB(padding, 16, padding, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // 🔹 Payment Section Title
-                    const Text(
-                      "Select Payment Method",
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      margin: const EdgeInsets.symmetric(vertical: 6),
+            // ===== Top Section =====
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  // 🔹 DISCOUNT FIELD
+                  SizedBox(width: 10),
+                  Expanded(
+                    flex: 3,
+                    child: Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
                         color: Colors.white,
@@ -847,41 +887,33 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
                       ),
                       child: Row(
                         children: [
-                          const Expanded(
-                            flex: 2,
-                            child: Text(
-                              "Discount",
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
+                          const Text(
+                            "Discount",
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
+                          const SizedBox(width: 8),
                           Expanded(
-                            flex: 3,
                             child: TextFormField(
                               controller: _discountController,
-                              readOnly:
-                                  true, // Always true (custom keyboard only)
-                              enabled:
-                                  !_isDiscountDisabled, // Disable only if item-wise discount exists
+                              readOnly: true,
+                              enabled: !_isDiscountDisabled,
                               showCursor: !_isDiscountDisabled,
                               decoration: InputDecoration(
-                                prefixIcon: const Icon(
-                                  Icons.percent,
-                                  color: Colors.black,
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 8,
-                                ),
+                                prefixIcon: const Icon(Icons.percent, size: 20),
+                                hintText: _isDiscountDisabled
+                                    ? _getItemWiseDiscountText()
+                                    : "Enter Discount",
                                 filled: true,
                                 fillColor: _isDiscountDisabled
                                     ? Colors.grey[200]
                                     : Colors.grey[50],
-                                hintText: _isDiscountDisabled
-                                    ? _getItemWiseDiscountText() // dynamic hint text
-                                    : 'Enter Discount',
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
                                   borderSide: BorderSide.none,
@@ -894,6 +926,7 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
                                     ctrl: _discountController,
                                     node: FocusNode(),
                                     numeric: true,
+                                    fieldType: "discount",
                                   );
                                 }
                               },
@@ -904,150 +937,186 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
                               },
                             ),
                           ),
-                          const SizedBox(width: 10),
-                          // 🔹 Show Deducted Amount
-                          Text(
-                            deductedAmount > 0
-                                ? "- ₹${deductedAmount.round().toStringAsFixed(0)}"
-                                : "",
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.red,
-                            ),
-                          ),
                         ],
                       ),
                     ),
-                    // 🔹 Cash + Card
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildPaymentEntry(
-                            "Cash",
-                            _cashController,
-                            _customCashFocusNode,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildPaymentEntry(
-                            "Card",
-                            _cardController,
-                            _customCardFocusNode,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
+                  ),
 
-                    // 🔹 UPI + Cheque
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildPaymentEntry(
-                            "UPI",
-                            _upiController,
-                            _customUpiFocusNode,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.3),
+                            offset: const Offset(3, 3),
+                            blurRadius: 6,
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _showChequeDetails = !_showChequeDetails;
-                                _isChequeSelected = _showChequeDetails;
-
-                                if (_isChequeSelected) {
-                                  // Clear other payment fields
-                                  _cashController.clear();
-                                  _upiController.clear();
-                                  _cardController.clear();
-                                  _updateBalance();
-
-                                  // Auto scroll after the frame is built
-                                  WidgetsBinding.instance.addPostFrameCallback((
-                                    _,
-                                  ) {
-                                    _scrollController.animateTo(
-                                      _scrollController
-                                          .position
-                                          .maxScrollExtent,
-                                      duration: const Duration(
-                                        milliseconds: 300,
-                                      ),
-                                      curve: Curves.easeInOut,
-                                    );
-                                  });
-                                }
-                              });
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.grey.withOpacity(0.3),
-                                    offset: const Offset(3, 3),
-                                    blurRadius: 6,
-                                  ),
-                                  const BoxShadow(
-                                    color: Colors.white,
-                                    offset: Offset(-2, -2),
-                                    blurRadius: 6,
-                                  ),
-                                ],
-                              ),
+                          const BoxShadow(
+                            color: Colors.white,
+                            offset: Offset(-2, -2),
+                            blurRadius: 6,
+                          ),
+                        ],
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          hint: Text(
+                            selectedPayments.isEmpty
+                                ? "Select Payment Method"
+                                : selectedPayments.join(", "),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Colors.black,
+                            ),
+                          ),
+                          dropdownColor: Colors.white,
+                          isExpanded: true,
+                          items: [
+                            DropdownMenuItem(
+                              value: "Cash",
                               child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Text(
-                                    "Cheque",
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                                  Icon(
-                                    _showChequeDetails
-                                        ? Icons.keyboard_arrow_up
-                                        : Icons.keyboard_arrow_down,
-                                    color: Colors.grey[600],
-                                  ),
+                                children: const [
+                                  Icon(Icons.money, color: Colors.green),
+                                  SizedBox(width: 10),
+                                  Text("Cash"),
                                 ],
                               ),
                             ),
-                          ),
-                        ),
-                      ],
-                    ),
+                            DropdownMenuItem(
+                              value: "Card",
+                              child: Row(
+                                children: const [
+                                  Icon(Icons.credit_card, color: Colors.blue),
+                                  SizedBox(width: 10),
+                                  Text("Card"),
+                                ],
+                              ),
+                            ),
+                            DropdownMenuItem(
+                              value: "UPI",
+                              child: Row(
+                                children: const [
+                                  Icon(Icons.qr_code, color: Colors.purple),
+                                  SizedBox(width: 10),
+                                  Text("UPI"),
+                                ],
+                              ),
+                            ),
+                            DropdownMenuItem(
+                              value: "Cheque",
+                              child: Row(
+                                children: const [
+                                  Icon(
+                                    Icons.receipt_long,
+                                    color: Colors.orange,
+                                  ),
+                                  SizedBox(width: 10),
+                                  Text("Cheque"),
+                                ],
+                              ),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            if (value == null) return;
 
-                    // 🔹 Cheque Details Expand
-                    if (_showChequeDetails) ...[
-                      const SizedBox(height: 16),
-                      ChequeDetails(
-                        chequeNumberController: chequeNumberController,
-                        chequeAmountController: chequeAmountController,
-                        chequeNameController: chequeNameController,
-                        chequeDateController: chequeDateController,
-                        chequeNumberFocus: _chequeNumberFocus,
-                        chequeAmountFocus: _chequeAmountFocus,
-                        chequeNameFocus: _chequeNameFocus,
-                        chequeDateFocus: _chequeDateFocus,
-                        onFocusChanged: (index) {},
+                            setState(() {
+                              if (!selectedPayments.contains(value)) {
+                                selectedPayments.add(value);
+                              }
+
+                              // Clear controllers if newly added
+                              if (value == "Cash") _cashController.clear();
+                              if (value == "Card") _cardController.clear();
+                              if (value == "UPI") _upiController.clear();
+                              if (value == "Cheque") {
+                                chequeAmountController.text =
+                                    _getSuggestedAmount("Cheque");
+                                _showChequeDetails = true;
+
+                                WidgetsBinding.instance.addPostFrameCallback((
+                                  _,
+                                ) {
+                                  _scrollController.animateTo(
+                                    _scrollController.position.maxScrollExtent,
+                                    duration: const Duration(milliseconds: 300),
+                                    curve: Curves.easeInOut,
+                                  );
+                                });
+                              }
+
+                              _updateBalance();
+                            });
+                          },
+                        ),
                       ),
-                    ],
-                  ],
+                    ),
+                  ),
+                  SizedBox(width: 20),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            // ===== Middle Section =====
+            Expanded(
+              child: SingleChildScrollView(
+                controller: _scrollController,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                child: Column(
+                  children: selectedPayments.map((payment) {
+                    switch (payment) {
+                      case "Cash":
+                        return _buildPremiumPaymentEntry(
+                          "Cash",
+                          _cashController,
+                          _customCashFocusNode,
+                        );
+                      case "Card":
+                        return _buildPremiumPaymentEntry(
+                          "Card",
+                          _cardController,
+                          _customCardFocusNode,
+                        );
+                      case "UPI":
+                        return _buildPremiumPaymentEntry(
+                          "UPI",
+                          _upiController,
+                          _customUpiFocusNode,
+                        );
+                      case "Cheque":
+                        return ChequeDetails(
+                          chequeNumberController: chequeNumberController,
+                          chequeAmountController: chequeAmountController,
+                          chequeNameController: chequeNameController,
+                          chequeDateController: chequeDateController,
+                          chequeNumberFocus: _chequeNumberFocus,
+                          chequeAmountFocus: _chequeAmountFocus,
+                          chequeNameFocus: _chequeNameFocus,
+                          chequeDateFocus: _chequeDateFocus,
+                          onFocusChanged: (index) {},
+                        );
+                      default:
+                        return SizedBox.shrink();
+                    }
+                  }).toList(),
                 ),
               ),
             ),
 
-            // 🔹 Footer Section with Split Layout
+            // ===== Footer Section =====
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -1081,8 +1150,8 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
                                 value: '₹${totalAmount.toStringAsFixed(0)}',
                                 icon: Icons.attach_money,
                                 gradientColors: [
-                                  Colors.green.shade400,
-                                  Colors.green.shade700,
+                                  Colors.blue.shade400,
+                                  Colors.blue.shade700,
                                 ],
                               ),
                             ),
@@ -1243,7 +1312,8 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
                                                     await customerScreenProvider
                                                         .saveOrder(
                                                           cartProvider,
-
+                                                          widget
+                                                              .cartSelectionProvider,
                                                           widget.totalAdvance,
                                                           widget.orderAmount,
                                                           discount,
@@ -1261,12 +1331,6 @@ class _PlaceOrderPaymentPrintState extends State<PlaceOrderPaymentPrint> {
                                                           context,
                                                           payments, // 👈 pass payments map
                                                         );
-
-                                                    // Clear UI and provider data
-
-                                                    Navigator.pop(
-                                                      context,
-                                                    ); // Close dialog
                                                   },
                                                   style:
                                                       ElevatedButton.styleFrom(

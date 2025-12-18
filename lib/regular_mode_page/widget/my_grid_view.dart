@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
 import 'package:provider/provider.dart';
 import 'package:yenpos/Global/Widget/custom_colors.dart';
 import 'package:yenpos/Global/global_data_manager.dart';
+import 'package:yenpos/Global/globals_data.dart';
 
 import '../model/variance.dart';
 import '../provider/cart_page_provider.dart';
@@ -69,7 +71,10 @@ class MyCakesGridView extends StatelessWidget {
         final String varianceName = variance['varianceName'] as String? ?? '';
 
         // ✅ Null safe globalData fetch
-        final branchwiseItems = GlobalDataManager().branchwiseItems;
+        //final branchwiseItems = GlobalDataManager().branchwiseItems;
+        final lazyBox = await Hive.openBox('items');
+        final branchwiseItems = await lazyBox.get('branchwiseItems_$aliasname');
+
         if (branchwiseItems == null || branchwiseItems['data'] == null) {
           debugPrint("⚠️ branchwiseItems or data is null");
           return;
@@ -94,10 +99,11 @@ class MyCakesGridView extends StatelessWidget {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16.0),
               ),
-              backgroundColor:CustomColors.whiteColor,
+              backgroundColor: CustomColors.whiteColor,
               title: Text(
                 "Enter Product Code",
-                style: TextStyle(fontFamily: 'Poppins',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
                   color: CustomColors.whiteColor,
                   fontWeight: FontWeight.bold,
                   fontSize: 24,
@@ -111,7 +117,10 @@ class MyCakesGridView extends StatelessWidget {
                       controller: productIdController,
                       decoration: InputDecoration(
                         labelText: "Product Code",
-                        labelStyle: TextStyle(fontFamily: 'Poppins',color: Colors.blueGrey),
+                        labelStyle: TextStyle(
+                          fontFamily: 'Poppins',
+                          color: Colors.blueGrey,
+                        ),
                         prefixIcon: Icon(
                           Icons.qr_code,
                           color: Colors.blueAccent,
@@ -137,7 +146,8 @@ class MyCakesGridView extends StatelessWidget {
                   onPressed: () => Navigator.of(context).pop(),
                   child: Text(
                     "Cancel",
-                    style: TextStyle(fontFamily: 'Poppins',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
                       color: Colors.redAccent,
                       fontWeight: FontWeight.bold,
                     ),
@@ -180,7 +190,8 @@ class MyCakesGridView extends StatelessWidget {
                     foregroundColor: Colors.white,
                     backgroundColor: Colors.blue,
                     padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    textStyle: TextStyle(fontFamily: 'Poppins',
+                    textStyle: TextStyle(
+                      fontFamily: 'Poppins',
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),

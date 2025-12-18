@@ -18,13 +18,20 @@ class PrintReceiptService {
     required List<dynamic> seatOrders,
     required String areaName,
   }) async {
-    final printerProvider = Provider.of<PrinterProviderDine>(context, listen: false);
+    final printerProvider = Provider.of<PrinterProviderDine>(
+      context,
+      listen: false,
+    );
     final preInvoicePrinter = printerProvider.printers.firstWhere(
       (printer) => printer.type == 'PreInvoice',
-      orElse: () => Printer(name: 'default_printer', ipAddress: '192.168.1.100', type: 'PreInvoice'),
+      orElse: () => Printer(
+        name: 'default_printer',
+        ipAddress: '192.168.1.100',
+        type: 'PreInvoice',
+      ),
     );
 
-    await _patchStatusConfirm(orderProvider, seatOrders);
+    await _patchStatusConfirm(orderProvider, seatOrders, tableNumber, seat);
     orderProvider.notifyListeners();
 
     await InvoicePrinter.printReceipt(
@@ -35,18 +42,26 @@ class PrintReceiptService {
       userName: userName,
       waiter: seatOrders.isNotEmpty ? seatOrders.first['waiter'] : '',
       areaName: areaName,
-      invoiceNo: ''
+      invoiceNo: '',
     );
   }
 
-  static Future<void> _patchStatusConfirm(OrderProvider orderProvider, List<dynamic> seatOrders) async {
+  static Future<void> _patchStatusConfirm(
+    OrderProvider orderProvider,
+    List<dynamic> seatOrders,
+    String tableNumber,
+    String seat,
+  ) async {
     for (var order in seatOrders) {
-      if (order.containsKey('seathiveOrderId') && order['seathiveOrderId'] != null) {
+      if (order.containsKey('seathiveOrderId') &&
+          order['seathiveOrderId'] != null) {
         await orderProvider.patchOrderStatusBySeathiveOrderId(
           order['seathiveOrderId'],
           "confirm",
+          tableNumber,
+          seat,
         );
       }
-    } 
+    }
   }
 }

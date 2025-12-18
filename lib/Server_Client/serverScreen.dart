@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 
 import 'package:hive_flutter/hive_flutter.dart';
@@ -18,6 +19,7 @@ import 'package:yenpos/Global/globals_data.dart';
 import 'package:yenpos/Global/globals_data.dart' as globals;
 import 'package:yenpos/Hive_Manager/hive_manager_saleOrder.dart';
 import 'package:yenpos/Mode_page/choose_mode_screen.dart';
+import 'package:yenpos/Sale_order/Widgets/Send_data_to_server.dart';
 
 import 'package:yenpos/Server_Client/handlers/websocket_handler.dart';
 
@@ -31,10 +33,9 @@ import 'package:yenpos/background_task/background_permission_guard.dart';
 import 'package:yenpos/background_task/flutter_foreground_task.dart';
 import 'package:yenpos/kotpreinvoice/providers/order_provider.dart';
 import 'package:yenpos/kotpreinvoice/providers/product_provider.dart';
-
 import 'package:yenpos/loginPage/provider/loginPageProvider.dart';
+import 'package:yenpos/more_page/providers/cash_management_provider.dart';
 import 'package:yenpos/shift_managment_page/openshift/open_shift.dart';
-
 import 'package:web_socket_channel/io.dart'; // 👈 this one adds fromSocket()
 
 class LoginScreen extends StatefulWidget {
@@ -46,6 +47,12 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  //Day End
+  final ValueNotifier<bool> isShiftOpened = ValueNotifier(false);
+  final ValueNotifier<ConnectivityResult> _connectivityResult = ValueNotifier(
+    ConnectivityResult.none,
+  );
+  //
   List<Map<String, dynamic>> orders = [];
   HttpServer? _wsServer;
   Set<String> sentPatchOrders = {};
@@ -70,7 +77,15 @@ class _LoginScreenState extends State<LoginScreen> {
   //saleorder
   @override
   initState() {
+    //Day End
     super.initState();
+    _checkConnectivity();
+    // Listen for connectivity changes
+    Connectivity().onConnectivityChanged.listen((result) {
+      _connectivityResult.value =
+          result.first; // Handle Stream<List<ConnectivityResult>>
+    });
+    //
     // HiveManager().invoices.then((_) => _loadInvoices());
     // HiveManager().posInvoiceBox; // Just to ensure it's initialized
     HiveManager.initialize(); // Just to ensure it's initialized
@@ -94,112 +109,82 @@ class _LoginScreenState extends State<LoginScreen> {
     // discoverServerAndHandle();
   }
 
-  Future<void> checkIfServerWasPreviouslyStored() async {
-    print("🔍 [checkIfServerWasPreviouslyStored] Starting check...");
+  //Day End
+  Future<void> _checkConnectivity() async {
+    final result = await Connectivity().checkConnectivity();
+    _connectivityResult.value = result.first;
+  }
+  //
 
+  Future<void> checkIfServerWasPreviouslyStored() async {
     try {
-      print("📦 Opening Hive boxes: configBox & serverBox");
       final configBox = Hive.box('configBox');
       final serverBox = Hive.box('serverBox');
 
       final savedIp = serverBox.get('serverIp')?.toString() ?? '';
       final savedPort = serverBox.get('serverPort')?.toString() ?? '';
 
-      print("📡 Saved Server IP: '$savedIp', Port: '$savedPort'");
-
       if (savedIp.isEmpty || savedPort.isEmpty) {
-        print("⚠️ No previously stored server info found — exiting check.");
         return;
       }
 
-      print("🌐 Fetching local device IP...");
       final localIp = await getLocalIp();
-      print("💻 Local IP Detected: $localIp");
 
       serverip = savedIp;
       serverPort = savedPort;
 
       // 🧠 Check if this device was the server
       if (localIp == savedIp) {
-        print("🖥 Detected local server setup (localIp == savedIp).");
-        print("🔎 Checking if local server port $savedPort is open...");
-
         final isLocalServerRunning = await isPortOpen(
           localIp!,
           int.parse(savedPort),
         );
 
-        print("✅ Local server running status: $isLocalServerRunning");
-
         if (isLocalServerRunning) {
-          print("🚀 Starting in SERVER mode...");
           appType = 'server';
           await configBox.put('appType', 'server');
 
-          print("⚙️ Launching Foreground service for SERVER...");
           await ForegroundHelper.startIfNotRunning(appType: 'server');
-          print("🟢 Foreground service (server) started successfully.");
           await Provider.of<ProductProvider>(
             context,
             listen: false,
           ).fetchAllData(context);
-        } else {
-          print("❌ Local server not running on $localIp:$savedPort.");
-        }
+        } else {}
       } else {
         // 🌐 Client Mode
-        print("📲 Detected as CLIENT device (savedIp != localIp).");
-        print(
-          "🔎 Checking if remote server $savedIp:$savedPort is reachable...",
-        );
 
         final reachable = await isServerReachable(
           savedIp,
           int.parse(savedPort),
         );
 
-        print("🌍 Server reachability: $reachable");
-
         if (reachable) {
-          print("🚀 Starting in CLIENT mode...");
           appType = 'client';
           await configBox.put('appType', 'client');
 
           try {
-            print("⚙️ Launching Foreground service for CLIENT...");
             await ForegroundHelper.startIfNotRunning(appType: 'client');
-            print("🟢 Foreground service (client) started successfully.");
           } catch (e) {
-            print("🔥 Error while starting foreground service (client): $e");
             if (mounted) {
               ScaffoldMessenger.of(
                 context,
               ).showSnackBar(SnackBar(content: Text('WebSocket error: $e')));
             }
           }
-        } else {
-          print("❌ Saved server not reachable at $savedIp:$savedPort.");
-        }
+        } else {}
       }
 
       // ✅ Finalize
       if (mounted) {
-        print(
-          "✅ Server check complete — updating serverFoundNotifier to true.",
-        );
         serverFoundNotifier.value = true;
       }
     } catch (e, stack) {
-      print("🔥 Exception caught in checkIfServerWasPreviouslyStored: $e");
-      print(stack);
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error checking server: $e')));
       }
     }
-
-    print("🔚 [checkIfServerWasPreviouslyStored] Finished execution.\n");
   }
 
   Future<bool> isPortOpen(String ip, int port) async {
@@ -218,8 +203,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // Future<void> startServer(Set<WebSocketChannel> clients, Function(Map<String, dynamic>, WebSocketChannel) onDataReceived) async {
   //   try {
-  //     final server = await HttpServer.bind(InternetAddress.anyIPv4, 8181);
-  //     print("✅ [SERVER] Started on port 8181");
+  //     final server = await HttpServer.bind(InternetAddress.anyIPv4, 8686);
+  //     print("✅ [SERVER] Started on port 8686");
   //     print("===========================================");
 
   //     await for (HttpRequest request in server) {
@@ -262,7 +247,6 @@ class _LoginScreenState extends State<LoginScreen> {
     Function(Map<String, dynamic>, WebSocketChannel) onDataReceived,
   ) async {
     if (_wsServer != null) {
-      print("ℹ️ Server already running.");
       return;
     }
     try {
@@ -277,9 +261,7 @@ class _LoginScreenState extends State<LoginScreen> {
           onDataReceived(data, channel);
         });
       });
-      print("✅ WebSocket server started on port $port");
     } catch (e) {
-      print("❌ Failed to start server: $e");
       if (mounted) {
         debugPrint('Failed to start server: $e');
         // CustomSnackBar.show(
@@ -320,134 +302,163 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  void showLoadingDialog(
+    BuildContext context, {
+    String message = "Please wait...",
+  }) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => WillPopScope(
+        onWillPop: () async => false,
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(width: 16),
+                Text(message, style: const TextStyle(fontSize: 14)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void hideLoadingDialog(BuildContext context) {
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    }
+  }
+
   Future<void> proceedToDashboard(BuildContext context) async {
-    print("➡️ Proceeding to dashboard initialization...");
+    print("🚀 [proceedToDashboard] Function called");
 
     if (!context.mounted) {
-      print("⚠️ Context not mounted, aborting dashboard navigation.");
+      print("⚠️ Context not mounted. Returning.");
       return;
     }
 
-    if (globals.aliasname == null || globals.aliasname!.trim().isEmpty) {
-      print("⚠️ Alias name is empty or null.");
-      return;
-    }
-
-    print("🏷 Alias name: ${globals.aliasname}");
-
-    final itemProvider = Provider.of<ItemProvider>(context, listen: false);
-    final branchInfo = await itemProvider.getBranchInfoFromAlias(
-      globals.aliasname!,
-    );
-
-    if (branchInfo == null) {
-      print("❌ Branch info not found for alias: ${globals.aliasname}");
-      return;
-    }
-
-    // Set globals safely
-    globals.branchName = branchInfo['branchName'] ?? 'Branch Not Found';
-    globals.branchAddress = branchInfo['address'] ?? 'Address Not Available';
-    globals.branchPhoneno = branchInfo['phone'] ?? 'Phone Not Available';
-
-    print("✅ Global branch info set:");
-    print("🏢 Name: ${globals.branchName}");
-    print("📍 Address: ${globals.branchAddress}");
-    print("📞 Phone: ${globals.branchPhoneno}");
-
-    // ✅ Use globals.branchName safely
-    if (!context.mounted) return;
-
-    if (globals.branchName == null ||
-        globals.branchName == 'Branch Not Found') {
-      print("❌ Branch not found for alias: ${globals.aliasname}");
-      return;
-    }
-
-    final url = Uri.parse(
-      'https://yenerp.com/fastapi/shifts/check-open-shift?branch_name=${globals.branchName}',
-    );
-
-    print("🌐 Sending request to check open shift: $url");
-
-    final client = http.Client();
+    // 🔄 SHOW LOADING (Shift check start)
+    showLoadingDialog(context, message: "Checking shift status...");
 
     try {
-      final response = await client.get(url);
-      print("📩 Shift check response status: ${response.statusCode}");
-      print("📦 Response body: ${response.body}");
+      // Step 1: Alias check
+      if (globals.aliasname == null || globals.aliasname!.trim().isEmpty) {
+        print("⚠️ Alias name is null or empty");
+        hideLoadingDialog(context);
+        return;
+      }
+      print("✅ Alias name: ${globals.aliasname}");
+
+      // Step 2: Branch info
+      final itemProvider = Provider.of<ItemProvider>(context, listen: false);
+      print("🔄 Fetching branch info...");
+      final branchInfo = await itemProvider.getBranchInfoFromAlias(
+        globals.aliasname!,
+      );
+
+      if (branchInfo == null) {
+        print("❌ Branch info not found");
+        hideLoadingDialog(context);
+        return;
+      }
+
+      globals.branchName = branchInfo['branchName'] ?? "";
+      globals.branchAddress = branchInfo['address'] ?? "";
+      globals.branchPhoneno = branchInfo['phone'] ?? "";
+
+      print("📌 Branch set: ${globals.branchName}");
+
+      // Step 3: Shift API
+      final url = Uri.parse(
+        'https://yenerp.com/fluttertestapi/dayendvalidations/status'
+        '?empId=$userName&branchName=${globals.branchName}',
+      );
+
+      print("🌐 API URL: $url");
+
+      final response = await http.get(url);
+
+      print("📡 Response: ${response.statusCode} | ${response.body}");
+
+      hideLoadingDialog(context); // ✅ HIDE LOADING AFTER API
 
       if (response.statusCode == 200 && response.body.isNotEmpty) {
         final data = jsonDecode(response.body);
-        print("✅ Decoded shift data: $data");
 
         globals.shiftId.value = data['shiftId']?.toString() ?? '0';
         globals.shiftNumber.value = data['shiftNumber']?.toString() ?? '0';
 
-        print("🆔 Shift ID: ${globals.shiftId.value}");
-        print("🔢 Shift Number: ${globals.shiftNumber.value}");
+        print(
+          "📌 ShiftId: ${globals.shiftId.value}, ShiftNumber: ${globals.shiftNumber.value}",
+        );
 
         int shiftNumberInt = int.tryParse(globals.shiftNumber.value) ?? 0;
 
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!context.mounted) return;
+        if (!context.mounted) return;
 
-          if (shiftNumberInt != 0) {
-            print("✅ Active shift found — navigating to ChooseModePage...");
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => ChooseModePage()),
-            );
-          } else {
-            print("⚠️ No open shift found — navigating to OpenShift page...");
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('No open shift found for today.'),
-                backgroundColor: Colors.orange,
-              ),
-            );
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => OpenShift()),
-            );
-          }
-        });
-      } else {
-        print("❌ Failed to fetch shift data or response empty.");
-        if (context.mounted) {
+        if (shiftNumberInt != 0) {
+          print("✅ Open shift found → ChooseModePage");
+          hideLoadingDialog(context);
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => ChooseModePage()),
+          );
+        } else {
+          print("⚠️ No open shift → OpenShift");
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Failed to fetch shift data.'),
-              backgroundColor: Colors.red,
+              content: Text('No open shift found for today'),
+              backgroundColor: Colors.orange,
             ),
           );
+          hideLoadingDialog(context);
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => OpenShift()),
+          );
         }
-      }
-    } catch (e, stack) {
-      print("🔥 Error in proceedToDashboard: $e");
-      print(stack);
-      if (context.mounted) {
+      } else {
+        hideLoadingDialog(context);
+        print("❌ Failed to fetch shift data");
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          const SnackBar(
+            content: Text('Failed to fetch shift data'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
-    } finally {
-      client.close();
-      print("🔚 HTTP client closed.");
+    } catch (e, stack) {
+      hideLoadingDialog(context);
+      print("❌ Exception: $e");
+      print("📄 StackTrace: $stack");
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
   /// 📡 Discover server or create one if not found
   Future<void> discoverServerAndHandle() async {
-    print("🔍 Starting server discovery via UDP...");
+    print("🔍 [discoverServerAndHandle] called");
 
     final udp = await UDP.bind(Endpoint.any());
     udp.send(
       utf8.encode('WHO_IS_SERVER'),
-      Endpoint.broadcast(port: const Port(56789)),
+      Endpoint.broadcast(port: Port(udpPort)),
     );
-
-    print("📤 Broadcasted WHO_IS_SERVER on port 56789.");
 
     final serverBox = await Hive.openBox('serverBox');
     bool found = false;
@@ -458,14 +469,13 @@ class _LoginScreenState extends State<LoginScreen> {
       )) {
         if (datagram != null) {
           final message = utf8.decode(datagram.data);
-          print("📨 Received UDP message: $message");
 
           if (message.startsWith('SERVER:')) {
+            print("✅ Server found via UDP");
+
             final parts = message.split(':');
             final ip = parts[1];
             final port = parts[2];
-
-            print("✅ Server discovered at $ip:$port");
 
             await serverBox.put('serverIp', ip);
             await serverBox.put('serverPort', port);
@@ -477,74 +487,83 @@ class _LoginScreenState extends State<LoginScreen> {
 
             found = true;
             udp.close();
-            print("🧩 UDP listener closed after finding server.");
 
             await ForegroundHelper.startIfNotRunning(appType: 'client');
 
-            print("🚀 Foreground service started as client.");
+            /// ❌ DO NOT HIDE LOADING HERE
             await proceedToDashboard(context);
-            break;
+            return;
           }
         }
       }
     } catch (e) {
-      print("❌ Error during server discovery: $e");
+      print("❌ UDP discovery error: $e");
     }
 
+    /// 🟥 No server found → show dialog
     if (!found && mounted) {
-      print("⚠️ No server found — prompting user to create one.");
-
       udp.close();
+
+      hideLoadingDialog(context); // ❗ hide before dialog
 
       showDialog(
         context: context,
+        barrierDismissible: false,
         builder: (_) => NoServerDialog(
           onMakeServer: () async {
-            print("🛠 User chose to make this device the server.");
+            if (!mounted) return;
+
+            /// 🔄 SHOW LOADING AGAIN
+            showLoadingDialog(context, message: "Creating server...");
 
             final ip = await getLocalIp();
-            if (ip != null) {
-              print("✅ Setting up server on local IP: $ip");
-
-              final box = await Hive.openBox('serverBox');
-              await box.put('serverIp', ip);
-              await box.put('serverPort', port);
-
-              final configBox = HiveManager().configBox;
-              appType = 'server';
-              await configBox.put('appType', 'server');
-
-              Provider.of<ItemProvider>(
-                context,
-                listen: false,
-              ).fetchDataIfNeeded(branchAlias: globals.aliasname);
-
-              serverip = ip;
-
-              setState(() {
-                serverFound = true;
-              });
-
-              await ForegroundHelper.startIfNotRunning(appType: 'server');
-              print("⚙️ Foreground service started as server.");
-
-              startUdpResponder(ip, udpPort);
-              print("📡 UDP responder started on port $udpPort.");
-
-              startServer(clients, onDataReceived);
-              print("🧠 Local server started successfully.");
-              await Provider.of<ProductProvider>(
-                context,
-                listen: false,
-              ).fetchAllData(context);
-              await Provider.of<OrderProvider>(
-                context,
-                listen: false,
-              ).requestDataFromServer();
-              proceedToDashboard(context);
-            } else {
-              print("❌ Failed to get local IP — cannot start server.");
+            if (ip == null) {
+              hideLoadingDialog(context);
+              return;
             }
+
+            print("🖥️ Creating server on IP: $ip");
+
+            final box = await Hive.openBox('serverBox');
+            await box.put('serverIp', ip);
+            await box.put('serverPort', port);
+
+            final configBox = HiveManager().configBox;
+            appType = 'server';
+            await configBox.put('appType', 'server');
+
+            serverip = ip;
+
+            setState(() {
+              serverFound = true;
+            });
+
+            await ForegroundHelper.startIfNotRunning(appType: 'server');
+
+            startUdpResponder(ip, udpPort);
+            startServer(clients, onDataReceived);
+
+            print("📦 Fetching initial data...");
+
+            await Provider.of<ProductProvider>(
+              context,
+              listen: false,
+            ).fetchAllData(context);
+
+            await Provider.of<OrderProvider>(
+              context,
+              listen: false,
+            ).requestDataFromServer();
+
+            await Provider.of<ItemProvider>(
+              context,
+              listen: false,
+            ).fetchAndSaveSalesOrders(branchAlias: globals.aliasname);
+
+            print("✅ Server setup complete");
+
+            /// 🚀 NOW GO TO DASHBOARD
+            await proceedToDashboard(context);
           },
         ),
       );
@@ -856,8 +875,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                     onPressed: loginProvider.isSigningIn
                                         ? null
                                         : () async {
-                                            print("🔹 Login button clicked.");
-
                                             // 🧠 Remove focus from all TextFields (hide keyboard)
                                             FocusScope.of(context).unfocus();
 
@@ -865,51 +882,30 @@ class _LoginScreenState extends State<LoginScreen> {
                                                 await loginProvider.loginUser(
                                                   context,
                                                 );
-                                            print(
-                                              "✅ Login success: $loginSuccess",
-                                            );
 
                                             if (loginSuccess) {
-                                              print(
-                                                "🔍 Checking if server is already found...",
-                                              );
                                               if (serverFound) {
-                                                print(
-                                                  "✅ Server previously found: $serverip",
-                                                );
                                                 bool isAlive =
                                                     await isServerReachable(
                                                       serverip,
-                                                      8181,
+                                                      port,
                                                     );
-                                                print(
-                                                  "🌐 Server reachable: $isAlive",
-                                                );
 
                                                 if (isAlive) {
-                                                  print(
-                                                    "🚀 Proceeding to dashboard...",
-                                                  );
                                                   await proceedToDashboard(
                                                     context,
                                                   );
                                                 } else {
-                                                  print(
-                                                    "⚠️ Server not reachable — discovering again...",
-                                                  );
                                                   await discoverServerAndHandle();
                                                 }
                                               } else {
-                                                print(
-                                                  "🔎 No existing server found — starting discovery...",
-                                                );
                                                 await discoverServerAndHandle();
                                               }
-                                            } else {
-                                              print(
-                                                "❌ Login failed — staying on login screen.",
-                                              );
-                                            }
+                                            } else {}
+                                            loginProvider.userNameController
+                                                .clear();
+                                            loginProvider.passwordController
+                                                .clear();
                                           },
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.blue.shade800,
@@ -933,6 +929,483 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 25),
+                                ValueListenableBuilder<bool>(
+                                  valueListenable: isShiftOpened,
+                                  builder: (context, opened, child) {
+                                    return Visibility(
+                                      visible: !opened,
+                                      child: OutlinedButton(
+                                        onPressed: () async {
+                                          final ValidationData = {
+                                            "branchName": branchName,
+                                            // Add other necessary fields
+                                          };
+                                          // await CashManagementProvider.postValidationData(
+                                          //     ValidationData, context);
+                                          await CashManagementProvider.fetchValidationDetails();
+                                          await CashManagementProvider.fetchShiftDetails();
+                                          await CashManagementProvider.fetchShiftOpenCheck();
+
+                                          final status = globals.status.value;
+                                          final dayEndStatus =
+                                              globals.dayEndStatus.value;
+                                          final connectivity =
+                                              _connectivityResult.value;
+                                          final dispatch = dispatchStatus.value;
+                                          final itemTransfer =
+                                              itemTransferStatus.value;
+                                          final soApproval =
+                                              soApprovalStatus.value;
+                                          final store = storeStatus.value;
+                                          final soDelivery =
+                                              soDeliveryStatus.value;
+
+                                          final isConnected =
+                                              connectivity !=
+                                              ConnectivityResult.none;
+                                          final isDayOpen = status == "open";
+                                          final isDispatchApproved =
+                                              dispatch.isEmpty ||
+                                              dispatch == "success";
+                                          final isItemTransferApproved =
+                                              itemTransfer.isEmpty ||
+                                              itemTransfer == "success";
+                                          final isSoApprovalApproved =
+                                              soApproval.isEmpty ||
+                                              soApproval == "success";
+                                          final isStoreApproved =
+                                              store.isEmpty ||
+                                              store == "success";
+                                          final isSoDeliveryApproved =
+                                              soDelivery.isEmpty ||
+                                              soDelivery == "success";
+
+                                          void showPremiumDialog({
+                                            required BuildContext context,
+                                            required String title,
+                                            required Widget content,
+                                            Color accentColor = Colors
+                                                .blueAccent, // default accent
+                                            IconData? icon, // optional icon
+                                          }) {
+                                            showDialog(
+                                              context: context,
+                                              barrierDismissible: true,
+                                              builder: (context) => Dialog(
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(20),
+                                                ),
+                                                elevation: 10,
+                                                backgroundColor:
+                                                    Colors.transparent,
+                                                child: Container(
+                                                  decoration: BoxDecoration(
+                                                    gradient: LinearGradient(
+                                                      colors: [
+                                                        Colors.white,
+                                                        Colors.grey.shade100,
+                                                      ],
+                                                      begin: Alignment.topLeft,
+                                                      end:
+                                                          Alignment.bottomRight,
+                                                    ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          20,
+                                                        ),
+                                                    boxShadow: [
+                                                      BoxShadow(
+                                                        color: Colors.black26,
+                                                        blurRadius: 15,
+                                                        offset: Offset(0, 8),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  padding: EdgeInsets.all(20),
+                                                  child: Column(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      if (icon != null) ...[
+                                                        Container(
+                                                          padding:
+                                                              EdgeInsets.all(
+                                                                12,
+                                                              ),
+                                                          decoration:
+                                                              BoxDecoration(
+                                                                color: accentColor
+                                                                    .withOpacity(
+                                                                      0.1,
+                                                                    ),
+                                                                shape: BoxShape
+                                                                    .circle,
+                                                              ),
+                                                          child: Icon(
+                                                            icon,
+                                                            color: accentColor,
+                                                            size: 40,
+                                                          ),
+                                                        ),
+                                                        SizedBox(height: 15),
+                                                      ],
+                                                      // Title
+                                                      Text(
+                                                        title,
+                                                        style: TextStyle(
+                                                          fontFamily: 'Poppins',
+                                                          fontSize: 20,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          color: Colors.black87,
+                                                          letterSpacing: 0.5,
+                                                        ),
+                                                        textAlign:
+                                                            TextAlign.center,
+                                                      ),
+                                                      SizedBox(height: 10),
+                                                      // Content
+                                                      content,
+                                                      SizedBox(height: 20),
+                                                      // Action Button
+                                                      SizedBox(
+                                                        width: double.infinity,
+                                                        child: ElevatedButton(
+                                                          style: ElevatedButton.styleFrom(
+                                                            backgroundColor:
+                                                                accentColor,
+                                                            padding:
+                                                                EdgeInsets.symmetric(
+                                                                  vertical: 14,
+                                                                ),
+                                                            shape: RoundedRectangleBorder(
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                    12,
+                                                                  ),
+                                                            ),
+                                                            elevation: 5,
+                                                          ),
+                                                          onPressed: () =>
+                                                              Navigator.pop(
+                                                                context,
+                                                              ),
+                                                          child: Text(
+                                                            'OK',
+                                                            style: TextStyle(
+                                                              fontFamily:
+                                                                  'Poppins',
+                                                              fontSize: 16,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold,
+                                                              color:
+                                                                  Colors.white,
+                                                              letterSpacing:
+                                                                  0.5,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          }
+
+                                          if (isDayOpen) {
+                                            showPremiumDialog(
+                                              context: context,
+                                              title: 'Warning',
+                                              content: const Text(
+                                                'Shift is not closed yet.',
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                  fontFamily: 'Poppins',
+                                                  color: Colors.black54,
+                                                  fontSize: 16,
+                                                ),
+                                              ),
+                                              accentColor: Colors.orangeAccent,
+                                              icon: Icons.warning_amber_rounded,
+                                            );
+                                            return;
+                                          }
+
+                                          if (!isConnected) {
+                                            showPremiumDialog(
+                                              context: context,
+                                              title: 'Network Error',
+                                              content: const Text(
+                                                'No internet connection. Please check your network.',
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                  fontFamily: 'Poppins',
+                                                  color: Colors.black54,
+                                                  fontSize: 16,
+                                                ),
+                                              ),
+                                              accentColor: Colors.redAccent,
+                                              icon: Icons.wifi_off_rounded,
+                                            );
+                                            return;
+                                          }
+
+                                          if (!isDispatchApproved &&
+                                              dispatch.isNotEmpty) {
+                                            showPremiumDialog(
+                                              context: context,
+                                              title: 'Error',
+                                              content: const Text(
+                                                'Some dispatches are not received yet.',
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                  fontFamily: 'Poppins',
+                                                  color: Colors.black54,
+                                                  fontSize: 16,
+                                                ),
+                                              ),
+                                              accentColor: Colors.redAccent,
+                                              icon: Icons.error_outline,
+                                            );
+                                            return;
+                                          }
+
+                                          if (!isItemTransferApproved &&
+                                              itemTransfer.isNotEmpty) {
+                                            showPremiumDialog(
+                                              context: context,
+                                              title: 'Error',
+                                              content: const Text(
+                                                'Some item transfers are not received yet.',
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                  fontFamily: 'Poppins',
+                                                  color: Colors.black54,
+                                                  fontSize: 16,
+                                                ),
+                                              ),
+                                              accentColor: Colors.redAccent,
+                                              icon: Icons.error_outline,
+                                            );
+                                            return;
+                                          }
+
+                                          if (!isSoApprovalApproved &&
+                                              soApproval.isNotEmpty) {
+                                            showPremiumDialog(
+                                              context: context,
+                                              title: 'Error',
+                                              content: const Text(
+                                                'Some Sale Order approvals are pending.',
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                  fontFamily: 'Poppins',
+                                                  color: Colors.black54,
+                                                  fontSize: 16,
+                                                ),
+                                              ),
+                                              accentColor: Colors.redAccent,
+                                              icon: Icons.error_outline,
+                                            );
+                                            return;
+                                          }
+
+                                          if (!isStoreApproved &&
+                                              store.isNotEmpty) {
+                                            showPremiumDialog(
+                                              context: context,
+                                              title: 'Error',
+                                              content: const Text(
+                                                'Store Dispatch is not received.',
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                  fontFamily: 'Poppins',
+                                                  color: Colors.black54,
+                                                  fontSize: 16,
+                                                ),
+                                              ),
+                                              accentColor: Colors.redAccent,
+                                              icon: Icons.error_outline,
+                                            );
+                                            return;
+                                          }
+
+                                          if (!isSoDeliveryApproved &&
+                                              soDelivery.isNotEmpty) {
+                                            showPremiumDialog(
+                                              context: context,
+                                              title: 'Error',
+                                              content: const Text(
+                                                'Some Sale Orders are not Delivered or pending.',
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                  fontFamily: 'Poppins',
+                                                  color: Colors.black54,
+                                                  fontSize: 16,
+                                                ),
+                                              ),
+                                              accentColor: Colors.redAccent,
+                                              icon: Icons.error_outline,
+                                            );
+                                            return;
+                                          }
+
+                                          if (dayEndStatus.isEmpty ||
+                                              dayEndStatus == "closed") {
+                                            showPremiumDialog(
+                                              context: context,
+                                              title: 'Error',
+                                              content: const Text(
+                                                'Cannot end day: No open shift available',
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                  fontFamily: 'Poppins',
+                                                  color: Colors.black54,
+                                                  fontSize: 16,
+                                                ),
+                                              ),
+                                              accentColor: Colors.redAccent,
+                                              icon: Icons.error_outline,
+                                            );
+                                            return;
+                                          }
+
+                                          // Show confirmation dialog
+                                          showDialog(
+                                            context: context,
+                                            builder: (context) => AlertDialog(
+                                              backgroundColor: Colors.white,
+                                              title: const Center(
+                                                child: Text('Confirm Day End'),
+                                              ),
+                                              content: const Text(
+                                                'Are you sure you want to end the day?',
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () =>
+                                                      Navigator.pop(context),
+                                                  child: const Text(
+                                                    'Cancel',
+                                                    style: TextStyle(
+                                                      fontFamily: 'Poppins',
+                                                      color: Colors.blue,
+                                                    ),
+                                                  ),
+                                                ),
+                                                TextButton(
+                                                  onPressed: () async {
+                                                    try {
+                                                      CashManagementProvider.fetchShiftDetails();
+                                                      final dayEndPost = {
+                                                        "branchName":
+                                                            branchName,
+                                                        // Add other necessary fields
+                                                      };
+                                                      await CashManagementProvider.postDayEndData(
+                                                        dayEndPost,
+                                                        context,
+                                                      );
+                                                      await CashManagementProvider.fetchShiftDetails();
+
+                                                      if (context.mounted) {
+                                                        Navigator.pop(
+                                                          context,
+                                                        ); // close any loading dialogs
+
+                                                        showPremiumDialog(
+                                                          context: context,
+                                                          title: 'Success',
+                                                          content: const Text(
+                                                            'Day End completed successfully.',
+                                                            textAlign: TextAlign
+                                                                .center,
+                                                            style: TextStyle(
+                                                              fontFamily:
+                                                                  'Poppins',
+                                                              color: Colors
+                                                                  .black54,
+                                                              fontSize: 16,
+                                                            ),
+                                                          ),
+                                                          accentColor:
+                                                              Colors.green,
+                                                          icon: Icons
+                                                              .check_circle_outline,
+                                                        );
+                                                      }
+                                                    } catch (e) {
+                                                      if (context.mounted) {
+                                                        Navigator.pop(context);
+
+                                                        showPremiumDialog(
+                                                          context: context,
+                                                          title: 'Error',
+                                                          content: Text(
+                                                            'Day End failed: $e',
+                                                            textAlign: TextAlign
+                                                                .center,
+                                                            style: TextStyle(
+                                                              fontFamily:
+                                                                  'Poppins',
+                                                              color: Colors
+                                                                  .black54,
+                                                              fontSize: 16,
+                                                            ),
+                                                          ),
+                                                          accentColor:
+                                                              Colors.redAccent,
+                                                          icon: Icons
+                                                              .error_outline,
+                                                        );
+                                                      }
+                                                    }
+                                                  },
+                                                  child: const Text(
+                                                    'Confirm',
+                                                    style: TextStyle(
+                                                      fontFamily: 'Poppins',
+                                                      color: Colors.blue,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: Colors.black,
+                                          backgroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 146,
+                                            vertical: 15,
+                                          ),
+                                          textStyle: const TextStyle(
+                                            fontFamily: 'Poppins',
+                                            fontSize: 16,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                          disabledForegroundColor: Colors.grey,
+                                        ),
+                                        child: const Text(
+                                          "Day End",
+                                          style: TextStyle(
+                                            fontFamily: 'Poppins',
+                                            fontSize: 20,
+                                            letterSpacing: 1,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
 
                                 Divider(
                                   color: Colors.grey.shade300,

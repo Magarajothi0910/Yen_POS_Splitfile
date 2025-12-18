@@ -249,7 +249,7 @@ class _OrderSummaryCardState extends State<OrderSummaryCard> {
         for (final seathiveOrderId in uniqueSeatHiveOrderIds) {
           try {
             print("📤 Patching status=confirm for seathiveOrderId: $seathiveOrderId");
-            await orderProvider.patchOrderStatusBySeathiveOrderId(seathiveOrderId, "confirm");
+            await orderProvider.patchOrderStatusBySeathiveOrderId(seathiveOrderId, "confirm" , tableNumber , seat);
             print("✅ Status patched successfully for: $seathiveOrderId");
           } catch (patchError, stack) {
             print("❌ Failed to patch status for $seathiveOrderId: $patchError");
@@ -1131,7 +1131,7 @@ class _OrderSummaryCardState extends State<OrderSummaryCard> {
 
                         if (!context.mounted) return;
 
-                        Provider.of<BottomNavProviderKOT>(context, listen: false).updateIndex(0);
+                        // Provider.of<BottomNavProviderKOT>(context, listen: false).updateIndex(0);
                         // ignore: invalid_use_of_protected_member
                         orderProvider.notifyListeners(); // ensure UI update
 
@@ -1141,7 +1141,7 @@ class _OrderSummaryCardState extends State<OrderSummaryCard> {
                           context,
                           MaterialPageRoute(builder: (context) => const OrderSummaryScreen()),
                         );
-                        Provider.of<BottomNavProviderKOT>(context, listen: false).updateIndex(1);
+                        // Provider.of<BottomNavProviderKOT>(context, listen: false).updateIndex(1);
                       } catch (e) {
                         print("Submission error: $e");
                         if (context.mounted) {

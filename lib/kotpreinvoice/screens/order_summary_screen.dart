@@ -134,7 +134,7 @@ class OrderSummaryScreen extends StatelessWidget {
                 if (orders.isEmpty) {
                   return const Scaffold(
                     backgroundColor: Colors.white,
-                    appBar: GlobalAppBar(title: 'Kot Order Summary'),
+                    // appBar: GlobalAppBar(title: 'Kot Order Summary'),
                     body: Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -148,7 +148,7 @@ class OrderSummaryScreen extends StatelessWidget {
                         ],
                       ),
                     ),
-                    bottomNavigationBar: GlobalBottomNav(),
+                    // bottomNavigationBar: GlobalBottomNav(),
                   );
                 }
 
@@ -170,7 +170,7 @@ class OrderSummaryScreen extends StatelessWidget {
 
                 return Scaffold(
                   backgroundColor: Colors.white,
-                  appBar: const GlobalAppBar(title: 'Kot Order Summary'),
+                  // appBar: const GlobalAppBar(title: 'Kot Order Summary'),
                   body: ListView.builder(
                     itemCount: sortedTables.length,
                     itemBuilder: (context, index) {
@@ -257,7 +257,7 @@ class OrderSummaryScreen extends StatelessWidget {
                       );
                     },
                   ),
-                  bottomNavigationBar: const GlobalBottomNav(),
+                  // bottomNavigationBar: const GlobalBottomNav(),
                 );
               } catch (e, st) {
                 debugPrint('💥 Error building OrderSummaryScreen UI: $e\n$st');

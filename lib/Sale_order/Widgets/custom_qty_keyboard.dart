@@ -136,7 +136,7 @@ class QtyCustomKeyboardWidgetAll2 extends StatelessWidget {
     ['1', '2', '3'],
     ['4', '5', '6'],
     ['7', '8', '9'],
-    ['.', '0', '⌫'], // added ABC toggle
+    ['0', '⌫'], // added ABC toggle
   ];
 
   List<List<String>> _alpha(bool upper) {

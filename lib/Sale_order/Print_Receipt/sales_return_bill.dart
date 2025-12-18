@@ -15,7 +15,7 @@ class SalesReturnBill {
     required List<Map<String, dynamic>> returnItems,
   }) async {
     // Static data setup
-    String employeeNumber = 'EMP567896';
+    String employeeNumber = 'EMP656596';
     String customerNumber = 'CUST78910';
     String formattedDate = DateFormat('dd-MM-yyyy').format(DateTime.now());
     String formattedTime = DateFormat('hh:mm a').format(DateTime.now());
@@ -29,7 +29,7 @@ class SalesReturnBill {
     final printer = NetworkPrinter(PaperSize.mm80, profile);
 
     final PosPrintResult res = await printer.connect(
-      '192.168.1.90',
+      '192.168.29.51',
       port: 9100,
     );
     if (res == PosPrintResult.success) {

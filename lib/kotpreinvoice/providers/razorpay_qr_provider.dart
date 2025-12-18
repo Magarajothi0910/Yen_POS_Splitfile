@@ -36,13 +36,12 @@ class RazorpayProvider extends ChangeNotifier {
     debugPrint("💰 Creating QR for ₹${price.toStringAsFixed(2)}...");
 
     try {
-      final response = await _dio.post("/razorPay/create_qr/?price=$price");
+      final response = await _dio.post(
+        "/razorPay/create_qr/?price=$price",
+      );
 
       developer.log('📦 Response Data: ${response.data}', name: 'RazorpayQR');
-      developer.log(
-        '📡 Status Code: ${response.statusCode}',
-        name: 'RazorpayQR',
-      );
+      developer.log('📡 Status Code: ${response.statusCode}', name: 'RazorpayQR');
 
       if (response.statusCode == 200 && response.data is Map<String, dynamic>) {
         final data = response.data as Map<String, dynamic>;
@@ -62,15 +61,10 @@ class RazorpayProvider extends ChangeNotifier {
     } on DioException catch (e) {
       // 💥 Dio-specific errors
       if (e.response != null && e.response!.data != null) {
-        developer.log(
-          '🧾 Error Response: ${e.response!.data}',
-          name: 'RazorpayQR',
-        );
+        developer.log('🧾 Error Response: ${e.response!.data}', name: 'RazorpayQR');
 
         if (e.response!.data is Map<String, dynamic>) {
-          errorMessage =
-              (e.response!.data as Map<String, dynamic>)["error"]?.toString() ??
-              "Unknown server error ⚠️";
+          errorMessage = (e.response!.data as Map<String, dynamic>)["error"]?.toString() ?? "Unknown server error ⚠️";
         } else if (e.response!.data is String) {
           errorMessage = e.response!.data.toString();
         } else {
@@ -100,28 +94,25 @@ class RazorpayProvider extends ChangeNotifier {
       Uri.parse("wss://yenerp.com/fastapi/razorPay/ws/$qrId"),
     );
 
-    _channel!.stream.listen(
-      (message) {
-        final data = json.decode(message);
-        if (data["status"] == "success") {
-          paymentSuccess = true;
-          notifyListeners();
-
-          // Auto close WebSocket after success
-          disconnectWebSocket();
-        } else if (data["status"] == "failed") {
-          errorMessage = "Payment Failed: ${data["reason"]}";
-          notifyListeners();
-
-          // Optionally close WebSocket after failure
-          disconnectWebSocket();
-        }
-      },
-      onError: (error) {
-        errorMessage = "WebSocket Error: $error";
+    _channel!.stream.listen((message) {
+      final data = json.decode(message);
+      if (data["status"] == "success") {
+        paymentSuccess = true;
         notifyListeners();
-      },
-    );
+
+        // Auto close WebSocket after success
+        disconnectWebSocket();
+      } else if (data["status"] == "failed") {
+        errorMessage = "Payment Failed: ${data["reason"]}";
+        notifyListeners();
+
+        // Optionally close WebSocket after failure
+        disconnectWebSocket();
+      }
+    }, onError: (error) {
+      errorMessage = "WebSocket Error: $error";
+      notifyListeners();
+    });
   }
 
   void disconnectWebSocket() {

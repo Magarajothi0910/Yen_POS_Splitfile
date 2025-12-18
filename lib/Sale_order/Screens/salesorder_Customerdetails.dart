@@ -5,8 +5,10 @@ import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:yenpos/Global/Widget/filesave.dart';
+import 'package:yenpos/Global/global_data_manager.dart';
 import 'package:yenpos/Global/globals_data.dart' as globals;
 import 'package:yenpos/Global/globals_data.dart';
+import 'package:yenpos/Hive_Manager/hive_manager_saleOrder.dart';
 import 'package:yenpos/Sale_order/Models/held_order_model.dart';
 import 'package:yenpos/Sale_order/Provider/cartProvider.dart';
 import 'package:yenpos/Sale_order/Provider/cart_selection_provider.dart';
@@ -47,14 +49,14 @@ class _CustomerDetailsState extends State<CustomerDetails> {
   bool isSuggestionsVisible = false;
   TextEditingController controller123 = TextEditingController();
   void _loadStoredImages() {
+    final customerScreenProvider = Provider.of<CustomerScreenProvider>(
+      context,
+      listen: false,
+    );
     final box = Hive.box('imagesBox');
     String? imagePath1 = box.get('image1');
     String? imagePath2 = box.get('image2');
     setState(() {
-      final customerScreenProvider = Provider.of<CustomerScreenProvider>(
-        context,
-        listen: false,
-      );
       customerScreenProvider.pickedImage1 = imagePath1 != null
           ? File(imagePath1)
           : null;
@@ -62,6 +64,7 @@ class _CustomerDetailsState extends State<CustomerDetails> {
           ? File(imagePath2)
           : null;
     });
+    customerScreenProvider.clearControllers();
   }
 
   final _remarkFocus = FocusNode();
@@ -176,7 +179,7 @@ class _CustomerDetailsState extends State<CustomerDetails> {
     bool hasInvalidBoxItems = globals.cartItems.any((item) {
       if (item.isBoxItem.toString().toLowerCase() == 'yes') {
         int boxQty = item.boxQuantity ?? 0; // treat null as 0
-        int quantity = item.quantity ?? 0; // treat null as 0
+        int quantity = item.quantity.value ?? 0; // treat null as 0
         return boxQty <= 0 || quantity <= 0; // either invalid
       }
       return false;
@@ -202,16 +205,13 @@ class _CustomerDetailsState extends State<CustomerDetails> {
   void initState() {
     super.initState();
     _loadStoredImages();
-    Provider.of<CustomerScreenProvider>(
-      context,
-      listen: false,
-    ).setSelectedDeliveryType('Pickup by Customer');
     final customerScreenProvider = Provider.of<CustomerScreenProvider>(
       context,
       listen: false,
     );
-    // customerScreenProvider.clearControllers();
-    customerScreenProvider.setSelectedEvent('Birthday');
+    customerScreenProvider.setSelectedEvent("Birth Day");
+    customerScreenProvider.setSelectedDeliveryType("Pickup By Customer");
+    customerScreenProvider.setSelectedCustomCharge("Custom Charges");
   }
 
   void handleRecordingComplete(String path) {
@@ -221,6 +221,12 @@ class _CustomerDetailsState extends State<CustomerDetails> {
         listen: false,
       );
       customerScreenProvider.recordedFilePath = path;
+
+      customerScreenProvider.recordedFilePath = path;
+
+      // 🔥 FORCE recreate AudioPlayerWidget
+      customerScreenProvider.audioPlayer = null;
+      customerScreenProvider.notifyListeners();
     });
   }
 
@@ -896,23 +902,26 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                             child: DropdownButtonFormField<String>(
                               autovalidateMode:
                                   AutovalidateMode.onUserInteraction,
-                              value: customerScreenProvider.selectedEvent,
+                              value:
+                                  customerScreenProvider
+                                      .getEventList()
+                                      .contains(
+                                        customerScreenProvider.selectedEvent,
+                                      )
+                                  ? customerScreenProvider.selectedEvent
+                                  : 'Birth Day', // 👈 default to "Birthday"
                               hint: const Text(
                                 'Select Event',
                                 style: TextStyle(fontSize: 14),
                               ),
-                              items:
-                                  [
-                                    'Birthday',
-                                    'Anniversary',
-                                    'Wedding',
-                                    'Others',
-                                  ].map((String event) {
-                                    return DropdownMenuItem<String>(
-                                      value: event,
-                                      child: Text(event),
-                                    );
-                                  }).toList(),
+                              items: customerScreenProvider.getEventList().map((
+                                event,
+                              ) {
+                                return DropdownMenuItem<String>(
+                                  value: event,
+                                  child: Text(event),
+                                );
+                              }).toList(),
                               onChanged: (String? newValue) {
                                 customerScreenProvider.setSelectedEvent(
                                   newValue,
@@ -941,257 +950,269 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                               },
                             ),
                           ),
+
                           const Padding(padding: EdgeInsets.all(5)),
                           // Show extra text field for entering date or custom event
+                          // Event Date / Other Text Field
                           if (customerScreenProvider.selectedEvent != null &&
                               customerScreenProvider.selectedEvent!.isNotEmpty)
                             Expanded(
-                              child: TextFormField(
-                                autovalidateMode:
-                                    AutovalidateMode.onUserInteraction,
-                                readOnly:
-                                    true, // Make it read-only to prevent manual input
-                                onTap: () {
-                                  if (customerScreenProvider.selectedEvent ==
-                                      'Others') {
-                                    // ✅ Manually activate the custom keyboard & focus
-
-                                    // Add print statement to log activation
-                                  } else {
-                                    // ✅ Show calendar dialog
-
-                                    DateTime now = DateTime.now();
-                                    showGeneralDialog(
-                                      context: context,
-                                      barrierDismissible: true,
-                                      barrierLabel: "Date Picker",
-                                      pageBuilder:
-                                          (context, animation1, animation2) {
-                                            return Container(); // Not used
-                                          },
-                                      transitionBuilder: (context, a1, a2, widget) {
-                                        return ScaleTransition(
-                                          scale: Tween<double>(
-                                            begin: 0.5,
-                                            end: 1.0,
-                                          ).animate(a1),
-                                          child: FadeTransition(
-                                            opacity: Tween<double>(
+                              child: Builder(
+                                builder: (context) => TextFormField(
+                                  autovalidateMode:
+                                      AutovalidateMode.onUserInteraction,
+                                  readOnly: true,
+                                  showCursor: true,
+                                  controller:
+                                      customerScreenProvider.selectedEvent ==
+                                          'Others'
+                                      ? customerScreenProvider
+                                            .otherEventController
+                                      : customerScreenProvider
+                                            .birthdaydateController,
+                                  focusNode:
+                                      customerScreenProvider.selectedEvent ==
+                                          'Others'
+                                      ? _otherEventFocus
+                                      : null,
+                                  onTap: () {
+                                    if (customerScreenProvider.selectedEvent ==
+                                        'Others') {
+                                      // Activate text field for typing
+                                      ActiveField.activate(
+                                        context: context,
+                                        ctrl: customerScreenProvider
+                                            .otherEventController,
+                                        node: _otherEventFocus,
+                                      );
+                                    } else {
+                                      DateTime now = DateTime.now();
+                                      showGeneralDialog(
+                                        context: context,
+                                        barrierDismissible: true,
+                                        barrierLabel: "Event Date Picker",
+                                        pageBuilder: (context, anim1, anim2) =>
+                                            Container(),
+                                        transitionBuilder: (context, a1, a2, widget) {
+                                          return ScaleTransition(
+                                            scale: Tween<double>(
                                               begin: 0.5,
                                               end: 1.0,
                                             ).animate(a1),
-                                            child: Dialog(
-                                              backgroundColor:
-                                                  Colors.transparent,
-                                              elevation: 0,
-                                              child: Container(
-                                                width: double.infinity,
-                                                constraints: BoxConstraints(
-                                                  maxWidth: 350,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  borderRadius:
-                                                      BorderRadius.circular(20),
-                                                  color: Colors.white,
-                                                  boxShadow: [
-                                                    BoxShadow(
-                                                      color: Colors.blue
-                                                          .withOpacity(0.2),
-                                                      blurRadius: 20,
-                                                      spreadRadius: 5,
-                                                    ),
-                                                  ],
-                                                ),
-                                                child: Column(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    Container(
-                                                      padding: EdgeInsets.all(
-                                                        16,
+                                            child: FadeTransition(
+                                              opacity: Tween<double>(
+                                                begin: 0.5,
+                                                end: 1.0,
+                                              ).animate(a1),
+                                              child: Dialog(
+                                                backgroundColor:
+                                                    Colors.transparent,
+                                                child: Container(
+                                                  width: double.infinity,
+                                                  constraints:
+                                                      const BoxConstraints(
+                                                        maxWidth: 350,
                                                       ),
-                                                      decoration: BoxDecoration(
-                                                        color: Colors.blue[700],
-                                                        borderRadius:
-                                                            BorderRadius.only(
-                                                              topLeft:
-                                                                  Radius.circular(
-                                                                    20,
-                                                                  ),
-                                                              topRight:
-                                                                  Radius.circular(
-                                                                    20,
-                                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.white,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          20,
+                                                        ),
+                                                    boxShadow: [
+                                                      BoxShadow(
+                                                        color: Colors.black12,
+                                                        blurRadius: 15,
+                                                        spreadRadius: 5,
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  child: Column(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      // Header
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets.all(
+                                                              16,
                                                             ),
-                                                      ),
-                                                      child: Row(
-                                                        mainAxisAlignment:
-                                                            MainAxisAlignment
-                                                                .spaceBetween,
-                                                        children: [
-                                                          Text(
-                                                            "Choose Event Date",
-                                                            style: TextStyle(
-                                                              fontSize: 18,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .bold,
+                                                        decoration: BoxDecoration(
+                                                          color:
+                                                              Colors.blue[700],
+                                                          borderRadius:
+                                                              const BorderRadius.only(
+                                                                topLeft:
+                                                                    Radius.circular(
+                                                                      20,
+                                                                    ),
+                                                                topRight:
+                                                                    Radius.circular(
+                                                                      20,
+                                                                    ),
+                                                              ),
+                                                        ),
+                                                        child: Row(
+                                                          mainAxisAlignment:
+                                                              MainAxisAlignment
+                                                                  .spaceBetween,
+                                                          children: const [
+                                                            Text(
+                                                              "Choose Event Date",
+                                                              style: TextStyle(
+                                                                fontSize: 18,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                color: Colors
+                                                                    .white,
+                                                              ),
+                                                            ),
+                                                            Icon(
+                                                              Icons
+                                                                  .calendar_today,
                                                               color:
                                                                   Colors.white,
                                                             ),
-                                                          ),
-                                                          Icon(
-                                                            Icons
-                                                                .calendar_today,
-                                                            color: Colors.white,
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                    Container(
-                                                      height: 300,
-                                                      child: Theme(
-                                                        data: ThemeData(
-                                                          colorScheme: ColorScheme.light(
-                                                            primary: Colors
-                                                                .blue[700]!, // selected date circle color
-                                                            onPrimary: Colors
-                                                                .white, // text color inside circle
-                                                            onSurface:
-                                                                Colors.black,
-                                                          ),
-                                                          datePickerTheme: DatePickerThemeData(
-                                                            todayBackgroundColor:
-                                                                MaterialStateProperty.all(
-                                                                  Colors
-                                                                      .blue[700]!,
-                                                                ), // ✅ Blue circle background
-                                                            todayForegroundColor:
-                                                                MaterialStateProperty.all(
-                                                                  Colors.blue,
-                                                                ), // ✅ White text
-                                                            shape:
-                                                                const CircleBorder(), // ✅ Circle shape
-                                                          ),
+                                                          ],
                                                         ),
-                                                        child: CalendarDatePicker(
-                                                          initialDate:
-                                                              DateTime.now(), // open with today selected
-                                                          firstDate:
-                                                              DateTime.now(),
-                                                          lastDate: now.add(
-                                                            const Duration(
-                                                              days: 180,
+                                                      ),
+                                                      // Calendar
+                                                      Container(
+                                                        height: 300,
+                                                        padding:
+                                                            const EdgeInsets.all(
+                                                              8,
+                                                            ),
+                                                        child: Theme(
+                                                          data: ThemeData(
+                                                            colorScheme:
+                                                                ColorScheme.light(
+                                                                  primary: Colors
+                                                                      .blue[700]!,
+                                                                  onPrimary:
+                                                                      Colors
+                                                                          .white,
+                                                                  onSurface:
+                                                                      Colors
+                                                                          .black,
+                                                                ),
+                                                            datePickerTheme: DatePickerThemeData(
+                                                              todayBackgroundColor:
+                                                                  MaterialStateProperty.all(
+                                                                    Colors
+                                                                        .blue[700]!,
+                                                                  ),
+                                                              todayForegroundColor:
+                                                                  MaterialStateProperty.all(
+                                                                    Colors
+                                                                        .white,
+                                                                  ),
+                                                              shape:
+                                                                  const CircleBorder(),
                                                             ),
                                                           ),
-                                                          onDateChanged: (date) {
-                                                            String
-                                                            formattedDate =
-                                                                DateFormat(
-                                                                  'dd-MM-yyyy',
-                                                                ).format(date);
-                                                            customerScreenProvider
-                                                                    .birthdaydateController
-                                                                    .text =
-                                                                formattedDate;
-                                                            Navigator.of(
-                                                              context,
-                                                            ).pop();
-                                                          },
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    Container(
-                                                      padding: EdgeInsets.all(
-                                                        16,
-                                                      ),
-                                                      child: Row(
-                                                        mainAxisAlignment:
-                                                            MainAxisAlignment
-                                                                .end,
-                                                        children: [
-                                                          TextButton(
-                                                            onPressed: () {
+                                                          child: CalendarDatePicker(
+                                                            initialDate: now,
+                                                            firstDate: now,
+                                                            lastDate: now.add(
+                                                              const Duration(
+                                                                days: 180,
+                                                              ),
+                                                            ),
+                                                            onDateChanged: (date) {
+                                                              final formattedDate =
+                                                                  DateFormat(
+                                                                    'dd-MM-yyyy',
+                                                                  ).format(
+                                                                    date,
+                                                                  );
+                                                              customerScreenProvider
+                                                                      .birthdaydateController
+                                                                      .text =
+                                                                  formattedDate;
                                                               Navigator.of(
                                                                 context,
                                                               ).pop();
                                                             },
-                                                            child: Text(
-                                                              "Cancel",
-                                                              style: TextStyle(
-                                                                color: Colors
-                                                                    .grey[600],
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w600,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      // Cancel Button
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets.all(
+                                                              16,
+                                                            ),
+                                                        child: Row(
+                                                          mainAxisAlignment:
+                                                              MainAxisAlignment
+                                                                  .end,
+                                                          children: [
+                                                            TextButton(
+                                                              onPressed: () =>
+                                                                  Navigator.of(
+                                                                    context,
+                                                                  ).pop(),
+                                                              child: Text(
+                                                                "Cancel",
+                                                                style: TextStyle(
+                                                                  color: Colors
+                                                                      .grey[600],
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w600,
+                                                                ),
                                                               ),
                                                             ),
-                                                          ),
-                                                        ],
+                                                          ],
+                                                        ),
                                                       ),
-                                                    ),
-                                                  ],
+                                                    ],
+                                                  ),
                                                 ),
                                               ),
                                             ),
-                                          ),
-                                        );
-                                      },
-                                      transitionDuration: Duration(
-                                        milliseconds: 300,
-                                      ),
-                                    );
-                                  }
-                                },
-                                decoration: InputDecoration(
-                                  border: const OutlineInputBorder(),
-                                  labelText:
-                                      customerScreenProvider.selectedEvent ==
-                                          'Others'
-                                      ? 'Enter Event Name'
-                                      : 'Select ${customerScreenProvider.selectedEvent} Date',
-                                  isDense: false,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 8,
-                                  ),
-                                  suffixIcon:
-                                      customerScreenProvider.selectedEvent !=
-                                          'Others'
-                                      ? Icon(Icons.event)
-                                      : null,
-                                ),
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.black,
-                                ),
-                                controller:
-                                    customerScreenProvider.selectedEvent ==
-                                        'Others'
-                                    ? customerScreenProvider
-                                          .otherEventController // ✅ show custom controller
-                                    : customerScreenProvider
-                                          .birthdaydateController,
+                                          );
+                                        },
+                                        transitionDuration: const Duration(
+                                          milliseconds: 300,
+                                        ),
+                                      );
+                                    }
+                                  },
 
-                                focusNode:
-                                    customerScreenProvider.selectedEvent ==
-                                        'Others'
-                                    ? _otherEventFocus
-                                    : null,
-                                validator: (value) {
-                                  if (_isFormValid &&
-                                      (value == null || value.isEmpty)) {
-                                    return customerScreenProvider
-                                                .selectedEvent ==
+                                  decoration: InputDecoration(
+                                    border: const OutlineInputBorder(),
+                                    labelText:
+                                        customerScreenProvider.selectedEvent ==
                                             'Others'
-                                        ? 'Please enter the event'
-                                        : 'Please select a date';
-                                  }
-                                  return null;
-                                },
+                                        ? 'Enter Event Name'
+                                        : 'Select ${customerScreenProvider.selectedEvent} Date',
+                                    suffixIcon:
+                                        customerScreenProvider.selectedEvent !=
+                                            'Others'
+                                        ? const Icon(Icons.event)
+                                        : null,
+                                  ),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.black,
+                                  ),
+                                  validator: (value) {
+                                    if (_isFormValid &&
+                                        (value == null || value.isEmpty)) {
+                                      return customerScreenProvider
+                                                  .selectedEvent ==
+                                              'Others'
+                                          ? 'Please enter the event'
+                                          : 'Please select a date';
+                                    }
+                                    return null;
+                                  },
+                                ),
                               ),
                             ),
-
                           const Padding(padding: EdgeInsets.all(5)),
                         ],
                       ],
@@ -1220,21 +1241,27 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                         Expanded(
                           child: SizedBox(
                             height: 50,
-                            // width: 200,
                             child: DropdownButtonFormField<String>(
                               autovalidateMode:
                                   AutovalidateMode.onUserInteraction,
                               value:
-                                  customerScreenProvider.selectedDeliveryType,
+                                  GlobalDataManager().deliveryTypes.any(
+                                    (item) =>
+                                        item['deliveryType'] ==
+                                        customerScreenProvider
+                                            .selectedDeliveryType,
+                                  )
+                                  ? customerScreenProvider.selectedDeliveryType
+                                  : "Pickup By Customer", // ✅ Corrected spelling
                               hint: const Text(
                                 'Delivery Type',
                                 style: TextStyle(fontSize: 14),
                               ),
-                              items: ['Pickup by Customer', 'Door Delivery']
-                                  .map((String type) {
+                              items: GlobalDataManager().deliveryTypes
+                                  .map<DropdownMenuItem<String>>((item) {
                                     return DropdownMenuItem<String>(
-                                      value: type,
-                                      child: Text(type),
+                                      value: item['deliveryType'],
+                                      child: Text(item['deliveryType']),
                                     );
                                   })
                                   .toList(),
@@ -1247,13 +1274,13 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                 border: OutlineInputBorder(),
                                 labelText: 'Delivery Type',
                                 labelStyle: TextStyle(fontSize: 14),
-                                isDense: false, // Makes the field more compact
+                                isDense: false,
                                 contentPadding: EdgeInsets.symmetric(
                                   horizontal: 14,
                                   vertical: 8,
                                 ),
                               ),
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 14,
                                 color: Colors.black,
                               ),
@@ -1275,11 +1302,9 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                     ),
 
                     //   ],
-
-                    // Conditionally show Address and Landmark Fields if "Door Delivery" is selected
-                    if (customerScreenProvider.selectedDeliveryType ==
-                        'Door Delivery') ...[
-                      // Row for Landmark and Address
+                    if ((customerScreenProvider.selectedDeliveryType ?? '')
+                            .toLowerCase() ==
+                        'door delivery') ...[
                       const Padding(padding: EdgeInsets.all(5)),
                       Row(
                         children: [
@@ -1407,23 +1432,30 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                       ),
                                     )
                                   : AudioPlayerWidget(
+                                      key: ValueKey(
+                                        customerScreenProvider.recordedFilePath,
+                                      ),
                                       filePath: customerScreenProvider
                                           .recordedFilePath,
                                     ),
                             SizedBox(width: 8),
                             // 🔹 Photo Widget
                             if (customerScreenProvider.photoScreen != null)
-                              PhotosScreen(
-                                imagePaths: [
-                                  customerScreenProvider.pickedImage1!.path,
-                                  customerScreenProvider.pickedImage2!.path,
-                                ],
-                              ),
+                              if (customerScreenProvider
+                                  .pickedImages
+                                  .isNotEmpty)
+                                PhotosScreen(
+                                  imagePaths: customerScreenProvider
+                                      .pickedImages
+                                      .map((f) => f.path)
+                                      .toList(),
+                                ),
 
                             if (customerScreenProvider.photoScreen == null)
-                              ImagePickerWidget(
-                                onImagesSelected:
-                                    customerScreenProvider.onImagesSelected,
+                              MultiImagePickerWidget(
+                                onImagesSelected: (images) {
+                                  customerScreenProvider.pickedImages = images;
+                                },
                               ),
 
                             Container(
@@ -1475,7 +1507,7 @@ class _CustomerDetailsState extends State<CustomerDetails> {
                                           customerScreenProvider
                                               .showAdvancePaymentPopup(
                                                 currentContext, // use safe context
-
+                                                cartSelectionProvider,
                                                 cartProvider,
                                                 filePaths['audioPath'],
                                                 apiSalesprovider,

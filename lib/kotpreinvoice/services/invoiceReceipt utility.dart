@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:yenpos/Global/Provider/bottomNavprovider.dart';
 import '../../kotpreinvoice/providers/bottomNavprovider.dart';
 
 import '../widgets/settingsScreen.dart';
@@ -44,12 +45,13 @@ Future<void> invoicePromptForPrinterIp(BuildContext context) async {
             ),
             child: const Text('Set IP'),
             onPressed: () {
-              Provider.of<BottomNavProviderKOT>(context, listen: false).updateIndex(3);
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => const settingsScreen()),
-                (Route<dynamic> route) => false, // Removes all previous routes
-              );
+              Provider.of<BottomNavProvider>(context, listen: false).updateIndex(5);
+              // Navigator.pushAndRemoveUntil(
+              //   context,
+              //   MaterialPageRoute(builder: (context) => const settingsScreen()),
+              //   (Route<dynamic> route) => false, // Removes all previous routes
+              // );
+              Navigator.pop(context);
             },
           ),
         ],

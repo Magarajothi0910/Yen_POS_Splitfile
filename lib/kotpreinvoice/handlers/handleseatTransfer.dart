@@ -36,9 +36,7 @@ Future<void> handleSeatTransfer({
     print('📋 [SeatTransfer] Hive box contains ${orderBox.length} records.');
 
     // Load existing orders
-    print('📤 [SeatTransfer] Loading all orders from Hive...');
     final allOrders = await loadOrdersFromHive();
-    print('✅ [SeatTransfer] Loaded $allOrders total orders.');
 
     // Update orders in Hive
     bool orderFound = false;

@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:hive/hive.dart';
 import 'package:yenpos/Global/globals_data.dart';
 
-const String apiUrl = "https://yenerp.com/fastapi/branches/";
+const String apiUrl = "https://yenerp.com/nextjstestapi/locations/";
 
 Future<void> fetchAndStoreBranchData() async {
   try {
@@ -36,18 +36,9 @@ Future<void> fetchAndStoreBranchData() async {
 
         // Store the matched branch data in Hive
         await box.put('matchedBranch', matchedBranch);
-      } else {
-        print("⚠️ No branch found for: $branchName");
-      }
-    } else {
-      print(
-        "❌ Failed to fetch branch data. Status code: ${response.statusCode}",
-      );
-    }
-  } catch (e, stack) {
-    print("🔥 Error fetching/storing branch data: $e");
-    print(stack);
-  }
+      } else {}
+    } else {}
+  } catch (e, stack) {}
 }
 
 Future<Map<String, dynamic>?> getBranchDetails() async {
@@ -57,12 +48,9 @@ Future<Map<String, dynamic>?> getBranchDetails() async {
     if (data is Map<String, dynamic>) {
       return data;
     } else {
-      print("⚠️ No valid branch data found in Hive.");
       return null;
     }
   } catch (e, stack) {
-    print("🔥 Error reading branch data: $e");
-    print(stack);
     return null;
   }
 }

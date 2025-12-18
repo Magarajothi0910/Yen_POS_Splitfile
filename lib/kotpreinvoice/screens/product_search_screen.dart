@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:yenpos/Global/Provider/employee_provider.dart';
+import 'package:yenpos/Sale_order/Widgets/Send_data_to_server.dart';
 import '../../kotpreinvoice/providers/bottomNavprovider.dart';
 import '../components/flushbar.dart';
 import '../widgets/product_Search/holdDropdown.dart';
@@ -32,7 +33,7 @@ import 'table_screen.dart';
 // 🔔 ChangeNotifier to manage ProductSearchScreen state
 class ProductSearchState extends ChangeNotifier {
   final TextEditingController _searchController = TextEditingController();
-  late WebSocketChannel channel;
+  // late WebSocketChannel channel;
   String _selectedPax = "1"; // Default value for pax
   String? storedDeviceId;
   String? _errorMessage; // 📌 Store error messages for UI display
@@ -69,7 +70,7 @@ class ProductSearchState extends ChangeNotifier {
   Future<void> _init(BuildContext context) async {
     try {
       // 🔌 Connect WebSocket with error handling
-      channel = IOWebSocketChannel.connect("ws://$serverip:$port");
+      // channel = IOWebSocketChannel.connect("ws://$serverip:$port");
       print('🔌 WebSocket connected successfully');
 
       // 💾 Load device code with error handling
@@ -111,18 +112,18 @@ class ProductSearchState extends ChangeNotifier {
   }
 
   // 📤 Send data to server via WebSocket with error handling
-  Future<void> sendDataToServer(Map<String, dynamic> data) async {
-    try {
-      final jsonData = jsonEncode(data);
-      channel.sink.add(jsonData);
-      print('📤 Data sent to server: $jsonData');
-    } catch (e) {
-      _errorMessage = 'Failed to send data: $e';
-      print('❌ Send error: $e');
-      notifyListeners(); // 🔔 Notify error
-      rethrow; // 🔄 Re-throw for caller handling
-    }
-  }
+  // Future<void> sendDataToServer(Map<String, dynamic> data) async {
+  //   try {
+  //     final jsonData = jsonEncode(data);
+  //     channel.sink.add(jsonData);
+  //     print('📤 Data sent to server: $jsonData');
+  //   } catch (e) {
+  //     _errorMessage = 'Failed to send data: $e';
+  //     print('❌ Send error: $e');
+  //     notifyListeners(); // 🔔 Notify error
+  //     rethrow; // 🔄 Re-throw for caller handling
+  //   }
+  // }
 
   // 🔄 Toggle state and handle navigation
   Future<void> toggleState(BuildContext context) async {
@@ -156,7 +157,7 @@ class ProductSearchState extends ChangeNotifier {
     if (_debounce?.isActive ?? false) _debounce?.cancel();
     _debounce = Timer(debounceDuration, () {
       final searchProvider = Provider.of<SearchProviderDine>(context, listen: false);
-      searchProvider.updateSearchQuery(_searchController.text);
+      searchProvider.updateSearchQuery(_searchController.text.trim());
       if (_scrollController.hasClients) {
         _scrollController.jumpTo(0.0);
       }
@@ -208,7 +209,7 @@ class ProductSearchState extends ChangeNotifier {
     _debounce?.cancel();
     _scrollController.dispose();
     _searchController.dispose();
-    channel.sink.close();
+    // channel.sink.close();
     super.dispose();
     print('🗑️ ProductSearchState disposed');
   }
@@ -315,7 +316,7 @@ class ProductSearchState extends ChangeNotifier {
                           MaterialPageRoute(builder: (context) => const TableScreen()),
                         );
                         print('🔄 Navigated to TableScreen');
-                        Provider.of<BottomNavProviderKOT>(context, listen: false).updateIndex(0);
+                        // Provider.of<BottomNavProviderKOT>(context, listen: false).updateIndex(0);
                       }
                     } catch (e, stack) {
                       // ❌ Handle submission error
@@ -400,11 +401,11 @@ class ProductSearchState extends ChangeNotifier {
         uoms.add(uom);
         double total = 0.0;
         double weight = (entry.value['weight']?.toDouble() ?? 0.0);
-        if (uom.toLowerCase() == 'kg' || uom.toLowerCase() == 'kgs') {
+        if (uom.toLowerCase() == 'kg' || uom.toLowerCase() == 'Kgs') {
           weight /= 1000;
         }
         weights.add(weight);
-        if (uom.toLowerCase() == 'kg' || uom.toLowerCase() == 'kgs') {
+        if (uom.toLowerCase() == 'kg' || uom.toLowerCase() == 'Kgs') {
           total = price * quantity * weight;
         } else {
           total = price * quantity;
@@ -495,7 +496,7 @@ class ProductSearchState extends ChangeNotifier {
 
       // 📤 Send if not server mode
       if (appType != 'server') {
-        await sendDataToServer(order);
+        await sendataToServer(order);
       }
 
       // 🧹 Clear cart after success
@@ -636,7 +637,7 @@ class ProductSearchScreen extends StatelessWidget {
             fit: FlexFit.loose,
             child: Padding(
               padding: const EdgeInsets.only(right: 5.0),
-              child: buildHoldOrdersDropdown(context, tableNumber, seat),
+              // child: buildHoldOrdersDropdown`(context, tableNumber, seat),
             ),
           ),
           // SizedBox(
@@ -804,14 +805,14 @@ class ProductSearchScreen extends StatelessWidget {
           ),
         ],
       ),
-      bottomNavigationBar: const GlobalBottomNav(noSelection: true),
+      // bottomNavigationBar: const GlobalBottomNav(noSelection: true),
     );
   }
 
   // ➕ Helper to add item to cart with hint logic
   void _addToCart(BuildContext context, ProductSearchState state, CartProviderKOT cartProvider, Product product, bool isHintShown) {
     final uom = product.variance_Uom.toLowerCase();
-    if (uom == "kg" || uom == "kgs") {
+    if (uom == "kg" || uom == "Kgs") {
       cartProvider.addToCart(product.varianceName, weight: 50);
     } else {
       cartProvider.addToCart(product.varianceName);

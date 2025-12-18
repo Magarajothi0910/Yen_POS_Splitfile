@@ -6,14 +6,16 @@ import 'package:hive/hive.dart';
 class DeviceProviderDine extends ChangeNotifier {
   Map<String, dynamic>? deviceData;
 
+  
+
   Future<void> fetchDeviceData(String deviceCode) async {
     final dio = Dio(
-      BaseOptions(
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 15),
-        sendTimeout: const Duration(seconds: 10),
-      ),
-    );
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 15),
+      sendTimeout: const Duration(seconds: 10),
+    ),
+  );
     const url = 'https://yenerp.com/fastapi/devicecode/';
 
     try {
@@ -37,9 +39,7 @@ class DeviceProviderDine extends ChangeNotifier {
             print("⚠️ Device not found or inactive for code: $deviceCode");
           }
         } else {
-          print(
-            "❌ Invalid data format: expected a List but got ${data.runtimeType}",
-          );
+          print("❌ Invalid data format: expected a List but got ${data.runtimeType}");
           deviceData = null;
         }
       } else {
@@ -47,9 +47,7 @@ class DeviceProviderDine extends ChangeNotifier {
         deviceData = null;
       }
     } on DioException catch (dioError) {
-      if (dioError.type == DioExceptionType.connectionTimeout ||
-          dioError.type == DioExceptionType.receiveTimeout ||
-          dioError.type == DioExceptionType.sendTimeout) {
+      if (dioError.type == DioExceptionType.connectionTimeout || dioError.type == DioExceptionType.receiveTimeout || dioError.type == DioExceptionType.sendTimeout) {
         print("⏰ Request to $url timed out.");
       } else {
         print("🌐 Dio error during fetchDeviceData: ${dioError.message}");
@@ -70,11 +68,7 @@ class DeviceProviderDine extends ChangeNotifier {
     }
   }
 
-  Future<void> storeDeviceData(
-    String deviceCode,
-    String aliasname,
-    String deviceCodeId,
-  ) async {
+  Future<void> storeDeviceData(String deviceCode, String aliasname, String deviceCodeId) async {
     try {
       var box = Hive.box('deviceData');
       await box.put('deviceCode', deviceCode);
@@ -92,12 +86,12 @@ class DeviceProviderDine extends ChangeNotifier {
 
   Future<void> patchDeviceStatus(String deviceCodeId) async {
     final dio = Dio(
-      BaseOptions(
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 15),
-        sendTimeout: const Duration(seconds: 10),
-      ),
-    );
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 15),
+      sendTimeout: const Duration(seconds: 10),
+    ),
+  );
     final url = 'https://yenerp.com/fastapi/devicecode/$deviceCodeId';
 
     try {
@@ -110,16 +104,12 @@ class DeviceProviderDine extends ChangeNotifier {
 
       if (response.statusCode == 200) {
         deviceData?['status'] = '0';
-        print(
-          "✅ Device status successfully updated to 0 for ID: $deviceCodeId",
-        );
+        print("✅ Device status successfully updated to 0 for ID: $deviceCodeId");
       } else {
         print("⚠️ Failed to update device status. HTTP ${response.statusCode}");
       }
     } on DioException catch (dioError) {
-      if (dioError.type == DioExceptionType.connectionTimeout ||
-          dioError.type == DioExceptionType.receiveTimeout ||
-          dioError.type == DioExceptionType.sendTimeout) {
+      if (dioError.type == DioExceptionType.connectionTimeout || dioError.type == DioExceptionType.receiveTimeout || dioError.type == DioExceptionType.sendTimeout) {
         print("⏰ Timeout occurred while updating device status.");
       } else {
         print("🌐 Dio error during patchDeviceStatus: ${dioError.message}");

@@ -14,7 +14,7 @@ class InvoiceService {
         .toString()
         .substring(6); // Shortened timestamp
     const characters =
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZ0125678989'; // Alphanumeric characters
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZ0126565989'; // Alphanumeric characters
     final randomId =
         List<int>.generate(6, (_) => random.nextInt(characters.length))
             .map((index) => characters[index])

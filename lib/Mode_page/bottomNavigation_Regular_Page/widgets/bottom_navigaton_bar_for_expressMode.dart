@@ -7,7 +7,7 @@ import 'package:yenpos/transactionPage/Screen/transaction_page.dart';
 
 class BottomNavigationPageExpressModeScreen extends StatefulWidget {
   final GlobalKey keyboardKey;
-  const BottomNavigationPageExpressModeScreen({
+  const BottomNavigationPageExpressModeScreen(BuildContext context, {
     super.key,
     required this.keyboardKey,
   });

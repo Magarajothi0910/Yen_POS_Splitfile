@@ -32,7 +32,7 @@ bool sentServer = false;
 // ======================================================
 
 String serverip = "";
-int port = 8181;
+int port = 8787;
 int udpPort = 56789;
 
 // ======================================================
@@ -99,7 +99,7 @@ int count3 = 0;
 int count4 = 0;
 
 bool hold = false;
-const String empId = "1234";
+const String empId = "1";
 const int kMaxRemarkLength = 50;
 
 // ======================================================
@@ -131,6 +131,13 @@ bool isSMSEnabled = false;
 bool isGSTEnabled = true;
 bool isTicketEnabled = false;
 bool isCartEnabled = false;
+bool isKOTPaymentEnabled = true;
+bool isSOPrintEnabled = true;
+bool isSOWhatsAppEnabled = false;
+bool isSOSMSEnabled = false;
+bool isKOTPrintEnabled = true;
+bool isSOPaymentEnabled = false;
+bool isKOTWhatsappEnabled = false;
 
 // ======================================================
 // 🎯 ACTIVE INPUT FIELD MANAGER
@@ -183,7 +190,6 @@ class ActiveField {
       ctrl.removeListener(_listenerMap[ctrl]!);
     }
 
-    // Define listener
     void listener() {
       final fieldType = type.value;
 
@@ -203,15 +209,44 @@ class ActiveField {
       } else if (fieldType == "custom charge") {
         final digitsOnly = ctrl.text.replaceAll(RegExp(r'[^0-9]'), '');
 
-        // Check if value is empty
-        if (digitsOnly.isEmpty) {
+        // Disallow leading zero
+        if (digitsOnly.startsWith('0')) {
           TopMessage.show(
             context,
-            message: "Box Qty cannot be empty",
+            message: "Value cannot start with 0",
             backgroundColor: Colors.redAccent,
           );
-          return; // Stop further processing
+          ctrl.clear();
+          return;
         }
+
+        // Limit digits
+        if (digitsOnly.length > 5) {
+          TopMessage.show(
+            context,
+            message: "Only up to 5 digits allowed",
+            backgroundColor: Colors.orangeAccent,
+          );
+          ctrl.text = digitsOnly.substring(0, 5);
+        } else if (digitsOnly != ctrl.text) {
+          ctrl.text = digitsOnly;
+        }
+
+        ctrl.selection = TextSelection.fromPosition(
+          TextPosition(offset: ctrl.text.length),
+        );
+      } else if (fieldType == "boxQty") {
+        final digitsOnly = ctrl.text.replaceAll(RegExp(r'[^0-9]'), '');
+
+        // // Check if value is empty
+        // if (digitsOnly.isEmpty) {
+        //   TopMessage.show(
+        //     context,
+        //     message: "Box Qty cannot be empty",
+        //     backgroundColor: Colors.redAccent,
+        //   );
+        //   return; // Stop further processing
+        // }
 
         // Disallow leading zero
         if (digitsOnly.startsWith('0')) {
@@ -254,7 +289,7 @@ class ActiveField {
               message: "Discount cannot exceed 100%",
               backgroundColor: Colors.orangeAccent,
             );
-            ctrl.text = '100';
+            ctrl.text = '6';
           } else if (value < 1 && valueText.isNotEmpty) {
             TopMessage.show(
               context,

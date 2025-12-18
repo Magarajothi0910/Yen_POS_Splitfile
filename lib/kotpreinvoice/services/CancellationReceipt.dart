@@ -22,6 +22,10 @@ class CancelPrinterService {
     NetworkPrinter? printer;
     try {
       print("🔌 Connecting to printer at $ipAddress...");
+      print(
+        "🔌 seatorder to printer at itemRemarks ${seatOrders[0]["itemRemark"][0]}",
+      );
+      print("🔌 seatorder to printer at ${seatOrders}");
 
       final profile = await CapabilityProfile.load();
       printer = NetworkPrinter(PaperSize.mm58, profile);
@@ -55,8 +59,12 @@ class CancelPrinterService {
       List<Map<String, dynamic>> diningList = processedOrders[0];
       List<Map<String, dynamic>> parcelList = processedOrders[1];
 
+      print("diningList is $diningList");
+      print("parcel is $parcelList");
+
       String headerText;
-      if (receiptType == 'ITEM CANCELLED' || receiptType == 'Full Order Cancelled') {
+      if (receiptType == 'ITEM CANCELLED' ||
+          receiptType == 'Full Order Cancelled') {
         headerText = 'ORDER CANCELLED';
       } else if (receiptType == 'ITEM REVERTED') {
         headerText = '';
@@ -75,17 +83,26 @@ class CancelPrinterService {
             width: PosTextSize.size2,
           ),
         );
-        printer.text(receiptType,
-            styles: const PosStyles(
-              align: PosAlign.center,
-              height: PosTextSize.size2,
-              width: PosTextSize.size2,
-            ));
+        printer.text(
+          receiptType,
+          styles: const PosStyles(
+            align: PosAlign.center,
+            height: PosTextSize.size2,
+            width: PosTextSize.size2,
+          ),
+        );
         printer.text('________________________________________________');
-        printer.text('  Table: $tableNumber', styles: const PosStyles(bold: true));
+        printer.text(
+          '  Table: $tableNumber',
+          styles: const PosStyles(bold: true),
+        );
         printer.text('  Seat: $seat', styles: const PosStyles(bold: true));
         printer.text('  Waiter: $waiter', styles: const PosStyles(bold: true));
-        printer.text('  Captain: $userName', styles: const PosStyles(bold: true));
+        printer.text(
+          '  Captain: $userName',
+          styles: const PosStyles(bold: true),
+        );
+
         printer.feed(1);
 
         printer.text(
@@ -111,6 +128,12 @@ class CancelPrinterService {
           );
           printer.text('________________________________________________');
           _printOrderList(printer, diningList);
+          if (receiptType == 'ITEM CANCELLED') {
+            printer.text(
+              ' Remark: ${seatOrders[0]["itemRemark"][0]}',
+              styles: const PosStyles(bold: true),
+            );
+          }
         } catch (diningError, stack) {
           print("⚠️ Error printing dining list: $diningError");
           print("📌 Stacktrace: $stack");
@@ -163,7 +186,10 @@ class CancelPrinterService {
     }
   }
 
-  static void _printOrderList(NetworkPrinter printer, List<Map<String, dynamic>> orderList) {
+  static void _printOrderList(
+    NetworkPrinter printer,
+    List<Map<String, dynamic>> orderList,
+  ) {
     // Table header
     printer.text(
       'S.No  Item Name           Qty  Cancel',
@@ -175,7 +201,9 @@ class CancelPrinterService {
     for (var item in orderList) {
       String itemName = capitalizeWords(item['varianceName']);
       String qty = item['quantity'].toString();
-      String cancelledQty = item['cancelledQty'] != null ? item['cancelledQty'].toString() : "0";
+      String cancelledQty = item['cancelledQty'] != null
+          ? item['cancelledQty'].toString()
+          : "0";
 
       // First row: main item line
       printer.text(
@@ -193,7 +221,9 @@ class CancelPrinterService {
         for (var addOn in addOnList) {
           if (addOn.trim().isEmpty) continue;
 
-          String formattedAddOn = addOn.trim()[0].toUpperCase() + addOn.trim().substring(1).toLowerCase();
+          String formattedAddOn =
+              addOn.trim()[0].toUpperCase() +
+              addOn.trim().substring(1).toLowerCase();
 
           printer.text('      - $formattedAddOn');
         }
@@ -204,10 +234,10 @@ class CancelPrinterService {
         printer.text('   ↳ Variant: ${item['variant']}');
       }
 
-      // Remark row
-      if (item['remark'].isNotEmpty) {
-        printer.text('   ↳ Remark: ${item['remark']}');
-      }
+      // // Remark row
+      // if (item['itemRemarks'].isNotEmpty) {
+      //   printer.text('   ↳ Remark: ${item['remark']}');
+      // }
 
       index++;
       printer.feed(1); // Line spacing between items
@@ -216,28 +246,58 @@ class CancelPrinterService {
     printer.text('------------------------------------------');
   }
 
-  static List<List<Map<String, dynamic>>> processOrders(List<Map<String, dynamic>> seatOrders) {
+  static List<List<Map<String, dynamic>>> processOrders(
+    List<Map<String, dynamic>> seatOrders,
+  ) {
     List<Map<String, dynamic>> diningList = [];
     List<Map<String, dynamic>> parcelList = [];
 
     for (var order in seatOrders) {
       if (order['config'] == null) continue;
 
+      print("order are : $order");
+
       for (var config in order['config']) {
         String varianceName = config['varianceName'] ?? '';
         double weight = config['weight'] ?? 0.0;
 
-        List<int> configQty = (config['configQty'] as List<dynamic>? ?? []).map((qty) => (qty as num?)?.toInt() ?? 0).toList();
+        List<int> configQty = (config['configQty'] as List<dynamic>? ?? [])
+            .map((qty) => (qty as num?)?.toInt() ?? 0)
+            .toList();
 
         // ✅ Add-on names
-        List<List<String>> addOnNames = (config['addOn'] as List<dynamic>? ?? []).map((e) => (e as List<dynamic>?)?.map((s) => s.toString()).toList() ?? []).toList();
+        List<List<String>> addOnNames =
+            (config['addOn'] as List<dynamic>? ?? [])
+                .map(
+                  (e) =>
+                      (e as List<dynamic>?)
+                          ?.map((s) => s.toString())
+                          .toList() ??
+                      [],
+                )
+                .toList();
 
         // ✅ Add-on quantities (parallel list, same index as addOn)
-        List<List<int>> addOnQuantities = (config['addOnQty'] as List<dynamic>? ?? []).map((e) => (e as List<dynamic>?)?.map((q) => (q as num?)?.toInt() ?? 0).toList() ?? []).toList();
+        List<List<int>> addOnQuantities =
+            (config['addOnQty'] as List<dynamic>? ?? [])
+                .map(
+                  (e) =>
+                      (e as List<dynamic>?)
+                          ?.map((q) => (q as num?)?.toInt() ?? 0)
+                          .toList() ??
+                      [],
+                )
+                .toList();
 
-        List<String> variances = (config['variance'] as List<dynamic>? ?? []).map((e) => e?.toString() ?? "").toList();
-        List<String> remarks = (config['remark'] as List<dynamic>? ?? []).map((e) => e?.toString() ?? "").toList();
-        List<String> types = (config['type'] as List<dynamic>? ?? []).map((e) => e?.toString() ?? "").toList();
+        List<String> variances = (config['variance'] as List<dynamic>? ?? [])
+            .map((e) => e?.toString() ?? "")
+            .toList();
+        List<String> remarks = (config['remark'] as List<dynamic>? ?? [])
+            .map((e) => e?.toString() ?? "")
+            .toList();
+        List<String> types = (config['type'] as List<dynamic>? ?? [])
+            .map((e) => e?.toString() ?? "")
+            .toList();
 
         Map<String, dynamic> groupedItems = {};
 
@@ -246,7 +306,9 @@ class CancelPrinterService {
           String addOnString = "";
           if (i < addOnNames.length) {
             List<String> names = addOnNames[i];
-            List<int> qtys = (i < addOnQuantities.length ? addOnQuantities[i] : []);
+            List<int> qtys = (i < addOnQuantities.length
+                ? addOnQuantities[i]
+                : []);
 
             List<String> formatted = [];
             for (int j = 0; j < names.length; j++) {
@@ -259,12 +321,18 @@ class CancelPrinterService {
           String varianceString = i < variances.length ? variances[i] : "";
           String remarkString = i < remarks.length ? remarks[i] : "";
 
-          String typeString = (i < types.length && types[i].trim().isNotEmpty) ? types[i].trim().toLowerCase() : "dining";
+          String typeString = (i < types.length && types[i].trim().isNotEmpty)
+              ? types[i].trim().toLowerCase()
+              : "dining";
 
           // ✅ Use cancelledQty correctly
-          double cancelledQuantity = order['cancelledQty'] != null && order['cancelledQty'].length > i ? order['cancelledQty'][i].toDouble() : 0.0;
+          double cancelledQuantity =
+              order['cancelledQty'] != null && order['cancelledQty'].length > i
+              ? order['cancelledQty'][i].toDouble()
+              : 0.0;
 
-          String key = '$varianceName|$addOnString|$varianceString|$remarkString|$typeString';
+          String key =
+              '$varianceName|$addOnString|$varianceString|$remarkString|$typeString';
 
           if (groupedItems.containsKey(key)) {
             groupedItems[key]['quantity'] += configQty[i];

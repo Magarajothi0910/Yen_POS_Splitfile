@@ -87,7 +87,7 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
   int _chequeAmount = 0;
   double _originalAmount = 0.0;
   double _upiAndCashAmount = 0.0;
-
+  String selectedChargeType = "Custom Charge";
   late salesInvoiceReceiptPrinter receiptPrinter;
   bool _isCompleteButtonEnabled = true; // default enabled
   final TextEditingController _customUpiController = TextEditingController();
@@ -128,6 +128,12 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
   double totalAmount = 0;
   bool isSubmitting = false;
   String? _activePaymentMethod; // null means split or no exact match
+  final List<String> chargeTypes = [
+    "Custom Charge",
+    "Delivery Charge",
+    "Packing Charge",
+    "Service Charge",
+  ];
   @override
   void initState() {
     super.initState();
@@ -171,7 +177,10 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
       _cardAmount = int.tryParse(_cardController.text) ?? 0;
       _validateAmount(_cardController, "Card");
     });
-
+    _customChargeController.addListener(() {
+      customCharge = double.tryParse(_customChargeController.text) ?? 0;
+      _applyCustomCharge(_customChargeController.text);
+    });
     // 🔹 Cheque validation
     chequeAmountController.addListener(() {
       _chequeAmount = int.tryParse(chequeAmountController.text) ?? 0;
@@ -770,7 +779,7 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
         );
         return; // stop further discount application
       }
-
+      customCharge = double.tryParse(_customChargeController.text) ?? 0;
       // Step 2: Continue with normal discount logic
       discount = double.tryParse(value) ?? 0;
 
@@ -790,6 +799,29 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
           selectedPaymentMethod = "Approval"; // 👈 Custom state trigger
         });
       }
+      _updateBalance();
+    });
+  }
+
+  void _applyCustomCharge(String value) {
+    setState(() {
+      customCharge = double.tryParse(value) ?? 0;
+
+      // Prevent negative values
+      if (customCharge < 0) {
+        customCharge = 0;
+        _customChargeController.text = "0";
+        TopMessage.show(
+          context,
+          message: "Charge cannot be negative",
+          backgroundColor: Colors.redAccent,
+        );
+      }
+
+      // 🔥 Recalculate total (Original + Charge - Discount)
+      totalAmount = _originalAmount + customCharge - deductedAmount;
+
+      // Update balance after new total
       _updateBalance();
     });
   }
@@ -849,29 +881,26 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
                       ),
                       child: Row(
                         children: [
-                          const Expanded(
-                            flex: 2,
-                            child: Text(
-                              "Discount",
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
+                          // ================= DISCOUNT AMOUNT FIELD =================
                           Expanded(
-                            flex: 3,
+                            flex: 5,
                             child: TextFormField(
                               controller: _discountController,
-                              readOnly:
-                                  true, // Always true (custom keyboard only)
-                              enabled:
-                                  !_isDiscountDisabled, // Disable only if item-wise discount exists
+                              readOnly: true,
+                              enabled: !_isDiscountDisabled,
                               showCursor: !_isDiscountDisabled,
                               decoration: InputDecoration(
                                 prefixIcon: const Icon(
                                   Icons.percent,
                                   color: Colors.black,
+                                ),
+                                suffixText: deductedAmount > 0
+                                    ? "- ₹${deductedAmount.round().toStringAsFixed(0)}"
+                                    : null, // <-- Suffix shows deducted amount
+                                suffixStyle: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.red,
                                 ),
                                 contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 12,
@@ -881,8 +910,14 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
                                 fillColor: _isDiscountDisabled
                                     ? Colors.grey[200]
                                     : Colors.grey[50],
+                                labelText: "Discount(%)",
+                                labelStyle: TextStyle(
+                                  color: _isDiscountDisabled
+                                      ? Colors.grey
+                                      : Colors.black,
+                                ),
                                 hintText: _isDiscountDisabled
-                                    ? _getItemWiseDiscountText() // dynamic hint text
+                                    ? _getItemWiseDiscountText()
                                     : 'Enter Discount',
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
@@ -906,16 +941,74 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
                               },
                             ),
                           ),
+                          const SizedBox(width: 15),
+
+                          // ================= CUSTOM CHARGE DROPDOWN =================
+                          Expanded(
+                            flex: 4,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[50],
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.grey.shade300),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: selectedChargeType,
+                                  isExpanded: true,
+                                  icon: const Icon(
+                                    Icons.arrow_drop_down_rounded,
+                                    size: 22,
+                                  ),
+                                  items: chargeTypes.map((value) {
+                                    return DropdownMenuItem(
+                                      value: value,
+                                      child: Text(value),
+                                    );
+                                  }).toList(),
+                                  onChanged: (newValue) {
+                                    setState(() {
+                                      selectedChargeType = newValue!;
+                                    });
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+
                           const SizedBox(width: 10),
-                          // 🔹 Show Deducted Amount
-                          Text(
-                            deductedAmount > 0
-                                ? "- ₹${deductedAmount.round().toStringAsFixed(0)}"
-                                : "",
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.red,
+
+                          // ================= CUSTOM CHARGE AMOUNT FIELD =================
+                          Expanded(
+                            flex: 3,
+                            child: TextFormField(
+                              controller: _customChargeController,
+                              readOnly: false,
+                              decoration: InputDecoration(
+                                prefixIcon: const Icon(
+                                  Icons.currency_rupee,
+                                  color: Colors.black,
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey[50],
+                                labelText: "Charge",
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide.none,
+                                ),
+                              ),
+                              onTap: () {
+                                ActiveField.activate(
+                                  context: context,
+                                  ctrl: _customChargeController,
+                                  node: FocusNode(),
+                                  numeric: true,
+                                );
+                              },
+                              onChanged: _applyCustomCharge,
                             ),
                           ),
                         ],
@@ -1257,6 +1350,9 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
                                                           widget
                                                               .selectedStoreType,
                                                           context,
+                                                          payments, // 👈 pass payments map
+                                                          customCharge,
+                                                          selectedChargeType,
                                                         );
 
                                                     // Clear UI and provider data

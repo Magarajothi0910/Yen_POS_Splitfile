@@ -6,16 +6,21 @@ class SalesOrder {
   List<double> weight;
   List<int> qty;
   List<int> price;
+  List<int> sellingPrice;
+
   String? branchName;
   String? aliasName;
 
-  final String? imagePath1;
-  final String? imagePath2;
+  // ✅ Support multiple images
+  List<String>? imagePaths;
   final String? audioPath;
+
   List<String> itemCode;
   List<int> tax;
   List<String> uom;
   List<double> amount;
+  List<double> sellingAmount;
+
   String? deliveryDate;
   String? deliveryTime;
   String event;
@@ -52,7 +57,7 @@ class SalesOrder {
   String? companyName;
   String? companyAddress;
   String? companyGST;
-  List<String>? advanceDateTime; // ✅ fixed
+  List<String>? advanceDateTime;
   String? orderType;
   String? eventDate;
   List<String>? isBoxItem;
@@ -69,18 +74,20 @@ class SalesOrder {
     this.branchName,
     this.aliasName,
     this.branchId,
+    required this.sellingPrice,
+    required this.sellingAmount,
     this.itemWiseDiscount,
     this.itemWiseDiscountAmount,
     required this.weight,
     required this.amount,
     required this.tax,
-    required this.customChargeType,
+    this.customChargeType,
     this.totalAmount2,
     required this.uom,
     required this.qty,
     required this.price,
     required this.totalAmount,
-    required this.holdOrderId,
+    this.holdOrderId,
     this.deliveryDate,
     this.deliveryTime,
     required this.event,
@@ -117,32 +124,23 @@ class SalesOrder {
     this.approvalDetails,
     this.approvalOrderId,
     this.eventDate,
-    this.imagePath1,
-    this.imagePath2,
+    this.imagePaths,
     this.audioPath,
   });
 
   factory SalesOrder.fromJson(Map<String, dynamic> json) {
     return SalesOrder(
-      itemName: List<String>.from(
-        json['itemName']?.map((x) => x.toString()) ?? [],
-      ),
-      varianceName: List<String>.from(
-        json['varianceName']?.map((x) => x.toString()) ?? [],
-      ),
-      itemCode: List<String>.from(
-        json['itemCode']?.map((x) => x.toString()) ?? [],
-      ),
+      itemName: List<String>.from(json['itemName']?.map((x) => x.toString()) ?? []),
+      varianceName: List<String>.from(json['varianceName']?.map((x) => x.toString()) ?? []),
+      itemCode: List<String>.from(json['itemCode']?.map((x) => x.toString()) ?? []),
       qty: List<int>.from(json['qty'] ?? []),
       tax: List<int>.from(json['tax'] ?? []),
       uom: List<String>.from(json['uom']?.map((x) => x.toString()) ?? []),
-      amount: List<double>.from(
-        json['amount']?.map((x) => (x as num).toDouble()) ?? [],
-      ),
-      weight: List<double>.from(
-        json['weight']?.map((x) => (x as num).toDouble()) ?? [],
-      ),
+      amount: List<double>.from(json['amount']?.map((x) => (x as num).toDouble()) ?? []),
+      sellingAmount: List<double>.from(json['sellingAmount']?.map((x) => (x as num).toDouble()) ?? []),
+      weight: List<double>.from(json['weight']?.map((x) => (x as num).toDouble()) ?? []),
       price: List<int>.from(json['price'] ?? []),
+      sellingPrice: List<int>.from(json['sellingPrice'] ?? []),
       totalAmount2: (json['totalAmount2'] as num?)?.toDouble(),
       totalAmount: (json['totalAmount'] as num?)?.toDouble() ?? 0.0,
       deliveryDate: json['deliveryDate']?.toString(),
@@ -150,12 +148,9 @@ class SalesOrder {
       branchId: json['branchId']?.toString(),
       holdOrderId: json['holdOrderId']?.toString(),
       branchName: json['branchName']?.toString(),
-      customChargeType: json["customChargeType"]?.toString(),
+      customChargeType: json['customChargeType']?.toString(),
       aliasName: json['aliasName']?.toString(),
-      shiftId: json['shiftId'] != null
-          ? List<String>.from(json['shiftId'].map((x) => x.toString()))
-          : null,
-
+      shiftId: json['shiftId'] != null ? List<String>.from(json['shiftId'].map((x) => x.toString())) : null,
       event: json['event']?.toString() ?? '',
       customerNumber: json['customerNumber']?.toString() ?? '',
       customerName: json['customerName']?.toString() ?? '',
@@ -167,22 +162,12 @@ class SalesOrder {
       remark: json['remark']?.toString() ?? '',
       boxQty: json['boxQty'] ?? 0,
       customCharge: (json['customCharge'] as num?)?.toDouble() ?? 0.0,
-      advanceAmount: List<double>.from(
-        json['advanceAmount']?.map((x) => (x as num).toDouble()) ?? [],
-      ),
+      advanceAmount: List<double>.from(json['advanceAmount']?.map((x) => (x as num).toDouble()) ?? []),
       advancePaymentType: json['advancePaymentType'] != null
-          ? List<List<String>>.from(
-              json['advancePaymentType'].map(
-                (x) => List<String>.from(x.map((y) => y.toString())),
-              ),
-            )
+          ? List<List<String>>.from(json['advancePaymentType'].map((x) => List<String>.from(x.map((y) => y.toString()))))
           : null,
       modeWiseAmount: json['modeWiseAmount'] != null
-          ? List<List<double>>.from(
-              json['modeWiseAmount'].map(
-                (x) => List<double>.from(x.map((y) => (y as num).toDouble())),
-              ),
-            )
+          ? List<List<double>>.from(json['modeWiseAmount'].map((x) => List<double>.from(x.map((y) => (y as num).toDouble()))))
           : null,
       finalPrice: (json['finalPrice'] as num?)?.toDouble() ?? 0.0,
       balanceAmount: (json['balanceAmount'] as num?)?.toDouble() ?? 0.0,
@@ -200,19 +185,12 @@ class SalesOrder {
       companyName: json['companyName']?.toString(),
       orderType: json['orderType']?.toString(),
       eventDate: json['eventDate']?.toString(),
-      isBoxItem: json['isBoxItem'] != null
-          ? List<String>.from(json['isBoxItem'].map((x) => x.toString()))
-          : null,
+      isBoxItem: json['isBoxItem'] != null ? List<String>.from(json['isBoxItem'].map((x) => x.toString())) : null,
       approvalOrderId: json['approvalOrderId']?.toString(),
       approvalDetails: json['approvalDetails'] != null
-          ? List<ApprovalOrderDetail>.from(
-              json['approvalDetails'].map(
-                (x) => ApprovalOrderDetail.fromJson(x),
-              ),
-            )
+          ? List<ApprovalOrderDetail>.from(json['approvalDetails'].map((x) => ApprovalOrderDetail.fromJson(x)))
           : null,
-      imagePath1: json['imagePath1']?.toString(),
-      imagePath2: json['imagePath2']?.toString(),
+      imagePaths: json['imagePaths'] != null ? List<String>.from(json['imagePaths'].map((x) => x.toString())) : null,
       audioPath: json['audioPath']?.toString(),
     );
   }
@@ -229,6 +207,8 @@ class SalesOrder {
       'branchId': branchId,
       'branchName': branchName,
       'price': price,
+      'sellingPrice': sellingPrice,
+      'sellingAmount': sellingAmount,
       'weight': weight,
       'totalAmount2': totalAmount2,
       'deliveryDate': deliveryDate,
@@ -273,8 +253,7 @@ class SalesOrder {
       'boxQty': boxQty,
       'approvalDetails': approvalDetails?.map((x) => x.toJson()).toList(),
       'approvalOrderId': approvalOrderId,
-      'imagePath1': imagePath1,
-      'imagePath2': imagePath2,
+      'imagePaths': imagePaths,
       'audioPath': audioPath,
     };
   }

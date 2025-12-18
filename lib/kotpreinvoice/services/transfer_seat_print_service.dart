@@ -30,7 +30,9 @@ class SeatTransferPrinter {
         print('❌ Invalid printer IP address');
         return 'Invalid printer IP address';
       }
-      print('📥 Input validated: Printing receipt for $tableNumber, seat $seat, orders: ${seatOrders.length}');
+      print(
+        '📥 Input validated: Printing receipt for $tableNumber, seat $seat, orders: ${seatOrders.length}',
+      );
 
       // 🖨️ Initialize printer
       final profile = await CapabilityProfile.load();
@@ -54,13 +56,12 @@ class SeatTransferPrinter {
       final formattedDate = DateFormat('dd-MM-yyyy').format(now);
       final formattedTime = DateFormat('HH:mm:ss').format(now);
       String kotText = _manualCenterText('KOT ', 5);
-      print('📅 Formatted date: $formattedDate, time: $formattedTime, KOT text: $kotText');
+      print(
+        '📅 Formatted date: $formattedDate, time: $formattedTime, KOT text: $kotText',
+      );
 
       // 🖌️ Print receipt header
-      printer.text(
-        '',
-        styles: const PosStyles(align: PosAlign.center),
-      );
+      printer.text('', styles: const PosStyles(align: PosAlign.center));
       printer.text(
         "$kotText- $receiptType",
         styles: const PosStyles(
@@ -75,10 +76,15 @@ class SeatTransferPrinter {
 
       // 🪑 Extract table numbers
       final RegExp regExp = RegExp(r'\d+');
-      final String tableOnlyNumber = regExp.firstMatch(tableNumber)?.group(0) ?? tableNumber;
-      final String toTableNumber = regExp.firstMatch(fromTable)?.group(0) ?? fromTable;
-      final tableSeatText = '${'Table  : $tableOnlyNumber'.padRight(20)}Seat : $seat';
-      print('🪑 Table numbers extracted: From $toTableNumber, To $tableOnlyNumber, Seat $seat');
+      final String tableOnlyNumber =
+          regExp.firstMatch(tableNumber)?.group(0) ?? tableNumber;
+      final String toTableNumber =
+          regExp.firstMatch(fromTable)?.group(0) ?? fromTable;
+      final tableSeatText =
+          '${'Table  : $tableOnlyNumber'.padRight(20)}Seat : $seat';
+      print(
+        '🪑 Table numbers extracted: From $toTableNumber, To $tableOnlyNumber, Seat $seat',
+      );
 
       // 🖌️ Print transfer details
       printer.text(
@@ -111,14 +117,14 @@ class SeatTransferPrinter {
         ),
       );
       printer.feed(1);
-      print('🖌️ Printed transfer details: From Table $toTableNumber Seat $fromSeat to Table $tableOnlyNumber Seat $seat');
+      print(
+        '🖌️ Printed transfer details: From Table $toTableNumber Seat $fromSeat to Table $tableOnlyNumber Seat $seat',
+      );
 
       // 🖌️ Print date and time
-      final dateTimeText = '${'Date  : $formattedDate'.padRight(20)}Time  : $formattedTime';
-      printer.text(
-        dateTimeText,
-        styles: const PosStyles(align: PosAlign.left),
-      );
+      final dateTimeText =
+          '${'Date  : $formattedDate'.padRight(20)}Time  : $formattedTime';
+      printer.text(dateTimeText, styles: const PosStyles(align: PosAlign.left));
       printer.feed(1);
       print('🖌️ Printed date and time: $dateTimeText');
 
@@ -164,7 +170,9 @@ class SeatTransferPrinter {
       int serialNumber = 1;
       double overallTotal = 0.0;
 
-      print('📋 Processing ${seatOrders.length} orders for printing: $seatOrders');
+      print(
+        '📋 Processing ${seatOrders.length} orders for printing: $seatOrders',
+      );
 
       for (var orderIndex = 0; orderIndex < seatOrders.length; orderIndex++) {
         final order = seatOrders[orderIndex];
@@ -176,15 +184,45 @@ class SeatTransferPrinter {
 
         try {
           // 📦 Extract order details
-          List<String> itemNames = (order['itemNames'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
-          List<String> varianceNames = (order['varianceNames'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
-          List<Map<String, dynamic>> configs = (order['config'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).toList() ?? [{}];
-          List<double> prices = (order['prices'] as List<dynamic>?)?.map((e) => safeCast(e, 0.0)).toList() ?? [];
-          List<double> quantities = (order['quantities'] as List<dynamic>?)?.map((e) => safeCast(e, 0.0)).toList() ?? [];
-          List<double> weights = (order['weights'] as List<dynamic>?)?.map((e) => safeCast(e, 0.0)).toList() ?? [];
-          List<double> amounts = (order['amounts'] as List<dynamic>?)?.map((e) => safeCast(e, 0.0)).toList() ?? [];
+          List<String> itemNames =
+              (order['itemNames'] as List<dynamic>?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              [];
+          List<String> varianceNames =
+              (order['varianceNames'] as List<dynamic>?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              [];
+          final configData = order['config'] as List;
+          final List<Map<String, dynamic>> configs = configData
+              .where((item) => item is Map)
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList();
+          List<double> prices =
+              (order['prices'] as List<dynamic>?)
+                  ?.map((e) => safeCast(e, 0.0))
+                  .toList() ??
+              [];
+          List<double> quantities =
+              (order['quantities'] as List<dynamic>?)
+                  ?.map((e) => safeCast(e, 0.0))
+                  .toList() ??
+              [];
+          List<double> weights =
+              (order['weights'] as List<dynamic>?)
+                  ?.map((e) => safeCast(e, 0.0))
+                  .toList() ??
+              [];
+          List<double> amounts =
+              (order['amounts'] as List<dynamic>?)
+                  ?.map((e) => safeCast(e, 0.0))
+                  .toList() ??
+              [];
 
-          print('📦 Order $orderIndex extracted: ${itemNames.length} items, token: ${safeCast(order['tokenNo'], 0)}');
+          print(
+            '📦 Order $orderIndex extracted: ${itemNames.length} items, token: ${safeCast(order['tokenNo'], 0)}',
+          );
 
           printer.text(
             'Order ${orderIndex + 1} (Token No: ${safeCast(order['tokenNo'], 0)})',
@@ -196,12 +234,19 @@ class SeatTransferPrinter {
           // 🛠️ Group items
           for (var i = 0; i < itemNames.length; i++) {
             try {
-              final String itemName = varianceNames.isNotEmpty && i < varianceNames.length ? varianceNames[i] : itemNames[i];
+              final String itemName =
+                  varianceNames.isNotEmpty && i < varianceNames.length
+                  ? varianceNames[i]
+                  : itemNames[i];
               final double price = i < prices.length ? prices[i] : 0.0;
-              final double quantity = i < quantities.length ? quantities[i] : 0.0;
+              final double quantity = i < quantities.length
+                  ? quantities[i]
+                  : 0.0;
               final double amount = i < amounts.length ? amounts[i] : 0.0;
               final double weight = i < weights.length ? weights[i] : 0.0;
-              final String weightText = weight != 0.0 ? weight.toStringAsFixed(2) : '';
+              final String weightText = weight != 0.0
+                  ? weight.toStringAsFixed(2)
+                  : '';
 
               if (quantity > 0 && amount > 0) {
                 if (groupedItems.containsKey(itemName)) {
@@ -221,7 +266,9 @@ class SeatTransferPrinter {
                 }
               }
             } catch (e, stack) {
-              print('⚠️ Error processing item $i in order $orderIndex: $e\n$stack');
+              print(
+                '⚠️ Error processing item $i in order $orderIndex: $e\n$stack',
+              );
               continue;
             }
           }
@@ -231,7 +278,9 @@ class SeatTransferPrinter {
           groupedItems.forEach((variance, details) {
             try {
               // Calculate itemTotal for printing as price * quantity (base item only)
-              final double itemTotal = safeCast(details['price'], 0.0) * safeCast(details['quantity'], 0.0);
+              final double itemTotal =
+                  safeCast(details['price'], 0.0) *
+                  safeCast(details['quantity'], 0.0);
               // Use details['amount'] for overallTotal to include item and add-on totals
               final double totalForItem = safeCast(details['amount'], 0.0);
               overallTotal += totalForItem;
@@ -241,7 +290,8 @@ class SeatTransferPrinter {
                 styles: const PosStyles(align: PosAlign.left),
               );
 
-              if (details['weight'] != null && details['weight'].toString().trim().isNotEmpty) {
+              if (details['weight'] != null &&
+                  details['weight'].toString().trim().isNotEmpty) {
                 printer.text(
                   '   Wt: ${details['weight']}',
                   styles: const PosStyles(align: PosAlign.left),
@@ -251,12 +301,34 @@ class SeatTransferPrinter {
               // 📦 Process add-ons and variances
               final itemConfig = details['config'] as Map<String, dynamic>;
               if (itemConfig.isNotEmpty) {
-                List<String> variances = List<String>.from(safeCast(itemConfig['variance'], <String>[]));
-                List<List<String>> addOns = (itemConfig['addOn'] as List<dynamic>?)?.map((e) => List<String>.from(safeCast(e, <String>[]))).toList() ?? [];
-                List<List<double>> addOnPrices = (itemConfig['addOnPrice'] as List<dynamic>?)?.map((e) => List<double>.from(safeCast(e, <num>[]).map((n) => safeCast(n, 0.0)))).toList() ?? [];
-                List<List<dynamic>> addOnQuantities = (itemConfig['addOnQuantities'] as List<dynamic>?)?.map((e) => List<dynamic>.from(safeCast(e, <dynamic>[]))).toList() ?? [];
+                List<String> variances = List<String>.from(
+                  safeCast(itemConfig['variance'], <String>[]),
+                );
+                List<List<String>> addOns =
+                    (itemConfig['addOn'] as List<dynamic>?)
+                        ?.map((e) => List<String>.from(safeCast(e, <String>[])))
+                        .toList() ??
+                    [];
+                List<List<double>> addOnPrices =
+                    (itemConfig['addOnPrice'] as List<dynamic>?)
+                        ?.map(
+                          (e) => List<double>.from(
+                            safeCast(e, <num>[]).map((n) => safeCast(n, 0.0)),
+                          ),
+                        )
+                        .toList() ??
+                    [];
+                List<List<dynamic>> addOnQuantities =
+                    (itemConfig['addOnQuantities'] as List<dynamic>?)
+                        ?.map(
+                          (e) => List<dynamic>.from(safeCast(e, <dynamic>[])),
+                        )
+                        .toList() ??
+                    [];
 
-                print('📦 Config for $variance: ${addOns.length} add-ons, ${variances.length} variances');
+                print(
+                  '📦 Config for $variance: ${addOns.length} add-ons, ${variances.length} variances',
+                );
 
                 // 🖌️ Print grouped variances
                 Map<String, int> groupedVariances = {};
@@ -281,16 +353,35 @@ class SeatTransferPrinter {
                   for (var k = 0; k < addOns[j].length; k++) {
                     try {
                       final String addOnName = safeCast(addOns[j][k], '');
-                      final double addOnPrice = j < addOnPrices.length && k < addOnPrices[j].length ? safeCast(addOnPrices[j][k], 0.0) : 0.0;
-                      final double addOnQuantity = j < addOnQuantities.length && k < addOnQuantities[j].length ? safeCast(addOnQuantities[j][k], 1.0) : 1.0;
+                      final double addOnPrice =
+                          j < addOnPrices.length && k < addOnPrices[j].length
+                          ? safeCast(addOnPrices[j][k], 0.0)
+                          : 0.0;
+                      final double addOnQuantity =
+                          j < addOnQuantities.length &&
+                              k < addOnQuantities[j].length
+                          ? safeCast(addOnQuantities[j][k], 1.0)
+                          : 1.0;
 
-                      if (addOnName.isNotEmpty && addOnPrice > 0 && addOnQuantity > 0) {
+                      if (addOnName.isNotEmpty &&
+                          addOnPrice > 0 &&
+                          addOnQuantity > 0) {
                         final double unitPrice = addOnPrice / addOnQuantity;
                         final double totalAddOnPrice = addOnPrice;
 
                         if (groupedAddOns.containsKey(addOnName)) {
-                          groupedAddOns[addOnName]!['quantity'] = safeCast(groupedAddOns[addOnName]!['quantity'], 0.0) + addOnQuantity;
-                          groupedAddOns[addOnName]!['totalPrice'] = safeCast(groupedAddOns[addOnName]!['totalPrice'], 0.0) + totalAddOnPrice;
+                          groupedAddOns[addOnName]!['quantity'] =
+                              safeCast(
+                                groupedAddOns[addOnName]!['quantity'],
+                                0.0,
+                              ) +
+                              addOnQuantity;
+                          groupedAddOns[addOnName]!['totalPrice'] =
+                              safeCast(
+                                groupedAddOns[addOnName]!['totalPrice'],
+                                0.0,
+                              ) +
+                              totalAddOnPrice;
                         } else {
                           groupedAddOns[addOnName] = {
                             'quantity': addOnQuantity,
@@ -300,7 +391,9 @@ class SeatTransferPrinter {
                         }
                       }
                     } catch (e, stack) {
-                      print('⚠️ Error processing add-on at index j=$j, k=$k in order $orderIndex: $e\n$stack');
+                      print(
+                        '⚠️ Error processing add-on at index j=$j, k=$k in order $orderIndex: $e\n$stack',
+                      );
                       continue;
                     }
                   }
@@ -310,15 +403,23 @@ class SeatTransferPrinter {
                 // 🖌️ Print grouped add-ons
                 groupedAddOns.forEach((addOnName, details) {
                   try {
-                    final double addOnTotal = safeCast(details['totalPrice'], 0.0);
-                    final double unitPrice = safeCast(details['unitPrice'], 0.0);
+                    final double addOnTotal = safeCast(
+                      details['totalPrice'],
+                      0.0,
+                    );
+                    final double unitPrice = safeCast(
+                      details['unitPrice'],
+                      0.0,
+                    );
                     final double quantity = safeCast(details['quantity'], 0.0);
 
                     printer.text(
                       '${_alignText("", 3)} -> ${_alignText(capitalizeWords(addOnName), 20)} ${_alignText(_formatNumber(unitPrice), 6)} ${_alignText(_formatNumber(quantity), 5)} ${_alignText(_formatNumber(addOnTotal), 6)}',
                       styles: const PosStyles(align: PosAlign.left),
                     );
-                    print('🖌️ Printed add-on: $addOnName, Unit Price: $unitPrice, Quantity: $quantity, Total: $addOnTotal');
+                    print(
+                      '🖌️ Printed add-on: $addOnName, Unit Price: $unitPrice, Quantity: $quantity, Total: $addOnTotal',
+                    );
                   } catch (e, stack) {
                     print('⚠️ Error printing add-on $addOnName: $e\n$stack');
                   }
@@ -361,25 +462,35 @@ class SeatTransferPrinter {
       printer.disconnect();
       print('🔌 Printer disconnected from $ipAddress');
 
-      print('✅ Printed receipt successfully to printer at IP address $ipAddress');
+      print(
+        '✅ Printed receipt successfully to printer at IP address $ipAddress',
+      );
       return 'Receipt printed successfully';
     } catch (e, stack) {
       print('❌ Error printing receipt: $e\n$stack');
       if (e.toString().contains('is not a subtype of type')) {
-        print('⚠️ Type mismatch detected: Ensure all numeric fields (prices, quantities, amounts) are doubles in seatOrders');
+        print(
+          '⚠️ Type mismatch detected: Ensure all numeric fields (prices, quantities, amounts) are doubles in seatOrders',
+        );
       } else if (e is SocketException) {
-        print('⚠️ Network error: Check printer connectivity at $ipAddress:9100');
+        print(
+          '⚠️ Network error: Check printer connectivity at $ipAddress:9100',
+        );
       }
       return 'Error printing receipt: $e';
     }
   }
 
   static String _alignText(String text, int length) {
-    return text.padRight(length).substring(0, length > text.length ? text.length : length);
+    return text
+        .padRight(length)
+        .substring(0, length > text.length ? text.length : length);
   }
 
   static String _formatNumber(double value) {
-    return value == value.floor() ? value.toInt().toString() : value.toStringAsFixed(2);
+    return value == value.floor()
+        ? value.toInt().toString()
+        : value.toStringAsFixed(2);
   }
 
   static String _manualCenterText(String text, int totalWidth) {
@@ -407,7 +518,9 @@ class SeatTransferPrinter {
       } else if (value is List && T == List<num>) {
         return List<num>.from(value.map((e) => safeCast(e, 0))) as T;
       }
-      print('⚠️ safeCast failed for value: $value, type: ${value.runtimeType}, returning default: $defaultValue');
+      print(
+        '⚠️ safeCast failed for value: $value, type: ${value.runtimeType}, returning default: $defaultValue',
+      );
       return defaultValue;
     } catch (e, stack) {
       print('❌ safeCast error: $e\n$stack');

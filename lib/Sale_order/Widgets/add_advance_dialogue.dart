@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:yenpos/Global/Provider/connectivity_internet.dart';
 import 'package:yenpos/Global/globals_data.dart';
 import 'package:yenpos/Global/salesorder_websocket_service.dart';
 import 'package:yenpos/Sale_order/Models/sales_order_display_model.dart';
@@ -13,6 +14,7 @@ import 'package:yenpos/Sale_order/Print_Receipt/allorderprint.dart';
 import 'package:yenpos/Sale_order/Widgets/Send_data_to_server.dart';
 import 'package:yenpos/Sale_order/Widgets/advance_amount_payment_keybaord.dart';
 import 'package:yenpos/Sale_order/Widgets/cheque_details.dart';
+import 'package:yenpos/Server_Client/handlers/saleorder_handlemessage.dart';
 import 'package:yenpos/invoice_pay_and_print_page.dart/provider/payment_provider.dart';
 import 'package:yenpos/invoice_pay_and_print_page.dart/provider/razorpay_provider.dart';
 
@@ -42,6 +44,8 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
   int _upiAmount = 0;
   int _chequeAmount = 0;
   double _originalAmount = 0.0;
+  double _totalAmount = 0.0;
+
   double _upiAndCashAmount = 0.0;
   String salesOrderId = '';
   bool _isCompleteButtonEnabled = false; // default enabled
@@ -96,10 +100,12 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
     totalAmount = List.from(initialAdvanceList);
 
     double alreadyPaid = initialAdvanceList.fold(0.0, (sum, e) => sum + e);
+    double customCharge = widget.salesOrder.customCharge ?? 0.0;
 
     _originalAmount = alreadyPaid;
     _upiAndCashAmount = alreadyPaid;
-    _balanceAmount = widget.salesOrder.totalAmount - alreadyPaid;
+    _totalAmount = widget.salesOrder.totalAmount + customCharge;
+    _balanceAmount = _totalAmount - alreadyPaid;
     salesOrderId = widget.salesOrder.saleOrderNo ?? '';
 
     _employeeNumberController.addListener(_validateForm);
@@ -226,9 +232,13 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
 
     final alreadyPaid =
         widget.salesOrder.advanceAmount?.fold(0.0, (sum, e) => sum + e) ?? 0.0;
+    final customCharge = widget.salesOrder.customCharge ?? 0.0;
 
     final remaining =
-        widget.salesOrder.totalAmount - alreadyPaid - (cash + upi + card);
+        widget.salesOrder.totalAmount +
+        customCharge -
+        alreadyPaid -
+        (cash + upi + card);
 
     // 🔎 Debug print
 
@@ -728,8 +738,7 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                             Expanded(
                               child: _buildPremiumCardElegant(
                                 title: "Total",
-                                value:
-                                    '₹${widget.salesOrder.totalAmount.toStringAsFixed(0)}',
+                                value: '₹${_totalAmount.toStringAsFixed(0)}',
                                 icon: Icons.attach_money,
                                 gradientColors: [
                                   Colors.green.shade400,
@@ -944,9 +953,20 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                                             "sync": "No",
                                             "edit": "No",
                                           };
-
+                                          final connectivityProvider =
+                                              Provider.of<ConnectivityProvider>(
+                                                context,
+                                                listen: false,
+                                              );
+                                          if (connectivityProvider
+                                              .isConnected) {
+                                            print("connected true");
+                                            await sendataToServer(patchPayload);
+                                          } else {
+                                            print("connected false");
+                                            handlePatchSaleOrder(patchPayload);
+                                          }
                                           // 9️⃣ Send via WebSocket
-                                          await sendataToServer(patchPayload);
 
                                           Navigator.of(context).pop();
                                           ScaffoldMessenger.of(

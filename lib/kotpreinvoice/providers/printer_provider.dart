@@ -11,13 +11,13 @@ class PrinterProviderDine with ChangeNotifier {
 
   Future<void> printerInitializeHive() async {
     try {
-      if (!Hive.isBoxOpen('printers')) {
-        await Hive.openBox('printers');
-        print("✅ Opened Hive box 'printers'");
+      if (!Hive.isBoxOpen('KOTprinters')) {
+        await Hive.openBox('KOTprinters');
+        print("✅ Opened Hive box 'KOTprinters'");
       }
-      _printerBox = Hive.box('printers');
-      print("✅ Hive box 'printers' is open: ${_printerBox.isOpen}");
-      print("🔍 Current keys in 'printers' box: ${_printerBox.keys}");
+      _printerBox = Hive.box('KOTprinters');
+      print("✅ Hive box 'KOTprinters' is open: ${_printerBox.isOpen}");
+      print("🔍 Current keys in 'KOTprinters' box: ${_printerBox.keys}");
 
       loadPrintersFromHive();
 
@@ -45,7 +45,6 @@ class PrinterProviderDine with ChangeNotifier {
   void loadPrintersFromHive() {
     try {
       final data = _printerBox.get('data');
-      print("🔍 Raw data from Hive 'data' key: $data");
 
       if (data != null && data is List) {
         _printers = data
@@ -68,7 +67,6 @@ class PrinterProviderDine with ChangeNotifier {
         print("⚠️ No data found in Hive or invalid format: $data");
       }
 
-      print("✅ Loaded ${_printers.length} printers: ${_printers.map((p) => p.toJson())}");
     } catch (e) {
       print("❌ Error loading data from Hive: $e");
       _printers = [];

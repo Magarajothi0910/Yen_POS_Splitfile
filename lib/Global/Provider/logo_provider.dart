@@ -32,6 +32,9 @@ Future<void> fetchAndStoreLogo() async {
       await box.put('BMlogo_name', logoFileName);
       await box.put('BMlogo_path', filePath);
       await box.put('BMlogo_lastFetched', DateTime.now().toIso8601String());
-    } else {}
-  } catch (e) {}
+
+    } else {
+    }
+  } catch (e) {
+  }
 }

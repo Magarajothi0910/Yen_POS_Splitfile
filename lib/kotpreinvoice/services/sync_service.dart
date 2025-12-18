@@ -7,7 +7,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 class SyncServiceKot {
   // final String apiUrl = 'https://yenerp.com/fastapi/orders/';
   final String apiUrl = 'https://yenerp.com/fastapi/orders/';
-  final String invoiceApiUrl = 'https://yenerp.com/fastapi/invoices/';
+  final String invoiceApiUrl = 'https://yenerp.com/fluttertestapi/invoices/';
   final String kotTableStatusUrl = 'https://yenerp.com/fastapi/kottablesstatus';
 
   final Dio _dio = Dio(
@@ -183,6 +183,9 @@ class SyncServiceKot {
           }
 
           print("📦 Order data (key=$key): $orderData");
+
+          final status = orderData["status"];
+          print("Order Status: $status");
 
           if (orderData is Map<String, dynamic> && orderData['sync'] == 'No') {
             print("📤 Posting unsynced order...");
@@ -497,67 +500,152 @@ class SyncServiceKot {
     }
   }
 
+  // Future<void> syncUnsyncedInvoices() async {
+  //   print("🔄 Syncing unsynced invoices...");
+  //   if (_isSyncingInvoices) {
+  //     print("⚠️ Invoices are already syncing. Skipping.");
+  //     return;
+  //   }
+  //   _isSyncingInvoices = true;
+  //   print("Starting invoice sync...");
+  //   try {
+  //     var invoiceBox = Hive.box('invoicesKOT');
+  //     for (int i = 0; i < invoiceBox.length; i++) {
+  //       print("📋 Processing invoice at index $i");
+  //       if (invoiceBox.getAt(i) == null) {
+  //         print("⚠️ Skipping null invoice at index $i");
+  //         continue;
+  //       }
+  //       var invoiceData = invoiceBox.getAt(i);
+
+  //       if (invoiceData is String) {
+  //         try {
+  //           invoiceData = jsonDecode(invoiceData) as Map<String, dynamic>;
+  //         } catch (jsonError) {
+  //           print("❌ JSON decode error for invoice at index $i: $jsonError");
+  //           continue;
+  //         }
+  //       }
+
+  //       if (invoiceData is Map<String, dynamic> &&
+  //           invoiceData['sync'] == 'No') {
+  //         print(
+  //           "📤 Posting unsynced invoice with ID: ${invoiceData['invoiceId'] ?? 'No ID'}",
+  //         );
+  //         print("📤 Posting unsynced invoice: $invoiceData");
+  //         bool success = await postInvoice(invoiceData);
+  //         if (success) {
+  //           final updatedInvoice = Map<String, dynamic>.from(invoiceData);
+  //           updatedInvoice['sync'] = 'Yes';
+  //           // Store back as the original format (assuming it was String, but handle both)
+  //           if (invoiceBox.getAt(i) is String) {
+  //             await invoiceBox.putAt(i, jsonEncode(updatedInvoice));
+  //           } else {
+  //             await invoiceBox.putAt(i, updatedInvoice);
+  //           }
+  //           print("✅ Updated invoice at index $i with sync=Yes");
+  //         } else {
+  //           print("⚠️ Queuing failed invoice for retry at index $i");
+  //           queueSync(() => postInvoice(invoiceData));
+  //         }
+  //       } else if (invoiceData is! Map<String, dynamic>) {
+  //         print(
+  //           "⚠️ Invalid invoice data type at index $i: ${invoiceData.runtimeType}",
+  //         );
+  //       }
+  //     }
+  //   } catch (e) {
+  //     print("❌ Error during invoice sync: $e");
+  //     if (e.toString().contains('Box')) {
+  //       print("🔒 Hive invoices box access issue.");
+  //     }
+  //   } finally {
+  //     _isSyncingInvoices = false;
+  //   }
+  // }
   Future<void> syncUnsyncedInvoices() async {
     print("🔄 Syncing unsynced invoices...");
+
     if (_isSyncingInvoices) {
       print("⚠️ Invoices are already syncing. Skipping.");
       return;
     }
     _isSyncingInvoices = true;
-    print("Starting invoice sync...");
+
     try {
-      var invoiceBox = Hive.box('invoices');
+      print("📦 Opening Hive box invoicesKOT...");
+      final invoiceBox = Hive.box('invoicesKOT');
+
+      print("📊 Total invoices: ${invoiceBox.length}");
+
       for (int i = 0; i < invoiceBox.length; i++) {
-        print("📋 Processing invoice at index $i");
-        if (invoiceBox.getAt(i) == null) {
-          print("⚠️ Skipping null invoice at index $i");
+        print("\n📋 Processing invoice index $i");
+
+        var rawData = invoiceBox.getAt(i);
+
+        if (rawData == null) {
+          print("⚠️ Skipping NULL invoice at index $i");
           continue;
         }
-        var invoiceData = invoiceBox.getAt(i);
 
-        if (invoiceData is String) {
+        Map<String, dynamic>? invoiceData;
+
+        // 🔹 Parse JSON if saved as String
+        if (rawData is String) {
           try {
-            invoiceData = jsonDecode(invoiceData) as Map<String, dynamic>;
-          } catch (jsonError) {
-            print("❌ JSON decode error for invoice at index $i: $jsonError");
+            invoiceData = jsonDecode(rawData) as Map<String, dynamic>;
+          } catch (e) {
+            print("❌ JSON decode failed at index $i -> $e");
             continue;
           }
         }
+        // 🔹 If already Map
+        else if (rawData is Map) {
+          invoiceData = Map<String, dynamic>.from(rawData);
+        } else {
+          print("⚠️ Invalid data type at index $i: ${rawData.runtimeType}");
+          continue;
+        }
 
-        if (invoiceData is Map<String, dynamic> &&
-            invoiceData['sync'] == 'No') {
-          print(
-            "📤 Posting unsynced invoice with ID: ${invoiceData['invoiceId'] ?? 'No ID'}",
-          );
-          print("📤 Posting unsynced invoice: $invoiceData");
-          bool success = await postInvoice(invoiceData);
-          if (success) {
-            final updatedInvoice = Map<String, dynamic>.from(invoiceData);
-            updatedInvoice['sync'] = 'Yes';
-            // Store back as the original format (assuming it was String, but handle both)
-            if (invoiceBox.getAt(i) is String) {
-              await invoiceBox.putAt(i, jsonEncode(updatedInvoice));
-            } else {
-              await invoiceBox.putAt(i, updatedInvoice);
-            }
-            print("✅ Updated invoice at index $i with sync=Yes");
+        // 🔹 Check sync flag
+        if (invoiceData['sync'] != 'No') {
+          print("⏭️ Invoice already synced. Skipping index $i");
+          continue;
+        }
+
+        final invoiceId = invoiceData['invoiceId'] ?? "NO-ID";
+        print("📤 Posting unsynced invoice → ID: $invoiceId");
+
+        // 🔹 Attempt to sync
+        final success = await postInvoice(invoiceData);
+
+        if (success) {
+          print("✅ Successfully synced invoice ID: $invoiceId");
+
+          invoiceData['sync'] = 'Yes';
+
+          // Save back as same format it was stored
+          if (rawData is String) {
+            await invoiceBox.putAt(i, jsonEncode(invoiceData));
           } else {
-            print("⚠️ Queuing failed invoice for retry at index $i");
-            queueSync(() => postInvoice(invoiceData));
+            await invoiceBox.putAt(i, invoiceData);
           }
-        } else if (invoiceData is! Map<String, dynamic>) {
-          print(
-            "⚠️ Invalid invoice data type at index $i: ${invoiceData.runtimeType}",
-          );
+
+          print("💾 Updated invoice at index $i → sync=Yes");
+        } else {
+          print("⚠️ Sync failed. Adding invoice to retry queue: $invoiceId");
+          queueSync(() => postInvoice(invoiceData!));
         }
       }
     } catch (e) {
-      print("❌ Error during invoice sync: $e");
+      print("❌ ERROR during invoice sync: $e");
+
       if (e.toString().contains('Box')) {
-        print("🔒 Hive invoices box access issue.");
+        print("🔒 Hive box access issue for invoicesKOT.");
       }
     } finally {
       _isSyncingInvoices = false;
+      print("\n✅ Finished invoice sync process.");
     }
   }
 

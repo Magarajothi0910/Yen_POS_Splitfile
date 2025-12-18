@@ -171,6 +171,9 @@ class SalesOrderDisplay {
   final List<String> varianceName;
   final List<int> qty;
   final List<double> price;
+  final List<int> sellingPrice;
+  final List<double> sellingAmount;
+
   final List<String> itemCode;
   final List<double> weight;
   final List<double> amount;
@@ -244,6 +247,9 @@ class SalesOrderDisplay {
     required this.qty,
     required this.price,
     required this.itemCode,
+    required this.sellingPrice,
+    required this.sellingAmount,
+
     required this.weight,
     required this.amount,
     required this.tax,
@@ -330,6 +336,9 @@ class SalesOrderDisplay {
       'amount': amount,
       'tax': tax,
       'uom': uom,
+      'sellingPrice': sellingPrice,
+      'sellingAmount': sellingAmount,
+
       'totalAmount': totalAmount,
       'totalAmount2': totalAmount2,
       'netPrice': netPrice,
@@ -402,6 +411,16 @@ class SalesOrderDisplay {
       qty:
           (json['qty'] as List?)
               ?.map((e) => int.tryParse(e.toString()) ?? 0)
+              .toList() ??
+          [],
+      sellingPrice:
+          (json['sellingPrice'] as List?)
+              ?.map((e) => int.tryParse(e.toString()) ?? 0)
+              .toList() ??
+          [],
+      sellingAmount:
+          (json['sellingAmount'] as List?)
+              ?.map((e) => (e as num).toDouble())
               .toList() ??
           [],
       price:
@@ -569,6 +588,26 @@ class SalesOrderDisplay {
         (v) => int.tryParse(v.toString()) ?? 0,
         0,
       ),
+      sellingPrice: parseList<int>(
+        orderMap['sellingPrice'],
+        (v) => int.tryParse(v.toString()) ?? 0,
+        0,
+      ),
+      sellingAmount: parseList<double>(
+        orderMap['sellingAmount'],
+        (v) => double.tryParse(v.toString()) ?? 0.0,
+        0.0,
+      ),
+      itemWiseDiscount: parseList<double>(
+        orderMap['itemWiseDiscount'],
+        (v) => double.tryParse(v.toString()) ?? 0.0,
+        0.0,
+      ),
+      itemWiseDiscountAmount: parseList<double>(
+        orderMap['itemWiseDiscountAmount'],
+        (v) => double.tryParse(v.toString()) ?? 0.0,
+        0.0,
+      ),
       price: parseList<double>(
         orderMap['price'],
         (v) => double.tryParse(v.toString()) ?? 0.0,
@@ -689,6 +728,9 @@ class SalesOrderDisplay {
       varianceName: varianceName,
       qty: qty,
       price: price,
+      sellingPrice: sellingPrice,
+      sellingAmount: sellingAmount,
+
       itemCode: itemCode,
       weight: weight,
       amount: amount,
@@ -759,6 +801,8 @@ class SalesOrderDisplay {
       qty: qty,
       price: price,
       itemCode: itemCode,
+      sellingPrice: sellingPrice,
+      sellingAmount: sellingAmount,
       weight: weight,
       amount: amount,
       tax: tax,

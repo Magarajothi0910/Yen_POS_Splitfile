@@ -11,15 +11,9 @@ class OrderApiService {
     if (response.statusCode == 200) {
       try {
         final data = response.data as List<dynamic>;
-        int holdOrders = data
-            .where((order) => order['status'] == 'active')
-            .length;
-        int pendingOrders = data
-            .where((order) => order['status'] == 'confirm')
-            .length;
-        int completedOrders = data
-            .where((order) => order['status'] == 'invoiced')
-            .length;
+        int holdOrders = data.where((order) => order['status'] == 'active').length;
+        int pendingOrders = data.where((order) => order['status'] == 'confirm').length;
+        int completedOrders = data.where((order) => order['status'] == 'invoiced').length;
 
         return {
           'Hold': holdOrders,

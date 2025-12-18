@@ -302,9 +302,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 
 class SalesInvoiceState with ChangeNotifier {
-  TextEditingController employee = TextEditingController();
-    final TextEditingController customerNumberController = TextEditingController();
-String? _selectedEmployeeNumber;          // <-- NEW
+
+  final TextEditingController employee = TextEditingController();
+
+  final TextEditingController customerNumberController =
+      TextEditingController();
+
+  String? _selectedEmployeeNumber; // <-- NEW
   String? get selectedEmployeeNumber => _selectedEmployeeNumber;
   String _selectedPaymentOption = '';
   String _selectedPaymentOptionValue = '';
@@ -321,6 +325,7 @@ String? _selectedEmployeeNumber;          // <-- NEW
   bool _isCardPaid = false;
   bool _isAddingCustomer = false;
   bool _isSubmitting = false;
+  
 
   // ────────────────────── GETTERS ──────────────────────
   int get roundedBalance => _balanceAmount.round();
@@ -435,18 +440,25 @@ String? _selectedEmployeeNumber;          // <-- NEW
     bool? isAddingCustomer,
     bool? isSubmitting,
   }) {
-    if (selectedEmployeeFirstName != null) _selectedEmployeeFirstName = selectedEmployeeFirstName;
-    if (selectedEmployeeNumber != null) _selectedEmployeeNumber = selectedEmployeeNumber;
-    if (selectedPaymentOption != null) _selectedPaymentOption = selectedPaymentOption;
-    if (selectedPaymentOptionValue != null) _selectedPaymentOptionValue = selectedPaymentOptionValue;
+    if (selectedEmployeeFirstName != null)
+      _selectedEmployeeFirstName = selectedEmployeeFirstName;
+    if (selectedEmployeeNumber != null)
+      _selectedEmployeeNumber = selectedEmployeeNumber;
+    if (selectedPaymentOption != null)
+      _selectedPaymentOption = selectedPaymentOption;
+    if (selectedPaymentOptionValue != null)
+      _selectedPaymentOptionValue = selectedPaymentOptionValue;
     if (balanceAmount != null) _balanceAmount = balanceAmount;
     if (cashAmount != null) _cashAmount = cashAmount;
     if (cardAmount != null) _cardAmount = cardAmount;
     if (upiAmount != null) _upiAmount = upiAmount;
-    if (selectedEmployeeFirstName != null) _selectedEmployeeFirstName = selectedEmployeeFirstName;
-    if (roundedDiscountAmount != null) _roundedDiscountAmount = roundedDiscountAmount;
+    if (selectedEmployeeFirstName != null)
+      _selectedEmployeeFirstName = selectedEmployeeFirstName;
+    if (roundedDiscountAmount != null)
+      _roundedDiscountAmount = roundedDiscountAmount;
     if (invoiceNumber != null) _invoiceNumber = invoiceNumber;
-    if (isPrintButtonEnabled != null) _isPrintButtonEnabled = isPrintButtonEnabled;
+    if (isPrintButtonEnabled != null)
+      _isPrintButtonEnabled = isPrintButtonEnabled;
     if (selectedBirthday != null) _selectedBirthday = selectedBirthday;
     if (isUpiPaid != null) _isUpiPaid = isUpiPaid;
     if (isCardPaid != null) _isCardPaid = isCardPaid;
@@ -471,20 +483,22 @@ String? _selectedEmployeeNumber;          // <-- NEW
   _cardAmount = 0.0;
   _upiAmount = 0.0;
   _selectedEmployeeFirstName = null;
-  _selectedEmployeeNumber = null; // Add this
+  _selectedEmployeeNumber = null;
   _roundedDiscountAmount = 0.0;
   _invoiceNumber = '';
   _isPrintButtonEnabled = false;
   _selectedBirthday = null;
   _isAddingCustomer = false;
   _isSubmitting = false;
-  
-  // Clear employee data
+
+  // Clear shared controller
   employee.clear();
-  
+
   // Reset payment flags
   resetPaymentFlags();
 
+  // Rebuild UI on ALL screens using this provider
   notifyListeners();
 }
+
 }

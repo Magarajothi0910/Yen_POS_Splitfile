@@ -15,6 +15,7 @@ import 'package:image/image.dart' as img;
 import 'package:yenpos/Global/Widget/customposcolumn.dart';
 import 'package:yenpos/Global/global_data_manager.dart';
 import 'package:yenpos/Global/globals_data.dart' as globals;
+import 'package:yenpos/printer_screen/provider/printer_config_provider.dart';
 
 class salesOrderReceiptPrinter {
   final TextEditingController employeeNameController;
@@ -28,6 +29,8 @@ class salesOrderReceiptPrinter {
   List<String>? advanceDateTime; // ✅ fixed
   double customChargeController;
   String selectedPaymentOptionValue;
+  String chargeType;
+
   double totalAmount;
   double totalAmount2;
   double finalPrice;
@@ -37,7 +40,8 @@ class salesOrderReceiptPrinter {
   double balanceAmount;
   String customerType;
   String editAbout;
-
+  // Inject PrinterProvider directly
+  final PrinterProviderpos printerProvider;
   // final BuildContext context;
   final TextEditingController customAmountController;
   List<List<String>>? selectedPaymentOption;
@@ -52,6 +56,8 @@ class salesOrderReceiptPrinter {
     required this.discountAmountController,
     required this.deliveryTimeprint,
     required this.customChargeController,
+    required this.chargeType,
+
     required this.totalAmount2,
     required this.finalPrice,
     required this.discountAmount,
@@ -62,7 +68,7 @@ class salesOrderReceiptPrinter {
     required this.saleOrderNo,
     required this.balanceAmount,
     required this.editAbout,
-
+    required this.printerProvider, // ✅ inject dependency
     // required this.context,
     required this.customerType,
     required this.customAmountController,
@@ -104,17 +110,28 @@ class salesOrderReceiptPrinter {
         receiptTitle = 'Order Cancelled Receipt';
         break;
       default:
-        receiptTitle = 'Modified Order Receipt';
+        receiptTitle = 'Order Receipt';
     }
     String fullEmployeeName = employeeNameController.text.trim();
     String employeeDisplayName = fullEmployeeName.contains('-')
         ? fullEmployeeName.split('-').last.trim()
         : fullEmployeeName;
     var cartItems = globals.cartItems ?? [];
+    // Convert delivery date to dd-MM-yyyy
+    String formattedDeliveryDate = "";
+    try {
+      if (deliveryDateprint != null && deliveryDateprint.isNotEmpty) {
+        DateTime d = DateTime.parse(deliveryDateprint);
+        formattedDeliveryDate = DateFormat('dd-MM-yyyy').format(d);
+      }
+    } catch (e) {
+      formattedDeliveryDate = deliveryDateprint; // fallback
+    }
 
-    // Printer connection
-    String printerIp = '192.168.1.90';
+    // Step 5: Get printer IP directly from injected provider
+    String printerIp = printerProvider.getOverallPrinterIp().toString();
 
+    print("sale order patch print : $printerIp");
     final profile = await CapabilityProfile.load();
 
     final printer = NetworkPrinter(PaperSize.mm80, profile);
@@ -208,32 +225,24 @@ class salesOrderReceiptPrinter {
 
       // Add formatted date and time
       bytes += generator.row([
+        createPosColumn(width: 5, text: 'Date: $formattedDate'),
         createPosColumn(
-          width: 6,
-          text: 'Date: $formattedDate',
-          styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
-        ),
-        createPosColumn(
-          width: 6,
-          text: 'Time: $formattedTime',
-          styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
+          width: 7,
+          text: 'Delivery Date: $formattedDeliveryDate',
+          styles: createPosStyles(align: PosAlign.right),
         ),
       ]);
 
       bytes += generator.feed(1);
-
       bytes += generator.row([
+        createPosColumn(width: 4, text: 'Time: $formattedTime'),
         createPosColumn(
-          width: 6,
-          text: 'Dl Date: $deliveryDateprint',
-          styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
-        ),
-        createPosColumn(
-          width: 6,
-          text: 'Dl Time:$deliveryTimeprint',
-          styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
+          width: 8,
+          text: 'Delivery Time: $deliveryTimeprint',
+          styles: createPosStyles(align: PosAlign.right),
         ),
       ]);
+
       bytes += generator.feed(1);
 
       bytes += generator.row([
@@ -244,7 +253,7 @@ class salesOrderReceiptPrinter {
         ),
         createPosColumn(
           width: 6,
-          text: 'C No: $customerNumber',
+          text: 'Customer No: $customerNumber',
           styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
         ),
       ]);
@@ -264,44 +273,30 @@ class salesOrderReceiptPrinter {
       bytes += generator.row([
         createPosColumn(
           width: 12,
-          text: '----------------------------------------------',
+          text: '==============================================',
           styles: createPosStyles(align: PosAlign.center),
         ),
       ]);
 
-      // Add headers for S.No, Item, Price, Qty, and Amount
+      /// COLUMN HEADERS (Classic Box)
       bytes += generator.row([
+        createPosColumn(width: 1, text: 'No'),
+        createPosColumn(width: 7, text: 'Item'),
         createPosColumn(
-          width: 1,
-          text: 'S.No',
-          styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
-        ),
-        createPosColumn(
-          width: 5,
-          text: 'Item',
-          styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
+          width: 2,
+          text: 'Tax',
+          styles: createPosStyles(align: PosAlign.center),
         ),
         createPosColumn(
           width: 2,
-          text: '',
-          styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
-        ),
-        createPosColumn(
-          width: 1,
-          text: '',
-          styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
-        ),
-        createPosColumn(
-          width: 3,
-          text: 'Amount',
-          styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
+          text: 'Amt',
+          styles: createPosStyles(align: PosAlign.right),
         ),
       ]);
       bytes += generator.row([
         createPosColumn(
           width: 12,
           text: '----------------------------------------------',
-          styles: createPosStyles(align: PosAlign.center),
         ),
       ]);
       bytes += generator.feed(1);
@@ -326,28 +321,26 @@ class salesOrderReceiptPrinter {
         sgstMap[taxRate / 2] = (sgstMap[taxRate / 2] ?? 0.0) + itemSGST;
         cgstMap[taxRate / 2] = (cgstMap[taxRate / 2] ?? 0.0) + itemCGST;
       }
-
       for (int i = 0; i < cartItems.length; i++) {
         final item = cartItems[i];
+
         final double amount = item.uom == 'Kgs'
-            ? (item.weight * item.quantity * item.pricePerKg).toDouble()
-            : (item.quantity * item.pricePerKg).toDouble();
-
-        final double discountedAmount =
-            amount - ((item.itemWiseDiscountAmount ?? 0).toDouble());
-
+            ? (item.weight * item.quantity.value * item.pricePerKg).toDouble()
+            : (item.quantity.value * item.pricePerKg).toDouble();
+        final discountedAmount = amount - (item.itemWiseDiscountAmount ?? 0);
+        double taxPercentage = (item.tax as num).toDouble();
+        taxVaule = taxPercentage;
         String priceDescription = '';
         if (item.uom.toLowerCase() == 'kgs' || item.uom.toLowerCase() == 'kg') {
           // Weight-based pricing → show both quantity and weight
           priceDescription = item.weight >= 1
-              ? '${item.quantity} ${item.uom} (${item.weight.toStringAsFixed(2)} kg) × Rs.${item.pricePerKg.toStringAsFixed(0)}/kg'
-              : '${item.quantity} × (${(item.weight * 1000).toStringAsFixed(0)} g) × Rs.${item.pricePerKg.toStringAsFixed(0)}/kg';
+              ? '${item.quantity.value} ${item.uom} (${item.weight.toStringAsFixed(2)} kg) × Rs ${item.pricePerKg.toStringAsFixed(0)}/kg'
+              : '${item.quantity.value} × (${(item.weight * 1000).toStringAsFixed(0)} g) × Rs ${item.pricePerKg.toStringAsFixed(0)}/kg';
         } else {
           // Pcs / Pkt or others
           priceDescription =
-              '${item.quantity.toStringAsFixed(0)} ${item.uom} × Rs.${item.pricePerKg.toStringAsFixed(0)}';
+              '${item.quantity.value.toStringAsFixed(0)} ${item.uom} × Rs ${item.pricePerKg.toStringAsFixed(0)}';
         }
-
         bytes += generator.row([
           createPosColumn(
             width: 1,
@@ -355,14 +348,22 @@ class salesOrderReceiptPrinter {
             styles: createPosStyles(align: PosAlign.left),
           ),
           createPosColumn(
-            width: 10,
+            width: 7,
             text: item.varianceName,
             styles: createPosStyles(align: PosAlign.left),
           ),
           createPosColumn(
             width: 1,
-            text: '',
-            styles: createPosStyles(align: PosAlign.left),
+            text: '${item.tax}',
+            styles: createPosStyles(align: PosAlign.center),
+          ),
+
+          createPosColumn(
+            width: 3,
+            text: (item.itemWiseDiscount > 0 || item.itemWiseDiscountAmount > 0)
+                ? "" // hide amount if discount applied
+                : amount.toStringAsFixed(2),
+            styles: createPosStyles(align: PosAlign.right, bold: true),
           ),
         ]);
 
@@ -372,8 +373,8 @@ class salesOrderReceiptPrinter {
           // Strike-through original amount image
           final imgBytes = await textWithStrikeImage(
             snoText: '         ',
-            itemName: "$priceDescription (Tax ${item.tax}%)",
-            amountText: "Rs ${amount.toStringAsFixed(2)}",
+            itemName: priceDescription,
+            amountText: amount.toStringAsFixed(2),
           );
           bytes += generator.image(imgBytes, align: PosAlign.left);
         } else {
@@ -382,12 +383,12 @@ class salesOrderReceiptPrinter {
             createPosColumn(width: 1, text: '', styles: createPosStyles()),
             createPosColumn(
               width: 8,
-              text: "$priceDescription (Tax ${item.tax}%)",
+              text: priceDescription,
               styles: createPosStyles(align: PosAlign.left),
             ),
             createPosColumn(
               width: 3,
-              text: "Rs ${amount.toStringAsFixed(2)}",
+              text: "",
               styles: createPosStyles(align: PosAlign.right, bold: true),
             ),
           ]);
@@ -402,7 +403,8 @@ class salesOrderReceiptPrinter {
             ),
             createPosColumn(
               width: 8,
-              text: "Discount Amount(-): Rs ${(item.itemWiseDiscountAmount)}",
+              text:
+                  "Discount Amount(-): Rs ${(item.itemWiseDiscountAmount).toStringAsFixed(0)}",
               styles: createPosStyles(
                 align: PosAlign.left,
                 codeTable: 'CP1252',
@@ -410,11 +412,12 @@ class salesOrderReceiptPrinter {
             ),
             createPosColumn(
               width: 3,
-              text: "Rs ${discountedAmount}",
+              text: discountedAmount.toStringAsFixed(2),
               styles: createPosStyles(align: PosAlign.right, bold: true),
             ),
           ]);
         }
+
         // ---------------- Empty row for spacing ----------------
         bytes += generator.row([
           createPosColumn(
@@ -428,8 +431,8 @@ class salesOrderReceiptPrinter {
       bytes += generator.row([
         createPosColumn(
           width: 12,
-          text: '----------------------------------------------',
-          styles: createPosStyles(align: PosAlign.center, codeTable: 'CP1252'),
+          text: '==============================================',
+          styles: createPosStyles(align: PosAlign.center),
         ),
       ]);
       bytes += generator.row([
@@ -682,17 +685,18 @@ class salesOrderReceiptPrinter {
       paymentAmount = 'Rs ${totalAmount.toStringAsFixed(0)}';
     }
 
-    var cartItems = globals.cartItems ?? [];
-
-    // Printer connection
-    String printerIp = '192.168.1.90';
-
+    var cartItems = globals.cartItems;
+    // Example: Before calling printReceiptDetails()
+    await printerProvider.initializeHive(); // Make sure Hive is loaded
+    // **Fetch printer IP from Hive directly**
+    String? printerIp = printerProvider.getPrinterIpFromHive(type: 'Overall');
     final profile = await CapabilityProfile.load();
 
     final printer = NetworkPrinter(PaperSize.mm80, profile);
+    print("sale order post print : $printerIp");
 
     // Connect to printer
-    final PosPrintResult res = await printer.connect(printerIp, port: 9100);
+    final PosPrintResult res = await printer.connect(printerIp!, port: 9100);
     if (res == PosPrintResult.success) {
       print('[ERROR] Failed to connect to printer.');
 
@@ -703,6 +707,15 @@ class salesOrderReceiptPrinter {
       String employeeDisplayName = fullEmployeeName.contains('-')
           ? fullEmployeeName.split('-').last.trim()
           : fullEmployeeName;
+      String formattedDeliveryDate = "";
+      try {
+        if (deliveryDateprint != null && deliveryDateprint.isNotEmpty) {
+          DateTime d = DateTime.parse(deliveryDateprint);
+          formattedDeliveryDate = DateFormat('dd-MM-yyyy').format(d);
+        }
+      } catch (e) {
+        formattedDeliveryDate = deliveryDateprint; // fallback
+      }
       for (int copy = 0; copy < 2; copy++) {
         bytes = []; // Reset bytes for each copy
         try {
@@ -757,7 +770,7 @@ class salesOrderReceiptPrinter {
         bytes += generator.row([
           createPosColumn(
             width: 12,
-            text: (copy == 0 ? 'Sales order' : 'Sales order'),
+            text: (copy == 0 ? 'SALES ORDER RECEIPT' : 'SALES ORDER RECEIPT'),
             styles: createPosStyles(
               align: PosAlign.center,
               codeTable: 'CP1252',
@@ -784,34 +797,26 @@ class salesOrderReceiptPrinter {
         ]);
         bytes += generator.feed(1);
 
-        // Add formatted date and time
+        /// DATE & DELIVERY
         bytes += generator.row([
+          createPosColumn(width: 5, text: 'Date: $formattedDate'),
           createPosColumn(
-            width: 6,
-            text: 'Date: $formattedDate',
-            styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
-          ),
-          createPosColumn(
-            width: 6,
-            text: 'Time: $formattedTime',
-            styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
+            width: 7,
+            text: 'Delivery Date: $formattedDeliveryDate',
+            styles: createPosStyles(align: PosAlign.right),
           ),
         ]);
         bytes += generator.feed(1);
 
-        // Delivery Date & Time
         bytes += generator.row([
+          createPosColumn(width: 4, text: 'Time: $formattedTime'),
           createPosColumn(
-            width: 6,
-            text: 'Dl Date: $deliveryDateprint',
-            styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
-          ),
-          createPosColumn(
-            width: 6,
-            text: 'Dl Time: $deliveryTimeprint',
-            styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
+            width: 8,
+            text: 'Delivery Time: $deliveryTimeprint',
+            styles: createPosStyles(align: PosAlign.right),
           ),
         ]);
+
         bytes += generator.feed(1);
 
         // Branch & Customer Number
@@ -823,7 +828,7 @@ class salesOrderReceiptPrinter {
           ),
           createPosColumn(
             width: 6,
-            text: 'C No: $customerNumber',
+            text: 'Customer No: $customerNumber',
             styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
           ),
         ]);
@@ -833,52 +838,43 @@ class salesOrderReceiptPrinter {
         bytes += generator.row([
           createPosColumn(
             width: 12,
-            text: 'SalesPerson: $employeeDisplayName',
+            text: 'Sales Person: $employeeDisplayName',
             styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
           ),
         ]);
 
         bytes += generator.feed(1);
+
+        /// TOP BORDER BOX
+        // TOP SEPARATOR
+        /// TOP BORDER BOX
         bytes += generator.row([
           createPosColumn(
             width: 12,
-            text: '----------------------------------------------',
+            text: '==============================================',
             styles: createPosStyles(align: PosAlign.center),
           ),
         ]);
-        // Add headers for S.No, Item, Price, Qty, and Amount
+
+        /// COLUMN HEADERS (Classic Box)
         bytes += generator.row([
+          createPosColumn(width: 1, text: 'No'),
+          createPosColumn(width: 7, text: 'Item'),
           createPosColumn(
-            width: 1,
-            text: 'S.No',
-            styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
-          ),
-          createPosColumn(
-            width: 5,
-            text: 'Item',
-            styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
+            width: 2,
+            text: 'Tax',
+            styles: createPosStyles(align: PosAlign.center),
           ),
           createPosColumn(
             width: 2,
-            text: '',
-            styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
-          ),
-          createPosColumn(
-            width: 1,
-            text: '',
-            styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
-          ),
-          createPosColumn(
-            width: 3,
-            text: 'Amount',
-            styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
+            text: 'Amt',
+            styles: createPosStyles(align: PosAlign.right),
           ),
         ]);
         bytes += generator.row([
           createPosColumn(
             width: 12,
             text: '----------------------------------------------',
-            styles: createPosStyles(align: PosAlign.center),
           ),
         ]);
         bytes += generator.feed(1);
@@ -907,8 +903,8 @@ class salesOrderReceiptPrinter {
           final item = cartItems[i];
 
           final double amount = item.uom == 'Kgs'
-              ? (item.weight * item.quantity * item.pricePerKg).toDouble()
-              : (item.quantity * item.pricePerKg).toDouble();
+              ? (item.weight * item.quantity.value * item.pricePerKg).toDouble()
+              : (item.quantity.value * item.pricePerKg).toDouble();
           final discountedAmount = amount - (item.itemWiseDiscountAmount ?? 0);
           double taxPercentage = (item.tax as num).toDouble();
           taxVaule = taxPercentage;
@@ -917,14 +913,13 @@ class salesOrderReceiptPrinter {
               item.uom.toLowerCase() == 'kg') {
             // Weight-based pricing → show both quantity and weight
             priceDescription = item.weight >= 1
-                ? '${item.quantity} ${item.uom} (${item.weight.toStringAsFixed(2)} kg) × Rs.${item.pricePerKg.toStringAsFixed(0)}/kg'
-                : '${item.quantity} × (${(item.weight * 1000).toStringAsFixed(0)} g) × Rs.${item.pricePerKg.toStringAsFixed(0)}/kg';
+                ? '${item.quantity.value} ${item.uom} (${item.weight.toStringAsFixed(2)} kg) × Rs ${item.pricePerKg.toStringAsFixed(0)}/kg'
+                : '${item.quantity.value} × (${(item.weight * 1000).toStringAsFixed(0)} g) × Rs ${item.pricePerKg.toStringAsFixed(0)}/kg';
           } else {
             // Pcs / Pkt or others
             priceDescription =
-                '${item.quantity.toStringAsFixed(0)} ${item.uom} × Rs.${item.pricePerKg.toStringAsFixed(0)}';
+                '${item.quantity.value.toStringAsFixed(0)} ${item.uom} × Rs ${item.pricePerKg.toStringAsFixed(0)}';
           }
-
           bytes += generator.row([
             createPosColumn(
               width: 1,
@@ -932,14 +927,23 @@ class salesOrderReceiptPrinter {
               styles: createPosStyles(align: PosAlign.left),
             ),
             createPosColumn(
-              width: 10,
+              width: 7,
               text: item.varianceName,
               styles: createPosStyles(align: PosAlign.left),
             ),
             createPosColumn(
               width: 1,
-              text: '',
-              styles: createPosStyles(align: PosAlign.left),
+              text: '${item.tax}',
+              styles: createPosStyles(align: PosAlign.center),
+            ),
+
+            createPosColumn(
+              width: 3,
+              text:
+                  (item.itemWiseDiscount > 0 || item.itemWiseDiscountAmount > 0)
+                  ? "" // hide amount if discount applied
+                  : amount.toStringAsFixed(2),
+              styles: createPosStyles(align: PosAlign.right, bold: true),
             ),
           ]);
 
@@ -949,8 +953,8 @@ class salesOrderReceiptPrinter {
             // Strike-through original amount image
             final imgBytes = await textWithStrikeImage(
               snoText: '         ',
-              itemName: "$priceDescription (Tax ${item.tax}%)",
-              amountText: "Rs ${amount.toStringAsFixed(2)}",
+              itemName: priceDescription,
+              amountText: amount.toStringAsFixed(2),
             );
             bytes += generator.image(imgBytes, align: PosAlign.left);
           } else {
@@ -959,12 +963,12 @@ class salesOrderReceiptPrinter {
               createPosColumn(width: 1, text: '', styles: createPosStyles()),
               createPosColumn(
                 width: 8,
-                text: "$priceDescription (Tax ${item.tax}%)",
+                text: priceDescription,
                 styles: createPosStyles(align: PosAlign.left),
               ),
               createPosColumn(
                 width: 3,
-                text: "Rs ${amount.toStringAsFixed(2)}",
+                text: "",
                 styles: createPosStyles(align: PosAlign.right, bold: true),
               ),
             ]);
@@ -988,7 +992,7 @@ class salesOrderReceiptPrinter {
               ),
               createPosColumn(
                 width: 3,
-                text: "Rs ${discountedAmount.toStringAsFixed(2)}",
+                text: discountedAmount.toStringAsFixed(2),
                 styles: createPosStyles(align: PosAlign.right, bold: true),
               ),
             ]);
@@ -1003,65 +1007,92 @@ class salesOrderReceiptPrinter {
             ),
           ]);
         }
-        // Adding totals and other details
+
+        // FOOTER SEPARATOR
         bytes += generator.row([
           createPosColumn(
             width: 12,
-            text: '----------------------------------------------',
-            styles: createPosStyles(
-              align: PosAlign.center,
-              codeTable: 'CP1252',
-            ),
+            text: '==================================================',
+            styles: createPosStyles(align: PosAlign.center),
           ),
         ]);
+        // Helper function to format label and value neatly
+        // Helper function
+        // Helper function for fixed-width label and value
+        String formatLabelValueFixed({
+          required String label,
+          required String value,
+          int labelWidth = 24, // fixed width for label column
+          int valueWidth = 8, // fixed width for value column
+        }) {
+          // Truncate label if too long
+          String fixedLabel = label.length > labelWidth
+              ? label.substring(0, labelWidth)
+              : label.padRight(labelWidth);
+
+          // Pad value on left to make it right-aligned
+          String fixedValue = value.padLeft(valueWidth);
+
+          return '$fixedLabel : $fixedValue';
+        }
+
+        // TOTALS SECTION (RIGHT-ALIGNED)
         bytes += generator.row([
           createPosColumn(
             width: 12,
-            text: "Total: Rs ${totalAmount.toStringAsFixed(0)}",
+            text: formatLabelValueFixed(
+              label: 'Total',
+              value: 'Rs ${totalAmount.toStringAsFixed(0)}',
+            ),
             styles: createPosStyles(align: PosAlign.right),
           ),
         ]);
 
-        // --- CUSTOM CHARGE (if any) ---
-        if ((customChargeController ?? 0.0) != 0.0) {
+        if ((customChargeController ?? 0) != 0) {
           bytes += generator.row([
             createPosColumn(
               width: 12,
-              text:
-                  "Custom Charge (+): Rs ${customChargeController.toStringAsFixed(0)}",
+              text: formatLabelValueFixed(
+                label: '${chargeType.toString()} (+)',
+                value: 'Rs ${customChargeController.toStringAsFixed(0)}',
+              ),
               styles: createPosStyles(align: PosAlign.right),
             ),
           ]);
-
           bytes += generator.row([
             createPosColumn(
               width: 12,
-              text: "Total Amount: Rs ${totalAmount2.toStringAsFixed(0)}",
+              text: formatLabelValueFixed(
+                label: 'Total Amount',
+                value: 'Rs ${totalAmount2.toStringAsFixed(0)}',
+              ),
               styles: createPosStyles(align: PosAlign.right, bold: true),
             ),
           ]);
         }
 
-        // --- DISCOUNT (if any) ---
         if ((discountController ?? 0) != 0) {
           bytes += generator.row([
             createPosColumn(
               width: 12,
-              text:
-                  "Discount (${discountController}%) (-): Rs ${discountAmount.toStringAsFixed(0)}",
+              text: formatLabelValueFixed(
+                label: 'Discount (${discountController}%) (-)',
+                value: 'Rs ${discountAmount.toStringAsFixed(0)}',
+              ),
               styles: createPosStyles(align: PosAlign.right),
             ),
           ]);
-
           bytes += generator.row([
             createPosColumn(
               width: 12,
-              text: "Order Amount: Rs ${finalPrice.toStringAsFixed(0)}",
+              text: formatLabelValueFixed(
+                label: 'Order Amount',
+                value: 'Rs ${finalPrice.toStringAsFixed(0)}',
+              ),
               styles: createPosStyles(align: PosAlign.right, bold: true),
             ),
           ]);
         }
-
         // --- ADVANCE (multiple if exists) ---
         if (advanceDateTime != null && advanceDateTime!.isNotEmpty) {
           for (int i = 0; i < advanceDateTime!.length; i++) {
@@ -1079,7 +1110,10 @@ class salesOrderReceiptPrinter {
               bytes += generator.row([
                 createPosColumn(
                   width: 12,
-                  text: "Advance Amount (-): Rs ${advAmt.toStringAsFixed(0)}",
+                  text: formatLabelValueFixed(
+                    label: 'Advance Amount (-)',
+                    value: 'Rs ${advAmt.toStringAsFixed(0)}',
+                  ),
                   styles: createPosStyles(align: PosAlign.right),
                 ),
               ]);
@@ -1092,7 +1126,10 @@ class salesOrderReceiptPrinter {
               bytes += generator.row([
                 createPosColumn(
                   width: 12,
-                  text: "Advance Amount (-): Rs ${advAmt.toStringAsFixed(0)}",
+                  text: formatLabelValueFixed(
+                    label: 'Advance Amount (-)',
+                    value: 'Rs ${advAmt.toStringAsFixed(0)}',
+                  ),
                   styles: createPosStyles(align: PosAlign.right),
                 ),
               ]);
@@ -1106,25 +1143,34 @@ class salesOrderReceiptPrinter {
           bytes += generator.row([
             createPosColumn(
               width: 12,
-              text: "Advance Amount (-): Rs ${advAmt.toStringAsFixed(0)}",
+              text: formatLabelValueFixed(
+                label: 'Advance Amount (-)',
+                value: 'Rs ${advAmt.toStringAsFixed(0)}',
+              ),
               styles: createPosStyles(align: PosAlign.right),
             ),
           ]);
         }
 
+        // ADVANCE
+
+        // BALANCE
         bytes += generator.row([
           createPosColumn(
             width: 12,
-            text: "Balance Amount: Rs ${balanceAmount.toStringAsFixed(0)}",
+            text: formatLabelValueFixed(
+              label: 'Balance Amount',
+              value: 'Rs ${balanceAmount.toStringAsFixed(0)}',
+            ),
             styles: createPosStyles(align: PosAlign.right, bold: true),
           ),
         ]);
 
-        // Separator
+        // FINAL FOOTER
         bytes += generator.row([
           createPosColumn(
             width: 12,
-            text: '----------------------------------------------',
+            text: '==================================================',
             styles: createPosStyles(align: PosAlign.center),
           ),
         ]);
@@ -1263,7 +1309,7 @@ class salesOrderReceiptPrinter {
   double calculateSubtotal() {
     double subtotal = 0.0;
     for (var item in globals.cartItems) {
-      subtotal += item.quantity * item.pricePerKg;
+      subtotal += item.quantity.value * item.pricePerKg;
     }
     return subtotal;
   }
@@ -1312,7 +1358,7 @@ class salesOrderReceiptPrinter {
         .toString()
         .substring(6); // Shortened timestamp
     const characters =
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZ0125678989'; // Alphanumeric characters
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZ0126565989'; // Alphanumeric characters
     final randomId =
         List<int>.generate(6, (_) => random.nextInt(characters.length))
             .map((index) => characters[index])

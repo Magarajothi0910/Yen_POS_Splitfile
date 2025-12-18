@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 import 'package:yenpos/Hive_Manager/hive_manager_kot.dart';
+import 'package:yenpos/kotpreinvoice/providers/timerProvider.dart';
 import '../handlers/FullCancelOrder_Handler.dart';
 import '../handlers/ItemWiseCancel.dart';
 import '../handlers/global_datamanager.dart';
@@ -24,6 +27,8 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'product_provider.dart';
 
 class OrderProvider with ChangeNotifier {
+  // ValueNotifier<bool> refreshNotifier = ValueNotifier<bool>(false);
+
   List<Map<String, dynamic>> _orders = [];
   Box? canceledOrderBox;
   Box? preInvoicesBox;
@@ -39,6 +44,10 @@ class OrderProvider with ChangeNotifier {
   String? lastProcessedMessage;
   bool ordersLoadedFromHive = false;
   bool get isOrderDataReady => ordersLoadedFromHive && _orders.isNotEmpty;
+  final Map<String, DateTime> _preInvoiceTimers = {};
+  final Map<String, Timer> _activeTimers = {};
+
+  bool chargeSubmit = true;
 
   /// Holds a reference so we can tell it when to reload
   ProductProvider? productProvider;
@@ -47,7 +56,7 @@ class OrderProvider with ChangeNotifier {
   _actionHandlers;
   late Map<String, Future<void> Function(Map<String, dynamic>)> _typeHandlers;
 
-    void handleSeatTransferInClient(Map<String, dynamic> data) async {
+  void handleSeatTransferInClient(Map<String, dynamic> data) async {
     if (appType == 'server') {
       debugPrint("⚠️ [SeatTransfer] Skipped — running on server appType.");
       return;
@@ -56,83 +65,107 @@ class OrderProvider with ChangeNotifier {
     final currentSeat = data['currentSeat']?.toString();
     final targetTable = data['targetTable']?.toString();
     final targetSeat = data['targetSeat']?.toString();
- 
-    if (currentTable == null || currentSeat == null || targetTable == null || targetSeat == null) {
+
+    if (currentTable == null ||
+        currentSeat == null ||
+        targetTable == null ||
+        targetSeat == null) {
       debugPrint("❌ [Client SeatTransfer] Missing required fields: $data");
       return;
     }
- 
-    debugPrint("🔄 [Client SeatTransfer] Processing: $currentTable ($currentSeat) → $targetTable ($targetSeat)");
- 
+
+    debugPrint(
+      "🔄 [Client SeatTransfer] Processing: $currentTable ($currentSeat) → $targetTable ($targetSeat)",
+    );
+
     // Open Hive box for orders
-    var ordersBox = Hive.isBoxOpen('ordersBox') ? Hive.box('ordersBox') : await Hive.openBox('ordersBox');
- 
+    var ordersBox = Hive.isBoxOpen('ordersBox')
+        ? Hive.box('ordersBox')
+        : await Hive.openBox('ordersBox');
+
     int updatedCount = 0;
     List<Map<String, dynamic>> updatedOrders = [];
- 
+
     // Find and update ALL matching orders in Hive (safe string comparison)
     for (var key in ordersBox.keys) {
       dynamic rawOrder = ordersBox.get(key);
       if (rawOrder == null) continue;
- 
+
       // Decode if stringified
       if (rawOrder is String) {
         try {
           rawOrder = jsonDecode(rawOrder);
         } catch (e) {
-          debugPrint("⚠️ [Client SeatTransfer] Failed to decode order $key: $e");
+          debugPrint(
+            "⚠️ [Client SeatTransfer] Failed to decode order $key: $e",
+          );
           continue;
         }
       }
- 
+
       if (rawOrder is! Map<String, dynamic>) {
-        debugPrint("⚠️ [Client SeatTransfer] Invalid order type for $key: ${rawOrder.runtimeType}");
+        debugPrint(
+          "⚠️ [Client SeatTransfer] Invalid order type for $key: ${rawOrder.runtimeType}",
+        );
         continue;
       }
- 
+
       final order = Map<String, dynamic>.from(rawOrder);
- 
+
       // Safe string match
-      if (order['table']?.toString() == currentTable && order['seat']?.toString() == currentSeat) {
-        debugPrint("✅ [Client SeatTransfer] Found matching order $key (ID: ${order['seathiveOrderId']})");
- 
+      if (order['table']?.toString() == currentTable &&
+          order['seat']?.toString() == currentSeat) {
+        debugPrint(
+          "✅ [Client SeatTransfer] Found matching order $key (ID: ${order['seathiveOrderId']})",
+        );
+
         // Update
         order['table'] = targetTable;
         order['seat'] = targetSeat;
         order['edit'] = "Yes";
         order['seat_transfer'] = true;
- 
+
         // Save back
         await ordersBox.put(key, order);
         updatedOrders.add(order);
         updatedCount++;
-        debugPrint("💾 [Client SeatTransfer] Updated Hive order $key → $targetTable ($targetSeat)");
+        debugPrint(
+          "💾 [Client SeatTransfer] Updated Hive order $key → $targetTable ($targetSeat)",
+        );
       }
     }
- 
+
     if (updatedCount == 0) {
-      debugPrint("❌ [Client SeatTransfer] No matching orders found in local Hive (keys: ${ordersBox.keys.length}). Data: $data");
+      debugPrint(
+        "❌ [Client SeatTransfer] No matching orders found in local Hive (keys: ${ordersBox.keys.length}). Data: $data",
+      );
       // Optional: Trigger full sync as fallback
       // await requestDataFromServer(); // But avoid loop; use only if critical
       return;
     }
- 
+
     debugPrint("✅ [Client SeatTransfer] Updated $updatedCount orders in Hive.");
- 
+
     // Update in-memory _orders
     bool memoryUpdated = false;
     for (int i = 0; i < _orders.length; i++) {
       final inMemoryOrder = _orders[i];
-      if (inMemoryOrder['table']?.toString() == currentTable && inMemoryOrder['seat']?.toString() == currentSeat) {
-        _orders[i] = updatedOrders[0]; // Or merge if multiples; assume 1 for simplicity, or loop
+      if (inMemoryOrder['table']?.toString() == currentTable &&
+          inMemoryOrder['seat']?.toString() == currentSeat) {
+        _orders[i] =
+            updatedOrders[0]; // Or merge if multiples; assume 1 for simplicity, or loop
         memoryUpdated = true;
-        debugPrint("🔄 [Client SeatTransfer] Updated in-memory order ${inMemoryOrder['seathiveOrderId']}");
+        debugPrint(
+          "🔄 [Client SeatTransfer] Updated in-memory order ${inMemoryOrder['seathiveOrderId']}",
+        );
         break; // Update first match; extend for multiples if needed
       }
     }
- 
+
     notifyListeners();
-    debugPrint("🔄 [Client SeatTransfer] Notified listeners. Memory updated: $memoryUpdated");
+    debugPrint(
+      "🔄 [Client SeatTransfer] Notified listeners. Memory updated: $memoryUpdated",
+    );
   }
 
   /// Call this once from your UI after creating both providers
@@ -150,6 +183,7 @@ class OrderProvider with ChangeNotifier {
     printerProvider.printerInitializeHive().then((_) {}).catchError((e) {});
     _initializeActionHandlers();
     _initializeTypeHandlers();
+    // _loadTimersFromStorage();
   }
   void _initializeActionHandlers() {
     _actionHandlers = {
@@ -207,7 +241,7 @@ class OrderProvider with ChangeNotifier {
       'stockIncreaseUpdate': _handleStockIncreaseUpdate,
       'stockDecreaseUpdate': _handleStockDecreaseUpdate,
       'seat_transfer': (data) async => handleSeatTransferInClient,
-         
+
       'updateUpiState': (data) async {
         try {
           final enabled = data['isUpiEnabled'] as bool?;
@@ -233,19 +267,22 @@ class OrderProvider with ChangeNotifier {
       'sync_invoice_update': (data) async {
         final seathiveOrderId = data['seathiveOrderId'];
         final invoiceNo = data['invoiceNo'];
- 
+
         final ordersBox = await Hive.openBox('ordersBox');
- 
+
         for (final key in ordersBox.keys) {
           final order = ordersBox.get(key);
           if (order is Map && order['seathiveOrderId'] == seathiveOrderId) {
-            final updatedOrder = Map<String, dynamic>.from(order)..['invoiceNo'] = invoiceNo;
+            final updatedOrder = Map<String, dynamic>.from(order)
+              ..['invoiceNo'] = invoiceNo;
             await ordersBox.put(key, updatedOrder);
           }
         }
- 
-        print('🔁 Synced invoice number update locally for seathiveOrderId: $seathiveOrderId');
-      }
+
+        print(
+          '🔁 Synced invoice number update locally for seathiveOrderId: $seathiveOrderId',
+        );
+      },
     };
   }
 
@@ -259,6 +296,11 @@ class OrderProvider with ChangeNotifier {
     _typeHandlers = {'order': (data) async => processOrderData(data)};
   }
 
+  // void refreshUI() {
+  //   refreshNotifier.value = !refreshNotifier.value;
+  //   notifyListeners();
+  // }
+
   List<Map<String, dynamic>> get orders => _orders;
 
   Future<void> ensureWebSocketConnection() async {
@@ -267,16 +309,16 @@ class OrderProvider with ChangeNotifier {
       debugPrint('❌ Server not reachable, skipping WebSocket connection');
       return;
     }
- 
+
     try {
       final wsUrl = 'ws://$serverip:$port';
       debugPrint('🌐 Connecting to WebSocket: $wsUrl');
       channel = IOWebSocketChannel.connect(wsUrl);
       debugPrint('✅ WebSocket connected successfully');
- 
+
       // Start listening for server messages
       listenForServerUpdates();
- 
+
       // Send an initial ping
       channel!.sink.add(jsonEncode({"action": "ping"}));
       debugPrint('📡 Initial ping sent');
@@ -285,10 +327,11 @@ class OrderProvider with ChangeNotifier {
       debugPrintStack(stackTrace: stack);
     }
   }
- 
+
   Future<void> initializeWebSocket() async {
     await ensureWebSocketConnection();
   }
+
   Future<void> _handleInvoiceGenerated(Map<String, dynamic> data) async {
     final invoice = data['invoiceKOT'] as Map<String, dynamic>;
     final invoiceId = invoice['invoiceNo'] as String?;
@@ -516,19 +559,19 @@ class OrderProvider with ChangeNotifier {
     }
   }
 
-   Future<void> loadOrdersFromHive() async {
+  Future<void> loadOrdersFromHive() async {
     print('📦 [Hive] Starting to load orders from Hive...');
- 
+
     try {
       Box? orderBox;
- 
+
       // ✅ Open the box safely
       if (!Hive.isBoxOpen('ordersBox')) {
         orderBox = await Hive.openBox('ordersBox');
       } else {
         orderBox = Hive.box('ordersBox');
       }
- 
+
       // ✅ Check if the box is empty
       if (orderBox.isEmpty) {
         print('⚠️ [Hive] No orders found in box. Returning empty list.');
@@ -536,23 +579,26 @@ class OrderProvider with ChangeNotifier {
         notifyListeners();
         return;
       }
- 
+
       // ✅ Load and convert Hive data to in-memory list
       _orders = orderBox.values
           .whereType<Map>() // Ensure valid map entries
           .map((orderData) {
-        return Map<String, dynamic>.from(orderData);
-      }).toList();
- 
+            return Map<String, dynamic>.from(orderData);
+          })
+          .toList();
+
       print('✅ [Hive] Loaded ${_orders.length} orders successfully.');
- 
+
       notifyListeners();
     } on HiveError catch (hiveError) {
       print('❌ [HiveError] Failed to load orders: $hiveError');
       _orders = [];
       notifyListeners();
     } on FormatException catch (formatError) {
-      print('⚠️ [FormatError] Invalid data format while loading orders: $formatError');
+      print(
+        '⚠️ [FormatError] Invalid data format while loading orders: $formatError',
+      );
       _orders = [];
       notifyListeners();
     } catch (e, stack) {
@@ -571,6 +617,10 @@ class OrderProvider with ChangeNotifier {
     preInvoicesBox?.close();
     invoiceBox?.close();
     channel.sink.close();
+    _activeTimers.forEach((key, timer) {
+      timer.cancel();
+    });
+    _activeTimers.clear();
     super.dispose();
   }
 
@@ -790,15 +840,15 @@ class OrderProvider with ChangeNotifier {
       await _saveToHiveBox(_orderBox, orders, 'orders');
       _orders = orders;
     }
-    if (data.containsKey('invoices')) {
+    if (data.containsKey('invoicesKOT')) {
       final List<Map<String, dynamic>> invoices =
-          List<Map<String, dynamic>>.from(data['invoices']);
-      await _saveToHiveBox(invoiceBox, invoices, 'invoices');
+          List<Map<String, dynamic>>.from(data['invoicesKOT']);
+      await _saveToHiveBox(invoiceBox, invoices, 'invoicesKOT');
       _invoices = invoices;
     }
 
-    if (data.containsKey('printers')) {
-      final List<dynamic> printers = data['printers'];
+    if (data.containsKey('KOTprinters')) {
+      final List<dynamic> printers = data['KOTprinters'];
       for (var printerJson in printers) {
         if (printerJson is Map<String, dynamic>) {
           final printer = Printer.fromJson(
@@ -902,9 +952,134 @@ class OrderProvider with ChangeNotifier {
     }
   }
 
+  // timerFunctions >>>> ......
+  // OrderProvider(){
+  //   _loadTimersFromStorage();
+  // }
+
+  // void _loadTimersFromStorage() async {
+  //   try {
+  //     final box = await Hive.openBox('pre_invoice_timers');
+  //     final storedTimers = box.toMap();
+
+  //     storedTimers.forEach((key, value) {
+  //       if (value is String) {
+  //         _preInvoiceTimers[key] = DateTime.parse(value);
+  //       }
+  //     });
+
+  //     // Start timers for existing pre-invoices
+  //     _preInvoiceTimers.forEach((key, _) {
+  //       _startTimerForKey(key);
+  //     });
+
+  //     notifyListeners();
+  //   } catch (e) {
+  //     debugPrint('Error loading timers: $e');
+  //   }
+  // }
+
+  // void startTimer(String tableNumber, String seat) {
+  //   final key = '$tableNumber-$seat';
+
+  //   // Cancel existing timer if any
+  //   _activeTimers[key]?.cancel();
+
+  //   // Start new timer
+  //   _preInvoiceTimers[key] = DateTime.now();
+  //   _startTimerForKey(key);
+
+  //   // Save to storage
+  //   _saveTimerToStorage(key, _preInvoiceTimers[key]!);
+
+  //   notifyListeners();
+  // }
+
+  // void _startTimerForKey(String key) {
+  //   _activeTimers[key] = Timer.periodic(const Duration(seconds: 1), (timer) {
+  //     notifyListeners();
+  //   });
+  // }
+
+  // void stopTimer(String tableNumber, String seat) {
+  //   final key = '$tableNumber-$seat';
+  //   _activeTimers[key]?.cancel();
+  //   _activeTimers.remove(key);
+  //   _preInvoiceTimers.remove(key);
+
+  //   // Remove from storage
+  //   _removeTimerFromStorage(key);
+
+  //   notifyListeners();
+  // }
+
+  // // Get elapsed time for a table-seat
+  // Duration getElapsedTime(String tableNumber, String seat) {
+  //   final key = '$tableNumber-$seat';
+  //   final startTime = _preInvoiceTimers[key];
+  //   if (startTime == null) return Duration.zero;
+
+  //   return DateTime.now().difference(startTime);
+  // }
+
+  // // Get formatted time string
+  // String getFormattedTime(String tableNumber, String seat) {
+  //   final duration = getElapsedTime(tableNumber, seat);
+  //   final minutes = duration.inMinutes;
+  //   final seconds = duration.inSeconds % 60;
+
+  //   return '${minutes}m ${seconds}s';
+  // }
+
+  // Color getPreinvoiceTimeColor(String tableNumber, String seat) {
+  //   final duration = getElapsedTime(tableNumber, seat);
+  //   final minutes = duration.inMinutes;
+  //   return minutes < 2
+  //       ? Colors.red.withOpacity(.2)
+  //       : minutes < 5
+  //       ? Colors.red.withOpacity(.3)
+  //       : minutes < 10
+  //       ? Colors.red.withOpacity(.6)
+  //       : Colors.red.withOpacity(.6);
+  // }
+
+  // Color getOrderTimeColor(String tableNumber, String seat) {
+  //   final duration = getElapsedTime(tableNumber, seat);
+  //   final minutes = duration.inMinutes;
+  //   return Colors.teal.withOpacity(.05);
+  // }
+
+  // // Check if timer exists for table-seat
+  // bool hasTimer(String tableNumber, String seat) {
+  //   final key = '$tableNumber-$seat';
+  //   return _preInvoiceTimers.containsKey(key);
+  // }
+
+  // // Save timer to Hive
+  // void _saveTimerToStorage(String key, DateTime startTime) async {
+  //   try {
+  //     final box = await Hive.openBox('pre_invoice_timers');
+  //     await box.put(key, startTime.toIso8601String());
+  //   } catch (e) {
+  //     debugPrint('Error saving timer: $e');
+  //   }
+  // }
+
+  // // Remove timer from Hive
+  // void _removeTimerFromStorage(String key) async {
+  //   try {
+  //     final box = await Hive.openBox('pre_invoice_timers');
+  //     await box.delete(key);
+  //   } catch (e) {
+  //     debugPrint('Error removing timer: $e');
+  //   }
+  // }
+
   Future<void> patchOrderStatusBySeathiveOrderId(
     String seathiveOrderId,
     String newStatus,
+    String tableNumber,
+    String seat,
   ) async {
     IOWebSocketChannel? channel;
     try {
@@ -933,66 +1108,102 @@ class OrderProvider with ChangeNotifier {
       print('📤 Sending patch data: ${jsonEncode(patchData)}');
       channel.sink.add(jsonEncode(patchData));
 
-      print('📂 Accessing Hive orders box directly...');
-      final ordersBox = Hive.box('ordersBox'); // ✅ Directly open the Hive box
-      final allOrders = ordersBox.get('data') ?? [];
+      // ✅ FIXED: Update in-memory orders immediately
+      // bool updatedInMemory = false;
+      // for (int i = 0; i < _orders.length; i++) {
+      //   if (_orders[i]['seathiveOrderId'] == seathiveOrderId) {
+      //     _orders[i]['status'] = newStatus;
+      //     _orders[i]['preinvoiceTime'] = currentTime;
+      //     updatedInMemory = true;
+      //     print('✅ Updated in-memory order status to: $newStatus');
+      //     break;
+      //   }
+      // }
 
-      print('📦 Raw data currently in Hive box:');
-      try {
-        final formattedData = const JsonEncoder.withIndent(
-          '  ',
-        ).convert(allOrders);
-        print(formattedData);
-      } catch (e) {
-        print('⚠️ Could not format Hive data as JSON. Raw content below:');
-        print(allOrders);
+      // // ✅ FIXED: Update Hive data
+      // print('📂 Accessing Hive orders box directly...');
+      // final ordersBox = Hive.box('ordersBox');
+      // final allOrders = ordersBox.get('data') ?? [];
+
+      // if (allOrders is List) {
+      //   bool updatedInHive = false;
+      //   for (var order in allOrders) {
+      //     if (order is Map<String, dynamic> &&
+      //         order['seathiveOrderId'] == seathiveOrderId) {
+      //       order['status'] = newStatus;
+      //       order['preinvoiceTime'] = currentTime;
+      //       updatedInHive = true;
+      //     }
+      //   }
+
+      //   if (updatedInHive) {
+      //     await ordersBox.put('data', allOrders);
+      //     print('💾 Hive data successfully updated.');
+      //   }
+      // }
+
+      // Update all matching in-memory orders
+      bool updatedInMemory = false;
+      for (int i = 0; i < _orders.length; i++) {
+        if (_orders[i]['seathiveOrderId'] == seathiveOrderId) {
+          _orders[i]['status'] = newStatus;
+          _orders[i]['preinvoiceTime'] = currentTime;
+          updatedInMemory = true;
+          print('✅ Updated in-memory order status to: $newStatus for index $i');
+          // no break here, update all matches
+        }
       }
 
-      print('📦 Raw data currently in Hive box:');
-      print(jsonEncode(allOrders)); // Pretty-print current Hive data
+      // Update all matching Hive orders
+      final ordersBox = Hive.box('ordersBox');
+      final dynamic hiveData = ordersBox.get('data') ?? [];
+      if (hiveData is List) {
+        final allOrders = List<Map<String, dynamic>>.from(hiveData);
 
-      if (allOrders is List) {
-        bool updated = false;
-        print('📋 Total orders loaded from Hive: ${allOrders.length}');
-        for (var order in allOrders) {
-          if (order is Map<String, dynamic> &&
-              order['seathiveOrderId'] == seathiveOrderId) {
-            print('🧾 Found matching order before update: $order');
+        bool updatedInHive = false;
+        for (int i = 0; i < allOrders.length; i++) {
+          final order = allOrders[i];
+          print('Before updating Hive order status : ${order['status']}');
+          if (order['seathiveOrderId'] == seathiveOrderId) {
             order['status'] = newStatus;
             order['preinvoiceTime'] = currentTime;
-            updated = true;
-            print(
-              '✅ Updated order status and preinvoiceTime for seathiveOrderId: $seathiveOrderId',
-            );
-            print('🆕 Updated order data: $order');
+            updatedInHive = true;
+            print('💾 Updated Hive order at index $i');
+            print('Before updating Hive order status : ${order['status']}');
           }
         }
 
-        if (updated) {
+        if (updatedInHive) {
           await ordersBox.put('data', allOrders);
           print('💾 Hive data successfully updated.');
-          print('📦 Hive box content *after update*:');
-          print(jsonEncode(ordersBox.get('data'))); // Show updated Hive state
-        } else {
-          print('⚠️ No order found with seathiveOrderId: $seathiveOrderId');
         }
-      } else {
-        print(
-          '❌ Expected a List in Hive orders, but got: ${allOrders.runtimeType}',
-        );
       }
 
-      notifyListeners();
+      // ✅ FIXED: Force immediate UI update
+      // refreshUI(); // Call this again to ensure UI rebuilds
+      notifyListeners(); // Notify all listeners
+
       print('🔔 Notified listeners after patching order status');
     } catch (e, stackTrace) {
       print('❌ Error patching order $seathiveOrderId: $e');
       print('📜 StackTrace:\n$stackTrace');
     } finally {
-      // Ensure WebSocket is closed
       await channel?.sink.close();
       print(
         '🔒 WebSocket connection closed for seathiveOrderId: $seathiveOrderId',
       );
+    }
+  }
+
+  // ✅ ADD THIS METHOD: Force reload orders from Hive to sync data
+  Future<void> forceReloadOrders() async {
+    try {
+      print('🔄 Force reloading orders from Hive...');
+      await loadOrdersFromHive();
+      // refreshUI();`
+      print('✅ Orders force reloaded successfully');
+    } catch (e) {
+      print('❌ Error force reloading orders: $e');
     }
   }
 
@@ -1228,7 +1439,6 @@ class OrderProvider with ChangeNotifier {
       print(stackTrace);
     }
   }
-
 
   // Future<void> printOrderReceipts(Map<String, dynamic> orderData) async {
   //   try {

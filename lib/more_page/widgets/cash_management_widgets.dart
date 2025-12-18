@@ -34,7 +34,8 @@ class _OpeningCashDialogState extends State<OpeningCashDialog> {
     2: TextEditingController(),
     1: TextEditingController(),
   };
-  final ValueNotifier<Map<int, int>> denominationTotals = ValueNotifier<Map<int, int>>({});
+  final ValueNotifier<Map<int, int>> denominationTotals =
+      ValueNotifier<Map<int, int>>({});
   late List<FocusNode> focusNodes;
   late ValueNotifier<int> currentFocusIndexNotifier;
 
@@ -61,7 +62,7 @@ class _OpeningCashDialogState extends State<OpeningCashDialog> {
   }
 
   void _initializeControllers() {
-    final counts = CashManagementProvider.denominationCounts.value;
+    final counts = CashManagementProvider.openDenominationCounts.value;
     for (final denom in _controllers.keys) {
       final count = counts[denom] ?? 0;
       _controllers[denom]!.text = count.toString();
@@ -77,7 +78,7 @@ class _OpeningCashDialogState extends State<OpeningCashDialog> {
       newCounts[denom] = count;
     }
     denominationTotals.value = newTotals;
-    CashManagementProvider.denominationCounts.value = newCounts;
+    CashManagementProvider.openDenominationCounts.value = newCounts;
   }
 
   int _calculateGrandTotal() {
@@ -111,11 +112,23 @@ class _OpeningCashDialogState extends State<OpeningCashDialog> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(cancelText, style: const TextStyle(fontFamily: 'Poppins',color: CustomColors.blueColor)),
+            child: Text(
+              cancelText,
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                color: CustomColors.blueColor,
+              ),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(confirmText, style: const TextStyle(fontFamily: 'Poppins',color: CustomColors.blueColor)),
+            child: Text(
+              confirmText,
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                color: CustomColors.blueColor,
+              ),
+            ),
           ),
         ],
       ),
@@ -147,7 +160,14 @@ class _OpeningCashDialogState extends State<OpeningCashDialog> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Center(
-                  child: Text('Opening Cash Denominations', style: TextStyle(fontFamily: 'Poppins',fontWeight: FontWeight.bold, fontSize: 20)),
+                  child: Text(
+                    'Opening Cash Denominations',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 20),
                 Row(
@@ -163,81 +183,146 @@ class _OpeningCashDialogState extends State<OpeningCashDialog> {
                             child: Column(
                               children: [
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceEvenly,
                                   children: const [
                                     Expanded(
                                       child: Center(
-                                        child: Text('Denomination', style: TextStyle(fontFamily: 'Poppins',fontWeight: FontWeight.bold)),
+                                        child: Text(
+                                          'Denomination',
+                                          style: TextStyle(
+                                            fontFamily: 'Poppins',
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                     Expanded(
                                       child: Center(
-                                        child: Text('Count', style: TextStyle(fontFamily: 'Poppins',fontWeight: FontWeight.bold)),
+                                        child: Text(
+                                          'Count',
+                                          style: TextStyle(
+                                            fontFamily: 'Poppins',
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                     Expanded(
                                       child: Center(
-                                        child: Text('Total', style: TextStyle(fontFamily: 'Poppins',fontWeight: FontWeight.bold)),
+                                        child: Text(
+                                          'Total',
+                                          style: TextStyle(
+                                            fontFamily: 'Poppins',
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
                                 const Divider(thickness: 2),
-                                ..._controllers.keys.toList().asMap().entries.map((entry) {
+                                ..._controllers.keys.toList().asMap().entries.map((
+                                  entry,
+                                ) {
                                   final index = entry.key;
                                   final denom = entry.value;
                                   final controller = _controllers[denom]!;
                                   final focusNode = focusNodes[index];
 
                                   return Padding(
-                                    padding: const EdgeInsets.symmetric(vertical: 6),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 6,
+                                    ),
                                     child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceEvenly,
                                       children: [
                                         Expanded(
-                                          child: Center(child: Text('₹$denom', style: const TextStyle(fontFamily: 'Poppins',fontSize: 16))),
+                                          child: Center(
+                                            child: Text(
+                                              '₹$denom',
+                                              style: const TextStyle(
+                                                fontFamily: 'Poppins',
+                                                fontSize: 16,
+                                              ),
+                                            ),
+                                          ),
                                         ),
                                         Expanded(
                                           child: Container(
-                                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                                            margin: const EdgeInsets.symmetric(
+                                              horizontal: 4,
+                                            ),
                                             child: TextField(
                                               focusNode: focusNode,
                                               controller: controller,
                                               keyboardType: TextInputType.none,
                                               textAlign: TextAlign.center,
-                                              style: TextStyle(fontFamily: 'Poppins',
+                                              style: TextStyle(
+                                                fontFamily: 'Poppins',
                                                 fontSize: 16,
-                                                color: currentFocusIndex == index ? CustomColors.blueColor : CustomColors.black,
+                                                color:
+                                                    currentFocusIndex == index
+                                                    ? CustomColors.blueColor
+                                                    : CustomColors.black,
                                               ),
                                               decoration: InputDecoration(
                                                 isDense: true,
-                                                contentPadding: const EdgeInsets.symmetric(vertical: 7, horizontal: 6),
+                                                contentPadding:
+                                                    const EdgeInsets.symmetric(
+                                                      vertical: 7,
+                                                      horizontal: 6,
+                                                    ),
                                                 border: OutlineInputBorder(
                                                   borderSide: BorderSide(
-                                                    color: currentFocusIndex == index
+                                                    color:
+                                                        currentFocusIndex ==
+                                                            index
                                                         ? CustomColors.blueColor
                                                         : CustomColors.grey,
-                                                    width: currentFocusIndex == index ? 2.0 : 1.0,
+                                                    width:
+                                                        currentFocusIndex ==
+                                                            index
+                                                        ? 2.0
+                                                        : 1.0,
                                                   ),
                                                 ),
-                                                enabledBorder: OutlineInputBorder(
-                                                  borderSide: BorderSide(
-                                                    color: currentFocusIndex == index
-                                                        ? CustomColors.blueColor
-                                                        : CustomColors.grey,
-                                                    width: currentFocusIndex == index ? 2.0 : 1.0,
-                                                  ),
-                                                ),
-                                                focusedBorder: const OutlineInputBorder(
-                                                  borderSide: BorderSide(color: CustomColors.blueColor, width: 2.0),
-                                                ),
-                                                fillColor: currentFocusIndex == index
-                                                    ? CustomColors.blueColor.withOpacity(0.1)
+                                                enabledBorder:
+                                                    OutlineInputBorder(
+                                                      borderSide: BorderSide(
+                                                        color:
+                                                            currentFocusIndex ==
+                                                                index
+                                                            ? CustomColors
+                                                                  .blueColor
+                                                            : CustomColors.grey,
+                                                        width:
+                                                            currentFocusIndex ==
+                                                                index
+                                                            ? 2.0
+                                                            : 1.0,
+                                                      ),
+                                                    ),
+                                                focusedBorder:
+                                                    const OutlineInputBorder(
+                                                      borderSide: BorderSide(
+                                                        color: CustomColors
+                                                            .blueColor,
+                                                        width: 2.0,
+                                                      ),
+                                                    ),
+                                                fillColor:
+                                                    currentFocusIndex == index
+                                                    ? CustomColors.blueColor
+                                                          .withOpacity(0.1)
                                                     : CustomColors.whiteColor,
                                                 filled: true,
                                               ),
                                               onTap: () {
-                                                currentFocusIndexNotifier.value = index;
+                                                currentFocusIndexNotifier
+                                                        .value =
+                                                    index;
                                               },
                                             ),
                                           ),
@@ -246,7 +331,11 @@ class _OpeningCashDialogState extends State<OpeningCashDialog> {
                                           child: Center(
                                             child: Text(
                                               '₹${totals[denom] ?? 0}',
-                                              style: const TextStyle(fontFamily: 'Poppins',fontSize: 16, fontWeight: FontWeight.bold),
+                                              style: const TextStyle(
+                                                fontFamily: 'Poppins',
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                             ),
                                           ),
                                         ),
@@ -256,14 +345,24 @@ class _OpeningCashDialogState extends State<OpeningCashDialog> {
                                 }).toList(),
                                 const Divider(thickness: 2),
                                 Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      const Text('Grand Total: ', style: TextStyle(fontFamily: 'Poppins',fontSize: 18, fontWeight: FontWeight.bold)),
+                                      const Text(
+                                        'Grand Total: ',
+                                        style: TextStyle(
+                                          fontFamily: 'Poppins',
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
                                       Text(
                                         '₹${_calculateGrandTotal()}',
-                                        style: const TextStyle(fontFamily: 'Poppins',
+                                        style: const TextStyle(
+                                          fontFamily: 'Poppins',
                                           fontSize: 18,
                                           fontWeight: FontWeight.bold,
                                           color: CustomColors.blueColor,
@@ -286,27 +385,40 @@ class _OpeningCashDialogState extends State<OpeningCashDialog> {
                           Column(
                             children: [
                               Container(
-                                constraints: const BoxConstraints(maxWidth: 300),
+                                constraints: const BoxConstraints(
+                                  maxWidth: 300,
+                                ),
                                 child: NumericKeyboard(
                                   focusNode: focusNodes[currentFocusIndex],
-                                  controller: _controllers[_controllers.keys.toList()[currentFocusIndex]]!,
+                                  controller:
+                                      _controllers[_controllers.keys
+                                          .toList()[currentFocusIndex]]!,
                                   onTextInput: (text) {
-                                    final currentController = _controllers[_controllers.keys.toList()[currentFocusIndex]]!;
-                                    currentController.text = currentController.text + text;
+                                    final currentController =
+                                        _controllers[_controllers.keys
+                                            .toList()[currentFocusIndex]]!;
+                                    currentController.text =
+                                        currentController.text + text;
                                     _updateTotals();
                                   },
                                   onBackspace: () {
-                                    final currentController = _controllers[_controllers.keys.toList()[currentFocusIndex]]!;
+                                    final currentController =
+                                        _controllers[_controllers.keys
+                                            .toList()[currentFocusIndex]]!;
                                     if (currentController.text.isNotEmpty) {
-                                      currentController.text = currentController.text.substring(
-                                        0,
-                                        currentController.text.length - 1,
-                                      );
+                                      currentController.text = currentController
+                                          .text
+                                          .substring(
+                                            0,
+                                            currentController.text.length - 1,
+                                          );
                                       _updateTotals();
                                     }
                                   },
                                   onOk: moveToNextField,
-                                  isLastField: currentFocusIndex == _controllers.keys.length - 1,
+                                  isLastField:
+                                      currentFocusIndex ==
+                                      _controllers.keys.length - 1,
                                 ),
                               ),
                               // const SizedBox(height: 10),
@@ -325,46 +437,76 @@ class _OpeningCashDialogState extends State<OpeningCashDialog> {
                                 Expanded(
                                   child: TextButton(
                                     onPressed: () async {
-                                      final shouldCancel = await _showConfirmationDialog(
-                                        title: 'Cancel Opening Cash',
-                                        content: 'Are you sure you want to cancel? Any changes will be lost.',
-                                        confirmText: 'Yes, Cancel',
-                                        cancelText: 'No, Continue',
-                                      );
-                                      if (shouldCancel == true && context.mounted) {
+                                      final shouldCancel =
+                                          await _showConfirmationDialog(
+                                            title: 'Cancel Opening Cash',
+                                            content:
+                                                'Are you sure you want to cancel? Any changes will be lost.',
+                                            confirmText: 'Yes, Cancel',
+                                            cancelText: 'No, Continue',
+                                          );
+                                      if (shouldCancel == true &&
+                                          context.mounted) {
                                         Navigator.pop(context);
                                       }
                                     },
                                     style: TextButton.styleFrom(
-                                      backgroundColor: CustomColors.redColor.withOpacity(0.1),
+                                      backgroundColor: CustomColors.redColor
+                                          .withOpacity(0.1),
                                       foregroundColor: CustomColors.redColor,
-                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 20,
+                                        vertical: 10,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
                                     ),
-                                    child: const Text('Cancel', style: TextStyle(fontFamily: 'Poppins',fontSize: 16)),
+                                    child: const Text(
+                                      'Cancel',
+                                      style: TextStyle(
+                                        fontFamily: 'Poppins',
+                                        fontSize: 16,
+                                      ),
+                                    ),
                                   ),
                                 ),
                                 SizedBox(width: 20),
                                 Expanded(
                                   child: TextButton(
                                     onPressed: () async {
-                                      final shouldClear = await _showConfirmationDialog(
-                                        title: 'Clear All Denominations',
-                                        content: 'Are you sure you want to clear all denomination counts?',
-                                        confirmText: 'Yes, Clear',
-                                        cancelText: 'No, Keep',
-                                      );
-                                      if (shouldClear == true && context.mounted) {
+                                      final shouldClear =
+                                          await _showConfirmationDialog(
+                                            title: 'Clear All Denominations',
+                                            content:
+                                                'Are you sure you want to clear all denomination counts?',
+                                            confirmText: 'Yes, Clear',
+                                            cancelText: 'No, Keep',
+                                          );
+                                      if (shouldClear == true &&
+                                          context.mounted) {
                                         _clearControllers();
                                       }
                                     },
                                     style: TextButton.styleFrom(
-                                      backgroundColor: Colors.orangeAccent.withOpacity(0.1),
+                                      backgroundColor: Colors.orangeAccent
+                                          .withOpacity(0.1),
                                       foregroundColor: Colors.orangeAccent,
-                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 10,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
                                     ),
-                                    child: const Text('All Clear', style: TextStyle(fontFamily: 'Poppins',fontSize: 16)),
+                                    child: const Text(
+                                      'All Clear',
+                                      style: TextStyle(
+                                        fontFamily: 'Poppins',
+                                        fontSize: 16,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -379,24 +521,39 @@ class _OpeningCashDialogState extends State<OpeningCashDialog> {
                                 Expanded(
                                   child: TextButton(
                                     onPressed: () async {
-                                      final shouldSave = await _showConfirmationDialog(
-                                        title: 'Save Opening Cash',
-                                        content: 'Are you sure you want to save the opening cash denominations?',
-                                        confirmText: 'Yes, Save',
-                                        cancelText: 'No, Edit',
-                                      );
-                                      if (shouldSave == true && context.mounted) {
+                                      final shouldSave =
+                                          await _showConfirmationDialog(
+                                            title: 'Save Opening Cash',
+                                            content:
+                                                'Are you sure you want to save the opening cash denominations?',
+                                            confirmText: 'Yes, Save',
+                                            cancelText: 'No, Edit',
+                                          );
+                                      if (shouldSave == true &&
+                                          context.mounted) {
                                         _saveOpeningCash();
                                         Navigator.pop(context);
                                       }
                                     },
                                     style: TextButton.styleFrom(
-                                      backgroundColor: CustomColors.blueColor.withOpacity(0.1),
+                                      backgroundColor: CustomColors.blueColor
+                                          .withOpacity(0.1),
                                       foregroundColor: CustomColors.blueColor,
-                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 20,
+                                        vertical: 10,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
                                     ),
-                                    child: const Text('Save', style: TextStyle(fontFamily: 'Poppins',fontSize: 16)),
+                                    child: const Text(
+                                      'Save',
+                                      style: TextStyle(
+                                        fontFamily: 'Poppins',
+                                        fontSize: 16,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -435,7 +592,8 @@ class _DenominationDialogState extends State<DenominationDialog> {
     2: TextEditingController(),
     1: TextEditingController(),
   };
-  final ValueNotifier<Map<int, int>> denominationTotals = ValueNotifier<Map<int, int>>({});
+  final ValueNotifier<Map<int, int>> denominationTotals =
+      ValueNotifier<Map<int, int>>({});
   late List<FocusNode> focusNodes;
   late ValueNotifier<int> currentFocusIndexNotifier;
 
@@ -479,7 +637,10 @@ class _DenominationDialogState extends State<DenominationDialog> {
     }
     denominationTotals.value = newTotals;
     CashManagementProvider.denominationCounts.value = newCounts;
-    CashManagementProvider.physicalCashSales.value = newTotals.values.fold(0, (sum, total) => sum + total);
+    CashManagementProvider.physicalCashSales.value = newTotals.values.fold(
+      0,
+      (sum, total) => sum + total,
+    );
   }
 
   int _calculateGrandTotal() {
@@ -515,11 +676,23 @@ class _DenominationDialogState extends State<DenominationDialog> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(cancelText, style: const TextStyle(fontFamily: 'Poppins',color: CustomColors.blueColor)),
+            child: Text(
+              cancelText,
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                color: CustomColors.blueColor,
+              ),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(confirmText, style: const TextStyle(fontFamily: 'Poppins',color: CustomColors.blueColor)),
+            child: Text(
+              confirmText,
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                color: CustomColors.blueColor,
+              ),
+            ),
           ),
         ],
       ),
@@ -550,7 +723,14 @@ class _DenominationDialogState extends State<DenominationDialog> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Center(
-                  child: Text('Denominations', style: TextStyle(fontFamily: 'Poppins',fontWeight: FontWeight.bold, fontSize: 20)),
+                  child: Text(
+                    'Denominations',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 20),
                 Row(
@@ -566,81 +746,146 @@ class _DenominationDialogState extends State<DenominationDialog> {
                             child: Column(
                               children: [
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceEvenly,
                                   children: const [
                                     Expanded(
                                       child: Center(
-                                        child: Text('Denomination', style: TextStyle(fontFamily: 'Poppins',fontWeight: FontWeight.bold)),
+                                        child: Text(
+                                          'Denomination',
+                                          style: TextStyle(
+                                            fontFamily: 'Poppins',
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                     Expanded(
                                       child: Center(
-                                        child: Text('Count', style: TextStyle(fontFamily: 'Poppins',fontWeight: FontWeight.bold)),
+                                        child: Text(
+                                          'Count',
+                                          style: TextStyle(
+                                            fontFamily: 'Poppins',
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                     Expanded(
                                       child: Center(
-                                        child: Text('Total', style: TextStyle(fontFamily: 'Poppins',fontWeight: FontWeight.bold)),
+                                        child: Text(
+                                          'Total',
+                                          style: TextStyle(
+                                            fontFamily: 'Poppins',
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
                                 const Divider(thickness: 2),
-                                ..._controllers.keys.toList().asMap().entries.map((entry) {
+                                ..._controllers.keys.toList().asMap().entries.map((
+                                  entry,
+                                ) {
                                   final index = entry.key;
                                   final denom = entry.value;
                                   final controller = _controllers[denom]!;
                                   final focusNode = focusNodes[index];
 
                                   return Padding(
-                                    padding: const EdgeInsets.symmetric(vertical: 6),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 6,
+                                    ),
                                     child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceEvenly,
                                       children: [
                                         Expanded(
-                                          child: Center(child: Text('₹$denom', style: const TextStyle(fontFamily: 'Poppins',fontSize: 16))),
+                                          child: Center(
+                                            child: Text(
+                                              '₹$denom',
+                                              style: const TextStyle(
+                                                fontFamily: 'Poppins',
+                                                fontSize: 16,
+                                              ),
+                                            ),
+                                          ),
                                         ),
                                         Expanded(
                                           child: Container(
-                                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                                            margin: const EdgeInsets.symmetric(
+                                              horizontal: 4,
+                                            ),
                                             child: TextField(
                                               focusNode: focusNode,
                                               controller: controller,
                                               keyboardType: TextInputType.none,
                                               textAlign: TextAlign.center,
-                                              style: TextStyle(fontFamily: 'Poppins',
+                                              style: TextStyle(
+                                                fontFamily: 'Poppins',
                                                 fontSize: 16,
-                                                color: currentFocusIndex == index ? CustomColors.blueColor : CustomColors.black,
+                                                color:
+                                                    currentFocusIndex == index
+                                                    ? CustomColors.blueColor
+                                                    : CustomColors.black,
                                               ),
                                               decoration: InputDecoration(
                                                 isDense: true,
-                                                contentPadding: const EdgeInsets.symmetric(vertical: 7, horizontal: 6),
+                                                contentPadding:
+                                                    const EdgeInsets.symmetric(
+                                                      vertical: 7,
+                                                      horizontal: 6,
+                                                    ),
                                                 border: OutlineInputBorder(
                                                   borderSide: BorderSide(
-                                                    color: currentFocusIndex == index
+                                                    color:
+                                                        currentFocusIndex ==
+                                                            index
                                                         ? CustomColors.blueColor
                                                         : CustomColors.grey,
-                                                    width: currentFocusIndex == index ? 2.0 : 1.0,
+                                                    width:
+                                                        currentFocusIndex ==
+                                                            index
+                                                        ? 2.0
+                                                        : 1.0,
                                                   ),
                                                 ),
-                                                enabledBorder: OutlineInputBorder(
-                                                  borderSide: BorderSide(
-                                                    color: currentFocusIndex == index
-                                                        ? CustomColors.blueColor
-                                                        : CustomColors.grey,
-                                                    width: currentFocusIndex == index ? 2.0 : 1.0,
-                                                  ),
-                                                ),
-                                                focusedBorder: const OutlineInputBorder(
-                                                  borderSide: BorderSide(color: CustomColors.blueColor, width: 2.0),
-                                                ),
-                                                fillColor: currentFocusIndex == index
-                                                    ? CustomColors.blueColor.withOpacity(0.1)
+                                                enabledBorder:
+                                                    OutlineInputBorder(
+                                                      borderSide: BorderSide(
+                                                        color:
+                                                            currentFocusIndex ==
+                                                                index
+                                                            ? CustomColors
+                                                                  .blueColor
+                                                            : CustomColors.grey,
+                                                        width:
+                                                            currentFocusIndex ==
+                                                                index
+                                                            ? 2.0
+                                                            : 1.0,
+                                                      ),
+                                                    ),
+                                                focusedBorder:
+                                                    const OutlineInputBorder(
+                                                      borderSide: BorderSide(
+                                                        color: CustomColors
+                                                            .blueColor,
+                                                        width: 2.0,
+                                                      ),
+                                                    ),
+                                                fillColor:
+                                                    currentFocusIndex == index
+                                                    ? CustomColors.blueColor
+                                                          .withOpacity(0.1)
                                                     : CustomColors.whiteColor,
                                                 filled: true,
                                               ),
                                               onTap: () {
-                                                currentFocusIndexNotifier.value = index;
+                                                currentFocusIndexNotifier
+                                                        .value =
+                                                    index;
                                                 _updateTotals();
                                               },
                                             ),
@@ -650,7 +895,11 @@ class _DenominationDialogState extends State<DenominationDialog> {
                                           child: Center(
                                             child: Text(
                                               '₹${totals[denom] ?? 0}',
-                                              style: const TextStyle(fontFamily: 'Poppins',fontSize: 16, fontWeight: FontWeight.bold),
+                                              style: const TextStyle(
+                                                fontFamily: 'Poppins',
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                             ),
                                           ),
                                         ),
@@ -660,14 +909,24 @@ class _DenominationDialogState extends State<DenominationDialog> {
                                 }).toList(),
                                 const Divider(thickness: 2),
                                 Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      const Text('Grand Total: ', style: TextStyle(fontFamily: 'Poppins',fontSize: 18, fontWeight: FontWeight.bold)),
+                                      const Text(
+                                        'Grand Total: ',
+                                        style: TextStyle(
+                                          fontFamily: 'Poppins',
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
                                       Text(
                                         '₹${_calculateGrandTotal()}',
-                                        style: const TextStyle(fontFamily: 'Poppins',
+                                        style: const TextStyle(
+                                          fontFamily: 'Poppins',
                                           fontSize: 18,
                                           fontWeight: FontWeight.bold,
                                           color: CustomColors.blueColor,
@@ -690,34 +949,42 @@ class _DenominationDialogState extends State<DenominationDialog> {
                           Column(
                             children: [
                               Container(
-                                constraints: const BoxConstraints(maxWidth: 300),
+                                constraints: const BoxConstraints(
+                                  maxWidth: 300,
+                                ),
                                 child: NumericKeyboard(
                                   focusNode: focusNodes[currentFocusIndex],
-                                  controller: _controllers[_controllers.keys.toList()[currentFocusIndex]]!,
+                                  controller:
+                                      _controllers[_controllers.keys
+                                          .toList()[currentFocusIndex]]!,
                                   onTextInput: (text) {
-                                    final currentController = _controllers[_controllers.keys.toList()[currentFocusIndex]]!;
-                                    currentController.text = currentController.text + text;
+                                    final currentController =
+                                        _controllers[_controllers.keys
+                                            .toList()[currentFocusIndex]]!;
+                                    currentController.text =
+                                        currentController.text + text;
                                     _updateTotals();
                                   },
                                   onBackspace: () {
-                                    final currentController = _controllers[_controllers.keys.toList()[currentFocusIndex]]!;
+                                    final currentController =
+                                        _controllers[_controllers.keys
+                                            .toList()[currentFocusIndex]]!;
                                     if (currentController.text.isNotEmpty) {
-                                      currentController.text = currentController.text.substring(
-                                        0,
-                                        currentController.text.length - 1,
-                                      );
+                                      currentController.text = currentController
+                                          .text
+                                          .substring(
+                                            0,
+                                            currentController.text.length - 1,
+                                          );
                                       _updateTotals();
                                     }
                                   },
                                   onOk: moveToNextField,
-                                  isLastField: currentFocusIndex == _controllers.keys.length - 1,
+                                  isLastField:
+                                      currentFocusIndex ==
+                                      _controllers.keys.length - 1,
                                 ),
                               ),
-                              // const SizedBox(height: 10),
-                              // Text(
-                              //   'Current: ₹${_controllers.keys.toList()[currentFocusIndex]}',
-                              //   style: const TextStyle(fontSize: 14, color: CustomColors.grey),
-                              // ),
                             ],
                           ),
                           const SizedBox(height: 20),
@@ -729,46 +996,76 @@ class _DenominationDialogState extends State<DenominationDialog> {
                                 Expanded(
                                   child: TextButton(
                                     onPressed: () async {
-                                      final shouldCancel = await _showConfirmationDialog(
-                                        title: 'Cancel Denominations',
-                                        content: 'Are you sure you want to cancel? Any changes will be lost.',
-                                        confirmText: 'Yes, Cancel',
-                                        cancelText: 'No, Continue',
-                                      );
-                                      if (shouldCancel == true && context.mounted) {
+                                      final shouldCancel =
+                                          await _showConfirmationDialog(
+                                            title: 'Cancel Denominations',
+                                            content:
+                                                'Are you sure you want to cancel? Any changes will be lost.',
+                                            confirmText: 'Yes, Cancel',
+                                            cancelText: 'No, Continue',
+                                          );
+                                      if (shouldCancel == true &&
+                                          context.mounted) {
                                         Navigator.pop(context);
                                       }
                                     },
                                     style: TextButton.styleFrom(
-                                      backgroundColor: CustomColors.redColor.withOpacity(0.1),
+                                      backgroundColor: CustomColors.redColor
+                                          .withOpacity(0.1),
                                       foregroundColor: CustomColors.redColor,
-                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 20,
+                                        vertical: 10,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
                                     ),
-                                    child: const Text('Cancel', style: TextStyle(fontFamily: 'Poppins',fontSize: 16)),
+                                    child: const Text(
+                                      'Cancel',
+                                      style: TextStyle(
+                                        fontFamily: 'Poppins',
+                                        fontSize: 16,
+                                      ),
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(width: 20),
                                 Expanded(
                                   child: TextButton(
                                     onPressed: () async {
-                                      final shouldClear = await _showConfirmationDialog(
-                                        title: 'Clear All Denominations',
-                                        content: 'Are you sure you want to clear all denomination counts?',
-                                        confirmText: 'Yes, Clear',
-                                        cancelText: 'No, Keep',
-                                      );
-                                      if (shouldClear == true && context.mounted) {
+                                      final shouldClear =
+                                          await _showConfirmationDialog(
+                                            title: 'Clear All Denominations',
+                                            content:
+                                                'Are you sure you want to clear all denomination counts?',
+                                            confirmText: 'Yes, Clear',
+                                            cancelText: 'No, Keep',
+                                          );
+                                      if (shouldClear == true &&
+                                          context.mounted) {
                                         _clearControllers();
                                       }
                                     },
                                     style: TextButton.styleFrom(
-                                      backgroundColor: Colors.orangeAccent.withOpacity(0.1),
+                                      backgroundColor: Colors.orangeAccent
+                                          .withOpacity(0.1),
                                       foregroundColor: Colors.orangeAccent,
-                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 10,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
                                     ),
-                                    child: const Text('All Clear', style: TextStyle(fontFamily: 'Poppins',fontSize: 16)),
+                                    child: const Text(
+                                      'All Clear',
+                                      style: TextStyle(
+                                        fontFamily: 'Poppins',
+                                        fontSize: 16,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -782,23 +1079,38 @@ class _DenominationDialogState extends State<DenominationDialog> {
                                 Expanded(
                                   child: TextButton(
                                     onPressed: () async {
-                                      final shouldSave = await _showConfirmationDialog(
-                                        title: 'Save Denominations',
-                                        content: 'Are you sure you want to save the denomination values?',
-                                        confirmText: 'Yes, Save',
-                                        cancelText: 'No, Edit',
-                                      );
-                                      if (shouldSave == true && context.mounted) {
+                                      final shouldSave =
+                                          await _showConfirmationDialog(
+                                            title: 'Save Denominations',
+                                            content:
+                                                'Are you sure you want to save the denomination values?',
+                                            confirmText: 'Yes, Save',
+                                            cancelText: 'No, Edit',
+                                          );
+                                      if (shouldSave == true &&
+                                          context.mounted) {
                                         _saveDenominations();
                                       }
                                     },
                                     style: TextButton.styleFrom(
-                                      backgroundColor: CustomColors.blueColor.withOpacity(0.1),
+                                      backgroundColor: CustomColors.blueColor
+                                          .withOpacity(0.1),
                                       foregroundColor: CustomColors.blueColor,
-                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 20,
+                                        vertical: 10,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
                                     ),
-                                    child: const Text('Save', style: TextStyle(fontFamily: 'Poppins',fontSize: 16)),
+                                    child: const Text(
+                                      'Save',
+                                      style: TextStyle(
+                                        fontFamily: 'Poppins',
+                                        fontSize: 16,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -819,7 +1131,10 @@ class _DenominationDialogState extends State<DenominationDialog> {
 }
 
 Future<void> openDenominationDialog(BuildContext context) async {
-  await showDialog<void>(context: context, builder: (context) => const DenominationDialog());
+  await showDialog<void>(
+    context: context,
+    builder: (context) => const DenominationDialog(),
+  );
 }
 
 Widget buildOptionCard({
@@ -845,7 +1160,13 @@ Widget buildOptionCard({
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                Icon(icon, size: 40, color: isSelected ? CustomColors.whiteColor : CustomColors.black),
+                Icon(
+                  icon,
+                  size: 40,
+                  color: isSelected
+                      ? CustomColors.whiteColor
+                      : CustomColors.black,
+                ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
@@ -853,19 +1174,25 @@ Widget buildOptionCard({
                     children: [
                       Text(
                         title,
-                        style: TextStyle(fontFamily: 'Poppins',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: isSelected ? CustomColors.whiteColor : CustomColors.black,
+                          color: isSelected
+                              ? CustomColors.whiteColor
+                              : CustomColors.black,
                         ),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         description,
-                        style: TextStyle(fontFamily: 'Poppins',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
-                          color: isSelected ? CustomColors.whiteColor : CustomColors.black,
+                          color: isSelected
+                              ? CustomColors.whiteColor
+                              : CustomColors.black,
                         ),
                       ),
                     ],
@@ -883,7 +1210,8 @@ Widget buildOptionCard({
 class ShiftClosingContainer extends StatefulWidget {
   final ValueNotifier<ConnectivityResult> connectivityResult;
 
-  const ShiftClosingContainer({Key? key, required this.connectivityResult}) : super(key: key);
+  const ShiftClosingContainer({Key? key, required this.connectivityResult})
+    : super(key: key);
 
   @override
   _ShiftClosingContainerState createState() => _ShiftClosingContainerState();
@@ -914,12 +1242,14 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
 
     // Sync provider changes back to controllers
     CashManagementProvider.upiSalesController.addListener(() {
-      if (_upiController.text != CashManagementProvider.upiSalesController.value) {
+      if (_upiController.text !=
+          CashManagementProvider.upiSalesController.value) {
         _upiController.text = CashManagementProvider.upiSalesController.value;
       }
     });
     CashManagementProvider.cardSalesController.addListener(() {
-      if (_cardController.text != CashManagementProvider.cardSalesController.value) {
+      if (_cardController.text !=
+          CashManagementProvider.cardSalesController.value) {
         _cardController.text = CashManagementProvider.cardSalesController.value;
       }
     });
@@ -935,14 +1265,19 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
     super.dispose();
   }
 
-  Widget buildShiftClosingContainer(BuildContext context, ValueNotifier<ConnectivityResult> connectivityResult) {
+  Widget buildShiftClosingContainer(
+    BuildContext context,
+    ValueNotifier<ConnectivityResult> connectivityResult,
+  ) {
     return Expanded(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Card(
           color: CustomColors.whiteColor,
           elevation: 5,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
           child: Padding(
             padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
             child: SingleChildScrollView(
@@ -962,29 +1297,44 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
                           onPressed: () => openDenominationDialog(context),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: CustomColors.whiteColor,
-                            side: const BorderSide(color: CustomColors.blueColor, width: 2),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            side: const BorderSide(
+                              color: CustomColors.blueColor,
+                              width: 2,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
                           child: ValueListenableBuilder<int>(
-                            valueListenable: CashManagementProvider.physicalCashSales,
+                            valueListenable:
+                                CashManagementProvider.physicalCashSales,
                             builder: (context, total, _) {
                               return Text(
                                 'Enter Cash Sales Denomination\n(Total: ₹$total)',
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(fontFamily: 'Poppins',color: CustomColors.blueColor),
+                                style: const TextStyle(
+                                  fontFamily: 'Poppins',
+                                  color: CustomColors.blueColor,
+                                ),
                               );
                             },
                           ),
                         ),
                       ),
                       ValueListenableBuilder<int>(
-                        valueListenable: CashManagementProvider.physicalCashSales,
+                        valueListenable:
+                            CashManagementProvider.physicalCashSales,
                         builder: (context, denominationTotal, _) {
                           return ValueListenableBuilder<int>(
-                            valueListenable: CashManagementProvider.manualOpeningBalance,
+                            valueListenable:
+                                CashManagementProvider.manualOpeningBalance,
                             builder: (context, openingCash, __) {
-                              final cashDrawer = openingCash + denominationTotal;
-                              return _buildCashDetailSection(title: 'Cash Drawer', amount: '₹ $cashDrawer');
+                              final cashDrawer =
+                                  openingCash + denominationTotal;
+                              return _buildCashDetailSection(
+                                title: 'Cash Drawer',
+                                amount: '₹ $cashDrawer',
+                              );
                             },
                           );
                         },
@@ -1009,20 +1359,36 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Opening Cash', style: TextStyle(fontFamily: 'Poppins',fontWeight: FontWeight.bold, fontSize: 16)),
+        const Text(
+          'Opening Cash',
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
         const SizedBox(height: 8),
         ValueListenableBuilder<int>(
           valueListenable: CashManagementProvider.manualOpeningBalance,
           builder: (context, openingCash, _) {
             return GestureDetector(
-              onTap: () => showDialog(context: context, builder: (context) => const OpeningCashDialog()),
+              onTap: () => showDialog(
+                context: context,
+                builder: (context) => const OpeningCashDialog(),
+              ),
               child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 30),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 6,
+                  horizontal: 30,
+                ),
                 decoration: BoxDecoration(
                   border: Border.all(color: CustomColors.grey),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: Text('₹ $openingCash', style: const TextStyle(fontFamily: 'Poppins',fontSize: 18)),
+                child: Text(
+                  '₹ $openingCash',
+                  style: const TextStyle(fontFamily: 'Poppins', fontSize: 18),
+                ),
               ),
             );
           },
@@ -1031,18 +1397,34 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
     );
   }
 
-  Widget _buildCashDetailSection({required String title, required String amount}) {
+  Widget _buildCashDetailSection({
+    required String title,
+    required String amount,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: const TextStyle(fontFamily: 'Poppins',fontWeight: FontWeight.bold, fontSize: 16)),
+        Text(
+          title,
+          style: const TextStyle(
+            fontFamily: 'Poppins',
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
         const SizedBox(height: 8),
-        Text(amount, style: const TextStyle(fontFamily: 'Poppins',fontSize: 18)),
+        Text(
+          amount,
+          style: const TextStyle(fontFamily: 'Poppins', fontSize: 18),
+        ),
       ],
     );
   }
 
-  Widget _buildSummaryColumns(context, ValueNotifier<ConnectivityResult> connectivityResult) {
+  Widget _buildSummaryColumns(
+    context,
+    ValueNotifier<ConnectivityResult> connectivityResult,
+  ) {
     return ValueListenableBuilder<int>(
       valueListenable: CashManagementProvider.physicalCashSales,
       builder: (context, denominationTotal, _) {
@@ -1060,26 +1442,39 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Summary', style: TextStyle(fontFamily: 'Poppins',fontWeight: FontWeight.bold, fontSize: 18)),
+                        const Text(
+                          'Summary',
+                          style: TextStyle(
+                            fontFamily: 'Poppins',
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        ),
                         _buildSummaryRowReadOnly("Cash Sales", '₹ $cashSales'),
                         _buildSummaryRowWithManual(
                           title: "UPI Sales",
                           controller: _upiController,
                           focusNode: _upiFocusNode,
                           index: 0,
-                          valueListenable: CashManagementProvider.upiSalesController,
+                          valueListenable:
+                              CashManagementProvider.upiSalesController,
                         ),
                         _buildSummaryRowWithManual(
                           title: "Card Sales",
                           controller: _cardController,
                           focusNode: _cardFocusNode,
                           index: 1,
-                          valueListenable: CashManagementProvider.cardSalesController,
+                          valueListenable:
+                              CashManagementProvider.cardSalesController,
                         ),
                         const SizedBox(height: 16),
                         Padding(
                           padding: const EdgeInsets.only(left: 80),
-                          child: _buildShiftClosingButton(context, connectivityResult, soApprovalStatus),
+                          child: _buildShiftClosingButton(
+                            context,
+                            connectivityResult,
+                            soApprovalStatus,
+                          ),
                         ),
                       ],
                     ),
@@ -1106,7 +1501,9 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
                           children: [
                             Container(
                               constraints: const BoxConstraints(maxWidth: 300),
-                              child: activeController != null && activeFocusNode != null
+                              child:
+                                  activeController != null &&
+                                      activeFocusNode != null
                                   ? NumericKeyboard(
                                       focusNode: activeFocusNode,
                                       controller: activeController,
@@ -1116,10 +1513,12 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
                                       },
                                       onBackspace: () {
                                         if (activeController.text.isNotEmpty) {
-                                          activeController.text = activeController.text.substring(
-                                            0,
-                                            activeController.text.length - 1,
-                                          );
+                                          activeController.text =
+                                              activeController.text.substring(
+                                                0,
+                                                activeController.text.length -
+                                                    1,
+                                              );
                                         }
                                       },
                                       onOk: () {
@@ -1139,7 +1538,10 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
                                         padding: const EdgeInsets.all(10),
                                         child: const Text(
                                           'Tap UPI or Card field to enter amount',
-                                          style: TextStyle(fontFamily: 'Poppins',color: CustomColors.grey),
+                                          style: TextStyle(
+                                            fontFamily: 'Poppins',
+                                            color: CustomColors.grey,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -1151,7 +1553,11 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
                                   : currentFocusIndex == 1
                                   ? 'Current: Card Sales'
                                   : 'Select a field',
-                              style: const TextStyle(fontFamily: 'Poppins',fontSize: 14, color: CustomColors.grey),
+                              style: const TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 14,
+                                color: CustomColors.grey,
+                              ),
                             ),
                           ],
                         );
@@ -1175,7 +1581,14 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
         children: [
           SizedBox(
             width: 120,
-            child: Text(title, style: const TextStyle(fontFamily: 'Poppins',fontSize: 16, fontWeight: FontWeight.w500)),
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
           SizedBox(
             width: 110,
@@ -1189,7 +1602,11 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
               child: Text(
                 amount,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontFamily: 'Poppins',fontSize: 16, color: CustomColors.black),
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 16,
+                  color: CustomColors.black,
+                ),
               ),
             ),
           ),
@@ -1203,7 +1620,8 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
     required TextEditingController controller,
     required FocusNode focusNode,
     required int index,
-    required ValueNotifier<String> valueListenable, // Add ValueNotifier parameter
+    required ValueNotifier<String>
+    valueListenable, // Add ValueNotifier parameter
   }) {
     return Padding(
       padding: const EdgeInsets.only(left: 20, top: 10),
@@ -1212,7 +1630,14 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
         children: [
           SizedBox(
             width: 120,
-            child: Text(title, style: const TextStyle(fontFamily: 'Poppins',fontSize: 16, fontWeight: FontWeight.w500)),
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
           SizedBox(
             width: 110,
@@ -1228,36 +1653,61 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
                   focusNode: focusNode,
                   keyboardType: TextInputType.none, // Disable default keyboard
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontFamily: 'Poppins',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
                     fontSize: 16,
-                    color: _currentFocusIndexNotifier.value == index ? CustomColors.blueColor : CustomColors.black,
+                    color: _currentFocusIndexNotifier.value == index
+                        ? CustomColors.blueColor
+                        : CustomColors.black,
                   ),
                   decoration: InputDecoration(
                     isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 6,
+                      horizontal: 6,
+                    ),
                     border: OutlineInputBorder(
                       borderSide: BorderSide(
-                        color: _currentFocusIndexNotifier.value == index ? CustomColors.blueColor : CustomColors.grey,
-                        width: _currentFocusIndexNotifier.value == index ? 2.0 : 1.0,
+                        color: _currentFocusIndexNotifier.value == index
+                            ? CustomColors.blueColor
+                            : CustomColors.grey,
+                        width: _currentFocusIndexNotifier.value == index
+                            ? 2.0
+                            : 1.0,
                       ),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderSide: BorderSide(
-                        color: _currentFocusIndexNotifier.value == index ? CustomColors.blueColor : CustomColors.grey,
-                        width: _currentFocusIndexNotifier.value == index ? 2.0 : 1.0,
+                        color: _currentFocusIndexNotifier.value == index
+                            ? CustomColors.blueColor
+                            : CustomColors.grey,
+                        width: _currentFocusIndexNotifier.value == index
+                            ? 2.0
+                            : 1.0,
                       ),
                     ),
-                    focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: CustomColors.blueColor, width: 2.0)),
+                    focusedBorder: const OutlineInputBorder(
+                      borderSide: BorderSide(
+                        color: CustomColors.blueColor,
+                        width: 2.0,
+                      ),
+                    ),
                     fillColor: _currentFocusIndexNotifier.value == index
                         ? CustomColors.blueColor.withOpacity(0.1)
                         : CustomColors.whiteColor,
                     filled: true,
                     hintText: 'Enter',
-                    hintStyle: const TextStyle(fontFamily: 'Poppins',color: CustomColors.grey),
+                    hintStyle: const TextStyle(
+                      fontFamily: 'Poppins',
+                      color: CustomColors.grey,
+                    ),
                     prefix: Text(
                       "₹",
-                      style: TextStyle(fontFamily: 'Poppins',
-                        color: _currentFocusIndexNotifier.value == index ? CustomColors.blueColor : CustomColors.grey,
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        color: _currentFocusIndexNotifier.value == index
+                            ? CustomColors.blueColor
+                            : CustomColors.grey,
                       ),
                     ),
                   ),
@@ -1273,6 +1723,259 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
       ),
     );
   }
+
+  Widget _buildShiftClosingButton(
+    BuildContext context,
+    ValueNotifier<ConnectivityResult> connectivityResult,
+    ValueNotifier<String> soApprovalStatus,
+  ) {
+    bool _isProcessing = false;
+
+    return ValueListenableBuilder<bool>(
+      valueListenable: CashManagementProvider.isShiftClosed,
+      builder: (context, closed, _) {
+        return ValueListenableBuilder<String>(
+          valueListenable: shiftId,
+          builder: (context, shiftId, __) {
+            return ValueListenableBuilder<ConnectivityResult>(
+              valueListenable: connectivityResult,
+              builder: (context, connectivity, ___) {
+                final isConnected = connectivity != ConnectivityResult.none;
+
+                return IgnorePointer(
+                  ignoring: _isProcessing,
+                  child: ElevatedButton(
+                    onPressed: isConnected && !_isProcessing
+                        ? () async {
+                            debugPrint("Shift Closing Button Pressed");
+                            if (_isProcessing) return;
+                            _isProcessing = true;
+
+                            try {
+                              // ---- NEW: Check for saved (hold) bills ----
+                              final box = await Hive.openBox('cartBox');
+                              final hasSavedBills = box.values.any(
+                                (bill) =>
+                                    bill is Map && bill['status'] == 'hold',
+                              );
+
+                              if (hasSavedBills) {
+                                final action = await showDialog<String>(
+                                  context: context,
+                                  barrierDismissible: false,
+                                  builder: (context) => AlertDialog(
+                                    backgroundColor: CustomColors.whiteColor,
+                                    title: const Text("Saved Bills Detected"),
+                                    content: const Text(
+                                      "There are saved bills (on hold). "
+                                      "You must either:\n"
+                                      "• Load them to cart, or\n"
+                                      "• Delete them\n"
+                                      "before closing the shift.",
+                                    ),
+                                    actions: [
+                                      // TextButton(
+                                      //   onPressed: () => Navigator.pop(context, "view"),
+                                      //   child: const Text("View Saved Bills"),
+                                      // ),
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, "cancel"),
+                                        child: const Text(
+                                          "Cancel",
+                                          style: TextStyle(
+                                            fontFamily: 'Poppins',
+                                            color: CustomColors.blueColor,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+
+                                if (action == "view") {
+                                  Navigator.pop(
+                                    context,
+                                  ); // Close shift dialog if needed
+                                  ViewSavedBillsWidget().viewBills(context);
+                                }
+                                _isProcessing = false;
+                                return;
+                              }
+
+                              // ---- Existing SO Approval Check ----
+                              if (soApprovalStatus.value == "failed") {
+                                final proceed = await showDialog<bool>(
+                                  context: context,
+                                  barrierDismissible: false,
+                                  builder: (context) => AlertDialog(
+                                    backgroundColor: CustomColors.whiteColor,
+                                    title: const Text("Approval Status Error"),
+                                    content: const Text(
+                                      "Some Sale Order Approvals are Pending. "
+                                      "Do you want to proceed anyway?",
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, false),
+                                        child: const Text(
+                                          "Go Back and Check",
+                                          style: TextStyle(
+                                            fontFamily: 'Poppins',
+                                            color: CustomColors.blueColor,
+                                          ),
+                                        ),
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, true),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor:
+                                              CustomColors.blueColor,
+                                        ),
+                                        child: const Text(
+                                          "Proceed Anyway",
+                                          style: TextStyle(
+                                            fontFamily: 'Poppins',
+                                            color: CustomColors.whiteColor,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+
+                                if (proceed != true) {
+                                  _isProcessing = false;
+                                  return;
+                                }
+                              }
+
+                              // ---- Confirm Close Shift ----
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (context) => AlertDialog(
+                                  backgroundColor: CustomColors.whiteColor,
+                                  title: const Text("Confirm Close Shift"),
+                                  content: const Text(
+                                    "Are you sure you want to close this shift?",
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, false),
+                                      child: const Text(
+                                        "Cancel",
+                                        style: TextStyle(
+                                          fontFamily: 'Poppins',
+                                          color: CustomColors.blueColor,
+                                        ),
+                                      ),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, true),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: CustomColors.blueColor,
+                                      ),
+                                      child: const Text(
+                                        "Yes, Close Shift",
+                                        style: TextStyle(
+                                          fontFamily: 'Poppins',
+                                          color: CustomColors.whiteColor,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+
+                              if (confirm != true) {
+                                _isProcessing = false;
+                                return;
+                              }
+
+                              // ---- Sync unsynced invoices if any ----
+                              var invoiceBox = await Hive.openBox(
+                                'invoicesBox',
+                              );
+                              bool needsSync = invoiceBox.values.any((
+                                invoiceData,
+                              ) {
+                                if (invoiceData is String) {
+                                  invoiceData =
+                                      jsonDecode(invoiceData)
+                                          as Map<String, dynamic>;
+                                }
+                                return invoiceData is Map<String, dynamic> &&
+                                    invoiceData['sync'] == 'No';
+                              });
+
+                              if (needsSync) {
+                                final syncService = Provider.of<SyncService>(
+                                  context,
+                                  listen: false,
+                                );
+                                await syncService.syncUnsyncedInvoices();
+                              }
+
+                              // ---- Final: Patch shift closing ----
+                              await CashManagementProvider.patchShiftClosingData(
+                                shiftId,
+                                context,
+                              );
+                            } finally {
+                              _isProcessing = false;
+                            }
+                          }
+                        : () {
+                            if (!_isProcessing) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  backgroundColor: CustomColors.redColor,
+                                  content: Text(
+                                    'No internet connection. Please check your network.',
+                                  ),
+                                  duration: Duration(seconds: 3),
+                                ),
+                              );
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: CustomColors.blueColor,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Close Shift',
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 16,
+                        color: CustomColors.whiteColor,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return buildShiftClosingContainer(context, widget.connectivityResult);
+  }
+}
 
   // Widget _buildShiftClosingButton(
   //   BuildContext context,
@@ -1402,177 +2105,3 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
   //     },
   //   );
   // }
-  Widget _buildShiftClosingButton(
-    BuildContext context,
-    ValueNotifier<ConnectivityResult> connectivityResult,
-    ValueNotifier<String> soApprovalStatus,
-  ) {
-    bool _isProcessing = false;
-
-    return ValueListenableBuilder<bool>(
-      valueListenable: CashManagementProvider.isShiftClosed,
-      builder: (context, closed, _) {
-        return ValueListenableBuilder<String>(
-          valueListenable: shiftId,
-          builder: (context, shiftId, __) {
-            return ValueListenableBuilder<ConnectivityResult>(
-              valueListenable: connectivityResult,
-              builder: (context, connectivity, ___) {
-                final isConnected = connectivity != ConnectivityResult.none;
-
-                return ElevatedButton(
-                  onPressed: isConnected && !_isProcessing
-                      ? () async {
-                          if (_isProcessing) return;
-                          _isProcessing = true;
-
-                          try {
-                            // ---- NEW: Check for saved (hold) bills ----
-                            final box = await Hive.openBox('cartBox');
-                            final hasSavedBills = box.values.any((bill) => bill is Map && bill['status'] == 'hold');
-
-                            if (hasSavedBills) {
-                              final action = await showDialog<String>(
-                                context: context,
-                                barrierDismissible: false,
-                                builder: (context) => AlertDialog(
-                                  backgroundColor: CustomColors.whiteColor,
-                                  title: const Text("Saved Bills Detected"),
-                                  content: const Text(
-                                    "There are saved bills (on hold). "
-                                    "You must either:\n"
-                                    "• Load them to cart, or\n"
-                                    "• Delete them\n"
-                                    "before closing the shift.",
-                                  ),
-                                  actions: [
-                                    // TextButton(
-                                    //   onPressed: () => Navigator.pop(context, "view"),
-                                    //   child: const Text("View Saved Bills"),
-                                    // ),
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context, "cancel"),
-                                      child: const Text("Cancel", style: TextStyle(fontFamily: 'Poppins',color: CustomColors.blueColor)),
-                                    ),
-                                  ],
-                                ),
-                              );
-
-                              if (action == "view") {
-                                Navigator.pop(context); // Close shift dialog if needed
-                                ViewSavedBillsWidget().viewBills(context);
-                              }
-                              _isProcessing = false;
-                              return;
-                            }
-
-                            // ---- Existing SO Approval Check ----
-                            if (soApprovalStatus.value == "failed") {
-                              final proceed = await showDialog<bool>(
-                                context: context,
-                                barrierDismissible: false,
-                                builder: (context) => AlertDialog(
-                                  backgroundColor: CustomColors.whiteColor,
-                                  title: const Text("Approval Status Error"),
-                                  content: const Text(
-                                    "Some Sale Order Approvals are Pending. "
-                                    "Do you want to proceed anyway?",
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context, false),
-                                      child: const Text("Go Back and Check", style: TextStyle(fontFamily: 'Poppins',color: CustomColors.blueColor)),
-                                    ),
-                                    ElevatedButton(
-                                      onPressed: () => Navigator.pop(context, true),
-                                      style: ElevatedButton.styleFrom(backgroundColor: CustomColors.blueColor),
-                                      child: const Text("Proceed Anyway", style: TextStyle(fontFamily: 'Poppins',color: CustomColors.whiteColor)),
-                                    ),
-                                  ],
-                                ),
-                              );
-
-                              if (proceed != true) {
-                                _isProcessing = false;
-                                return;
-                              }
-                            }
-
-                            // ---- Confirm Close Shift ----
-                            final confirm = await showDialog<bool>(
-                              context: context,
-                              barrierDismissible: false,
-                              builder: (context) => AlertDialog(
-                                backgroundColor: CustomColors.whiteColor,
-                                title: const Text("Confirm Close Shift"),
-                                content: const Text("Are you sure you want to close this shift?"),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context, false),
-                                    child: const Text("Cancel", style: TextStyle(fontFamily: 'Poppins',color: CustomColors.blueColor)),
-                                  ),
-                                  ElevatedButton(
-                                    onPressed: () => Navigator.pop(context, true),
-                                    style: ElevatedButton.styleFrom(backgroundColor: CustomColors.blueColor),
-                                    child: const Text("Yes, Close Shift", style: TextStyle(fontFamily: 'Poppins',color: CustomColors.whiteColor)),
-                                  ),
-                                ],
-                              ),
-                            );
-
-                            if (confirm != true) {
-                              _isProcessing = false;
-                              return;
-                            }
-
-                            // ---- Sync unsynced invoices if any ----
-                            var invoiceBox = await Hive.openBox('invoicesBox');
-                            bool needsSync = invoiceBox.values.any((invoiceData) {
-                              if (invoiceData is String) {
-                                invoiceData = jsonDecode(invoiceData) as Map<String, dynamic>;
-                              }
-                              return invoiceData is Map<String, dynamic> && invoiceData['sync'] == 'No';
-                            });
-
-                            if (needsSync) {
-                              final syncService = Provider.of<SyncService>(context, listen: false);
-                              await syncService.syncUnsyncedInvoices();
-                            }
-
-                            // ---- Final: Patch shift closing ----
-                            await CashManagementProvider.patchShiftClosingData(shiftId, context);
-                          } finally {
-                            _isProcessing = false;
-                          }
-                        }
-                      : () {
-                          if (!_isProcessing) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                backgroundColor: CustomColors.redColor,
-                                content: Text('No internet connection. Please check your network.'),
-                                duration: Duration(seconds: 3),
-                              ),
-                            );
-                          }
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: CustomColors.blueColor,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: const Text('Close Shift', style: TextStyle(fontFamily: 'Poppins',fontSize: 16, color: CustomColors.whiteColor)),
-                );
-              },
-            );
-          },
-        );
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return buildShiftClosingContainer(context, widget.connectivityResult);
-  }
-}

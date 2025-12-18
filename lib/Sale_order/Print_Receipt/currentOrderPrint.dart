@@ -7,9 +7,11 @@ import 'package:hive/hive.dart';
 import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
+import 'package:yenpos/Global/Provider/connectivity_internet.dart';
 import 'package:yenpos/Global/globals_data.dart';
 import 'package:yenpos/Global/globals_data.dart' as globalsData;
 import 'package:yenpos/Global/globals_data.dart' as globals;
+import 'package:yenpos/Hive_Manager/hive_manager_saleOrder.dart';
 import 'package:yenpos/Sale_order/Models/sales_order_display_model.dart';
 import 'package:yenpos/Sale_order/Print_Receipt/allorderprint.dart';
 import 'package:yenpos/Sale_order/Widgets/Send_data_to_server.dart';
@@ -17,8 +19,11 @@ import 'package:yenpos/Sale_order/Widgets/advance_amount_payment_keybaord.dart';
 import 'package:yenpos/Sale_order/Widgets/cheque_details.dart';
 import 'package:yenpos/Sale_order/Widgets/customAll_keyboard.dart';
 import 'package:yenpos/Sale_order/Widgets/top_message.dart';
+import 'package:yenpos/Server_Client/handlers/invoice_handler.dart';
+import 'package:yenpos/Server_Client/handlers/saleorder_handlemessage.dart';
 import 'package:yenpos/invoice_pay_and_print_page.dart/provider/payment_provider.dart';
 import 'package:yenpos/invoice_pay_and_print_page.dart/provider/razorpay_provider.dart';
+import 'package:yenpos/invoice_pay_and_print_page.dart/widgets/invoiceNumberGenerator.dart';
 
 import '../../../Global/salesorder_websocket_service.dart';
 
@@ -71,7 +76,7 @@ class _OrderManagementPayandPrintState
   bool _isCompleteButtonEnabled = false; // default enabled
   final TextEditingController _customUpiController = TextEditingController();
   final TextEditingController _customCardController = TextEditingController();
-  String selectedPaymentMethod = 'Cash';
+
   final TextEditingController chequeNumberController = TextEditingController();
   final TextEditingController chequeAmountController = TextEditingController();
   final TextEditingController chequeNameController = TextEditingController();
@@ -1095,6 +1100,10 @@ class _OrderManagementPayandPrintState
   }
 
   void markOrderAsCompleted(String salesOrderId) async {
+    final connectivityProvider = Provider.of<ConnectivityProvider>(
+      context,
+      listen: false,
+    );
     final invoiceDate = DateTime.now().toIso8601String();
     final invoiceTime = DateTime.now().toIso8601String();
 
@@ -1104,80 +1113,113 @@ class _OrderManagementPayandPrintState
     final totalAdvanceAmount =
         so.advanceAmount?.fold<double>(0.0, (sum, value) => sum + value) ?? 0.0;
 
-    print(
-      "🟢 [markOrderAsCompleted] STARTED for Sales Order ID: $salesOrderId",
-    );
-    print("🟢 Invoice Date: $invoiceDate, Invoice Time: $invoiceTime");
-    print("🟢 Total Advance Amount: $totalAdvanceAmount");
-
     try {
-      // 🔹 Patch order status
-      final patchBody = {
+      Map<String, dynamic> requestBody = {
         "salesOrderId": so.salesOrderId,
         "status": "Sales Completed",
         "invoiceDate": invoiceDate,
         "invoiceTime": invoiceTime,
       };
-
-      await sendataToServer({
-        "data": patchBody,
+      final patchData = {
+        "data": requestBody,
         "saleOrderNo": so.saleOrderNo,
-        "type": "patchSaleOrder",
+        "type": "patchInvoiceSaleOrder",
         "sync": "No",
         "edit": "No",
-      });
+      };
 
-      print("✅ Patch request sent successfully for $salesOrderId");
+      if (connectivityProvider.isConnected) {
+        await sendataToServer(patchData);
+      } else {
+        await handleInvoicePatchSaleOrder(patchData);
+      }
 
-      // 🧮 Initialize totals
-      double totalItemTotal = 0.0; // total after discount + tax
-      double totalNet = 0.0; // total before tax
-      double totalCross = 0.0; // gross total (if any extra charges)
+      // ===================================================================================== //
+      // 🧮 CALCULATIONS
+      // ===================================================================================== //
+      final Set<String> _loggedInvoices = {};
+      double totalItemTotal = 0.0;
+      double totalNet = 0.0;
+      double totalCross = 0.0;
+      double totalDiscountAmount = 0.0;
+
       List<double> sellingPrices = [];
       List<double> sellingAmounts = [];
-      List<String> gstRates = [];
-      List<String> gstValues = [];
-      double discount_perc = so.discount.toDouble();
+      List<double> gstRates = [];
+      List<double> gstValues = [];
+
+      double discountPerc = so.discount.toDouble();
+
       double customCharge = _customChargeController.text.isNotEmpty
           ? double.tryParse(_customChargeController.text) ?? 0.0
           : 0.0;
-      double totalDiscountAmount = 0.0;
 
       for (int i = 0; i < so.itemName.length; i++) {
-        final itemQty = (so.qty.length > i ? so.qty[i] : 0);
-        final itemPrice = (so.price.length > i ? so.price[i].toDouble() : 0.0);
-        final itemTax = (so.tax.length > i ? so.tax[i].toDouble() : 0.0);
-        final itemAmount = (so.amount.length > i
+        final itemName = so.itemName[i];
+        final qty = (so.qty.length > i && so.qty[i] != null) ? so.qty[i] : 0;
+        final price = (so.price.length > i && so.price[i] != null)
+            ? so.price[i].toDouble()
+            : 0.0;
+        final tax = (so.tax.length > i && so.tax[i] != null)
+            ? so.tax[i].toDouble()
+            : 0.0;
+        final amount = (so.amount.length > i && so.amount[i] != null)
             ? so.amount[i].toDouble()
-            : 0.0);
+            : 0.0;
 
-        final discountedPrice = itemPrice * (1 - discount_perc / 100);
-        final subtotal = discountedPrice * itemQty;
-        final taxAmount = subtotal * (itemTax / 100);
+        // Apply Discount
+        final discountedPrice = price * (1 - discountPerc / 100);
+        final subtotal = discountedPrice * qty;
+        final taxAmount = subtotal * (tax / 100);
         final totalWithTax = subtotal + taxAmount;
+        final itemDiscountAmt = amount * (discountPerc / 100);
+        final discountedGross = amount - itemDiscountAmt;
 
-        double itemDiscountAmt = itemAmount * (discount_perc / 100);
-        double discountedGross = itemAmount - itemDiscountAmt;
-
-        double taxRate = itemTax / 100.0;
-        double netExclusive = itemTax > 0
+        // Net exclusive & GST
+        final taxRate = tax / 100.0;
+        final netExclusive = tax > 0
             ? discountedGross / (1 + taxRate)
             : discountedGross;
-        double gstAmount = discountedGross - netExclusive;
+        final gstAmount = discountedGross - netExclusive;
 
+        // Round GST values
+        final gstRateRounded = double.parse(tax.toStringAsFixed(1));
+        final gstAmountRounded = double.parse(gstAmount.toStringAsFixed(2));
+
+        // Update totals
         totalDiscountAmount += itemDiscountAmt;
         totalItemTotal += discountedGross;
         totalNet += netExclusive;
 
-        gstRates.add(itemTax.toStringAsFixed(1));
-        gstValues.add(gstAmount.toStringAsFixed(2));
+        // Store rounded GST info
+        gstRates.add(gstRateRounded);
+        gstValues.add(gstAmountRounded);
 
         sellingPrices.add(discountedPrice);
         sellingAmounts.add(discountedGross);
       }
 
-      // 🔹 Build invoice body
-      final fullInvoiceBody = {
+      var invoiceNumberGenerator = InvoiceNumberGenerator.instance;
+      String newInvoiceNumber = await invoiceNumberGenerator
+          .generateInvoiceNumber();
+
+      final employeeFull = so.employeeName; // "2548 - Paramasivan P"
+
+      // Split by ' - '
+      final employeeParts = employeeFull.split(' - ');
+
+      // Extract ID and Name safely
+      final employeeId = employeeParts.isNotEmpty
+          ? employeeParts[0].trim()
+          : '';
+      final employeeName = employeeParts.length > 1
+          ? employeeParts[1].trim()
+          : '';
+
+      // ===================================================================================== //
+      // 📦 BUILD FULL INVOICE BODY
+      // ===================================================================================== //
+      Map<String, dynamic> fullInvoiceBody = {
         "itemName": so.itemName,
         "varianceName": so.varianceName,
         "varianceitemCode": so.itemCode,
@@ -1192,34 +1234,32 @@ class _OrderManagementPayandPrintState
         "totalAmount": totalItemTotal,
         "advanceAmount": totalAdvanceAmount,
         "advanceDate": invoiceDate,
-        "advanceTime": invoiceTime,
         "status": "Sales Completed",
         "salesType": "Sales Order",
         "netAmount": totalNet.toStringAsFixed(2),
-        "crossAmount": totalCross.toStringAsFixed(2),
+        "grossAmount": totalCross.toStringAsFixed(2),
         "customerPhoneNumber": so.customerNumber,
-        "salesPersonName": so.employeeName,
+        "salesPersonName": employeeName,
+        "salesPersonId": employeeId,
         "branchId": globals.branchId,
         "branchName": globals.branchName,
         "aliasName": globals.aliasname,
         "cash": _cashAmount,
         "card": _cardAmount,
         "upi": _upiAmount,
-        "invoiceNo": so.orderInvoiceNo,
+        "invoiceNo": newInvoiceNumber,
         "invoiceDateTime": DateTime.now().toIso8601String(),
-        "shiftId": globalsData.shiftId.value,
+        "shiftId": globalsData.shiftId.value.toString(),
         "customCharge": so.customCharge,
-        "discountAmount": (totalNet * (discount_perc / 100)).toStringAsFixed(
-          2,
-        ), // total discount value
-        "discountPercentage": discount_perc,
+        "discountAmount": (totalNet * (discountPerc / 100)).toStringAsFixed(2),
+        "discountPercentage": discountPerc,
         "salesOrderId": so.salesOrderId,
         "advanceDateTime": so.advanceDateTime,
-        'gst': gstRates,
-        'gstValue': gstValues,
+        "gst": gstRates,
+        "gstValue": gstValues,
+        "saleOrderNo": so.saleOrderNo,
       };
 
-      print("🟢 Full Invoice Body: $fullInvoiceBody");
       final invoiceJson = jsonEncode({
         "salesOrderId": fullInvoiceBody,
         "type": "posInvoice",
@@ -1227,32 +1267,45 @@ class _OrderManagementPayandPrintState
         "edit": "No",
       });
 
-      await sendataToServer(jsonDecode(invoiceJson));
-      // 🔹 Send invoice
-      DateTime billDate = DateTime.now();
-      String formattedDate = DateFormat('dd-MM-yyyy').format(billDate);
-      String formattedTime = DateFormat('hh:mm a').format(billDate);
-      String uniqueIdentifier = '$formattedDate';
+      if (connectivityProvider.isConnected) {
+        print("connection true");
+        await sendataToServer(jsonDecode(invoiceJson));
+      } else {
+        print("connection false");
 
-      var box = await Hive.openBox('invoices');
-      bool exists = box.values.any(
-        (invoice) =>
-            invoice is Map<String, dynamic> && invoice[' '] == uniqueIdentifier,
-      );
-      if (!exists) {
-        await box.add(fullInvoiceBody);
-        developer.log('Invoice saved to Hive:', error: fullInvoiceBody);
+        await handleInvoice(jsonDecode(invoiceJson), clients);
       }
 
-      print("✅ Invoice request sent successfully for $salesOrderId");
-    } catch (e, stack) {
-      print("❌ Error in markOrderAsCompleted: $e");
-      print("❌ StackTrace: $stack");
-    }
+      // ===================================================================================== //
+      // 📦 SAVE TO HIVE
+      // ===================================================================================== //
 
-    print(
-      "🟢 [markOrderAsCompleted] FINISHED for Sales Order ID: $salesOrderId",
-    );
+      // DateTime billDate = DateTime.now();
+      // String formattedDate = DateFormat('dd-MM-yyyy').format(billDate);
+      // String uniqueIdentifier = '$formattedDate';
+
+      // var box = await Hive.openBox('invoices');
+      // if (!_loggedInvoices.contains(uniqueIdentifier)) {
+      //   _loggedInvoices.add(uniqueIdentifier);
+      //   developer.log('Invoice Data:', name: 'InvoiceLog');
+      //   developer.log(fullInvoiceBody.toString(), name: 'InvoiceLog');
+      // }
+
+      // bool exists = box.values.any(
+      //   (invoice) =>
+      //       invoice is Map<String, dynamic> && invoice[' '] == uniqueIdentifier,
+      // );
+
+      // if (!exists) {
+      //   await box.add(fullInvoiceBody);
+
+      //   int i = 0;
+      //   for (var invoice in box.values) {
+      //     i++;
+      //   }
+      // } else {}
+    } catch (e, stack) {}
+
     Navigator.pop(context);
   }
 }

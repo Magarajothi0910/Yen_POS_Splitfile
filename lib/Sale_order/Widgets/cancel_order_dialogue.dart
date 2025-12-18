@@ -173,10 +173,6 @@ class _CancelOrderPaymentState extends State<CancelOrderPayment> {
     double maxAllowedForThisMethod = alreadyPaid - otherPayments;
     if (maxAllowedForThisMethod < 0) maxAllowedForThisMethod = 0;
 
-    print("Already Paid (Advance): $alreadyPaid");
-    print("Other Payments: $otherPayments");
-    print("Remaining allowed for $method: $maxAllowedForThisMethod");
-
     if (entered > maxAllowedForThisMethod) {
       controller.text = maxAllowedForThisMethod.toStringAsFixed(0);
       controller.selection = TextSelection.fromPosition(
@@ -237,35 +233,17 @@ class _CancelOrderPaymentState extends State<CancelOrderPayment> {
     final remaining = alreadyPaid - (cash + upi + card);
 
     // 🔎 Debug prints
-    print('--- _getSuggestedAmount Debug ---');
-    print('Method: $method');
-    print('Cash entered: $cash');
-    print('UPI entered: $upi');
-    print('Card entered: $card');
-    print('Already Paid (advanceAmount total): $alreadyPaid');
-    print('Remaining (alreadyPaid - entered amounts): $remaining');
-    print('-----------------------------------');
 
     if (method == "Cash" && _cashController.text.isEmpty) {
-      print(
-        'Suggested amount for Cash: ${remaining > 0 ? remaining.toStringAsFixed(0) : "0"}',
-      );
       return remaining > 0 ? remaining.toStringAsFixed(0) : "0";
     }
     if (method == "UPI" && _upiController.text.isEmpty) {
-      print(
-        'Suggested amount for UPI: ${remaining > 0 ? remaining.toStringAsFixed(0) : "0"}',
-      );
       return remaining > 0 ? remaining.toStringAsFixed(0) : "0";
     }
     if (method == "Card" && _cardController.text.isEmpty) {
-      print(
-        'Suggested amount for Card: ${remaining > 0 ? remaining.toStringAsFixed(0) : "0"}',
-      );
       return remaining > 0 ? remaining.toStringAsFixed(0) : "0";
     }
 
-    print('No suggestion applicable, returning "0"');
     return "0";
   }
 
@@ -515,11 +493,6 @@ class _CancelOrderPaymentState extends State<CancelOrderPayment> {
 
       final double totalEntered = cash + upi + card + cheque;
       final double remainingBalance = advanceAmount - totalEntered;
-
-      print('--- 🔍 DEBUG _updateBalance() ---');
-      print('Advance amount (max allowed): $advanceAmount');
-      print('Total refund entered: $totalEntered');
-      print('Remaining balance: $remainingBalance');
 
       if (totalEntered > advanceAmount) {
         // ❌ Show AlertDialog if entered more than advance
@@ -939,6 +912,7 @@ class _CancelOrderPaymentState extends State<CancelOrderPayment> {
                                         customerScreenProvider.cancelOrder(
                                           widget.salesOrder.saleOrderNo,
                                           payload,
+                                          context,
                                         );
 
                                         Navigator.of(context).pop();

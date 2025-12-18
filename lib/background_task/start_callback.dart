@@ -11,8 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:yenpos/Global/globals_data.dart';
 import 'package:yenpos/Sale_order/Print_Receipt/invoicePrint.dart';
 import 'package:yenpos/Sale_order/Provider/customerScreen_provider.dart';
-import 'package:yenpos/Server_Client/handlers/websocket_handler.dart'
-    hide wsClients;
+import 'package:yenpos/Server_Client/handlers/websocket_handler.dart' hide wsClients;
 import 'package:yenpos/Server_Client/hive_service.dart';
 import 'package:yenpos/Server_Client/serverreachable.dart';
 import 'package:yenpos/Server_Client/websocketService.dart';
@@ -63,20 +62,16 @@ class ServerTaskHandler extends TaskHandler {
 
         serverip = ip;
         await serverBox.put('serverIp', ip);
-        await serverBox.put('serverPort', '8181');
+        await serverBox.put('serverPort', port);
 
         // Close any existing server
         await _wsServer?.close(force: true);
         _wsServer = null;
 
         // ✅ Bind server (shared allows reuse for background tasks)
-        _wsServer = await HttpServer.bind(
-          InternetAddress.anyIPv4,
-          8181,
-          shared: true,
-        );
+        _wsServer = await HttpServer.bind(InternetAddress.anyIPv4, port, shared: true);
 
-        print("✅ [SERVER STARTED] at ws://$ip:8181");
+        print("✅ [SERVER STARTED] at ws://$ip:$port");
         print("===========================================");
 
         // ✅ Handle new WebSocket connections
@@ -97,9 +92,7 @@ class ServerTaskHandler extends TaskHandler {
                 socket.done
                     .then((_) {
                       clients.remove(channel);
-                      print(
-                        "🔴 [CLIENT DISCONNECTED] Total: ${clients.length}",
-                      );
+                      print("🔴 [CLIENT DISCONNECTED] Total: ${clients.length}");
                     })
                     .catchError((error) {
                       clients.remove(channel);
@@ -133,9 +126,9 @@ class ServerTaskHandler extends TaskHandler {
     try {
       // Close existing UDP instance
       _udpSender?.close();
-      _udpSender = await UDP.bind(Endpoint.any(port: const Port(56789)));
+      _udpSender = await UDP.bind(Endpoint.any(port:  Port(udpPort)));
 
-      print("📡 [UDP RESPONDER] Listening on port 56789");
+      print("📡 [UDP RESPONDER] Listening on port 23456");
 
       _udpSender!.asStream().listen(
         (datagram) async {
@@ -143,13 +136,10 @@ class ServerTaskHandler extends TaskHandler {
             final message = utf8.decode(datagram.data).trim();
             if (message == 'WHO_IS_SERVER') {
               final ip = serverip;
-              final response = 'SERVER:$ip:8181';
+              final response = 'SERVER:$ip:8686';
               print("📩 [UDP] Responding: $response");
 
-              await _udpSender!.send(
-                utf8.encode(response),
-                Endpoint.broadcast(port: const Port(56789)),
-              );
+              await _udpSender!.send(utf8.encode(response), Endpoint.broadcast(port:  Port(udpPort)));
             }
           }
         },

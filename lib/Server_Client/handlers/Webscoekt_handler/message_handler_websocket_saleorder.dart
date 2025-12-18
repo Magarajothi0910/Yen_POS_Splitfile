@@ -69,7 +69,7 @@ Future<void> handleSalesOrder(
     final lastOrder = orders.last;
 
     // Step 4: Print the patched receipt
-    customerProvider.updateReceiptData(lastOrder);
+    customerProvider.updateReceiptData(orderData);
   } catch (e, st) {
     if (orderData != null && orderData['saleOrderNo'] != null) {
       _processedOrders.remove(orderData['saleOrderNo']);

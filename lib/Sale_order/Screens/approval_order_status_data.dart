@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
+import 'package:yenpos/Hive_Manager/hive_manager_saleOrder.dart';
 import 'package:yenpos/Sale_order/Models/held_order_model.dart';
 import 'package:yenpos/Sale_order/Widgets/restore_order_date.dart';
+import 'package:yenpos/Server_Client/handlers/webscoket_messgae_handler.dart';
 
 // ✅ Extract latest approvalStatus safely
 String approvalStatus = '';
@@ -86,81 +88,81 @@ Widget _buildApproveOrdersHeader() {
   );
 }
 
-Future<List<HeldOrder>> fetchApproveOrdersFromHive() async {
-  var approveOrderBox = await Hive.openBox('salesApprovalOrder');
+Map<String, dynamic> convertToMapStringDynamic(Map<dynamic, dynamic> map) {
+  final result = <String, dynamic>{};
+  map.forEach((key, value) {
+    final newKey = key.toString(); // ensure key is String
+    if (value is Map) {
+      result[newKey] = convertToMapStringDynamic(
+        Map<dynamic, dynamic>.from(value),
+      );
+    } else if (value is List) {
+      result[newKey] = value.map((e) {
+        if (e is Map) {
+          return convertToMapStringDynamic(Map<dynamic, dynamic>.from(e));
+        } else {
+          return e;
+        }
+      }).toList();
+    } else {
+      result[newKey] = value;
+    }
+  });
+  return result;
+}
 
-  if (approveOrderBox.isEmpty) {
+Future<List<HeldOrder>> getSavedApprovalOrder() async {
+  print("🔹 Fetching saved approval orders from Hive...");
+
+  var approvalOrderBox = HiveManager.salesApprovalOrder;
+  print("📦 Total items in Hive box: ${approvalOrderBox.length}");
+
+  if (approvalOrderBox.isEmpty) {
+    print("⚠️ No approval orders found. Returning empty list.");
     return [];
   }
 
-  List<HeldOrder> approveOrders = [];
+  final List<HeldOrder> approvalOrders = approvalOrderBox.values.map((order) {
+    // Convert Hive map to Map<String, dynamic> safely
+    final orderMap = convertToMapStringDynamic(
+      Map<dynamic, dynamic>.from(order),
+    );
 
-  for (var i = 0; i < approveOrderBox.length; i++) {
-    var order = approveOrderBox.getAt(i);
+    // Flatten 'data' map
+    final dataMap = convertToMapStringDynamic(
+      Map<dynamic, dynamic>.from(orderMap['data'] ?? {}),
+    );
+    final combinedMap = {...orderMap, ...dataMap};
+    combinedMap.remove('data');
 
-    if (order != null && order is Map) {
-      var orderMap = order.map((key, value) => MapEntry(key.toString(), value));
+    print("➡️ Flattened order map for HeldOrder: $combinedMap");
 
-      // 📝 FULL PRINT of nested structure
-      orderMap.forEach((key, value) {
-        if (value is Map) {
-          value.forEach((subKey, subValue) {});
-        } else if (value is List) {
-          for (var j = 0; j < value.length; j++) {}
-        }
-      });
+    final heldOrder = HeldOrder.fromMap(combinedMap);
+    print("✅ Converted HeldOrder: $heldOrder");
 
-      // ✅ Extract approval details
-      String? approvalType;
-      String? approvalStatus;
+    return heldOrder;
+  }).toList();
 
-      if (orderMap['data'] is Map &&
-          orderMap['data']['approvalDetails'] is List &&
-          orderMap['data']['approvalDetails'].isNotEmpty) {
-        var firstDetail = orderMap['data']['approvalDetails'][0];
-        if (firstDetail is Map) {
-          approvalType = firstDetail['approvalType']?.toString();
-          approvalStatus = firstDetail['approvalStatus']?.toString();
-        }
-      }
-
-      String? status = orderMap['data']?['status']?.toString();
-
-      // ✅ Filter relevant orders
-      if (approvalType == 'Cheque' ||
-          approvalType == 'Discount' ||
-          status == 'Waiting for Approval') {
-        try {
-          // Flatten "data" into a single map
-          Map<String, dynamic> flatMap = {};
-          if (orderMap['data'] is Map) {
-            flatMap = Map<String, dynamic>.from(orderMap['data']);
-          }
-
-          // Add root-level fields if needed
-          flatMap['salesOrderId'] = orderMap['salesOrderId'] ?? '';
-          flatMap['approvalDetails'] = flatMap['approvalDetails'] ?? [];
-
-          HeldOrder heldOrder = HeldOrder.fromMap(flatMap);
-          approveOrders.add(heldOrder);
-        } catch (e, stackTrace) {}
-      } else {}
-    } else {}
-  }
-
-  return approveOrders;
+  print("📊 Total approval orders fetched: ${approvalOrders.length}");
+  return approvalOrders;
 }
 
 Widget _buildApproveOrdersList(
   BuildContext context,
   ScrollController scrollController,
 ) {
+  print("🔹 Building Approve Orders List widget...");
+
   return FutureBuilder<List<HeldOrder>>(
-    future: fetchApproveOrdersFromHive(),
+    future: getSavedApprovalOrder(),
     builder: (context, snapshot) {
+      print("🔹 FutureBuilder snapshot state: ${snapshot.connectionState}");
+
       if (snapshot.connectionState == ConnectionState.waiting) {
+        print("⏳ Waiting for approval orders...");
         return const Center(child: CircularProgressIndicator());
       } else if (snapshot.hasError) {
+        print("❌ Error while fetching approval orders: ${snapshot.error}");
         return Center(
           child: Text(
             'Error: ${snapshot.error}',
@@ -171,6 +173,7 @@ Widget _buildApproveOrdersList(
           ),
         );
       } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+        print("⚠️ No approval orders available.");
         return const Center(
           child: Text(
             'No approve orders available',
@@ -180,11 +183,19 @@ Widget _buildApproveOrdersList(
       }
 
       final orders = snapshot.data!;
+      print(
+        "✅ Approval orders fetched successfully. Total orders: ${orders.length}",
+      );
+      for (int i = 0; i < orders.length; i++) {
+        print("📄 Order $i: ${orders[i]}");
+      }
+
       return ListView.builder(
         controller: scrollController,
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         itemCount: orders.length,
         itemBuilder: (context, index) {
+          print("🔹 Building list item for order at index: $index");
           return _buildApproveOrderListItem(context, orders[index]);
         },
       );
@@ -218,9 +229,9 @@ Widget _buildApproveOrderListItem(BuildContext context, HeldOrder order) {
       margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        onTap: () {
-          restoreHeldOrderData(context, order);
-        },
+        // onTap: () {
+        //   restoreHeldOrderData(context, order);
+        // },
         splashColor: Colors.blue.withOpacity(0.05),
         highlightColor: Colors.blueAccent.withOpacity(0.1),
         child: Container(

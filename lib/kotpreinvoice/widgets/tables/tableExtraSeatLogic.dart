@@ -42,7 +42,8 @@ void addExtraTableToTable({
     if (orderTable.startsWith(mainTableNumber)) {
       final match = RegExp(r'\((\w)\)$').firstMatch(orderTable);
       final seat = match?.group(1);
-      if (seat != null && (order['status'] == 'active' || order['status'] == 'confirm')) {
+      if (seat != null &&
+          (order['status'] == 'active' || order['status'] == 'confirm')) {
         allUsedSeats.add(seat);
       }
     }
@@ -94,16 +95,17 @@ void addExtraTableToTable({
 
   final resolvedAreaName = getAreaNameForTable(mainTableNumber);
 
-  Navigator.push(
+  // ProductCardScreen(
+  //   tableNumber: newTableNumber,
+  //   seat: nextAvailableSeat ?? '',
+  //   areaName: resolvedAreaName,
+  //   seathiveOrderId: '',
+  // );
+
+  showCustomFlushbar(
     context,
-    MaterialPageRoute(
-      builder: (context) => ProductCardScreen(
-        tableNumber: newTableNumber,
-        seat: nextAvailableSeat ?? '',
-        areaName: resolvedAreaName,
-        seathiveOrderId: '',
-      ),
-    ),
+    'Extra $newTableNumber is added ',
+    type: FlushbarType.success,
   );
 }
 

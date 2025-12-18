@@ -8,8 +8,7 @@ final Dio dio = Dio();
 
 Future<void> fetchAndStoreLogo() async {
   final box = Hive.box('logo');
-  const String logoUrl =
-      "https://yenerp.com/bmecommerceapi/weblogos/logo/view/Logo";
+  const String logoUrl = "https://yenerp.com/bmecommerceapi/weblogos/logo/view/Logo";
   const String logoFileName = "BMlogo.png";
 
   try {
@@ -34,9 +33,7 @@ Future<void> fetchAndStoreLogo() async {
       await box.put('BMlogo_path', filePath);
       await box.put('BMlogo_lastFetched', DateTime.now().toIso8601String());
 
-      print(
-        "✅ Logo saved to Hive and file: $filePath (${bytes.lengthInBytes} bytes)",
-      );
+      print("✅ Logo saved to Hive and file: $filePath (${bytes.lengthInBytes} bytes)");
     } else {
       print("⚠️ Failed to fetch logo: ${response.statusCode}");
     }

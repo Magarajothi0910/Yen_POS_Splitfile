@@ -60,7 +60,7 @@ class PreInvoiceState extends ChangeNotifier {
   Future<void> _initState() async {
     try {
       await loadDeviceCode();
-      startTimer();
+      // startTimer();
     } catch (e, stack) {
       _errorMessage = 'Initialization failed: $e';
       debugPrint('❌ Error during initialization: $e');
@@ -89,23 +89,23 @@ class PreInvoiceState extends ChangeNotifier {
   }
 
   // ⏲️ Start periodic timer to update UI
-  void startTimer() {
-    try {
-      _timer?.cancel(); // Cancel previous timer if any
-      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-        debugPrint(
-          '⏱️ Timer tick: ${DateTime.now()} | Device: $_storedDeviceCode',
-        );
-        notifyListeners();
-      });
-      debugPrint('✅ Timer started successfully');
-    } catch (e, stack) {
-      _errorMessage = 'Failed to start timer: $e';
-      debugPrint('❌ Error starting timer: $e');
-      debugPrint(stack.toString());
-      notifyListeners();
-    }
-  }
+  // void startTimer() {
+  //   try {
+  //     _timer?.cancel(); // Cancel previous timer if any
+  //     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+  //       debugPrint(
+  //         '⏱️ Timer tick: ${DateTime.now()} | Device: $_storedDeviceCode',
+  //       );
+  //       notifyListeners();
+  //     });
+  //     debugPrint('✅ Timer started successfully');
+  //   } catch (e, stack) {
+  //     _errorMessage = 'Failed to start timer: $e';
+  //     debugPrint('❌ Error starting timer: $e');
+  //     debugPrint(stack.toString());
+  //     notifyListeners();
+  //   }
+  // }
 
   // 🧹 Clean up resources safely
   @override
@@ -255,7 +255,7 @@ class PreInvoiceScreen extends StatelessWidget {
               );
             },
           ),
-          bottomNavigationBar: const GlobalBottomNav(),
+          // bottomNavigationBar: const GlobalBottomNav(),
         ),
       ),
     );

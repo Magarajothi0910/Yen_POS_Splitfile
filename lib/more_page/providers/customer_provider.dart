@@ -109,7 +109,7 @@ class CustomerProvider extends ChangeNotifier {
     notifyListeners();
 
     final url =
-        'https://yenerp.com/fastapi/customers/ledger/$customerPhoneNumber';
+        'http://192.168.1.117:8888/fastapi/customers/ledger/$customerPhoneNumber';
     try {
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {

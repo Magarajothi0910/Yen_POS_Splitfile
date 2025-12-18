@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:yenpos/Global/Provider/bottomNavprovider.dart';
 import '../../../kotpreinvoice/providers/bottomNavprovider.dart';
 import '../../providers/cartprovider.dart';
 import '../../providers/printer_provider.dart';
@@ -138,9 +139,7 @@ class _CartItemDialogState extends State<CartItemDialog> {
           children: [
             Text(
               widget.product.varianceName,
-              style: const TextStyle(
-                fontSize: 15,
-              ),
+              style: const TextStyle(fontSize: 15),
             ),
           ],
         ),
@@ -157,7 +156,8 @@ class _CartItemDialogState extends State<CartItemDialog> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       ...List.generate(widget.quantity, (i) {
-                        String itemName = '  ${i + 1} .   ${widget.product.varianceName} ';
+                        String itemName =
+                            '  ${i + 1} .   ${widget.product.varianceName} ';
 
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 1.0),
@@ -171,7 +171,10 @@ class _CartItemDialogState extends State<CartItemDialog> {
                                   Flexible(
                                     child: Text(
                                       itemName,
-                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
@@ -179,15 +182,26 @@ class _CartItemDialogState extends State<CartItemDialog> {
                                     Column(
                                       children: [
                                         Checkbox(
-                                          value: dialogState.type[i] == "Parcel",
+                                          value:
+                                              dialogState.type[i] == "Parcel",
                                           onChanged: (value) {
                                             dialogState.updateType(i, value!);
                                           },
                                           activeColor: Colors.blue,
                                           checkColor: Colors.white,
-                                          side: const BorderSide(color: Colors.blue, width: 1.5),
+                                          side: const BorderSide(
+                                            color: Colors.blue,
+                                            width: 1.5,
+                                          ),
                                         ),
-                                        const Text("Parcel", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue)),
+                                        const Text(
+                                          "Parcel",
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.blue,
+                                          ),
+                                        ),
                                       ],
                                     ),
                                   if (!widget.hasAddOns && !widget.hasVariants)
@@ -196,12 +210,23 @@ class _CartItemDialogState extends State<CartItemDialog> {
                                         Switch(
                                           value: dialogState.toggleRemarks[i],
                                           onChanged: (value) {
-                                            dialogState.updateToggleRemark(i, value);
+                                            dialogState.updateToggleRemark(
+                                              i,
+                                              value,
+                                            );
                                           },
                                           activeColor: Colors.blue,
-                                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                          materialTapTargetSize:
+                                              MaterialTapTargetSize.shrinkWrap,
                                         ),
-                                        const Text("Remark", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue)),
+                                        const Text(
+                                          "Remark",
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.blue,
+                                          ),
+                                        ),
                                       ],
                                     ),
                                 ],
@@ -218,57 +243,112 @@ class _CartItemDialogState extends State<CartItemDialog> {
                                           width: 120,
                                           child: DropdownButtonFormField<String>(
                                             decoration: const InputDecoration(
-                                              contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                                              hintStyle: TextStyle(fontSize: 12),
+                                              contentPadding:
+                                                  EdgeInsets.symmetric(
+                                                    vertical: 8,
+                                                    horizontal: 12,
+                                                  ),
+                                              hintStyle: TextStyle(
+                                                fontSize: 12,
+                                              ),
                                               border: OutlineInputBorder(
-                                                borderRadius: BorderRadius.all(Radius.circular(8.0)),
-                                                borderSide: BorderSide(color: Colors.grey, width: 1.0),
+                                                borderRadius: BorderRadius.all(
+                                                  Radius.circular(8.0),
+                                                ),
+                                                borderSide: BorderSide(
+                                                  color: Colors.grey,
+                                                  width: 1.0,
+                                                ),
                                               ),
                                               enabledBorder: OutlineInputBorder(
-                                                borderRadius: BorderRadius.all(Radius.circular(8.0)),
-                                                borderSide: BorderSide(color: Colors.grey, width: 1.0),
+                                                borderRadius: BorderRadius.all(
+                                                  Radius.circular(8.0),
+                                                ),
+                                                borderSide: BorderSide(
+                                                  color: Colors.grey,
+                                                  width: 1.0,
+                                                ),
                                               ),
                                               focusedBorder: OutlineInputBorder(
-                                                borderRadius: BorderRadius.all(Radius.circular(8.0)),
-                                                borderSide: BorderSide(color: Colors.blue, width: 1.5),
+                                                borderRadius: BorderRadius.all(
+                                                  Radius.circular(8.0),
+                                                ),
+                                                borderSide: BorderSide(
+                                                  color: Colors.blue,
+                                                  width: 1.5,
+                                                ),
                                               ),
                                             ),
                                             isExpanded: true,
                                             hint: Text(
-                                              dialogState.addons[i].isEmpty ? 'Select Add-ons' : "${dialogState.addons[i].length} selected",
-                                              style: const TextStyle(fontSize: 12, color: Colors.blue),
+                                              dialogState.addons[i].isEmpty
+                                                  ? 'Select Add-ons'
+                                                  : "${dialogState.addons[i].length} selected",
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.blue,
+                                              ),
                                             ),
                                             items: productProvider.addons
-                                                .map((addOn) => DropdownMenuItem<String>(
-                                                      value: addOn['addOn'].toString(),
-                                                      child: Consumer<CartItemDialogState>(
-                                                        builder: (context, dialogState, _) {
-                                                          bool isSelected = dialogState.addons[i].contains(addOn['addOn'].toString());
-                                                          return GestureDetector(
-                                                            onTap: () {
-                                                              dialogState.updateAddOn(i, addOn['addOn'].toString(), !isSelected);
-                                                            },
-                                                            child: Row(
-                                                              children: [
-                                                                Expanded(
-                                                                  child: Text(
-                                                                    "${addOn['addOn'].toString()} (₹${addOn['value']})  ",
-                                                                    style: const TextStyle(fontSize: 12),
-                                                                  ),
+                                                .map(
+                                                  (
+                                                    addOn,
+                                                  ) => DropdownMenuItem<String>(
+                                                    value: addOn['addOn']
+                                                        .toString(),
+                                                    child: Consumer<CartItemDialogState>(
+                                                      builder: (context, dialogState, _) {
+                                                        bool
+                                                        isSelected = dialogState
+                                                            .addons[i]
+                                                            .contains(
+                                                              addOn['addOn']
+                                                                  .toString(),
+                                                            );
+                                                        return GestureDetector(
+                                                          onTap: () {
+                                                            dialogState
+                                                                .updateAddOn(
+                                                                  i,
+                                                                  addOn['addOn']
+                                                                      .toString(),
+                                                                  !isSelected,
+                                                                );
+                                                          },
+                                                          child: Row(
+                                                            children: [
+                                                              Expanded(
+                                                                child: Text(
+                                                                  "${addOn['addOn'].toString()} (₹${addOn['value']})  ",
+                                                                  style:
+                                                                      const TextStyle(
+                                                                        fontSize:
+                                                                            12,
+                                                                      ),
                                                                 ),
-                                                                Checkbox(
-                                                                  value: isSelected,
-                                                                  onChanged: (bool? selected) {
-                                                                    dialogState.updateAddOn(i, addOn['addOn'].toString(), selected ?? false);
-                                                                  },
-                                                                  activeColor: Colors.blue,
-                                                                ),
-                                                              ],
-                                                            ),
-                                                          );
-                                                        },
-                                                      ),
-                                                    ))
+                                                              ),
+                                                              Checkbox(
+                                                                value:
+                                                                    isSelected,
+                                                                onChanged: (bool? selected) {
+                                                                  dialogState.updateAddOn(
+                                                                    i,
+                                                                    addOn['addOn']
+                                                                        .toString(),
+                                                                    selected ??
+                                                                        false,
+                                                                  );
+                                                                },
+                                                                activeColor:
+                                                                    Colors.blue,
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        );
+                                                      },
+                                                    ),
+                                                  ),
+                                                )
                                                 .toList(),
                                             onChanged: (_) {},
                                           ),
@@ -278,15 +358,26 @@ class _CartItemDialogState extends State<CartItemDialog> {
                                     Column(
                                       children: [
                                         Checkbox(
-                                          value: dialogState.type[i] == "Parcel",
+                                          value:
+                                              dialogState.type[i] == "Parcel",
                                           onChanged: (value) {
                                             dialogState.updateType(i, value!);
                                           },
                                           activeColor: Colors.blue,
                                           checkColor: Colors.white,
-                                          side: const BorderSide(color: Colors.blue, width: 1.5),
+                                          side: const BorderSide(
+                                            color: Colors.blue,
+                                            width: 1.5,
+                                          ),
                                         ),
-                                        const Text("Parcel", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue)),
+                                        const Text(
+                                          "Parcel",
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.blue,
+                                          ),
+                                        ),
                                       ],
                                     ),
                                     Column(
@@ -294,12 +385,23 @@ class _CartItemDialogState extends State<CartItemDialog> {
                                         Switch(
                                           value: dialogState.toggleRemarks[i],
                                           onChanged: (value) {
-                                            dialogState.updateToggleRemark(i, value);
+                                            dialogState.updateToggleRemark(
+                                              i,
+                                              value,
+                                            );
                                           },
                                           activeColor: Colors.blue,
-                                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                          materialTapTargetSize:
+                                              MaterialTapTargetSize.shrinkWrap,
                                         ),
-                                        const Text("Remark", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue)),
+                                        const Text(
+                                          "Remark",
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.blue,
+                                          ),
+                                        ),
                                       ],
                                     ),
                                   ],
@@ -319,17 +421,30 @@ class _CartItemDialogState extends State<CartItemDialog> {
                                         items: [
                                           const DropdownMenuItem(
                                             value: "Default",
-                                            child: Text("Default", style: TextStyle(fontSize: 12)),
+                                            child: Text(
+                                              "Default",
+                                              style: TextStyle(fontSize: 12),
+                                            ),
                                           ),
                                           ...productProvider.variants
-                                              .map((v) => DropdownMenuItem(
-                                                    value: v['variant'],
-                                                    child: Text(v['variant'], style: const TextStyle(fontSize: 12)),
-                                                  ))
+                                              .map(
+                                                (v) => DropdownMenuItem(
+                                                  value: v['variant'],
+                                                  child: Text(
+                                                    v['variant'],
+                                                    style: const TextStyle(
+                                                      fontSize: 12,
+                                                    ),
+                                                  ),
+                                                ),
+                                              )
                                               .toList(),
                                         ],
                                         onChanged: (value) {
-                                          dialogState.updateVariant(i, value.toString());
+                                          dialogState.updateVariant(
+                                            i,
+                                            value.toString(),
+                                          );
                                         },
                                         value: dialogState.variants[i],
                                       ),
@@ -337,15 +452,26 @@ class _CartItemDialogState extends State<CartItemDialog> {
                                     Column(
                                       children: [
                                         Checkbox(
-                                          value: dialogState.type[i] == "Parcel",
+                                          value:
+                                              dialogState.type[i] == "Parcel",
                                           onChanged: (value) {
                                             dialogState.updateType(i, value!);
                                           },
                                           activeColor: Colors.blue,
                                           checkColor: Colors.white,
-                                          side: const BorderSide(color: Colors.blue, width: 1.5),
+                                          side: const BorderSide(
+                                            color: Colors.blue,
+                                            width: 1.5,
+                                          ),
                                         ),
-                                        const Text("Parcel", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue)),
+                                        const Text(
+                                          "Parcel",
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.blue,
+                                          ),
+                                        ),
                                       ],
                                     ),
                                     Column(
@@ -353,12 +479,23 @@ class _CartItemDialogState extends State<CartItemDialog> {
                                         Switch(
                                           value: dialogState.toggleRemarks[i],
                                           onChanged: (value) {
-                                            dialogState.updateToggleRemark(i, value);
+                                            dialogState.updateToggleRemark(
+                                              i,
+                                              value,
+                                            );
                                           },
                                           activeColor: Colors.blue,
-                                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                          materialTapTargetSize:
+                                              MaterialTapTargetSize.shrinkWrap,
                                         ),
-                                        const Text("Remark", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue)),
+                                        const Text(
+                                          "Remark",
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.blue,
+                                          ),
+                                        ),
                                       ],
                                     ),
                                   ],
@@ -415,10 +552,14 @@ class _CartItemDialogState extends State<CartItemDialog> {
             ),
             child: const Text('OK'),
             onPressed: () {
-              debugPrint("💾 Before Save - ToggleRemarks: ${dialogState.toggleRemarks}");
+              debugPrint(
+                "💾 Before Save - ToggleRemarks: ${dialogState.toggleRemarks}",
+              );
               debugPrint("💾 Before Save - Remarks: ${dialogState.remarks}");
               debugPrint("💾 Final Addons: ${dialogState.addons}");
-              debugPrint("💾 Final Addons Quantities: ${dialogState.addonQuantities}");
+              debugPrint(
+                "💾 Final Addons Quantities: ${dialogState.addonQuantities}",
+              );
               debugPrint("💾 Final Variants: ${dialogState.variants}");
               debugPrint("💾 Final Types: ${dialogState.type}");
 
@@ -435,8 +576,12 @@ class _CartItemDialogState extends State<CartItemDialog> {
 
               Navigator.of(context).pop();
 
-              debugPrint("💾 Saved ToggleRemarks: ${cartProvider.cart[widget.productId]['toggleRemarks']}");
-              debugPrint("💾 Saved Remarks: ${cartProvider.cart[widget.productId]['remarks']}");
+              debugPrint(
+                "💾 Saved ToggleRemarks: ${cartProvider.cart[widget.productId]['toggleRemarks']}",
+              );
+              debugPrint(
+                "💾 Saved Remarks: ${cartProvider.cart[widget.productId]['remarks']}",
+              );
             },
           ),
         ],
@@ -491,7 +636,8 @@ class _CartItemsState extends State<CartItems> {
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (!hasOverallPrinter) const Text('Please set an overall printer IP address.'),
+                if (!hasOverallPrinter)
+                  const Text('Please set an overall printer IP address.'),
                 if (missingItemIps.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 10.0),
@@ -499,7 +645,9 @@ class _CartItemsState extends State<CartItems> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text('Missing IP for the following items:'),
-                        ...missingItemIps.map((item) => Text('- $item')).toList(),
+                        ...missingItemIps
+                            .map((item) => Text('- $item'))
+                            .toList(),
                       ],
                     ),
                   ),
@@ -509,7 +657,10 @@ class _CartItemsState extends State<CartItems> {
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   elevation: 2,
-                  padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 50,
+                    vertical: 15,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -524,7 +675,10 @@ class _CartItemsState extends State<CartItems> {
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   elevation: 2,
-                  padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 50,
+                    vertical: 15,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -533,12 +687,17 @@ class _CartItemsState extends State<CartItems> {
                 ),
                 child: const Text('Set IP'),
                 onPressed: () {
-                  Provider.of<BottomNavProviderKOT>(context, listen: false).updateIndex(3);
-                  Navigator.pushAndRemoveUntil(
+                  Provider.of<BottomNavProvider>(
                     context,
-                    MaterialPageRoute(builder: (context) => const settingsScreen()),
-                    (Route<dynamic> route) => false,
-                  );
+                    listen: false,
+                  ).updateIndex(5);
+                  Navigator.pop(context);
+
+                  // Navigator.pushAndRemoveUntil(
+                  //   context,
+                  //   MaterialPageRoute(builder: (context) => const settingsScreen()),
+                  //   (Route<dynamic> route) => false,
+                  // );
                 },
               ),
             ],
@@ -551,9 +710,7 @@ class _CartItemsState extends State<CartItems> {
 
     return Card(
       elevation: 3,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10.0),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
       color: const Color(0xFFF4FDFF),
       child: Column(
         mainAxisSize: MainAxisSize.min, // Shrink-wrap the Column
@@ -576,7 +733,10 @@ class _CartItemsState extends State<CartItems> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green[900],
                     elevation: 2,
-                    padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 50,
+                      vertical: 15,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -591,17 +751,25 @@ class _CartItemsState extends State<CartItems> {
                 ),
                 Text(
                   'Cart: (${cartProvider.cart.length} Items)',
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black, fontSize: 14),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                    fontSize: 14,
+                  ),
                 ),
                 Builder(
                   builder: (context) {
                     double totalAmount = 0.0;
                     cartProvider.cart.forEach((productId, cartItem) {
-                      final product = products.firstWhere((product) => product.varianceName == productId);
+                      final product = products.firstWhere(
+                        (product) => product.varianceName == productId,
+                      );
                       final quantity = cartItem['qty'];
                       final weight = cartItem['weight'];
                       final price = product.price;
-                      final isWeight = product.variance_Uom.toLowerCase() == "kg" || product.variance_Uom.toLowerCase() == "kgs";
+                      final isWeight =
+                          product.variance_Uom.toLowerCase() == "kg" ||
+                          product.variance_Uom.toLowerCase() == "Kgs";
 
                       if (isWeight) {
                         totalAmount += (price * (weight / 1000)) * quantity;
@@ -612,7 +780,11 @@ class _CartItemsState extends State<CartItems> {
 
                     return Text(
                       'Total: ₹${totalAmount.toStringAsFixed(2)}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black, fontSize: 14),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                        fontSize: 14,
+                      ),
                     );
                   },
                 ),
@@ -629,63 +801,113 @@ class _CartItemsState extends State<CartItems> {
               child: SingleChildScrollView(
                 child: ListView.builder(
                   shrinkWrap: true, // Shrink-wrap the ListView
-                  physics: const NeverScrollableScrollPhysics(), // Disable ListView scrolling
+                  physics:
+                      const NeverScrollableScrollPhysics(), // Disable ListView scrolling
                   reverse: true,
                   itemCount: cartProvider.cart.length,
                   itemBuilder: (context, index) {
                     final productId = cartProvider.cart.keys.toList()[index];
-                    final product = products.firstWhere((product) => product.varianceName == productId);
+                    final product = products.firstWhere(
+                      (product) => product.varianceName == productId,
+                    );
                     final quantity = cartProvider.cart[productId]['qty'];
-                    final hasAddOns = productProvider.hasAddOns(product.varianceName);
-                    final hasVariants = productProvider.hasVariants(product.varianceName);
+                    final hasAddOns = productProvider.hasAddOns(
+                      product.varianceName,
+                    );
+                    final hasVariants = productProvider.hasVariants(
+                      product.varianceName,
+                    );
                     final weight = cartProvider.cart[productId]['weight'];
 
-                    final isWeight = product.variance_Uom.toLowerCase() == "kg" || product.variance_Uom.toLowerCase() == "kgs";
-                    List<List<String>> addons = List.generate(quantity,
-                        (i) => List.from(cartProvider.cart[productId]['addons'] != null && cartProvider.cart[productId]['addons'].length > i ? cartProvider.cart[productId]['addons'][i] : []));
+                    final isWeight =
+                        product.variance_Uom.toLowerCase() == "kg" ||
+                        product.variance_Uom.toLowerCase() == "Kgs";
+                    List<List<String>> addons = List.generate(
+                      quantity,
+                      (i) => List.from(
+                        cartProvider.cart[productId]['addons'] != null &&
+                                cartProvider.cart[productId]['addons'].length >
+                                    i
+                            ? cartProvider.cart[productId]['addons'][i]
+                            : [],
+                      ),
+                    );
 
                     List<List<int>> addonQuantities = List.generate(
-                        quantity,
-                        (i) => List.from(cartProvider.cart[productId]['addonQuantities'] != null && cartProvider.cart[productId]['addonQuantities'].length > i
+                      quantity,
+                      (i) => List.from(
+                        cartProvider.cart[productId]['addonQuantities'] !=
+                                    null &&
+                                cartProvider
+                                        .cart[productId]['addonQuantities']
+                                        .length >
+                                    i
                             ? cartProvider.cart[productId]['addonQuantities'][i]
-                            : []));
+                            : [],
+                      ),
+                    );
 
-                    List<String> variants = List.generate(quantity,
-                        (i) => cartProvider.cart[productId]['variants'] != null && cartProvider.cart[productId]['variants'].length > i ? cartProvider.cart[productId]['variants'][i] : "Default");
+                    List<String> variants = List.generate(
+                      quantity,
+                      (i) =>
+                          cartProvider.cart[productId]['variants'] != null &&
+                              cartProvider.cart[productId]['variants'].length >
+                                  i
+                          ? cartProvider.cart[productId]['variants'][i]
+                          : "Default",
+                    );
 
-                    List<String> type =
-                        List.generate(quantity, (i) => cartProvider.cart[productId]['type'] != null && cartProvider.cart[productId]['type'].length > i ? cartProvider.cart[productId]['type'][i] : "");
+                    List<String> type = List.generate(
+                      quantity,
+                      (i) =>
+                          cartProvider.cart[productId]['type'] != null &&
+                              cartProvider.cart[productId]['type'].length > i
+                          ? cartProvider.cart[productId]['type'][i]
+                          : "",
+                    );
 
                     cartProvider.syncConfigWithQuantity(productId, quantity);
 
-                    List<bool> toggleRemarks = cartProvider.getToggleRemarks(productId, quantity);
-                    List<TextEditingController> remarkControllers = List.generate(
+                    List<bool> toggleRemarks = cartProvider.getToggleRemarks(
+                      productId,
                       quantity,
-                      (i) => TextEditingController(
-                        text: cartProvider.getRemarks(productId, quantity)[i],
-                      ),
                     );
+                    List<TextEditingController> remarkControllers =
+                        List.generate(
+                          quantity,
+                          (i) => TextEditingController(
+                            text: cartProvider.getRemarks(
+                              productId,
+                              quantity,
+                            )[i],
+                          ),
+                        );
 
                     return Dismissible(
                       key: Key(productId),
                       direction: DismissDirection.endToStart,
                       onDismissed: (direction) {
-                        cartProvider.removeFromCart(context, productId, widget.tableNumber, widget.seat);
+                        cartProvider.removeFromCart(
+                          context,
+                          productId,
+                          widget.tableNumber,
+                          widget.seat,
+                        );
                       },
                       background: Container(
                         color: Colors.red,
                         alignment: Alignment.centerRight,
                         padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                        child: const Icon(
-                          Icons.delete,
-                          color: Colors.white,
-                        ),
+                        child: const Icon(Icons.delete, color: Colors.white),
                       ),
                       child: ListTile(
                         title: GestureDetector(
                           onTap: () {
                             WidgetsBinding.instance.addPostFrameCallback((_) {
-                              cartProvider.syncConfigWithQuantity(productId, quantity);
+                              cartProvider.syncConfigWithQuantity(
+                                productId,
+                                quantity,
+                              );
                             });
 
                             showDialog(
@@ -707,9 +929,7 @@ class _CartItemsState extends State<CartItems> {
                           },
                           child: Text(
                             "${product.varianceName} \n ₹${product.price} ${isWeight ? '/ ${weight}g' : ''}",
-                            style: const TextStyle(
-                              fontSize: 13,
-                            ),
+                            style: const TextStyle(fontSize: 13),
                           ),
                         ),
                         trailing: Container(
@@ -728,8 +948,16 @@ class _CartItemsState extends State<CartItems> {
                                   size: 20,
                                 ),
                                 onPressed: () {
-                                  cartProvider.removeItemFromCart(context, product.varianceName, widget.tableNumber, widget.seat);
-                                  cartProvider.syncConfigWithQuantity(productId, quantity - 1);
+                                  cartProvider.removeItemFromCart(
+                                    context,
+                                    product.varianceName,
+                                    widget.tableNumber,
+                                    widget.seat,
+                                  );
+                                  cartProvider.syncConfigWithQuantity(
+                                    productId,
+                                    quantity - 1,
+                                  );
                                 },
                               ),
                               Container(
@@ -753,7 +981,10 @@ class _CartItemsState extends State<CartItems> {
                                 ),
                                 onPressed: () {
                                   cartProvider.addToCart(product.varianceName);
-                                  cartProvider.syncConfigWithQuantity(productId, quantity + 1);
+                                  cartProvider.syncConfigWithQuantity(
+                                    productId,
+                                    quantity + 1,
+                                  );
                                 },
                               ),
                             ],

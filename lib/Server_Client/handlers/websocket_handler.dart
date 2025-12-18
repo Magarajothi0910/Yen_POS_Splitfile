@@ -13,6 +13,7 @@ import 'package:yenpos/Global/globals_data.dart';
 import 'package:yenpos/Server_Client/handlers/invoice_handler.dart';
 import 'package:yenpos/Server_Client/handlers/saleorder_handlemessage.dart';
 import 'package:yenpos/Server_Client/hive_service.dart';
+import 'package:yenpos/Server_Client/salesreturn_handler.dart';
 import 'package:yenpos/Server_Client/sendDataToClients.dart';
 import 'package:yenpos/Server_Client/stockupdateService.dart';
 import 'package:yenpos/invoice_pay_and_print_page.dart/widgets/invoiceNumberGenerator.dart';
@@ -24,7 +25,6 @@ import 'package:yenpos/kotpreinvoice/handlers/handleseatTransfer.dart';
 import 'package:yenpos/kotpreinvoice/handlers/invoice%20handler.dart';
 import 'package:yenpos/kotpreinvoice/handlers/orderhandlers.dart';
 import 'package:yenpos/kotpreinvoice/handlers/reverseOrder_handler.dart';
-import 'package:yenpos/kotpreinvoice/models/globals.dart' hide receivedData;
 import 'package:yenpos/kotpreinvoice/providers/upi_provider.dart';
 import 'package:yenpos/kotpreinvoice/services/sendDataToClients.dart'
     hide handleNewClientConnected;
@@ -53,7 +53,9 @@ void handleWebSocket(
 
     'requestBranchwiseItems': (data) async {
       try {
-        final savedData = GlobalDataManager().branchwiseItems;
+        // final savedData = GlobalDataManager().branchwiseItems;
+        final lazyBox = await Hive.openBox('items');
+        final savedData = await lazyBox.get('branchwiseItems_$aliasname');
         if (savedData == null) {
           channel.sink.add(
             jsonEncode({
@@ -149,11 +151,8 @@ void handleWebSocket(
           channel.sink.add(
             jsonEncode({'action': 'branchwiseItems', 'data': branchwiseItems}),
           );
-          debugPrint("📦 Sent branchwise items to client");
         }
-      } catch (e, st) {
-        debugPrint("❌ Error sending branchwise items: $e\n$st");
-      }
+      } catch (e, st) {}
     },
     'requestAllData': (data) async {
       try {
@@ -165,8 +164,6 @@ void handleWebSocket(
           );
           final upiState = upiProvider.isUpiEnabled;
 
-          debugPrint("💡 Preparing to send all data with UPI state: $upiState");
-
           await sendAllDataToClient(channel, isUpiEnabled: upiState);
 
           debugPrint(
@@ -177,19 +174,15 @@ void handleWebSocket(
             "⚠️ Could not update UPI state — no active context available",
           );
         }
-      } catch (e, st) {
-        debugPrint("❌ Error sending all data: $e\n$st");
-      }
+      } catch (e, st) {}
     },
     'seat_tapped': (data) async {
       sendDataToClientsKOT(data);
       onDataReceived(data);
-      debugPrint("🪑 Seat tapped → broadcasted");
     },
     'seat_returned': (data) async {
       sendDataToClientsKOT(data);
       onDataReceived(data);
-      debugPrint("↩️ Seat returned → broadcasted");
     },
     'patchOrderStatusBySeathiveOrderId': (data) async {
       try {
@@ -208,18 +201,12 @@ void handleWebSocket(
         debugPrint(
           "✅ Patched order status for seatHiveOrderId=$seathiveOrderId",
         );
-      } catch (e, st) {
-        debugPrint("❌ Error patching order status: $e\n$st");
-      }
+      } catch (e, st) {}
     },
     'seat_transfer': (data) async {
       try {
-        debugPrint("🔄 Handling seat transfer: $data");
         await handleSeatTransfer(data: data, receivedData: receivedData);
-        debugPrint("✅ Seat transfer complete");
-      } catch (e, st) {
-        debugPrint("❌ Error transferring seat: $e\n$st");
-      }
+      } catch (e, st) {}
     },
     // 'newClientConnected': (data) async {
     //   try {
@@ -230,46 +217,37 @@ void handleWebSocket(
     //         final oldChannel = deviceClientMap[deviceCode];
     //         clients.remove(oldChannel);
     //         oldChannel?.sink.close();
-    //         debugPrint("🔌 Removed old connection for deviceCode: $deviceCode");
+    //         print("🔌 Removed old connection for deviceCode: $deviceCode");
     //       }
     //       // Associate new channel with deviceCode
     //       deviceClientMap[deviceCode] = channel;
-    //       debugPrint("🔗 Associated deviceCode: $deviceCode with channel");
+    //       print("🔗 Associated deviceCode: $deviceCode with channel");
     //     }
     //     //await handleNewClientConnected(data, channel);
-    //     debugPrint("👥 New client handshake complete for deviceCode: $deviceCode");
+    //     print("👥 New client handshake complete for deviceCode: $deviceCode");
     //   } catch (e, st) {
-    //     debugPrint("❌ Error handling new client: $e\n$st");
+    //     print("❌ Error handling new client: $e\n$st");
     //   }
     // },
     'FullCancelOrderPatch': (data) async {
       try {
         await OrderPatchHandler.handleFullCancelOrderPatch(data);
-        debugPrint("🗑️ Full order cancel patch applied");
-      } catch (e, st) {
-        debugPrint("❌ Error full cancel order patch: $e\n$st");
-      }
+      } catch (e, st) {}
     },
     'cancelOrderItem': (data) async {
       try {
         await CancelOrderPatchHandler.patchCancelOrderItem(data);
-        debugPrint("❌ Cancelled order item");
-      } catch (e, st) {
-        debugPrint("❌ Error cancelling order item: $e\n$st");
-      }
+      } catch (e, st) {}
     },
 
     'FullInvoiceOrderPatch': (data) async {
       try {
         await OrderPatchHandler.handleFullInvoiceOrderPatch(data);
-        debugPrint("🗑️ Full order cancel patch applied");
-      } catch (e, st) {
-        debugPrint("❌ Error full cancel order patch: $e\n$st");
-      }
+      } catch (e, st) {}
     },
     'get_invoice_number': (data) async {
       try {
-        final generator = InvoiceNumberGenerator();
+        final generator = InvoiceNumberGenerator.instance;
         final invoiceNo = await generator.generateInvoiceNumber();
 
         final response = {
@@ -279,23 +257,15 @@ void handleWebSocket(
         };
 
         sendDataToClientsKOT(response);
-        debugPrint("🧾 Sent InvoiceNo: $invoiceNo");
-      } catch (e, st) {
-        debugPrint("❌ Error generating invoice number: $e\n$st");
-      }
+      } catch (e, st) {}
     },
     'update_orders_with_invoice': (data) async {
       final String? seathiveOrderId = data['seathiveOrderId'];
       final String? invoiceNo = data['invoiceNo'];
 
       if (seathiveOrderId == null || invoiceNo == null) {
-        print('⚠️ Missing required fields in update_orders_with_invoice');
         return;
       }
-
-      print(
-        '🧾 Updating orders in Hive for seathiveOrderId: $seathiveOrderId with invoiceNo: $invoiceNo',
-      );
 
       try {
         final ordersBox = await Hive.openBox('ordersBox');
@@ -310,10 +280,6 @@ void handleWebSocket(
           }
         }
 
-        print(
-          '✅ Successfully patched invoice number for orders with seathiveOrderId: $seathiveOrderId',
-        );
-
         final updatePayload = {
           'action': 'sync_invoice_update',
           'seathiveOrderId': seathiveOrderId,
@@ -321,11 +287,7 @@ void handleWebSocket(
         };
 
         sendDataToClientsKOT(updatePayload);
-
-        print('📡 Broadcasted invoice update to all clients.');
-      } catch (e) {
-        print('❌ Failed to update orders with invoice: $e');
-      }
+      } catch (e) {}
     },
     'reverseCancelOrderItem': (data) async {
       try {
@@ -355,17 +317,21 @@ void handleWebSocket(
           'totalAmount': totalAmount,
           'partiallycancelled': partiallycancelled,
         });
-        debugPrint("↩️ Reversed cancelled item for order=$hiveOrderId");
-      } catch (e, st) {
-        debugPrint("❌ Error reversing cancel order item: $e\n$st");
-      }
+      } catch (e, st) {}
     },
   };
 
   // Type Handlers
   final Map<String, Future<void> Function(Map<String, dynamic>)> typeHandlers =
       {
+        'handshake': (data) async => handleHandShake(data, clients),
+        'updateDispatch': (data) => handleUpdateDispatch(
+          clients: clients,
+          branchAlias: aliasname,
+          message: data,
+        ),
         'order': handleOrder,
+        'salesReturn': (data) async => handleSalesReturn(data, clients),
         'invoiceKOT': handleInvoiceKOT,
         'state_update': (data) async => sendDataToClients(data, clients),
         'show_upi_qr': (data) async => sendDataToClients(data, clients),
@@ -377,16 +343,25 @@ void handleWebSocket(
         'serverAliveResponse': (data) async => sendDataToClients(data, clients),
         'invoice': (data) async => handleInvoice(data, clients),
         'opSalesOrder': (data) async => handleOpenSaleOrder(data),
-        'posInvoice': (data) async => handleInvoice(data, clients),
+        'posInvoice': (data) async => handleSaleOrderInvoice(data, clients),
         'salesOrder': (data) async => handleSaleOrder(data),
+
         'patchSaleOrder': (data) async => handlePatchSaleOrder(data),
-        'patchOpSaleOrder': (data) async => handlePatchSaleOrder(data),
+        'salesOrder_created_confirm': (data) async =>
+            handleApprovedSaleOrder(data),
+
         'patchHoldOrder': (data) async => handlePatchHoldOrder(data),
         'postToApprove': (data) async => handleToApproveOrder(data),
         'modifySaleOrder': (data) async => handleModifyOrder(data),
         'cancelOrder': (data) async => handlePatchSaleOrder(data),
         'salesOrder_updated': (data) async =>
             handlePatchwebsocketSaleOrder(data),
+        'dispatch_received': (data) async =>
+            handlePatchwebsocketSaleOrder(data),
+        'patchInvoiceSaleOrder': (data) async =>
+            handleInvoicePatchSaleOrder(data),
+        'approval_updated': (data) async => handlePatchApprovalSaleOrder(data),
+        'opApprovalOrder': (data) async => handleSalesApprovalOrder(data),
 
         'holdOrder': (data) async => handleHoldOrder(data),
         'salesApprovalOrder': (data) async => handleSalesApprovalOrder(data),
@@ -422,7 +397,6 @@ void handleWebSocket(
           } catch (_) {
             data = jsonDecode(message.replaceAll("'", '"'));
           }
-          print("Client Data - $data");
           if (data.containsKey('action') && data['action'] == 'heartbeat') {
             channel.sink.add(jsonEncode({'action': 'heartbeatAck'}));
             return;
@@ -437,7 +411,6 @@ void handleWebSocket(
 
           if (data.containsKey('type') &&
               typeHandlers.containsKey(data['type'])) {
-            print("Client Data 1  - ${data['type']}");
             await typeHandlers[data['type']]!(data);
             onDataReceived(data);
             return;
@@ -449,12 +422,19 @@ void handleWebSocket(
     },
     onDone: () {
       clients.remove(channel);
-      print("🔴 [CLIENT DISCONNECTED]");
     },
     onError: (error) {
       clients.remove(channel);
-      print("❌ [CLIENT ERROR] $error");
     },
     cancelOnError: true,
   );
+}
+
+handleHandShake(
+  Map<String, dynamic> data,
+  Set<WebSocketChannel> clients,
+) async {
+  print('Server HandShake : $data');
+  final d = {'action': 'handshake', 'message': 'From server'};
+  sendDataToClients(d, clients);
 }

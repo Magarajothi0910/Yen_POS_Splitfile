@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:yenpos/Global/Provider/bottomNavprovider.dart';
 import 'package:yenpos/Server_Client/websocketService.dart';
 import '../../kotpreinvoice/providers/bottomNavprovider.dart';
 import '../services/websocketService.dart';
@@ -16,12 +17,16 @@ class ItemAssignmentState extends ChangeNotifier {
   List<String> _selectedItems = [];
 
   TextEditingController get searchController => _searchController;
-  Map<String, List<String>> get selectedItemsByCategory => _selectedItemsByCategory;
+  Map<String, List<String>> get selectedItemsByCategory =>
+      _selectedItemsByCategory;
   List<String> get selectedItems => _selectedItems;
 
   ItemAssignmentState(BuildContext context, int printerIndex) {
     try {
-      final printerProvider = Provider.of<PrinterProviderDine>(context, listen: false);
+      final printerProvider = Provider.of<PrinterProviderDine>(
+        context,
+        listen: false,
+      );
       final printer = printerProvider.printers[printerIndex];
       _selectedItems = List<String>.from(printer.items);
 
@@ -33,7 +38,9 @@ class ItemAssignmentState extends ChangeNotifier {
       }
 
       _searchController.addListener(notifyListeners);
-      print("🟢 ItemAssignmentState initialized with ${_selectedItems.length} items.");
+      print(
+        "🟢 ItemAssignmentState initialized with ${_selectedItems.length} items.",
+      );
     } catch (e, stack) {
       print("❌ Error initializing ItemAssignmentState: $e");
       print("📜 StackTrace: $stack");
@@ -42,7 +49,10 @@ class ItemAssignmentState extends ChangeNotifier {
 
   String? _getCategoryForItem(BuildContext context, String itemId) {
     try {
-      final productProvider = Provider.of<ProductProvider>(context, listen: false);
+      final productProvider = Provider.of<ProductProvider>(
+        context,
+        listen: false,
+      );
       final product = productProvider.products.firstWhere(
         (product) => product.varianceName == itemId,
         orElse: () {
@@ -57,12 +67,18 @@ class ItemAssignmentState extends ChangeNotifier {
     }
   }
 
-  void toggleCategorySelection(String category, List<String> categoryItems, bool? value) {
+  void toggleCategorySelection(
+    String category,
+    List<String> categoryItems,
+    bool? value,
+  ) {
     try {
       if (value == true) {
         _selectedItemsByCategory[category] = categoryItems;
         _selectedItems.addAll(categoryItems);
-        print("✅ Category '$category' selected with ${categoryItems.length} items.");
+        print(
+          "✅ Category '$category' selected with ${categoryItems.length} items.",
+        );
       } else {
         final categoryItems = _selectedItemsByCategory[category] ?? [];
         _selectedItems.removeWhere((item) => categoryItems.contains(item));
@@ -120,16 +136,19 @@ class ItemAssignmentScreen extends StatelessWidget {
           try {
             final printerProvider = Provider.of<PrinterProviderDine>(context);
             final productProvider = Provider.of<ProductProvider>(context);
-            final webSocketService = Provider.of<WebSocketService>(context, listen: false);
+            final webSocketService = Provider.of<WebSocketService>(
+              context,
+              listen: false,
+            );
             final printer = printerProvider.printers[printerIndex];
-            final categories = productProvider.products.map((product) => product.category).toSet().toList();
+            final categories = productProvider.products
+                .map((product) => product.category)
+                .toSet()
+                .toList();
             final searchText = state.searchController.text.toLowerCase();
 
             return Scaffold(
               backgroundColor: Colors.white,
-              appBar: GlobalAppBar(
-                title: 'Assign Items to ${printer.name}',
-              ),
               body: Column(
                 children: [
                   // 🔎 Search bar
@@ -152,21 +171,45 @@ class ItemAssignmentScreen extends StatelessWidget {
                       itemBuilder: (context, index) {
                         try {
                           final category = categories[index];
-                          final products = productProvider.products.where((product) => product.category == category).toList();
-                          final isCategorySelected = state.selectedItemsByCategory.containsKey(category);
-                          final categoryMatchesSearch = category.toLowerCase().contains(searchText);
-                          final filteredProducts = products.where((product) => product.varianceName.toLowerCase().contains(searchText) || categoryMatchesSearch).toList();
-                          final allAssignedItems = printerProvider.printers.where((p) => p.name != printer.name).expand((p) => p.items).toList();
-                          final categoryIsAssigned = products.every((product) => allAssignedItems.contains(product.varianceName) && !printer.items.contains(product.varianceName));
+                          final products = productProvider.products
+                              .where((product) => product.category == category)
+                              .toList();
+                          final isCategorySelected = state
+                              .selectedItemsByCategory
+                              .containsKey(category);
+                          final categoryMatchesSearch = category
+                              .toLowerCase()
+                              .contains(searchText);
+                          final filteredProducts = products
+                              .where(
+                                (product) =>
+                                    product.varianceName.toLowerCase().contains(
+                                      searchText,
+                                    ) ||
+                                    categoryMatchesSearch,
+                              )
+                              .toList();
+                          final allAssignedItems = printerProvider.printers
+                              .where((p) => p.name != printer.name)
+                              .expand((p) => p.items)
+                              .toList();
+                          final categoryIsAssigned = products.every(
+                            (product) =>
+                                allAssignedItems.contains(
+                                  product.varianceName,
+                                ) &&
+                                !printer.items.contains(product.varianceName),
+                          );
 
-                          if (filteredProducts.isEmpty && !categoryMatchesSearch) {
+                          if (filteredProducts.isEmpty &&
+                              !categoryMatchesSearch) {
                             return Container();
                           }
 
                           return Theme(
-                            data: Theme.of(context).copyWith(
-                              dividerColor: Colors.transparent,
-                            ),
+                            data: Theme.of(
+                              context,
+                            ).copyWith(dividerColor: Colors.transparent),
                             child: ExpansionTile(
                               title: Row(
                                 mainAxisAlignment: MainAxisAlignment.start,
@@ -175,15 +218,33 @@ class ItemAssignmentScreen extends StatelessWidget {
                                     alignment: Alignment.center,
                                     children: [
                                       Checkbox(
-                                        value: state.selectedItemsByCategory[category]?.isNotEmpty ?? false,
+                                        value:
+                                            state
+                                                .selectedItemsByCategory[category]
+                                                ?.isNotEmpty ??
+                                            false,
                                         onChanged: categoryIsAssigned
                                             ? null
                                             : (bool? value) {
-                                                state.toggleCategorySelection(category, products.map((product) => product.varianceName).toList(), value);
+                                                state.toggleCategorySelection(
+                                                  category,
+                                                  products
+                                                      .map(
+                                                        (product) => product
+                                                            .varianceName,
+                                                      )
+                                                      .toList(),
+                                                  value,
+                                                );
                                               },
-                                        activeColor: categoryIsAssigned ? Colors.grey.shade300 : Colors.blue,
-                                        checkColor: categoryIsAssigned ? Colors.black : Colors.white,
-                                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                        activeColor: categoryIsAssigned
+                                            ? Colors.grey.shade300
+                                            : Colors.blue,
+                                        checkColor: categoryIsAssigned
+                                            ? Colors.black
+                                            : Colors.white,
+                                        materialTapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
                                       ),
                                       if (categoryIsAssigned)
                                         const Icon(
@@ -198,7 +259,9 @@ class ItemAssignmentScreen extends StatelessWidget {
                                     child: Text(
                                       category,
                                       style: TextStyle(
-                                        color: categoryIsAssigned ? Colors.grey : Colors.black,
+                                        color: categoryIsAssigned
+                                            ? Colors.grey
+                                            : Colors.black,
                                       ),
                                     ),
                                   ),
@@ -210,9 +273,13 @@ class ItemAssignmentScreen extends StatelessWidget {
                                   child: SingleChildScrollView(
                                     child: Column(
                                       children: filteredProducts.map((product) {
-                                        final itemId = product.varianceName.toString();
-                                        final isAssigned = allAssignedItems.contains(itemId) && !printer.items.contains(itemId);
-                                        final isSelected = state.selectedItems.contains(itemId);
+                                        final itemId = product.varianceName
+                                            .toString();
+                                        final isAssigned =
+                                            allAssignedItems.contains(itemId) &&
+                                            !printer.items.contains(itemId);
+                                        final isSelected = state.selectedItems
+                                            .contains(itemId);
 
                                         return ListTile(
                                           leading: Stack(
@@ -223,11 +290,23 @@ class ItemAssignmentScreen extends StatelessWidget {
                                                 onChanged: isAssigned
                                                     ? null
                                                     : (bool? value) {
-                                                        state.toggleItemSelection(category, product.varianceName, value);
+                                                        state
+                                                            .toggleItemSelection(
+                                                              category,
+                                                              product
+                                                                  .varianceName,
+                                                              value,
+                                                            );
                                                       },
-                                                activeColor: isAssigned ? Colors.grey.shade300 : Colors.blue.shade300,
-                                                checkColor: isAssigned ? Colors.black : Colors.white,
-                                                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                                activeColor: isAssigned
+                                                    ? Colors.grey.shade300
+                                                    : Colors.blue.shade300,
+                                                checkColor: isAssigned
+                                                    ? Colors.black
+                                                    : Colors.white,
+                                                materialTapTargetSize:
+                                                    MaterialTapTargetSize
+                                                        .shrinkWrap,
                                               ),
                                               if (isAssigned)
                                                 const Icon(
@@ -241,12 +320,18 @@ class ItemAssignmentScreen extends StatelessWidget {
                                             onTap: isAssigned
                                                 ? null
                                                 : () {
-                                                    state.toggleItemSelection(category, product.varianceName, !isSelected);
+                                                    state.toggleItemSelection(
+                                                      category,
+                                                      product.varianceName,
+                                                      !isSelected,
+                                                    );
                                                   },
                                             child: Text(
                                               product.varianceName,
                                               style: TextStyle(
-                                                color: isAssigned ? Colors.grey : Colors.black,
+                                                color: isAssigned
+                                                    ? Colors.grey
+                                                    : Colors.black,
                                               ),
                                             ),
                                           ),
@@ -254,7 +339,11 @@ class ItemAssignmentScreen extends StatelessWidget {
                                           onTap: isAssigned
                                               ? null
                                               : () {
-                                                  state.toggleItemSelection(category, product.varianceName, !isSelected);
+                                                  state.toggleItemSelection(
+                                                    category,
+                                                    product.varianceName,
+                                                    !isSelected,
+                                                  );
                                                 },
                                         );
                                       }).toList(),
@@ -271,70 +360,60 @@ class ItemAssignmentScreen extends StatelessWidget {
                       },
                     ),
                   ),
-                  // 🔘 Buttons
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      ElevatedButton(
-                        onPressed: () {
-                          try {
-                            Provider.of<BottomNavProviderKOT>(context, listen: false).updateIndex(3);
-                            Navigator.pushAndRemoveUntil(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const settingsScreen(),
-                              ),
-                              (Route<dynamic> route) => false,
-                            );
-                            print("🔙 Back button clicked.");
-                          } catch (e) {
-                            print("❌ Error navigating back: $e");
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          foregroundColor: Colors.white,
-                          elevation: 2,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        ),
-                        child: const Text('Back'),
-                      ),
-                      ElevatedButton(
-                        onPressed: () {
-                          try {
-                            final selectedItems = List<String>.from(state.selectedItems);
-                            printer.items = selectedItems;
 
-                            // FIXED: Pass both printerIndex and printer to the update method
-                            printerProvider.updatePrinter(printerIndex, printer);
-                            print("🖨️ Printer updated at index $printerIndex: ${printer.name} with ${selectedItems.length} items.");
-
-                            webSocketService.sendPrinterDetails(printer);
-                            print("📡 Printer details sent via WebSocket.");
+                  // Fixed buttons at bottom
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    // decoration: BoxDecoration(
+                    //   color: Colors.white,
+                    //   borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                    //   boxShadow: [
+                    //     BoxShadow(color: Colors.black26, blurRadius: 8),
+                    //   ],
+                    // ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        ElevatedButton(
+                          onPressed: () {
                             Navigator.pop(context);
-                          } catch (e) {
-                            print("❌ Error while assigning items to printer: $e");
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                          elevation: 2,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          child: const Text('Back'),
                         ),
-                        child: const Text('Assign Items'),
-                      ),
-                    ],
+                        ElevatedButton(
+                          onPressed: () {
+                            final selectedItems = List<String>.from(
+                              state.selectedItems,
+                            );
+                            printer.items = selectedItems;
+                            printerProvider.updatePrinter(
+                              printerIndex,
+                              printer,
+                            );
+                            webSocketService.sendPrinterDetails(printer);
+                            Navigator.pop(context);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text('Assign Items'),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
-              bottomNavigationBar: const GlobalBottomNav(noSelection: true),
             );
           } catch (e, stack) {
             print("❌ Fatal error in ItemAssignmentScreen: $e");

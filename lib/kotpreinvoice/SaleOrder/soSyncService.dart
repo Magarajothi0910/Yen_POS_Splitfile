@@ -8,13 +8,11 @@ import 'package:yenpos/Global/globals_data.dart';
 import 'provider/itemProvider.dart';
 
 class SyncServicePos {
-  final String invoiceApiUrl = 'https://yenerp.com/fastapi/invoices/';
+  final String invoiceApiUrl = 'https://yenerp.com/fluttertestapi/invoices/';
   final String modifyApiUrl = 'http://192.168.29.8:8090/modify/';
   final String holdOrderApi = "https://yenerp.com/fastapi/saleorder/";
-  final String salesApprovalOrders =
-      "https://yenerp.com/fastapi//fastapi/approvals/";
-  final String salesOrderApi =
-      "https://yenerp.com/fastapi//branchwiseitems/?$branchName";
+  final String salesApprovalOrders = "https://yenerp.com/fastapi//fastapi/approvals/";
+  final String salesOrderApi = "https://yenerp.com/fastapi//branchwiseitems/?$branchName";
   bool _isSyncing = false;
   bool isOnline = false;
   List<Function> syncQueue = [];
@@ -46,12 +44,8 @@ class SyncServicePos {
   }
 
   _monitorConnectivity() {
-    Connectivity().onConnectivityChanged.listen((
-      List<ConnectivityResult> results,
-    ) {
-      final ConnectivityResult result = results.isNotEmpty
-          ? results.first
-          : ConnectivityResult.none;
+    Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
+      final ConnectivityResult result = results.isNotEmpty ? results.first : ConnectivityResult.none;
       isOnline = result != ConnectivityResult.none;
       if (isOnline) {
         processSyncQueue();
@@ -77,7 +71,9 @@ class SyncServicePos {
           'varianceName': varianceName,
           'updatedStock': updatedStock,
         }),
-        options: Options(headers: {'Content-Type': 'application/json'}),
+        options: Options(
+          headers: {'Content-Type': 'application/json'},
+        ),
       );
 
       if (response.statusCode == 200) {
@@ -233,7 +229,9 @@ class SyncServicePos {
       final response = await dio.post(
         holdOrderApi, // URL as a string is fine
         data: jsonEncode(order), // your order object encoded as JSON
-        options: Options(headers: {'Content-Type': 'application/json'}),
+        options: Options(
+          headers: {'Content-Type': 'application/json'},
+        ),
       );
 
       if (response.statusCode == 201 || response.statusCode == 200) {
@@ -252,8 +250,7 @@ class SyncServicePos {
 
   Future<bool> postSalesOrder(Map<String, dynamic> salesOrder) async {
     final dio = Dio();
-    const String salesOrderApi =
-        "http://192.168.1.108:8881/fastapi/saleorders/";
+    const String salesOrderApi = "http://192.168.1.108:8881/fastapi/saleorders/";
     // Print the payload and URL for debugging
     print('Posting sales order (raw JSON): ${jsonEncode(salesOrder)}');
     print("Posting to URL: $salesOrderApi");
@@ -268,7 +265,9 @@ class SyncServicePos {
       final response = await dio.post(
         salesOrderApi, // URL as a string
         data: salesOrder, // Dio automatically serializes Map to JSON
-        options: Options(headers: {'Content-Type': 'application/json'}),
+        options: Options(
+          headers: {'Content-Type': 'application/json'},
+        ),
       );
 
       // Debug response details
@@ -279,9 +278,7 @@ class SyncServicePos {
         print('Sales order posted successfully.');
         return true;
       } else {
-        print(
-          'Failed to post sales order. Status code: ${response.statusCode}',
-        );
+        print('Failed to post sales order. Status code: ${response.statusCode}');
         return false;
       }
     } catch (e) {
@@ -307,7 +304,9 @@ class SyncServicePos {
       final response = await dio.post(
         salesOrderApi, // pass the URL as a string
         data: salesOrder, // pass the Map directly; Dio converts it to JSON
-        options: Options(headers: {'Content-Type': 'application/json'}),
+        options: Options(
+          headers: {'Content-Type': 'application/json'},
+        ),
       );
 
       // Debug response details
@@ -318,9 +317,7 @@ class SyncServicePos {
         print('Sales order posted successfully.');
         return true;
       } else {
-        print(
-          'Failed to post sales order. Status code: ${response.statusCode}',
-        );
+        print('Failed to post sales order. Status code: ${response.statusCode}');
         return false;
       }
     } catch (e) {
@@ -348,21 +345,20 @@ class SyncServicePos {
 
     try {
       if (!isOnline) {
-        queueSync(
-          () => postAddNewCustomerOrder(
-            name: name,
-            mobile: mobile,
-            branchId: branchId,
-          ),
-        );
+        queueSync(() => postAddNewCustomerOrder(
+              name: name,
+              mobile: mobile,
+              branchId: branchId,
+            ));
         return false;
       }
 
       final response = await dio.post(
         endpoint, // Dio accepts the URL as a string directly
-        data:
-            body, // pass the Map directly; Dio automatically encodes it to JSON
-        options: Options(headers: {'Content-Type': 'application/json'}),
+        data: body, // pass the Map directly; Dio automatically encodes it to JSON
+        options: Options(
+          headers: {'Content-Type': 'application/json'},
+        ),
       );
 
       print('[HTTP] status=${response.statusCode}');
@@ -385,17 +381,16 @@ class SyncServicePos {
       print('Posting sales approval order: ${jsonEncode(order)}');
       final response = await dio.post(
         salesApprovalOrders, // just pass the URL string
-        data:
-            order, // pass the Map directly; Dio encodes it to JSON automatically
-        options: Options(headers: {'Content-Type': 'application/json'}),
+        data: order, // pass the Map directly; Dio encodes it to JSON automatically
+        options: Options(
+          headers: {'Content-Type': 'application/json'},
+        ),
       );
       if (response.statusCode == 201 || response.statusCode == 200) {
         print('Sales approval order posted successfully.');
         return true;
       } else {
-        print(
-          'Failed to post sales approval order. Status code: ${response.statusCode}',
-        );
+        print('Failed to post sales approval order. Status code: ${response.statusCode}');
         print('Response body: ${response.data}');
         return false;
       }
@@ -595,7 +590,9 @@ class SyncServicePos {
       final response = await dio.post(
         salesOrderApi,
         data: salesOrder,
-        options: Options(headers: {'Content-Type': 'application/json'}),
+        options: Options(
+          headers: {'Content-Type': 'application/json'},
+        ),
       );
 
       // Debug response details
@@ -607,9 +604,7 @@ class SyncServicePos {
         print('Sales order posted successfully.');
         return true;
       } else {
-        print(
-          'Failed to post sales order. Status code: ${response.statusCode}',
-        );
+        print('Failed to post sales order. Status code: ${response.statusCode}');
         return false;
       }
     } catch (e) {
@@ -635,7 +630,9 @@ class SyncServicePos {
       final response = await dio.post(
         salesOrderApi,
         data: jsonEncode(salesOrder),
-        options: Options(headers: {'Content-Type': 'application/json'}),
+        options: Options(
+          headers: {'Content-Type': 'application/json'},
+        ),
       );
 
       // Debug response details
@@ -647,9 +644,7 @@ class SyncServicePos {
         print('Sales order posted successfully.');
         return true;
       } else {
-        print(
-          'Failed to post sales order. Status code: ${response.statusCode}',
-        );
+        print('Failed to post sales order. Status code: ${response.statusCode}');
         return false;
       }
     } catch (e) {
@@ -670,7 +665,9 @@ class SyncServicePos {
         final response = await dio.patch(
           "http://192.168.29.8:8090/saleorder/${patch['salesOrderId']}/",
           data: jsonEncode(patch['data']),
-          options: Options(headers: {'Content-Type': 'application/json'}),
+          options: Options(
+            headers: {'Content-Type': 'application/json'},
+          ),
         );
 
         if (response.statusCode == 200) {
@@ -696,7 +693,10 @@ class SyncServicePos {
       }
 
       if (invoiceData is Map<String, dynamic> && invoiceData['sync'] == 'No') {
-        bool success = await postInvoice(invoiceData, itemProvider);
+        bool success = await postInvoice(
+          invoiceData,
+          itemProvider,
+        );
         if (success) {
           invoiceData['sync'] = 'Yes';
           await invoiceBox.putAt(i, invoiceData);
@@ -730,9 +730,7 @@ class SyncServicePos {
     int updated = 0;
     for (int i = 0; i < vn.length; i++) {
       final qty = (i < qt.length ? (qt[i] as num?)?.toInt() : 0) ?? 0;
-      String? code = (i < ic.length && (ic[i]?.toString().isNotEmpty ?? false))
-          ? ic[i].toString()
-          : itemProvider.varianceCodeForName(vn[i]?.toString() ?? '');
+      String? code = (i < ic.length && (ic[i]?.toString().isNotEmpty ?? false)) ? ic[i].toString() : itemProvider.varianceCodeForName(vn[i]?.toString() ?? '');
 
       if (code != null && qty > 0) {
         // await updateLocalHiveStock(
@@ -749,8 +747,7 @@ class SyncServicePos {
     print('🗃️  Stock updated locally for $updated line-item(s).');
 
     /* ───────── 2.  Attempt remote POST (skip if no internet) ───────── */
-    final hasNet =
-        await Connectivity().checkConnectivity() != ConnectivityResult.none;
+    final hasNet = await Connectivity().checkConnectivity() != ConnectivityResult.none;
 
     if (!hasNet) {
       print('📡 No internet — invoice stored locally for later sync.');
@@ -763,7 +760,9 @@ class SyncServicePos {
       final res = await dio.post(
         invoiceApiUrl,
         data: jsonEncode(invoice),
-        options: Options(headers: {'Content-Type': 'application/json'}),
+        options: Options(
+          headers: {'Content-Type': 'application/json'},
+        ),
       );
 
       if (res.statusCode == 200 || res.statusCode == 201) {
@@ -781,7 +780,7 @@ class SyncServicePos {
     }
   }
 
-  /* ───────── Helper: append unsent invoice to Hive list ───────── */
+/* ───────── Helper: append unsent invoice to Hive list ───────── */
   Future<void> _stashOffline(Map<String, dynamic> inv) async {
     final box = await Hive.openBox<List>(_offlineBoxName);
     final pending = List<Map<String, dynamic>>.from(box.get('list') ?? []);

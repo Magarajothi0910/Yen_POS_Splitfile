@@ -10,10 +10,13 @@ import 'package:yenpos/Global/globals_data.dart' as globals;
 import 'package:yenpos/Sale_order/Widgets/custom_qty_keyboard.dart';
 
 class CartItem {
+  final String rowId; // stable unique ID
   final String varianceName;
   final String itemName;
   final String itemCode;
   final int pricePerKg;
+  int? sellingPrice;
+  double? sellingAmount;
   double? finalPrice;
   double itemWiseDiscount;
   double itemWiseDiscountAmount;
@@ -21,25 +24,30 @@ class CartItem {
   String? isBoxItem;
   final int tax;
   int? boxQuantity;
-  final String uom; // Add the uom field
-  int quantity;
+  final String uom;
+  ValueNotifier<int> quantity; // ✅ make quantity a ValueNotifier
   double weight;
+
   CartItem({
+    String? rowId, // optional, will be generated if null
     required this.varianceName,
     required this.itemName,
-    this.isBoxItem,
-    this.boxQuantity,
-    this.finalPrice,
-    this.discount,
-    required this.pricePerKg,
-    required this.itemWiseDiscountAmount,
-    required this.itemWiseDiscount,
-    required this.tax,
     required this.itemCode,
-    required this.uom, // Initialize uom
-    required this.quantity,
+    this.sellingPrice,
+    this.sellingAmount,
+    required this.pricePerKg,
+    this.finalPrice,
+    required this.itemWiseDiscount,
+    required this.itemWiseDiscountAmount,
+    this.discount,
+    this.isBoxItem,
+    required this.tax,
+    this.boxQuantity,
+    required this.uom,
+    required int quantity, // input int
     required this.weight,
-  });
+  }) : quantity = ValueNotifier<int>(quantity),
+       rowId = rowId ?? UniqueKey().toString(); // assign stable ID
 }
 
 class CartProvider extends ChangeNotifier {
@@ -48,22 +56,36 @@ class CartProvider extends ChangeNotifier {
   final List<List<CartItem>> _savedBills = [];
   int? _currentBillIndex; // Tracks the index of the currently loaded bill
   List<bool> itemSelections = [];
+  List<CartItem> get cartItems => globals.cartItems;
   void toggleItemSelection(int index) {
     itemSelections[index] = !itemSelections[index];
     notifyListeners();
+  }
+
+  // Add reactive properties
+  ValueNotifier<double> totalAmount = ValueNotifier<double>(0);
+  ValueNotifier<double> customCharge = ValueNotifier<double>(0);
+
+  void addChargeController(String chargeType) {
+    if (!customChargeControllers.containsKey(chargeType)) {
+      final controller = TextEditingController();
+      controller.addListener(() {
+        updateCustomCharge(chargeType, controller.text);
+      });
+      customChargeControllers[chargeType] = controller;
+    }
   }
 
   List<CartItem> get closingStockItems => _closingStockItems;
   List<List<CartItem>> get savedBills => _savedBills;
 
   final List<Map<String, dynamic>> _addedVariances = [];
-  final TextEditingController customChargeController = TextEditingController();
-  List<Map<String, dynamic>> get addedVariances => _addedVariances;
 
+  List<Map<String, dynamic>> get addedVariances => _addedVariances;
+  Map<String, TextEditingController?> customChargeControllers = {};
   List<CartItem> _cartItems = [];
   int _cartItemCount = 5;
   int get cartItemCount => _cartItemCount;
-  List<CartItem> get cartItems => _cartItems;
 
   double get totalWeight {
     double total = 0;
@@ -96,50 +118,60 @@ class CartProvider extends ChangeNotifier {
     if (globals.cartItems.isNotEmpty &&
         index >= 0 &&
         index < globals.cartItems.length) {
-      globals.cartItems[index].quantity = quantity;
-      notifyListeners();
+      globals.cartItems[index].quantity.value = quantity;
     } else {}
+    _recalculateTotal();
+    notifyListeners();
   }
 
   void addItemToCart(CartItem newItem) {
-    int existingItemIndex = globals.cartItems.indexWhere(
-      (item) =>
-          item.varianceName == newItem.varianceName &&
-          item.itemName == newItem.itemName &&
-          item.uom == newItem.uom &&
-          item.weight == newItem.weight,
-    );
+    int existingItemIndex = -1;
+
+    if (newItem.isBoxItem == 'no') {
+      existingItemIndex = globals.cartItems.indexWhere(
+        (item) =>
+            item.isBoxItem == 'no' &&
+            item.varianceName == newItem.varianceName &&
+            item.itemName == newItem.itemName &&
+            item.uom == newItem.uom &&
+            item.weight == newItem.weight,
+      );
+    }
 
     if (existingItemIndex != -1) {
-      globals.cartItems[existingItemIndex].quantity += newItem.quantity;
+      globals.cartItems[existingItemIndex].quantity.value +=
+          newItem.quantity.value;
     } else {
       globals.cartItems.add(newItem);
     }
 
     _cartItems = globals.cartItems;
+    _recalculateTotal();
     notifyListeners();
   }
 
   void increaseQuantity(int index) {
-    globals.cartItems[index].quantity++;
+    globals.cartItems[index].quantity.value++;
+    _recalculateTotal();
     notifyListeners();
   }
 
   void decreaseQuantity(int index) {
-    if (globals.cartItems[index].quantity > 1) {
-      globals.cartItems[index].quantity--;
+    if (globals.cartItems[index].quantity.value > 1) {
+      globals.cartItems[index].quantity.value--;
     } else {
       globals.cartItems.removeAt(index);
     }
+    _recalculateTotal();
     notifyListeners();
   }
 
-  void clearCart() async {
-    globals.cartItems.clear();
-    _cartItems.clear();
-    customChargeController.clear();
-    notifyListeners();
-  }
+  // void clearCart() async {
+  //   globals.cartItems.clear();
+  //   _cartItems.clear();
+  //   customChargeController.clear();
+  //   notifyListeners();
+  // }
 
   // Closing Stock Cart Methods
 
@@ -148,7 +180,8 @@ class CartProvider extends ChangeNotifier {
       (item) => item.varianceName == newItem.varianceName,
     );
     if (existingItemIndex != -1) {
-      _closingStockItems[existingItemIndex].quantity += newItem.quantity;
+      _closingStockItems[existingItemIndex].quantity.value +=
+          newItem.quantity.value;
     } else {
       _closingStockItems.add(newItem);
     }
@@ -156,13 +189,13 @@ class CartProvider extends ChangeNotifier {
   }
 
   void increaseClosingStockQuantity(int index) {
-    _closingStockItems[index].quantity++;
+    _closingStockItems[index].quantity.value++;
     notifyListeners();
   }
 
   void decreaseClosingStockQuantity(int index) {
-    if (_closingStockItems[index].quantity > 1) {
-      _closingStockItems[index].quantity--;
+    if (_closingStockItems[index].quantity.value > 1) {
+      _closingStockItems[index].quantity.value--;
     } else {
       _closingStockItems.removeAt(index);
     }
@@ -210,62 +243,160 @@ class CartProvider extends ChangeNotifier {
     }
   }
 
+  // For multiple charges
+  // void updateCustomCharge(String chargeType, String value) {
+  //   // Initialize map if not already
+  //   if (!_customChargeValues.containsKey(chargeType)) {
+  //     _customChargeValues[chargeType] = 0.0;
+  //   }
+
+  //   _customChargeValues[chargeType] = double.tryParse(value) ?? 0.0;
+
+  //   _recalculateTotal();
+  // }
+
+  // Optional: store all charge values
+  Map<String, double> _customChargeValues = {};
+  Map<String, double> get customChargeValues => _customChargeValues;
+  void _recalculateTotal() {
+    double total = 0;
+
+    for (var item in _cartItems) {
+      double itemTotal =
+          item.finalPrice?.toDouble() ??
+          ((item.uom.toLowerCase() == 'kgs' || item.uom.toLowerCase() == 'kg')
+              ? (item.weight * item.quantity.value * item.pricePerKg).toDouble()
+              : (item.quantity.value * item.pricePerKg).toDouble());
+      total += itemTotal;
+    }
+    total += customCharge.value;
+    totalAmount.value = total;
+    notifyListeners();
+  }
+
+  void clearCart() {
+    _cartItems.clear();
+
+    globals.cartItems.clear();
+    _cartItems.clear();
+
+    _recalculateTotal();
+    notifyListeners();
+  }
+
   double getTotalAmount() {
     double totalAmount = 0;
 
-    for (var i = 0; i < globals.cartItems.length; i++) {
-      var item = globals.cartItems[i];
+    for (var item in globals.cartItems) {
       double itemTotal = 0;
 
       if (item.finalPrice != null) {
         itemTotal = item.finalPrice!;
-      } else {
-        if (item.uom == 'Kgs' || item.uom == 'Kg') {
-          itemTotal = item.weight * item.quantity * item.pricePerKg;
+      } else if (item.quantity?.value != null) {
+        if (item.uom?.toLowerCase() == 'kg' ||
+            item.uom?.toLowerCase() == 'kgs') {
+          itemTotal =
+              (item.weight ?? 0) *
+              (item.quantity!.value ?? 0) *
+              (item.pricePerKg ?? 0);
         } else {
-          itemTotal = item.quantity.toDouble() * item.pricePerKg;
+          itemTotal =
+              (item.quantity!.value ?? 0).toDouble() * (item.pricePerKg ?? 0);
         }
       }
 
       totalAmount += itemTotal;
     }
 
-    final customCharge = double.tryParse(customChargeController.text) ?? 0;
-    totalAmount += customCharge;
-    notifyListeners();
-    return totalAmount; // ✅ No notifyListeners here
+    // Sum all custom charges
+    for (var controller in customChargeControllers.values) {
+      final charge = double.tryParse(controller!.text) ?? 0;
+      totalAmount += charge;
+    }
+
+    return totalAmount;
   }
 
   void updateCart() {
+    _recalculateTotal();
     notifyListeners();
   }
 
-  void setCustomChargeValue(String value) {
-    customChargeController.text = value;
-    notifyListeners(); // ✅ only call here, not in the getter
+  void addItem(CartItem item) {
+    cartItems.add(item);
+    notifyListeners();
   }
 
-  double calculateSubtotal() {
-    double subtotal = 0.0;
-    for (var item in globals.cartItems) {
-      subtotal += item.quantity * item.pricePerKg;
+  void removeItemById(String id) {
+    final index = cartItems.indexWhere((e) => e.rowId == id);
+    if (index == -1) return;
+
+    cartItems.removeAt(index);
+    notifyListeners();
+  }
+
+  void removeItemByVarianceName(String varianceName) {
+    final index = globals.cartItems.indexWhere(
+      (item) => item.varianceName == varianceName,
+    );
+
+    if (index < 0) {
+      print("⚠ Cannot delete. Item not found: $varianceName");
+      return;
     }
-    return subtotal;
+
+    globals.cartItems.removeAt(index);
+    notifyListeners();
   }
 
-  String get formattedSubtotal {
-    final subtotal = calculateSubtotal();
-    return NumberFormat.currency(
-      symbol: '₹',
-    ).format(subtotal); // Format as currency
+  void updateCustomCharge(String chargeType, String value) {
+    if (!customChargeControllers.containsKey(chargeType)) {
+      customChargeControllers[chargeType] = TextEditingController(text: value);
+    } else {
+      customChargeControllers[chargeType]!.text = value;
+    }
+    _recalculateTotal();
+    notifyListeners();
+  }
+
+  void setCustomChargeValue(String chargeType, String value) {
+    updateCustomCharge(chargeType, value);
+  }
+
+  // double calculateSubtotal() {
+  //   double subtotal = 0.0;
+  //   for (var item in globals.cartItems) {
+  //     subtotal += item.quantity.value * item.pricePerKg;
+  //   }
+  //   return subtotal;
+  // }
+  void removeItemByRowId(String rowId) {
+    final index = globals.cartItems.indexWhere((e) => e.rowId == rowId);
+
+    if (index == -1) return;
+
+    globals.cartItems.removeAt(index);
+    notifyListeners();
+  }
+
+  void removeItemByIndex(int index) {
+    if (index < 0 || index >= cartItems.length) {
+      print("⚠ Invalid index: $index");
+      return;
+    }
+    cartItems.removeAt(index);
+    notifyListeners();
   }
 
   // Remove item from the cart by index
   void removeItemFromCart(int index) {
-    if (index >= 0 && index < globals.cartItems.length) {
-      globals.cartItems.removeAt(index);
-      notifyListeners();
+    if (index < 0 || index >= globals.cartItems.length) {
+      print("⚠ ERROR AVOIDED → removeItemFromCart invalid index: $index");
+      return;
     }
+
+    globals.cartItems.removeAt(index);
+    notifyListeners();
   }
 
   void updateWeight(int index, double newWeight) {
@@ -434,6 +565,8 @@ class CartProvider extends ChangeNotifier {
                                 // }
                                 Navigator.of(context).pop();
                               }
+                              updateCart();
+                              notifyListeners();
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.blueAccent,

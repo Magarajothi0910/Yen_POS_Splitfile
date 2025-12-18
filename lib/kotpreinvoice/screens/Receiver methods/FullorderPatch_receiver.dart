@@ -6,45 +6,29 @@ class OrderPatchReceiver {
     required Map<String, dynamic> patchData,
     required VoidCallback notifyUpdates,
   }) {
-    debugPrint("🔄 Received patch update: $patchData");
-
     final String patchOrderId = patchData['seathiveOrderId']?.toString() ?? '';
+    // final String newStatus = patchData['status']?.toString() ?? '';
     final String orderRemark = patchData['orderRemark']?.toString() ?? '';
     final String editFlag = patchData['edit']?.toString() ?? '';
     final String statusEdited = patchData['statusEdited']?.toString() ?? '';
 
-    debugPrint("🆔 Patch Details:");
-    debugPrint("   - seathiveOrderId: $patchOrderId");
-    debugPrint("   - orderRemark: $orderRemark");
-    debugPrint("   - edit: $editFlag");
-    debugPrint("   - statusEdited: $statusEdited");
-    debugPrint("📦 Total orders in list: ${orders.length}");
-
     bool updated = false;
-
     for (var order in orders) {
-      debugPrint("🔍 Checking order: ${order['seathiveOrderId']}");
       if (order['seathiveOrderId'] == patchOrderId) {
-        debugPrint("✅ Match found for orderId: $patchOrderId");
-        debugPrint("📝 Before update: $order");
-
+        // order['status'] = newStatus;
         order['orderRemark'] = orderRemark;
         order['edit'] = editFlag;
         order['statusEdited'] = statusEdited;
-
-        debugPrint("✅ Order updated successfully!");
-        debugPrint("🆕 After update: $order");
         updated = true;
       }
     }
 
     if (updated) {
-      debugPrint("📢 Orders with seathiveOrderId $patchOrderId updated. Notifying listeners...");
+      debugPrint(
+          'Orders with seathiveOrderId $patchOrderId updated:  remark: $orderRemark');
       notifyUpdates();
     } else {
-      debugPrint("⚠️ No matching orders found for seathiveOrderId: $patchOrderId");
+      debugPrint('No matching orders found for seathiveOrderId: $patchOrderId');
     }
-
-    debugPrint("🔚 Finished processing patch update.\n");
   }
 }

@@ -163,7 +163,7 @@ class SelectedItemsDialog extends StatelessWidget {
                                       }
                                     } else {
                                       priceDescription =
-                                          '${item.quantity.toStringAsFixed(0)} ${item.uom} × Rs.${item.pricePerKg.toStringAsFixed(0)}/${item.uom}';
+                                          '${item.quantity.value} ${item.uom} × Rs.${item.pricePerKg.toStringAsFixed(0)}/${item.uom}';
                                     }
 
                                     return Text(
@@ -285,9 +285,9 @@ class SelectedItemsDialog extends StatelessWidget {
     } else {
       final uom = item.uom.toString().toLowerCase();
       if (uom == 'kg' || uom == 'kgs') {
-        return (item.weight ?? 1) * item.quantity * item.pricePerKg;
+        return (item.weight ?? 1) * item.quantity.value * item.pricePerKg;
       } else {
-        return item.quantity.toDouble() * item.pricePerKg;
+        return item.quantity.value.toDouble() * item.pricePerKg;
       }
     }
   }

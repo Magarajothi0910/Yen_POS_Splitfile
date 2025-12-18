@@ -1,8 +1,10 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get_connect/http/src/utils/utils.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
+import 'package:yenpos/Global/Provider/bottomNavprovider.dart';
 import 'package:yenpos/Global/globals_data.dart';
 import 'package:yenpos/Global/globals_data.dart' as globals;
 import 'package:yenpos/Mode_page/choose_mode_screen.dart';
@@ -113,7 +115,8 @@ class _OpenShiftState extends State<OpenShift> {
   // post shift data
 
   Future<void> _postShiftData(int physicalCash) async {
-    final url = "https://yenerp.com/fastapi/shifts/";
+    //final url = "https://yenerp.com/fastapi/shifts/";
+    final url = "https://yenerp.com/fluttertestapi/shifts/";
 
     final openingDifferenceAmount = _calculateDifference(physicalCash);
     final openingDifferenceType = openingDifferenceAmount > 0
@@ -122,20 +125,20 @@ class _OpenShiftState extends State<OpenShift> {
 
     final payload = {
       "shiftNumber": "1",
-      "shiftOpeningDate": currentDate.value,
-      "shiftOpeningTime": currentTime.value,
-      "systemOpeningBalance": actualOpeningCash.toString(),
-      "manualOpeningBalance": physicalCash.toString(),
-      "openingDifferenceAmount": openingDifferenceAmount.toString(),
+      //"shiftOpeningDate": currentDate.value,
+      //"shiftOpeningTime": currentTime.value,
+      "systemOpeningBalance": actualOpeningCash,
+      "manualOpeningBalance": physicalCash,
+      "openingDifferenceAmount": openingDifferenceAmount,
       "openingDifferenceType": openingDifferenceType,
-      "systemClosingBalance": actualOpeningCash.toString(),
-      "manualClosingBalance": '',
+      "systemClosingBalance": actualOpeningCash,
+      //"manualClosingBalance": '',
       "dayEndStatus": "open",
       "status": "open",
       "branchId": "1",
       "branchName": branchName,
-      "empId": "1234",
-      "empName": empId,
+      "empId": userName,
+      "empName": "rio",
       "deviceId": "2",
       "deviceNumber": "1",
     };
@@ -479,421 +482,6 @@ class _OpenShiftState extends State<OpenShift> {
                       },
                     ),
                     const SizedBox(height: 20),
-                    Visibility(
-                      visible: !opened,
-                      child: OutlinedButton(
-                        onPressed: () async {
-                          final ValidationData = {
-                            "branchName": branchName,
-                            // Add other necessary fields
-                          };
-                          // await CashManagementProvider.postValidationData(
-                          //     ValidationData, context);
-                          await CashManagementProvider.fetchValidationDetails();
-                          await CashManagementProvider.fetchShiftDetails();
-                          await CashManagementProvider.fetchShiftOpenCheck();
-
-                          final status = globals.status.value;
-                          final dayEndStatus = globals.dayEndStatus.value;
-                          final connectivity = _connectivityResult.value;
-                          final dispatch = dispatchStatus.value;
-                          final itemTransfer = itemTransferStatus.value;
-                          final soApproval = soApprovalStatus.value;
-                          final store = storeStatus.value;
-                          final soDelivery = soDeliveryStatus.value;
-
-                          final isConnected =
-                              connectivity != ConnectivityResult.none;
-                          final isDayOpen = status == "open";
-                          final isDispatchApproved =
-                              dispatch.isEmpty || dispatch == "success";
-                          final isItemTransferApproved =
-                              itemTransfer.isEmpty || itemTransfer == "success";
-                          final isSoApprovalApproved =
-                              soApproval.isEmpty || soApproval == "success";
-                          final isStoreApproved =
-                              store.isEmpty || store == "success";
-                          final isSoDeliveryApproved =
-                              soDelivery.isEmpty || soDelivery == "success";
-
-                          void showPremiumDialog({
-                            required BuildContext context,
-                            required String title,
-                            required Widget content,
-                            Color accentColor =
-                                Colors.blueAccent, // default accent
-                            IconData? icon, // optional icon
-                          }) {
-                            showDialog(
-                              context: context,
-                              barrierDismissible: true,
-                              builder: (context) => Dialog(
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                elevation: 10,
-                                backgroundColor: Colors.transparent,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        Colors.white,
-                                        Colors.grey.shade100,
-                                      ],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                    borderRadius: BorderRadius.circular(20),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black26,
-                                        blurRadius: 15,
-                                        offset: Offset(0, 8),
-                                      ),
-                                    ],
-                                  ),
-                                  padding: EdgeInsets.all(20),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      if (icon != null) ...[
-                                        Container(
-                                          padding: EdgeInsets.all(12),
-                                          decoration: BoxDecoration(
-                                            color: accentColor.withOpacity(0.1),
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: Icon(
-                                            icon,
-                                            color: accentColor,
-                                            size: 40,
-                                          ),
-                                        ),
-                                        SizedBox(height: 15),
-                                      ],
-                                      // Title
-                                      Text(
-                                        title,
-                                        style: TextStyle(
-                                          fontFamily: 'Poppins',
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black87,
-                                          letterSpacing: 0.5,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                      SizedBox(height: 10),
-                                      // Content
-                                      content,
-                                      SizedBox(height: 20),
-                                      // Action Button
-                                      SizedBox(
-                                        width: double.infinity,
-                                        child: ElevatedButton(
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: accentColor,
-                                            padding: EdgeInsets.symmetric(
-                                              vertical: 14,
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                            ),
-                                            elevation: 5,
-                                          ),
-                                          onPressed: () =>
-                                              Navigator.pop(context),
-                                          child: Text(
-                                            'OK',
-                                            style: TextStyle(
-                                              fontFamily: 'Poppins',
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white,
-                                              letterSpacing: 0.5,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            );
-                          }
-
-                          if (isDayOpen) {
-                            showPremiumDialog(
-                              context: context,
-                              title: 'Warning',
-                              content: const Text(
-                                'Shift is not closed yet.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontFamily: 'Poppins',
-                                  color: Colors.black54,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              accentColor: Colors.orangeAccent,
-                              icon: Icons.warning_amber_rounded,
-                            );
-                            return;
-                          }
-
-                          if (!isConnected) {
-                            showPremiumDialog(
-                              context: context,
-                              title: 'Network Error',
-                              content: const Text(
-                                'No internet connection. Please check your network.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontFamily: 'Poppins',
-                                  color: Colors.black54,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              accentColor: Colors.redAccent,
-                              icon: Icons.wifi_off_rounded,
-                            );
-                            return;
-                          }
-
-                          if (!isDispatchApproved && dispatch.isNotEmpty) {
-                            showPremiumDialog(
-                              context: context,
-                              title: 'Error',
-                              content: const Text(
-                                'Some dispatches are not received yet.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontFamily: 'Poppins',
-                                  color: Colors.black54,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              accentColor: Colors.redAccent,
-                              icon: Icons.error_outline,
-                            );
-                            return;
-                          }
-
-                          if (!isItemTransferApproved &&
-                              itemTransfer.isNotEmpty) {
-                            showPremiumDialog(
-                              context: context,
-                              title: 'Error',
-                              content: const Text(
-                                'Some item transfers are not received yet.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontFamily: 'Poppins',
-                                  color: Colors.black54,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              accentColor: Colors.redAccent,
-                              icon: Icons.error_outline,
-                            );
-                            return;
-                          }
-
-                          if (!isSoApprovalApproved && soApproval.isNotEmpty) {
-                            showPremiumDialog(
-                              context: context,
-                              title: 'Error',
-                              content: const Text(
-                                'Some Sale Order approvals are pending.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontFamily: 'Poppins',
-                                  color: Colors.black54,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              accentColor: Colors.redAccent,
-                              icon: Icons.error_outline,
-                            );
-                            return;
-                          }
-
-                          if (!isStoreApproved && store.isNotEmpty) {
-                            showPremiumDialog(
-                              context: context,
-                              title: 'Error',
-                              content: const Text(
-                                'Store Dispatch is not received.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontFamily: 'Poppins',
-                                  color: Colors.black54,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              accentColor: Colors.redAccent,
-                              icon: Icons.error_outline,
-                            );
-                            return;
-                          }
-
-                          if (!isSoDeliveryApproved && soDelivery.isNotEmpty) {
-                            showPremiumDialog(
-                              context: context,
-                              title: 'Error',
-                              content: const Text(
-                                'Some Sale Orders are not Delivered or pending.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontFamily: 'Poppins',
-                                  color: Colors.black54,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              accentColor: Colors.redAccent,
-                              icon: Icons.error_outline,
-                            );
-                            return;
-                          }
-
-                          if (dayEndStatus.isEmpty ||
-                              dayEndStatus == "closed") {
-                            showPremiumDialog(
-                              context: context,
-                              title: 'Error',
-                              content: const Text(
-                                'Cannot end day: No open shift available',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontFamily: 'Poppins',
-                                  color: Colors.black54,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              accentColor: Colors.redAccent,
-                              icon: Icons.error_outline,
-                            );
-                            return;
-                          }
-
-                          // Show confirmation dialog
-                          showDialog(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              backgroundColor: Colors.white,
-                              title: const Center(
-                                child: Text('Confirm Day End'),
-                              ),
-                              content: const Text(
-                                'Are you sure you want to end the day?',
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text(
-                                    'Cancel',
-                                    style: TextStyle(
-                                      fontFamily: 'Poppins',
-                                      color: Colors.blue,
-                                    ),
-                                  ),
-                                ),
-                                TextButton(
-                                  onPressed: () async {
-                                    try {
-                                      CashManagementProvider.fetchShiftDetails();
-                                      final dayEndPost = {
-                                        "branchName": branchName,
-                                        // Add other necessary fields
-                                      };
-                                      await CashManagementProvider.postDayEndData(
-                                        dayEndPost,
-                                        context,
-                                      );
-                                      await CashManagementProvider.fetchShiftDetails();
-
-                                      if (context.mounted) {
-                                        Navigator.pop(
-                                          context,
-                                        ); // close any loading dialogs
-
-                                        showPremiumDialog(
-                                          context: context,
-                                          title: 'Success',
-                                          content: const Text(
-                                            'Day End completed successfully.',
-                                            textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                              fontFamily: 'Poppins',
-                                              color: Colors.black54,
-                                              fontSize: 16,
-                                            ),
-                                          ),
-                                          accentColor: Colors.green,
-                                          icon: Icons.check_circle_outline,
-                                        );
-                                      }
-                                    } catch (e) {
-                                      if (context.mounted) {
-                                        Navigator.pop(context);
-
-                                        showPremiumDialog(
-                                          context: context,
-                                          title: 'Error',
-                                          content: Text(
-                                            'Day End failed: $e',
-                                            textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                              fontFamily: 'Poppins',
-                                              color: Colors.black54,
-                                              fontSize: 16,
-                                            ),
-                                          ),
-                                          accentColor: Colors.redAccent,
-                                          icon: Icons.error_outline,
-                                        );
-                                      }
-                                    }
-                                  },
-                                  child: const Text(
-                                    'Confirm',
-                                    style: TextStyle(
-                                      fontFamily: 'Poppins',
-                                      color: Colors.blue,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.black,
-                          backgroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 60,
-                            vertical: 25,
-                          ),
-                          textStyle: const TextStyle(
-                            fontFamily: 'Poppins',
-                            fontSize: 16,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          disabledForegroundColor: Colors.grey,
-                        ),
-                        child: const Text(
-                          "Day End",
-                          style: TextStyle(
-                            fontFamily: 'Poppins',
-                            fontSize: 20,
-                            letterSpacing: 1,
-                          ),
-                        ),
-                      ),
-                    ),
                   ],
                 );
               },
@@ -949,6 +537,8 @@ class _OpenShiftState extends State<OpenShift> {
         .map((_) => FocusNode())
         .toList();
     final currentFocusIndexNotifier = ValueNotifier<int>(0);
+
+    bool isLoading = false;
 
     showDialog(
       context: context,
@@ -1368,47 +958,53 @@ class _OpenShiftState extends State<OpenShift> {
                                 child: Row(
                                   children: [
                                     Expanded(
-                                      child: TextButton(
-                                        onPressed: () async {
-                                          final shouldSave =
-                                              await _showConfirmationDialog(
-                                                context: context,
-                                                title:
-                                                    'Save Denomination & Open Shift',
-                                                content:
-                                                    'Are you sure you want to Open Shift with the denomination Values?',
-                                                confirmText: 'Yes, Open Shift',
-                                                cancelText: 'No, Edit',
-                                              );
+                                      child: IgnorePointer(
+                                        ignoring: isLoading,
+                                        child: TextButton(
+                                          onPressed: () async {
+                                            isLoading = true;
+                                            final shouldSave =
+                                                await _showConfirmationDialog(
+                                                  context: context,
+                                                  title:
+                                                      'Save Denomination & Open Shift',
+                                                  content:
+                                                      'Are you sure you want to Open Shift with the denomination Values?',
+                                                  confirmText:
+                                                      'Yes, Open Shift',
+                                                  cancelText: 'No, Edit',
+                                                );
 
-                                          if (shouldSave == true) {
-                                            if (context.mounted) {
-                                              Navigator.pop(context);
-                                              _postShiftData(
-                                                _calculateGrandTotal(),
-                                              );
+                                            if (shouldSave == true) {
+                                              if (context.mounted) {
+                                                Navigator.pop(context);
+                                                isLoading = false;
+                                                _postShiftData(
+                                                  _calculateGrandTotal(),
+                                                );
+                                              }
                                             }
-                                          }
-                                        },
-                                        style: TextButton.styleFrom(
-                                          backgroundColor: Colors.blueAccent
-                                              .withOpacity(0.1),
-                                          foregroundColor: Colors.blueAccent,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 20,
-                                            vertical: 10,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              8,
+                                            isLoading = false;
+                                          },
+                                          style: TextButton.styleFrom(
+                                            backgroundColor: Colors.blueAccent
+                                                .withOpacity(0.1),
+                                            foregroundColor: Colors.blueAccent,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 20,
+                                              vertical: 10,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
                                             ),
                                           ),
-                                        ),
-                                        child: const Text(
-                                          'Save',
-                                          style: TextStyle(
-                                            fontFamily: 'Poppins',
-                                            fontSize: 16,
+                                          child: const Text(
+                                            'Save',
+                                            style: TextStyle(
+                                              fontFamily: 'Poppins',
+                                              fontSize: 16,
+                                            ),
                                           ),
                                         ),
                                       ),

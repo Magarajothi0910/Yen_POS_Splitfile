@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:hive/hive.dart';
 import 'package:yenpos/Global/globals_data.dart';
-import 'globals.dart';
 
 const String apiUrl = "https://yenerp.com/fastapi/branches/";
 Future<void> fetchAndStoreBranchData() async {

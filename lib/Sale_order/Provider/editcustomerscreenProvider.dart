@@ -13,13 +13,16 @@ import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:yenpos/Global/Model/branch_model.dart';
+import 'package:yenpos/Global/Provider/connectivity_internet.dart';
 import 'package:yenpos/Global/global_data_manager.dart';
 import 'package:yenpos/Global/globals_data.dart' as webSocketglobals;
 import 'package:yenpos/Global/globals_data.dart' as globals;
+import 'package:yenpos/Hive_Manager/hive_manager_saleOrder.dart';
 import 'package:yenpos/Sale_order/Models/sales_order_display_model.dart';
 import 'package:yenpos/Sale_order/Print_Receipt/invoicePrint.dart';
 import 'package:yenpos/Sale_order/Provider/get_sales_order_service.dart';
 import 'package:yenpos/Sale_order/Widgets/Send_data_to_server.dart';
+import 'package:yenpos/Server_Client/handlers/saleorder_handlemessage.dart';
 import 'package:yenpos/Server_Client/websocketService.dart';
 
 import '../../Global/Provider/branchSelection_provider.dart';
@@ -35,7 +38,9 @@ class EditCustomerScreenProvider with ChangeNotifier {
     isModifyMode.addListener(_onModifyModeChanged);
     globals.quantityChangesNotifier = ValueNotifier<Map<int, double>>({});
   }
-
+  // Before
+  ValueNotifier<Map<String, double>> addedItemsQtyNotifier =
+      ValueNotifier<Map<String, double>>({});
   List<Map<String, String>> suggestions = [];
   bool isFormValid = true;
   TextEditingController customerNameController = TextEditingController();
@@ -56,8 +61,9 @@ class EditCustomerScreenProvider with ChangeNotifier {
   BranchProvider branchProvider = BranchProvider();
   Branch? storedBranch;
   Timer? _debounce;
-  String? _selectedEvent;
-  String? get selectedEvent => _selectedEvent;
+  String? selectedEvent;
+  // 🔹 New field to store ISO format internally
+  String? selectedDeliveryDateIso;
   String recordedFilePath = '';
   String? audioPlayerId;
   String? photoScreenId;
@@ -66,11 +72,6 @@ class EditCustomerScreenProvider with ChangeNotifier {
   String? selectedChargeType;
   File? pickedImage1;
   File? pickedImage2;
-  final List<String> chargeTypes = [
-    "Custom Charge",
-    "Delivery Charge",
-    "Other Charges",
-  ];
 
   // Global ScaffoldMessengerKey to safely show SnackBars without relying on context
   final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
@@ -78,7 +79,7 @@ class EditCustomerScreenProvider with ChangeNotifier {
   Map<String, dynamic>? here;
   String selectedPaymentMethod = 'Cash';
   int? selectedTransactionIndex;
-
+  ValueNotifier<double> modifiedTotal = ValueNotifier<double>(0.0);
   ValueNotifier<bool> isModifyMode = ValueNotifier<bool>(false);
 
   void setSelectedOrderType(String? newValue) {
@@ -86,22 +87,81 @@ class EditCustomerScreenProvider with ChangeNotifier {
     notifyListeners(); // Notify listeners to update the UI
   }
 
+  /// 📸 Multiple picked images
+  List<File> pickedImages = [];
+
+  /// Update images from ImagePickerWidget
+  void setPickedImages(List<File> images) {
+    pickedImages = images;
+    notifyListeners();
+  }
+
+  List<String> getEventList() {
+    final eventsBox = HiveManager.events;
+    final storedEvents = eventsBox.get('events', defaultValue: []);
+
+    // Extract event names correctly
+    if (storedEvents is List) {
+      return storedEvents.map<String>((e) {
+        if (e is Map && e.containsKey('eventname')) {
+          return e['eventname'].toString(); // 👈 correct key
+        }
+        return e.toString();
+      }).toList();
+    }
+
+    return [];
+  }
+
+  List<String> getDeliveryTypesList() {
+    final eventsBox = HiveManager.events;
+    final storedEvents = eventsBox.get('deliveryTypes', defaultValue: []);
+
+    // Extract event names correctly
+    if (storedEvents is List) {
+      return storedEvents.map<String>((e) {
+        if (e is Map && e.containsKey('deliveryType')) {
+          return e['deliveryType'].toString(); // 👈 correct key
+        }
+        return e.toString();
+      }).toList();
+    }
+
+    return [];
+  }
+
   void _onModifyModeChanged() {
     if (!isModifyMode.value) {
       // Clear changes when exiting modify mode
       quantityChanges.clear();
-      increasedItems.clear();
-      decreasedItems.clear();
+      increasedItems.value.clear();
+      decreasedItems.value.clear();
       notifyListeners();
     }
   }
+
+  double modifiedCustomCharge = 0.0;
+
+  void setCustomCharge(double charge) {
+    modifiedCustomCharge = charge;
+    notifyListeners(); // This triggers rebuild of summary
+  }
+
+  // Optional: override to use modified value during edit
+  double get effectiveCustomCharge {
+    return isModifyMode.value
+        ? modifiedCustomCharge
+        : (originalOrder?.customCharge ?? 0.0);
+  }
+
+  SalesOrderDisplay? originalOrder;
 
   void setModifyMode(bool value) {
     if (isModifyMode != value) {
       isModifyMode.value = value;
       quantityChanges.clear();
-      increasedItems.clear();
-      decreasedItems.clear();
+      increasedItems.value.clear();
+      decreasedItems.value.clear();
       notifyListeners();
     }
   }
@@ -110,66 +170,76 @@ class EditCustomerScreenProvider with ChangeNotifier {
     selectedTransactionIndex = null;
     isModifyMode.value = false;
     quantityChanges.clear();
-    increasedItems.clear();
-    decreasedItems.clear();
+    increasedItems.value.clear();
+    decreasedItems.value.clear();
     notifyListeners();
+  }
+
+  List<String> getChargesList() {
+    final eventsBox = HiveManager.customCharges;
+    final storedEvents = eventsBox.get('charges', defaultValue: []);
+
+    // Extract event names correctly
+    if (storedEvents is List) {
+      return storedEvents.map<String>((e) {
+        if (e is Map && e.containsKey('chargeType')) {
+          return e['chargeType'].toString(); // 👈 correct key
+        }
+        return e.toString();
+      }).toList();
+    }
+
+    return [];
   }
 
   // Map<int, double> quantityChanges = {};
   Map<int, double> quantityChanges = {};
-  List<Map<String, dynamic>> increasedItems = [];
-  List<Map<String, dynamic>> decreasedItems = [];
-
+  ValueNotifier<List<Map<String, dynamic>>> increasedItems = ValueNotifier([]);
+  ValueNotifier<List<Map<String, dynamic>>> decreasedItems = ValueNotifier([]);
   void addItemToOrder(Map<String, dynamic> item, double weightOrQuantity) {
-    // Determine if the item is measured in kilograms
     bool isKgUnit =
-        item['varianceUom']?.toLowerCase() == 'kg' ||
-        item['varianceUom']?.toLowerCase() == 'kgs';
+        (item['varianceUom'] ?? '').toString().toLowerCase() == 'kg' ||
+        (item['varianceUom'] ?? '').toString().toLowerCase() == 'kgs';
 
-    // Check if the item already exists in the list
-    int existingIndex = increasedItems.indexWhere(
+    // Use a copy of current list
+    List<Map<String, dynamic>> updatedItems = List.from(increasedItems.value);
+
+    int existingIndex = updatedItems.indexWhere(
       (element) => element['varianceName'] == item['varianceName'],
     );
 
     if (existingIndex != -1) {
-      // Update quantity or weight based on unit
+      // Update existing
       if (isKgUnit) {
-        double prevWeight = increasedItems[existingIndex]['weight'];
-        increasedItems[existingIndex]['weight'] += weightOrQuantity;
+        updatedItems[existingIndex]['weight'] += weightOrQuantity;
       } else {
-        double prevQuantity = increasedItems[existingIndex]['quantity'];
-        increasedItems[existingIndex]['quantity'] += weightOrQuantity;
+        updatedItems[existingIndex]['quantity'] += weightOrQuantity;
       }
 
-      // Update amount
-      double unitPrice = increasedItems[existingIndex]['price'];
-      double updatedAmount =
-          unitPrice *
+      updatedItems[existingIndex]['amount'] =
+          updatedItems[existingIndex]['price'] *
           (isKgUnit
-              ? increasedItems[existingIndex]['weight']
-              : increasedItems[existingIndex]['quantity']);
-      increasedItems[existingIndex]['amount'] = updatedAmount;
+              ? updatedItems[existingIndex]['weight']
+              : updatedItems[existingIndex]['quantity']);
     } else {
-      // Construct new item entry
+      // Add new item
       Map<String, dynamic> newItem = {
         'varianceName': item['varianceName'],
         'itemName': item['itemName'],
         'quantity': isKgUnit ? 1.0 : weightOrQuantity,
-        'weight': isKgUnit ? weightOrQuantity : 0,
+        'weight': isKgUnit ? weightOrQuantity : 0.0,
         'uom': item['varianceUom'],
         'price': item['variancePrice'],
-        'tax': item['variancetax'] ?? 0,
+        'tax': item['varianceTax'] ?? 0,
         'itemCode': item['varianceitemCode'],
         'amount': item['variancePrice'] * weightOrQuantity,
       };
 
-      increasedItems.add(newItem);
+      updatedItems.add(newItem);
     }
 
-    // Notify listeners of the change
-    notifyListeners();
-
-    for (int i = 0; i < increasedItems.length; i++) {}
+    // ✅ Re-assign a NEW list to trigger ValueListenableBuilder
+    increasedItems.value = List.from(updatedItems);
   }
 
   void handleTransactionSelection(int newIndex) {
@@ -217,19 +287,19 @@ class EditCustomerScreenProvider with ChangeNotifier {
     };
 
     if (difference > 0) {
-      increasedItems.removeWhere(
+      increasedItems.value.removeWhere(
         (item) => item['varianceName'] == salesOrder.varianceName[index],
       );
-      increasedItems.add(item);
-      decreasedItems.removeWhere(
+      increasedItems.value.add(item);
+      decreasedItems.value.removeWhere(
         (item) => item['varianceName'] == salesOrder.varianceName[index],
       );
     } else if (difference < 0) {
-      decreasedItems.removeWhere(
+      decreasedItems.value.removeWhere(
         (item) => item['varianceName'] == salesOrder.varianceName[index],
       );
-      decreasedItems.add(item);
-      increasedItems.removeWhere(
+      decreasedItems.value.add(item);
+      increasedItems.value.removeWhere(
         (item) => item['varianceName'] == salesOrder.varianceName[index],
       );
     }
@@ -238,53 +308,19 @@ class EditCustomerScreenProvider with ChangeNotifier {
   }
 
   double calculateModifiedTotal(SalesOrderDisplay salesOrder) {
-    print("\n🔹 [calculateModifiedTotal] STARTED");
-
     double originalTotal = salesOrder.totalAmount ?? 0.0;
-    print(
-      "➡️ Original Total from salesOrder: ₹${originalTotal.toStringAsFixed(2)}",
+
+    double increasedTotal = increasedItems.value.fold(
+      0.0,
+      (sum, item) => sum + ((item['amount'] ?? 0.0) as num),
     );
 
-    // --- Calculate total for increased items ---
-    double increasedTotal = 0.0;
-    print("🔹 Calculating Increased Items Total:");
-    for (var item in increasedItems) {
-      double itemAmount = item['amount'] ?? 0.0;
-      increasedTotal += itemAmount;
-      print(
-        "   + ${item['varianceName'] ?? 'Unknown'} → Amount: ₹${itemAmount.toStringAsFixed(2)} | Running Increased Total: ₹${increasedTotal.toStringAsFixed(2)}",
-      );
-    }
-    print(
-      "✅ Total Increased Items Amount: ₹${increasedTotal.toStringAsFixed(2)}",
+    double decreasedTotal = decreasedItems.value.fold(
+      0.0,
+      (sum, item) => sum + ((item['amount'] ?? 0.0) as num),
     );
 
-    // --- Calculate total for decreased items ---
-    double decreasedTotal = 0.0;
-    print("🔹 Calculating Decreased Items Total:");
-    for (var item in decreasedItems) {
-      double itemAmount = item['amount'] ?? 0.0;
-      decreasedTotal += itemAmount;
-      print(
-        "   - ${item['varianceName'] ?? 'Unknown'} → Amount: ₹${itemAmount.toStringAsFixed(2)} | Running Decreased Total: ₹${decreasedTotal.toStringAsFixed(2)}",
-      );
-    }
-    print(
-      "✅ Total Decreased Items Amount: ₹${decreasedTotal.toStringAsFixed(2)}",
-    );
-
-    // --- Compute final modified total ---
-    double modifiedTotal = originalTotal + increasedTotal - decreasedTotal;
-    print(
-      "🔹 Modified Total Calculation: ₹${originalTotal.toStringAsFixed(2)} + ₹${increasedTotal.toStringAsFixed(2)} - ₹${decreasedTotal.toStringAsFixed(2)}",
-    );
-    print("✅ Final Modified Total: ₹${modifiedTotal.toStringAsFixed(2)}");
-
-    // Notify UI listeners
-    notifyListeners();
-    print("🔹 [calculateModifiedTotal] COMPLETED\n");
-
-    return modifiedTotal;
+    return originalTotal + increasedTotal - decreasedTotal;
   }
 
   void updateQuantity(SalesOrderDisplay salesOrder, int index, double newQty) {
@@ -302,19 +338,19 @@ class EditCustomerScreenProvider with ChangeNotifier {
     };
 
     if (difference > 0) {
-      increasedItems.removeWhere(
+      increasedItems.value.removeWhere(
         (item) => item['varianceName'] == salesOrder.varianceName[index],
       );
-      increasedItems.add(item);
-      decreasedItems.removeWhere(
+      increasedItems.value.add(item);
+      decreasedItems.value.removeWhere(
         (item) => item['varianceName'] == salesOrder.varianceName[index],
       );
     } else if (difference < 0) {
-      decreasedItems.removeWhere(
+      decreasedItems.value.removeWhere(
         (item) => item['varianceName'] == salesOrder.varianceName[index],
       );
-      decreasedItems.add(item);
-      increasedItems.removeWhere(
+      decreasedItems.value.add(item);
+      increasedItems.value.removeWhere(
         (item) => item['varianceName'] == salesOrder.varianceName[index],
       );
     }
@@ -343,10 +379,14 @@ class EditCustomerScreenProvider with ChangeNotifier {
   }
 
   void removeAddedItem(Map<String, dynamic> item) {
-    increasedItems.removeWhere(
-      (element) => element['varianceName'] == item['varianceName'],
-    );
-    notifyListeners();
+    // Create a new list without the removed item
+    final updatedList = List<Map<String, dynamic>>.from(increasedItems.value)
+      ..removeWhere(
+        (element) => element['varianceName'] == item['varianceName'],
+      );
+
+    // Assign new list to trigger ValueListenableBuilder
+    increasedItems.value = updatedList;
   }
 
   void onImagesSelected(File? image1, File? image2) async {
@@ -359,13 +399,6 @@ class EditCustomerScreenProvider with ChangeNotifier {
       pickedImage2 = image2;
       notifyListeners();
     }
-  }
-
-  void fetchCompanySuggestionsDebounced(String query) {
-    if (_debounce?.isActive ?? false) _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
-      fetchCompanySuggestions(query);
-    });
   }
 
   Future<void> batchUpdateCustomId(
@@ -430,75 +463,52 @@ class EditCustomerScreenProvider with ChangeNotifier {
     bool isModifyMode,
     double totalAdvanceAmount,
   ) {
-    print("🔹 showAdvancePaymentPopup called!");
-    print("➡️ Sales Order: $salesorder");
-    print("➡️ Increased Items: $increasedItems");
-    print("➡️ Decreased Items: $decreasedItems");
-    print("➡️ Audio Path: ${path ?? 'No Audio'}");
-    print("➡️ Image 1: ${img1 != null ? img1.path : 'No Image'}");
-    print("➡️ Image 2: ${img2 != null ? img2.path : 'No Image'}");
-    print("➡️ Modified Total: $modifiedTotal");
-    print("➡️ Is Modify Mode: $isModifyMode");
-
     double orderAmount = modifiedTotal;
     double discount = 0;
     double customCharge = 0;
-
     double deductedAmount = 0;
-    double totalAmount = modifiedTotal + customCharge - deductedAmount;
 
-    print("📊 Calculation Details:");
-    print("   ▪️ Order Amount: $orderAmount");
-    print("   ▪️ Discount: $discount");
-    print("   ▪️ Custom Charge: $customCharge");
-    print("   ▪️ Deducted Amount: $deductedAmount");
-    print("   ▪️ Total Amount (final): $totalAmount");
-    print("   ▪️ advance Amount: ${advanceAmountController.text}");
-    // Before showDialog(...)
+    double totalAmount = modifiedTotal + customCharge - deductedAmount;
+    debugPrint("💰 Initial Total Amount: $totalAmount");
+
+    // Clear or set advanceAmountController
     if (!isModifyMode) {
       advanceAmountController.clear();
-      print("🧹 Cleared for new order.");
+      debugPrint("🧹 Advance amount cleared (new order).");
     } else if (salesorder.advanceAmount != null &&
         salesorder.advanceAmount!.isNotEmpty) {
       advanceAmountController.text = salesorder.advanceAmount!.first.toString();
-      print("💰 Restored Advance Amount: ${advanceAmountController.text}");
+      debugPrint(
+        "🔄 Advance amount loaded from existing order: ${advanceAmountController.text}",
+      );
     }
-    print("🧹 advanceAmountController cleared.");
 
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        print("📢 Showing confirmation dialog...");
         return AlertDialog(
           title: const Text('Confirm Order'),
           content: const Text('Are you sure you want to complete the order?'),
           actions: [
             TextButton(
               onPressed: () {
-                print("❌ Cancel button pressed → Closing dialog.");
                 Navigator.of(context).pop();
               },
               child: const Text('Cancel'),
             ),
             TextButton(
               onPressed: () async {
-                print(
-                  "✅ Confirm button pressed → Processing saveModifiedOrder...",
-                );
-
                 double balanceAmount = totalAmount - totalAdvanceAmount;
-
-                print("📊 Final Values before saveModifiedOrder:");
-                print("   ▪️ Total Amount: $totalAmount");
-                print("   ▪️ Total Advance: $totalAdvanceAmount");
-                print("   ▪️ Balance Amount: $balanceAmount");
+                debugPrint(
+                  "📊 Calculated Balance Amount: Total=$totalAmount - Advance=$totalAdvanceAmount = Balance=$balanceAmount",
+                );
 
                 try {
                   await saveModifiedOrder(
                     salesorder,
                     increasedItems,
                     decreasedItems,
-                    path, // Using path parameter here
+                    path,
                     img1,
                     img2,
                     totalAmount,
@@ -507,11 +517,9 @@ class EditCustomerScreenProvider with ChangeNotifier {
                     context,
                     isModifyMode,
                   );
-
-                  print("🎯 saveModifiedOrder completed successfully!");
                 } catch (e, stack) {
-                  print("❌ Error in saveModifiedOrder: $e");
-                  print(stack);
+                  debugPrint("❌ Error in saveModifiedOrder: $e");
+                  debugPrint(stack.toString());
                 }
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
@@ -557,9 +565,14 @@ class EditCustomerScreenProvider with ChangeNotifier {
     BuildContext context,
     bool isModified,
   ) async {
-    try {
-      debugPrint("🟦 [saveModifiedOrder] Started...");
+    debugPrint(
+      "🚀 saveModifiedOrder called for order: ${originalOrder.saleOrderNo}",
+    );
+    debugPrint(
+      "📊 TotalAmount=$totalAmount, Advance=$totalAdvance, Balance=$balanceAmount",
+    );
 
+    try {
       // Step 1: Prepare JSON for original order (POST)
       final jsonSalesOrder = jsonEncode({
         "data": originalOrder.toJson(),
@@ -569,22 +582,28 @@ class EditCustomerScreenProvider with ChangeNotifier {
         "sync": "No",
         "edit": "No",
       });
-      debugPrint("📦 Original Order JSON Prepared: $jsonSalesOrder");
-
-      // Step 2: Prepare JSON for modified order (PATCH)
+      debugPrint("📝 Original order JSON prepared: $jsonSalesOrder");
       final modifiedOrderData = _mergeOrderModifications(
         originalOrder,
         increasedItems,
         decreasedItems,
-        totalAmount,
         totalAdvance,
-        balanceAmount,
-        audioPath ?? originalOrder.audio,
-        newImage1 ??
-            (originalOrder.image1 != '' ? File(originalOrder.image1!) : null),
-        newImage2 ??
-            (originalOrder.image2 != '' ? File(originalOrder.image2!) : null),
+        audioPath,
+        newImage1,
+        newImage2,
+        dateController.text,
+        timeController.text,
+        customerNameController.text,
+        mobileNoController.text,
+        addressController.text,
+        searchController.text,
+        selectedChargeType.toString(),
+        double.tryParse(customChargeController.text) ?? 0,
+        originalOrder.discountAmount ?? 0,
       );
+
+      debugPrint("📝 Modified order data merged: $modifiedOrderData");
+
       final jsonModifiedSalesOrder = jsonEncode({
         "data": modifiedOrderData,
         "deviceName": globals.deviceName,
@@ -593,19 +612,31 @@ class EditCustomerScreenProvider with ChangeNotifier {
         "sync": "No",
         "edit": "Yes",
       });
-      debugPrint("📦 Modified Order JSON Prepared: $jsonModifiedSalesOrder");
+      debugPrint("📝 Modified order JSON prepared: $jsonModifiedSalesOrder");
 
-      // Step 3: Send Original Order
-      debugPrint("🚀 Sending original order to server...");
-      await sendataToServer(jsonDecode(jsonSalesOrder));
-      debugPrint("✅ Original order sent successfully.");
+      // Step 3: Check connectivity
+      final connectivityProvider = Provider.of<ConnectivityProvider>(
+        context,
+        listen: false,
+      );
+      debugPrint("🌐 Connectivity status: ${connectivityProvider.isConnected}");
 
-      // Step 4: Send Modified Order
-      debugPrint("🚀 Sending modified order to server...");
-      await sendataToServer(jsonDecode(jsonModifiedSalesOrder));
-      debugPrint("✅ Modified order sent successfully.");
+      if (connectivityProvider.isConnected) {
+        debugPrint("📡 Sending original order to server...");
+        await sendataToServer(jsonDecode(jsonSalesOrder));
+        debugPrint("✅ Original order sent successfully.");
 
-      // Step 5: Show success message
+        debugPrint("📡 Sending modified order to server...");
+        await sendataToServer(jsonDecode(jsonModifiedSalesOrder));
+        debugPrint("✅ Modified order sent successfully.");
+      } else {
+        debugPrint("⚠️ No internet. Saving orders locally...");
+        handleModifyOrder(jsonDecode(jsonSalesOrder));
+        handlePatchSaleOrder(jsonDecode(jsonModifiedSalesOrder));
+        debugPrint("✅ Orders handled locally.");
+      }
+
+      // Step 4: Show success message
       if (context.mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -617,7 +648,7 @@ class EditCustomerScreenProvider with ChangeNotifier {
         });
       }
 
-      // ✅ Clear temp variables
+      // Step 5: Clear temp variables & trackers
       debugPrint("🧹 Clearing temporary variables and trackers...");
       increasedItems.clear();
       decreasedItems.clear();
@@ -628,9 +659,9 @@ class EditCustomerScreenProvider with ChangeNotifier {
 
       exitModifyMode();
       notifyListeners();
-      debugPrint("🟩 [saveModifiedOrder] Completed Successfully.");
+      debugPrint("✅ saveModifiedOrder completed successfully.");
     } catch (e, stackTrace) {
-      debugPrint("❌ [Error] Exception in saveModifiedOrder(): $e");
+      debugPrint("❌ Exception in saveModifiedOrder: $e");
       debugPrint(stackTrace.toString());
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -643,175 +674,112 @@ class EditCustomerScreenProvider with ChangeNotifier {
     } finally {
       if (context.mounted) {
         Navigator.of(context).pop(); // Close dialog
+        debugPrint("🛑 Dialog closed.");
       }
     }
   }
 
   // Helper to calculate amount for weighted products
+
+  // Helper: Calculate item amount with detailed logs
   double calculateItemAmount(Map<String, dynamic> item) {
-    debugPrint(
-      "🧮 [calculateItemAmount] Called for item: ${item['itemName'] ?? 'Unknown'}",
-    );
+    final uom = (item['uom'] ?? '').toString().toLowerCase();
+    final qty = (item['quantity'] ?? 0).toDouble();
+    final weight = (item['weight'] ?? 0).toDouble();
+    final price = (item['price'] ?? 0).toDouble();
 
-    // Extract and normalize UOM
-    final uom = item['uom']?.toString().toLowerCase() ?? '';
-    final bool isKgUnit = uom == 'kg' || uom == 'kgs';
-    debugPrint("🔹 UOM: $uom | Weighted Product: $isKgUnit");
-
-    // Extract item details safely
-    final double itemWeight = (item['weight'] ?? 0).toDouble();
-    final double itemQty = (item['quantity'] ?? 0).toDouble();
-    final double pricePerUnit = (item['price'] ?? 0).toDouble();
-
-    debugPrint("📦 Item Details:");
-    debugPrint("   - Quantity: $itemQty");
-    debugPrint("   - Weight per unit: $itemWeight");
-    debugPrint("   - Price per unit: ₹$pricePerUnit");
-
-    double calculatedAmount = 0.0;
-
-    // Calculate based on UOM type
-    if (isKgUnit) {
-      calculatedAmount = itemQty * itemWeight * pricePerUnit;
-      debugPrint(
-        "🧾 Weighted Calculation (KG): $itemQty × $itemWeight × ₹$pricePerUnit = ₹${calculatedAmount.toStringAsFixed(2)}",
-      );
-    } else {
-      calculatedAmount = itemQty * pricePerUnit;
-      debugPrint(
-        "🧾 Regular Calculation (Units): $itemQty × ₹$pricePerUnit = ₹${calculatedAmount.toStringAsFixed(2)}",
-      );
-    }
-
-    debugPrint(
-      "✅ Final Calculated Amount for '${item['varianceName'] ?? item['itemName']}': ₹${calculatedAmount.toStringAsFixed(2)}",
-    );
-    debugPrint("─────────────────────────────────────────────");
-
-    return calculatedAmount;
+    return (uom == 'kg' || uom == 'kgs') ? qty * weight * price : qty * price;
   }
 
-  /// Merges increased and decreased items into the existing order with detailed logs
+  // Merge modifications safely with detailed print statements
   Map<String, dynamic> _mergeOrderModifications(
     SalesOrderDisplay originalOrder,
     List<Map<String, dynamic>> increasedItems,
     List<Map<String, dynamic>> decreasedItems,
-    double totalAmount,
     double totalAdvance,
-    double balanceAmount,
     String? audioPath,
     File? newImage1,
     File? newImage2,
+    String? newDeliveryDate,
+    String? newDeliveryTime,
+    String? customerName,
+    String? customerMobile,
+    String? customerAddress,
+    String? employeeName,
+    String? customChargeType,
+    double customCharge,
+    double discountAmount,
   ) {
-    debugPrint("🔹 [_mergeOrderModifications] Started...");
+    List<String> varianceNames = List.from(originalOrder.varianceName);
+    List<String> itemNames = List.from(originalOrder.itemName);
+    List<int> qty = List.from(originalOrder.qty);
+    List<String> uom = List.from(originalOrder.uom);
+    List<num> amount = List.from(originalOrder.amount);
+    List<num> price = List.from(originalOrder.price);
 
-    // Clone original lists safely
-    List<String> varianceNames = [...originalOrder.varianceName];
-    List<String> itemNames = [...originalOrder.itemName];
-    List<int> qty = originalOrder.qty.map((n) => n.toInt()).toList(); // int
-    List<String> uom = [...originalOrder.uom];
-    List<num> amount = [...originalOrder.amount];
-    List<num> price = [...originalOrder.price];
+    for (final item in increasedItems) {
+      final index = varianceNames.indexOf(item['varianceName']);
+      final int q = (item['quantity'] ?? 0).toInt();
+      final double a = calculateItemAmount(item);
 
-    debugPrint(
-      "📦 Original Order Cloned: Variances=${varianceNames.length}, Qty=${qty.length}",
-    );
-
-    // --- Apply INCREASED items ---
-    for (var item in increasedItems) {
-      int existingIndex = varianceNames.indexOf(item['varianceName']);
-      double addQty = (item['quantity'] ?? 0).toDouble();
-      double addAmount = calculateItemAmount(item);
-      String itemUom = item['uom']?.toString().toLowerCase() ?? '';
-      bool isWeighted = itemUom == 'kg' || itemUom == 'kgs';
-
-      debugPrint(
-        "➕ Processing increased item: ${item['varianceName']} | Qty=$addQty | Amount=$addAmount | Weighted=$isWeighted",
-      );
-
-      if (existingIndex != -1) {
-        debugPrint("🔄 Updating existing item at index $existingIndex");
-        qty[existingIndex] += addQty.toInt();
-        amount[existingIndex] += addAmount;
-        debugPrint(
-          "Updated Qty=${qty[existingIndex]}, Amount=${amount[existingIndex]}",
-        );
+      if (index != -1) {
+        qty[index] += q;
+        amount[index] += a;
       } else {
-        debugPrint("🆕 Adding new item to order");
         varianceNames.add(item['varianceName']);
         itemNames.add(item['itemName']);
-        qty.add(addQty.toInt());
+        qty.add(q);
         uom.add(item['uom']);
-        amount.add(addAmount);
+        amount.add(a);
         price.add(item['price']);
-        debugPrint(
-          "Added Item: ${item['varianceName']} | Qty=${addQty.toInt()} | Amount=$addAmount",
-        );
       }
     }
 
-    // --- Apply DECREASED items ---
-    for (var item in decreasedItems) {
-      int existingIndex = varianceNames.indexOf(item['varianceName']);
-      double subQty = (item['quantity'] ?? 0).toDouble();
-      double subAmount = calculateItemAmount(item);
-      String itemUom = item['uom']?.toString().toLowerCase() ?? '';
-      bool isWeighted = itemUom == 'kg' || itemUom == 'kgs';
+    for (final item in decreasedItems) {
+      final index = varianceNames.indexOf(item['varianceName']);
+      if (index == -1) continue;
 
-      debugPrint(
-        "➖ Processing decreased item: ${item['varianceName']} | Qty=$subQty | Amount=$subAmount | Weighted=$isWeighted",
-      );
+      qty[index] = (qty[index] - (item['quantity'] ?? 0).toInt()).toInt();
+      amount[index] -= calculateItemAmount(item);
 
-      if (existingIndex != -1) {
-        qty[existingIndex] -= subQty.toInt();
-        amount[existingIndex] -= subAmount;
-        debugPrint(
-          "Updated Qty=${qty[existingIndex]}, Amount=${amount[existingIndex]}",
-        );
-
-        // Remove item if qty or amount becomes zero or less
-        if (qty[existingIndex] <= 0 || amount[existingIndex] <= 0) {
-          debugPrint(
-            "🗑 Removing item at index $existingIndex due to zero/negative Qty or Amount",
-          );
-          varianceNames.removeAt(existingIndex);
-          itemNames.removeAt(existingIndex);
-          qty.removeAt(existingIndex);
-          uom.removeAt(existingIndex);
-          amount.removeAt(existingIndex);
-          price.removeAt(existingIndex);
-        }
-      } else {
-        debugPrint(
-          "⚪ Decreased item not found in original order: ${item['varianceName']}",
-        );
+      if (qty[index] <= 0) {
+        varianceNames.removeAt(index);
+        itemNames.removeAt(index);
+        qty.removeAt(index);
+        uom.removeAt(index);
+        amount.removeAt(index);
+        price.removeAt(index);
       }
     }
 
-    debugPrint(
-      "✅ [_mergeOrderModifications] Completed. Total items: ${varianceNames.length}",
-    );
-    debugPrint("Final Variance Names: $varianceNames");
-    debugPrint("Final Qty List: $qty");
-    debugPrint("Final Amount List: $amount");
+    final double itemTotal = amount.fold(0.0, (a, b) => a + b.toDouble());
+
+    final double finalPrice = itemTotal - discountAmount + customCharge;
+
+    final double balance = finalPrice - totalAdvance;
 
     return {
       'varianceName': varianceNames,
       'itemName': itemNames,
-      'qty': qty, // int list
+      'qty': qty,
       'uom': uom,
       'amount': amount,
       'price': price,
-      'totalAmount': totalAmount,
-      'totalAmount2': totalAmount,
+
+      'discountAmount': discountAmount,
+      'customChargeType': customChargeType,
+      'customCharge': customCharge,
+
+      'totalAmount': finalPrice,
+      'totalAmount2': finalPrice,
+      'finalPrice': finalPrice,
+
       'advanceAmount': [totalAdvance],
-      'balanceAmount': balanceAmount,
-      'status': decreasedItems.isNotEmpty
-          ? 'Pending Approval'
-          : 'Confirm Order',
+      'balanceAmount': balance,
+
       'audioPath': audioPath ?? '',
-      'image1Path': newImage1?.path ?? '',
-      'image2Path': newImage2?.path ?? '',
+      'imagePath1': newImage1?.path ?? '',
+      'imagePath2': newImage2?.path ?? '',
     };
   }
 
@@ -1050,9 +1018,17 @@ class EditCustomerScreenProvider with ChangeNotifier {
         'waitingForApprovalResult': 'Yes',
         "saleOrderNo": originalOrder.saleOrderNo,
       });
-
-      await sendataToServer(jsonDecode(jsonModifiedSalesOrder));
-      await sendataToServer(jsonDecode(serverPatchData));
+      final connectivityProvider = Provider.of<ConnectivityProvider>(
+        context,
+        listen: false,
+      );
+      if (connectivityProvider.isConnected) {
+        await sendataToServer(jsonDecode(jsonModifiedSalesOrder));
+        await sendataToServer(jsonDecode(serverPatchData));
+      } else {
+        handleToApproveOrder(jsonDecode(jsonModifiedSalesOrder));
+        handlePatchSaleOrder(jsonDecode(serverPatchData));
+      }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1206,44 +1182,8 @@ class EditCustomerScreenProvider with ChangeNotifier {
 
   // Helper function to calculate new total
 
-  Future<void> fetchCompanySuggestions(String query) async {
-    if (query.isEmpty) {
-      suggestions = [];
-      notifyListeners();
-      return;
-    }
-
-    final url = Uri.parse('http://$ipAddress/companies/');
-    try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        final List customers = json.decode(response.body);
-
-        suggestions = customers
-            .where(
-              (customer) =>
-                  customer['companyName'].toString().startsWith(query),
-            ) // Filter by company name prefix
-            .map(
-              (customer) => {
-                'name': customer['companyName'].toString(),
-                'address': customer['companyAddress'].toString(),
-                'gst': customer['companyGST'].toString(),
-              },
-            )
-            .toList();
-        notifyListeners();
-      } else {
-        throw Exception('Failed to load companies');
-      }
-    } catch (e) {
-      suggestions = [];
-      notifyListeners();
-    }
-  }
-
   void setSelectedEvent(String? event) {
-    _selectedEvent = event;
+    selectedEvent = event;
     notifyListeners();
   }
 
@@ -1601,297 +1541,6 @@ class EditCustomerScreenProvider with ChangeNotifier {
     );
   }
 
-  Widget buildCompanyInputFields(BuildContext context) {
-    return Column(
-      children: [
-        // Company-specific fields
-        Row(
-          children: [
-            const Padding(padding: EdgeInsets.all(5)),
-            Expanded(
-              child: TextFormField(
-                controller: companyNameController,
-                keyboardType: TextInputType.text,
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'^[a-zA-Z0-9 ]*$')),
-                  LengthLimitingTextInputFormatter(50),
-                ],
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Company Name',
-                  // prefixIcon: Icon(Icons.search),
-                  isDense: true, // Makes the field more compact
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 6,
-                  ),
-                ),
-                onChanged: (value) {
-                  fetchCompanySuggestionsDebounced(value);
-                },
-                validator: (value) {
-                  if (isFormValid && (value == null || value.isEmpty)) {
-                    return 'Company Name is required';
-                  }
-                  return null;
-                },
-              ),
-            ),
-            const Padding(padding: EdgeInsets.all(5)),
-          ],
-        ),
-
-        if (companyNameController.text.isNotEmpty &&
-            companyAddressController.text.isEmpty)
-          Container(
-            height: 100,
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.white),
-              borderRadius: BorderRadius.circular(8.0),
-            ),
-            child: ListView.builder(
-              itemCount: suggestions.isEmpty ? 1 : suggestions.length + 1,
-              itemBuilder: (context, index) {
-                // Show suggestions if available
-                if (suggestions.isNotEmpty && index < suggestions.length) {
-                  final company = suggestions[index];
-                  return ListTile(
-                    title: Text(company['name'] ?? ""),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(company['address'] ?? ""),
-                        Text('GST: ${company['gst']}'),
-                      ],
-                    ),
-                    onTap: () {
-                      companyNameController.text = company['name'] ?? "";
-                      companyAddressController.text = company['address'] ?? "";
-                      companygstNumberController.text = company['gst'] ?? "";
-                      suggestions.clear();
-                      // FocusScope.of(context).unfocus();
-                      notifyListeners();
-                    },
-                  );
-                }
-                // Show "Add Customer Details" as the last item
-                return ListTile(
-                  leading: const Icon(Icons.add, color: Colors.green),
-                  title: const Text('Add Company Details'),
-                  onTap: () async {
-                    await showDialog(
-                      context: context,
-                      builder: (BuildContext context) {
-                        final TextEditingController nameController =
-                            TextEditingController();
-                        final TextEditingController addressController =
-                            TextEditingController();
-                        final TextEditingController gstController =
-                            TextEditingController();
-
-                        return AlertDialog(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16.0),
-                          ),
-                          title: const Row(
-                            children: [
-                              Icon(Icons.business, color: Colors.blue),
-                              SizedBox(width: 8),
-                              Text(
-                                'Add Company',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                            ],
-                          ),
-                          content: SingleChildScrollView(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                TextFormField(
-                                  controller: nameController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Company Name',
-                                    border: OutlineInputBorder(),
-                                    isDense:
-                                        true, // Makes the field more compact
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 6,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                TextFormField(
-                                  controller: addressController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Company Address',
-                                    border: OutlineInputBorder(),
-                                    isDense:
-                                        true, // Makes the field more compact
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 8,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                TextFormField(
-                                  controller: gstController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Company GST',
-                                    border: OutlineInputBorder(),
-                                    isDense:
-                                        true, // Makes the field more compact
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 8,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text(
-                                'Cancel',
-                                style: TextStyle(
-                                  color: Colors.red,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            ElevatedButton(
-                              onPressed: () async {
-                                final String name = nameController.text.trim();
-                                final String address = addressController.text
-                                    .trim();
-                                final String gst = gstController.text.trim();
-
-                                if (name.isNotEmpty &&
-                                    address.isNotEmpty &&
-                                    gst.isNotEmpty) {
-                                  final response = await addCompany(
-                                    name,
-                                    address,
-                                    gst,
-                                  );
-
-                                  if (response) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Company "$name" added successfully!',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                        backgroundColor: Colors.green,
-                                      ),
-                                    );
-                                    fetchCompanySuggestionsDebounced('');
-                                    Navigator.pop(context);
-                                  } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Failed to add company. Please try again.',
-                                        ),
-                                        backgroundColor: Colors.red,
-                                      ),
-                                    );
-                                  }
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Please fill in all fields correctly.',
-                                      ),
-                                      backgroundColor: Colors.orange,
-                                    ),
-                                  );
-                                }
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              child: const Text(
-                                'Submit',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            const Padding(padding: EdgeInsets.all(5)),
-            Expanded(
-              child: TextFormField(
-                enabled: false,
-                controller: companyAddressController,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Company Address',
-                  isDense: true, // Makes the field more compact
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 6,
-                  ),
-                ),
-                validator: (value) {
-                  if (isFormValid && (value == null || value.isEmpty)) {
-                    return 'Company Address is required';
-                  }
-                  return null;
-                },
-              ),
-            ),
-            const SizedBox(width: 10), // Spacing between the two fields
-            Expanded(
-              child: TextFormField(
-                enabled: false,
-                controller: companygstNumberController,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Company GST',
-                  isDense: true, // Makes the field more compact
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 6,
-                  ),
-                ),
-                validator: (value) {
-                  if (isFormValid && (value == null || value.isEmpty)) {
-                    return 'Company GST is required';
-                  }
-                  return null;
-                },
-              ),
-            ),
-            const Padding(padding: EdgeInsets.all(5)),
-          ],
-        ),
-      ],
-    );
-  }
-
   String? selectedFilter = 'All Order';
 
   void setFilter(String? value) {
@@ -2078,9 +1727,9 @@ class EditCustomerScreenProvider with ChangeNotifier {
 
     // Add to appropriate list
     if (newQty > originalQty) {
-      increasedItems.add(itemInfo);
+      increasedItems.value.add(itemInfo);
     } else if (newQty < originalQty) {
-      decreasedItems.add(itemInfo);
+      decreasedItems.value.add(itemInfo);
     }
   }
 
@@ -2088,13 +1737,13 @@ class EditCustomerScreenProvider with ChangeNotifier {
   void _removeFromModifiedLists(SalesOrderDisplay salesOrder, int index) {
     String itemName = salesOrder.varianceName[index];
 
-    increasedItems.removeWhere(
+    increasedItems.value.removeWhere(
       (item) =>
           item['varianceName'] == itemName &&
           item['originalQuantity'] == salesOrder.qty[index],
     );
 
-    decreasedItems.removeWhere(
+    decreasedItems.value.removeWhere(
       (item) =>
           item['varianceName'] == itemName &&
           item['originalQuantity'] == salesOrder.qty[index],
@@ -2105,13 +1754,13 @@ class EditCustomerScreenProvider with ChangeNotifier {
     final item = _createItemMap(order, index, newQty);
 
     // Remove from decreased if exists
-    decreasedItems.removeWhere(
+    decreasedItems.value.removeWhere(
       (i) =>
           i['varianceName'] == item['varianceName'] &&
           i['salesOrderId'] == item['salesOrderId'],
     );
 
-    increasedItems.add(item);
+    increasedItems.value.add(item);
     notifyListeners();
   }
 
@@ -2119,13 +1768,13 @@ class EditCustomerScreenProvider with ChangeNotifier {
     final item = _createItemMap(order, index, newQty);
 
     // Remove from increased if exists
-    increasedItems.removeWhere(
+    increasedItems.value.removeWhere(
       (i) =>
           i['varianceName'] == item['varianceName'] &&
           i['salesOrderId'] == item['salesOrderId'],
     );
 
-    decreasedItems.add(item);
+    decreasedItems.value.add(item);
     notifyListeners();
   }
 
@@ -2146,185 +1795,115 @@ class EditCustomerScreenProvider with ChangeNotifier {
   }
 
   void updateIncreasedItems(SalesOrderDisplay order, int index, double newQty) {
-    final itemIndex = increasedItems.indexWhere(
+    final itemIndex = increasedItems.value.indexWhere(
       (i) =>
           i['varianceName'] == order.varianceName[index] &&
           i['salesOrderId'] == order.salesOrderId,
     );
 
     if (itemIndex != -1) {
-      increasedItems[itemIndex]['newQty'] = newQty;
-      increasedItems[itemIndex]['amount'] =
+      increasedItems.value[itemIndex]['newQty'] = newQty;
+      increasedItems.value[itemIndex]['amount'] =
           (newQty - order.qty[index]) * order.price[index];
       notifyListeners();
     }
   }
 
   void updateDecreasedItems(SalesOrderDisplay order, int index, double newQty) {
-    final itemIndex = decreasedItems.indexWhere(
+    final itemIndex = decreasedItems.value.indexWhere(
       (i) =>
           i['varianceName'] == order.varianceName[index] &&
           i['salesOrderId'] == order.salesOrderId,
     );
 
     if (itemIndex != -1) {
-      decreasedItems[itemIndex]['newQty'] = newQty;
-      decreasedItems[itemIndex]['amount'] =
+      decreasedItems.value[itemIndex]['newQty'] = newQty;
+      decreasedItems.value[itemIndex]['amount'] =
           (order.qty[index] - newQty) * order.price[index];
       notifyListeners();
     }
   }
 
   void updateItemInOrder(
+    SalesOrderDisplay salesOrder, // ✅ Add this
     Map<String, dynamic> item,
     double difference,
     int originalIndex,
   ) {
-    debugPrint("\n🚀 [updateItemInOrder] STARTED");
-    debugPrint("📥 Input Params:");
-    debugPrint("   🔸 Item: ${item['itemName']} (${item['varianceName']})");
-    debugPrint("   🔸 Difference: $difference");
-    debugPrint("   🔸 Original Index: $originalIndex");
-    debugPrint("--------------------------------------------------");
-
-    // ✅ Identify Unit Type
+    // --- Identify unit type ---
     bool isKgUnit =
-        item['varianceUom']?.toString().toLowerCase() == 'kg' ||
-        item['varianceUom']?.toString().toLowerCase() == 'kgs';
-    debugPrint("📏 isKgUnit: $isKgUnit (UOM: ${item['varianceUom']})");
+        (item['varianceUom']?.toString().toLowerCase() == 'kg' ||
+        item['varianceUom']?.toString().toLowerCase() == 'kgs');
 
-    // ✅ Normalize existingQuantity
-    double currentQuantity = 0.0;
-    final rawQty = item['existingQuantity'];
-    if (rawQty is int) {
-      currentQuantity = rawQty.toDouble();
-    } else if (rawQty is double) {
-      currentQuantity = rawQty;
-    } else {
-      currentQuantity = (rawQty ?? 0.0);
-    }
-    debugPrint("📦 Normalized Current Quantity: $currentQuantity");
+    // --- Normalize existingQuantity ---
+    double currentQuantity = (item['existingQuantity'] ?? 0.0).toDouble();
 
-    // ✅ Normalize existingWeight
-    double itemWeightRaw = 0.0;
-    final rawWeight = item['existingWeight'];
-    if (rawWeight is int) {
-      itemWeightRaw = rawWeight.toDouble();
-    } else if (rawWeight is double) {
-      itemWeightRaw = rawWeight;
-    } else {
-      itemWeightRaw = (rawWeight ?? 0.0);
-    }
-    debugPrint("⚖️ Raw Weight: $itemWeightRaw (${item['existingWeightUnit']})");
-
-    // ✅ Normalize weight units to KG
-    double itemWeightKg = itemWeightRaw;
-    final weightUnit = (item['existingWeightUnit'] ?? '')
+    // --- Normalize existingWeight ---
+    double itemWeightRaw = (item['existingWeight'] ?? 0.0).toDouble();
+    String weightUnit = (item['existingWeightUnit'] ?? '')
         .toString()
         .toLowerCase();
+    double itemWeightKg = itemWeightRaw;
+
     if (weightUnit == 'g' || weightUnit == 'gram' || weightUnit == 'grams') {
       itemWeightKg = itemWeightRaw / 1000.0;
-      debugPrint("🧮 Converted Weight: $itemWeightKg kg (from grams)");
-    } else if (weightUnit == 'kg' ||
-        weightUnit == 'kgs' ||
-        weightUnit == 'kilogram') {
-      debugPrint("✅ Weight already in KG: $itemWeightKg kg");
-    } else {
-      if (itemWeightRaw > 50) {
-        itemWeightKg = itemWeightRaw / 1000.0;
-        debugPrint(
-          "⚠️ No unit provided, assuming grams → Converted: $itemWeightKg kg",
-        );
-      } else {
-        debugPrint(
-          "⚠️ No unit provided, assuming already KG → Kept as: $itemWeightKg kg",
-        );
-      }
     }
 
-    debugPrint("--------------------------------------------------");
-    debugPrint(
-      "📊 Current Qty: $currentQuantity | ⚖️ Weight (kg): $itemWeightKg",
-    );
-
-    // ✅ Calculate unit price
-    final double pricePerKg = (item['variancePrice'] ?? 0.0).toDouble();
+    // --- Calculate unit price ---
+    double pricePerKg = (item['variancePrice'] ?? 0.0).toDouble();
     double unitPrice = isKgUnit ? pricePerKg * itemWeightKg : pricePerKg;
-    debugPrint("💰 PricePerKg: $pricePerKg | UnitPrice: $unitPrice");
 
-    double calculateAmountForQty(double qty) {
-      final amt = qty * unitPrice;
-      debugPrint(
-        "   ➕ [calculateAmountForQty] Qty: $qty → ₹${amt.toStringAsFixed(2)}",
-      );
-      return amt;
-    }
+    double calculateAmountForQty(double qty) => qty * unitPrice;
 
-    // ✅ Find if item already exists in modification lists
-    int increasedIndex = increasedItems.indexWhere(
+    // --- Check if item already exists ---
+    int increasedIndex = increasedItems.value.indexWhere(
       (e) => e['varianceName'] == item['varianceName'],
     );
-    int decreasedIndex = decreasedItems.indexWhere(
+    int decreasedIndex = decreasedItems.value.indexWhere(
       (e) => e['varianceName'] == item['varianceName'],
     );
 
-    debugPrint("--------------------------------------------------");
-    debugPrint("🔍 Searching existing modification entries:");
-    debugPrint("   🔸 IncreasedIndex: $increasedIndex");
-    debugPrint("   🔸 DecreasedIndex: $decreasedIndex");
-
-    // ✅ Calculate current modification value
+    // --- Existing modification value ---
     double modificationValue = 0.0;
     if (increasedIndex != -1) {
-      modificationValue = (increasedItems[increasedIndex]['quantity'] ?? 0.0);
+      modificationValue =
+          (increasedItems.value[increasedIndex]['quantity'] ?? 0.0);
     } else if (decreasedIndex != -1) {
-      modificationValue = -(decreasedItems[decreasedIndex]['quantity'] ?? 0.0);
+      modificationValue =
+          -(decreasedItems.value[decreasedIndex]['quantity'] ?? 0.0);
     }
-    debugPrint("🧾 Existing Modification Value: $modificationValue");
 
-    // ✅ Compute new quantities
+    // --- Compute new quantities ---
     double newQuantity = currentQuantity + modificationValue + difference;
-    debugPrint(
-      "📈 CurrentQty: $currentQuantity | + Modification: $modificationValue | + Difference: $difference",
-    );
-    debugPrint("➡️ NewQuantity: $newQuantity");
-    if (newQuantity < 0) {
-      debugPrint("❌ New quantity is negative. Aborting update.\n");
-      return;
-    }
+    if (newQuantity < 0) return;
 
     double newModificationValue = newQuantity - currentQuantity;
-    debugPrint("🔸 New Modification Value: $newModificationValue");
 
-    // ✅ Update existing or add new modification entries
-    debugPrint("--------------------------------------------------");
+    // --- Copy lists to trigger ValueNotifier ---
+    List<Map<String, dynamic>> newIncreasedItems = List.from(
+      increasedItems.value,
+    );
+    List<Map<String, dynamic>> newDecreasedItems = List.from(
+      decreasedItems.value,
+    );
+
+    // --- Update existing or add new entries ---
     if (increasedIndex != -1 && newModificationValue > 0) {
-      debugPrint("🟢 Updating existing increased item...");
-      increasedItems[increasedIndex]['quantity'] = newModificationValue;
-      increasedItems[increasedIndex]['amount'] = calculateAmountForQty(
+      newIncreasedItems[increasedIndex]['quantity'] = newModificationValue;
+      newIncreasedItems[increasedIndex]['amount'] = calculateAmountForQty(
         newModificationValue,
       );
     } else if (decreasedIndex != -1 && newModificationValue < 0) {
-      debugPrint("🔴 Updating existing decreased item...");
-      decreasedItems[decreasedIndex]['quantity'] = -newModificationValue;
-      decreasedItems[decreasedIndex]['amount'] = calculateAmountForQty(
+      newDecreasedItems[decreasedIndex]['quantity'] = -newModificationValue;
+      newDecreasedItems[decreasedIndex]['amount'] = calculateAmountForQty(
         -newModificationValue,
       );
     } else {
-      // Clean up old entries first
-      if (increasedIndex != -1) {
-        debugPrint("🧹 Removing stale increased entry...");
-        increasedItems.removeAt(increasedIndex);
-      }
-      if (decreasedIndex != -1) {
-        debugPrint("🧹 Removing stale decreased entry...");
-        decreasedItems.removeAt(decreasedIndex);
-      }
+      if (increasedIndex != -1) newIncreasedItems.removeAt(increasedIndex);
+      if (decreasedIndex != -1) newDecreasedItems.removeAt(decreasedIndex);
 
-      // Add new entries
       if (newModificationValue > 0) {
-        debugPrint("🆕 Adding new increased item...");
-        increasedItems.add({
+        newIncreasedItems.add({
           'varianceName': item['varianceName'],
           'itemName': item['itemName'],
           'weight': itemWeightKg * newModificationValue,
@@ -2338,8 +1917,7 @@ class EditCustomerScreenProvider with ChangeNotifier {
           'originalAmount': item['existingAmount'],
         });
       } else if (newModificationValue < 0) {
-        debugPrint("🆕 Adding new decreased item...");
-        decreasedItems.add({
+        newDecreasedItems.add({
           'varianceName': item['varianceName'],
           'itemName': item['itemName'],
           'weight': itemWeightKg * (-newModificationValue),
@@ -2355,20 +1933,15 @@ class EditCustomerScreenProvider with ChangeNotifier {
       }
     }
 
-    // ✅ Cleanup zero-quantity entries
-    increasedItems.removeWhere((e) => (e['quantity'] ?? 0) <= 0);
-    decreasedItems.removeWhere((e) => (e['quantity'] ?? 0) <= 0);
+    // --- Remove zero-quantity entries ---
+    newIncreasedItems.removeWhere((e) => (e['quantity'] ?? 0) <= 0);
+    newDecreasedItems.removeWhere((e) => (e['quantity'] ?? 0) <= 0);
 
-    debugPrint("--------------------------------------------------");
-    debugPrint(
-      "✅ Final Increased Items: ${increasedItems.isEmpty ? 'None' : increasedItems}",
-    );
-    debugPrint(
-      "✅ Final Decreased Items: ${decreasedItems.isEmpty ? 'None' : decreasedItems}",
-    );
-    debugPrint("--------------------------------------------------");
+    // --- Assign new lists to ValueNotifiers ---
+    increasedItems.value = newIncreasedItems;
+    decreasedItems.value = newDecreasedItems;
 
-    notifyListeners();
-    debugPrint("🏁 [updateItemInOrder] COMPLETED SUCCESSFULLY\n");
+    // --- Recalculate modified total ---
+    modifiedTotal.value = calculateModifiedTotal(salesOrder);
   }
 }

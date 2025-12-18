@@ -428,25 +428,35 @@ class ViewSavedBillsWidget {
                 children: [
                   Text(
                     "Saved Bills",
-                    style: TextStyle(fontFamily: 'Poppins',color: CustomColors.black, fontSize: 20, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      color: CustomColors.black,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   Spacer(),
                   // Split button
                   IconButton(
-                    onPressed: selectedBills.isNotEmpty && selectedBills.length == 1
+                    onPressed:
+                        selectedBills.isNotEmpty && selectedBills.length == 1
                         ? () {
                             final selectedIndex = selectedBills.first;
                             final bill = allBills[selectedIndex];
 
-                            List<Map<String, dynamic>> items = (bill['items'] as List)
-                                .map((item) => Map<String, dynamic>.from(item))
-                                .toList();
+                            List<Map<String, dynamic>> items =
+                                (bill['items'] as List)
+                                    .map(
+                                      (item) => Map<String, dynamic>.from(item),
+                                    )
+                                    .toList();
 
                             Navigator.of(context).pop();
 
                             showDialog(
                               context: context,
-                              builder: (context) => SplitBillDialog(initialItems: items),
+                              builder: (context) =>
+                                  SplitBillDialog(initialItems: items),
                             );
                           }
                         : null,
@@ -457,7 +467,13 @@ class ViewSavedBillsWidget {
                   IconButton(
                     onPressed: selectedBills.length >= 2
                         ? () {
-                            _mergeBills(context, selectedBills.toList(), box, allBills, setState);
+                            _mergeBills(
+                              context,
+                              selectedBills.toList(),
+                              box,
+                              allBills,
+                              setState,
+                            );
                           }
                         : null,
                     icon: Icon(Icons.merge),
@@ -471,27 +487,47 @@ class ViewSavedBillsWidget {
                   Container(
                     padding: EdgeInsets.symmetric(vertical: 10),
                     color: CustomColors.blueColor,
-                    child: Row(children: [_buildHeader("SELECT"), _buildHeader("NAME"), _buildHeader("AMOUNT")]),
+                    child: Row(
+                      children: [
+                        _buildHeader("SELECT"),
+                        _buildHeader("NAME"),
+                        _buildHeader("AMOUNT"),
+                      ],
+                    ),
                   ),
                   SizedBox(
                     width: 600,
                     height: 300,
                     child: allBills.isEmpty
                         ? Center(
-                            child: Text('No saved bills available', style: TextStyle(fontFamily: 'Poppins',fontSize: 16, color: CustomColors.grey)),
+                            child: Text(
+                              'No saved bills available',
+                              style: TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 16,
+                                color: CustomColors.grey,
+                              ),
+                            ),
                           )
                         : ListView.builder(
                             itemCount: allBills.length,
                             itemBuilder: (context, index) {
                               final bill = allBills[index];
                               DateTime date = DateTime.parse(bill['date']);
-                              String formattedDate = DateFormat('dd-MM-yyyy hh:mm a').format(date);
+                              String formattedDate = DateFormat(
+                                'dd-MM-yyyy hh:mm a',
+                              ).format(date);
                               double amount = bill['total'] ?? 0.0;
-                              String ticketName = bill['ticketName'] ?? 'Unnamed Ticket';
+                              String ticketName =
+                                  bill['ticketName'] ?? 'Unnamed Ticket';
 
                               return Container(
                                 decoration: BoxDecoration(
-                                  border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
+                                  border: Border(
+                                    bottom: BorderSide(
+                                      color: Colors.grey[300]!,
+                                    ),
+                                  ),
                                 ),
                                 child: ListTile(
                                   leading: Checkbox(
@@ -509,16 +545,37 @@ class ViewSavedBillsWidget {
                                   ),
                                   onTap: () async {
                                     // Load bill to cart and remove from saved bills
-                                    await _loadBillAndRemove(context, bill, box, allBills, index, setState);
+                                    await _loadBillAndRemove(
+                                      context,
+                                      bill,
+                                      box,
+                                      allBills,
+                                      index,
+                                      setState,
+                                    );
                                   },
-                                  title: Text(ticketName, style: TextStyle(fontFamily: 'Poppins',fontWeight: FontWeight.bold)),
-                                  subtitle: Text(formattedDate, style: TextStyle(fontFamily: 'Poppins',color: CustomColors.grey, fontSize: 12)),
+                                  title: Text(
+                                    ticketName,
+                                    style: TextStyle(
+                                      fontFamily: 'Poppins',
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    formattedDate,
+                                    style: TextStyle(
+                                      fontFamily: 'Poppins',
+                                      color: CustomColors.grey,
+                                      fontSize: 12,
+                                    ),
+                                  ),
                                   trailing: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
                                         "₹${amount.toStringAsFixed(2)}",
-                                        style: TextStyle(fontFamily: 'Poppins',
+                                        style: TextStyle(
+                                          fontFamily: 'Poppins',
                                           color: CustomColors.blueColor,
                                           fontSize: 16,
                                           fontWeight: FontWeight.bold,
@@ -526,9 +583,20 @@ class ViewSavedBillsWidget {
                                       ),
                                       SizedBox(width: 10),
                                       IconButton(
-                                        icon: Icon(Icons.delete, color: CustomColors.redColor, size: 20),
+                                        icon: Icon(
+                                          Icons.delete,
+                                          color: CustomColors.redColor,
+                                          size: 20,
+                                        ),
                                         onPressed: () async {
-                                          await _deleteBill(context, bill, box, allBills, index, setState);
+                                          await _deleteBill(
+                                            context,
+                                            bill,
+                                            box,
+                                            allBills,
+                                            index,
+                                            setState,
+                                          );
                                         },
                                       ),
                                     ],
@@ -542,7 +610,11 @@ class ViewSavedBillsWidget {
                     SizedBox(height: 10),
                     Text(
                       '${selectedBills.length} bill(s) selected',
-                      style: TextStyle(fontFamily: 'Poppins',fontWeight: FontWeight.bold, color: CustomColors.blueColor),
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontWeight: FontWeight.bold,
+                        color: CustomColors.blueColor,
+                      ),
                     ),
                   ],
                 ],
@@ -552,7 +624,14 @@ class ViewSavedBillsWidget {
                   onPressed: () {
                     Navigator.of(context).pop();
                   },
-                  child: Text("Close", style: TextStyle(fontFamily: 'Poppins',color: CustomColors.blueColor, fontSize: 16)),
+                  child: Text(
+                    "Close",
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      color: CustomColors.blueColor,
+                      fontSize: 16,
+                    ),
+                  ),
                 ),
               ],
             );
@@ -563,49 +642,108 @@ class ViewSavedBillsWidget {
   }
 
   // New method: Load bill to cart and remove from saved bills
+  // Future<void> _loadBillAndRemove(
+  //   BuildContext context,
+  //   Map<String, dynamic> bill,
+  //   Box box,
+  //   List<Map<String, dynamic>> allBills,
+  //   int index,
+  //   Function(void Function()) setState,
+  // ) async {
+  //   try {
+  //     var saleProvider = Provider.of<CurrentSaleProvider>(
+  //       context,
+  //       listen: false,
+  //     );
+
+  //     List<Map<String, dynamic>> items = (bill['items'] as List)
+  //         .map((item) => normalizeItem(Map<String, dynamic>.from(item)))
+  //         .toList();
+
+  //     // Clear cart and load selected bill
+  //     saleProvider.clearItems();
+  //     saleProvider.loadItemsFromBill(
+  //       items,
+  //       merge: false,
+  //       holdId: bill['holdId']?.toString(),
+  //     );
+
+  //     // Remove the bill from Hive storage
+  //     int hiveKey = bill['_hiveKey'];
+  //     await box.deleteAt(hiveKey);
+
+  //     // Update the UI
+  //     setState(() {
+  //       allBills.removeAt(index);
+  //     });
+
+  //     // Close the dialog
+  //     Navigator.of(context).pop();
+
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       SnackBar(
+  //         content: Text('Bill loaded to cart and removed from saved bills!'),
+  //         backgroundColor: Colors.green,
+  //         duration: Duration(seconds: 2),
+  //       ),
+  //     );
+  //   } catch (e) {
+  //     print('Error loading and removing bill: $e');
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       SnackBar(
+  //         content: Text('Error loading bill: $e'),
+  //         backgroundColor: Colors.red,
+  //         duration: Duration(seconds: 2),
+  //       ),
+  //     );
+  //   }
+  // }
+
   Future<void> _loadBillAndRemove(
-    BuildContext context,
-    Map<String, dynamic> bill,
-    Box box,
-    List<Map<String, dynamic>> allBills,
-    int index,
-    Function(void Function()) setState,
-  ) async {
-    try {
-      var saleProvider = Provider.of<CurrentSaleProvider>(context, listen: false);
+  BuildContext context,
+  Map<String, dynamic> bill,
+  Box box,
+  List<Map<String, dynamic>> allBills,
+  int index,
+  Function(void Function()) setState,
+) async {
+  try {
+    var saleProvider = Provider.of<CurrentSaleProvider>(context, listen: false);
 
-      List<Map<String, dynamic>> items = (bill['items'] as List).map((item) => Map<String, dynamic>.from(item)).toList();
+    List<Map<String, dynamic>> items = (bill['items'] as List)
+        .map((item) => normalizeItem(Map<String, dynamic>.from(item)))
+        .toList();
 
-      // Clear cart and load selected bill
-      saleProvider.clearItems();
-      saleProvider.loadItemsFromBill(items, merge: false, holdId: bill['holdId']?.toString());
+    saleProvider.clearItems();
+    saleProvider.loadItemsFromBill(
+      items,
+      merge: false,
+      holdId: bill['holdId']?.toString(),
+    );
 
-      // Remove the bill from Hive storage
-      int hiveKey = bill['_hiveKey'];
-      await box.deleteAt(hiveKey);
+    int hiveKey = bill['_hiveKey'];
+    await box.deleteAt(hiveKey);
 
-      // Update the UI
-      setState(() {
-        allBills.removeAt(index);
-      });
+    setState(() {
+      allBills.removeAt(index);
+    });
 
-      // Close the dialog
-      Navigator.of(context).pop();
+    Navigator.of(context).pop();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Bill loaded to cart and removed from saved bills!'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
-        ),
-      );
-    } catch (e) {
-      print('Error loading and removing bill: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading bill: $e'), backgroundColor: Colors.red, duration: Duration(seconds: 2)),
-      );
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Bill loaded successfully! KG weights preserved.'),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  } catch (e) {
+    print('Error loading bill: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+    );
   }
+}
 
   // Updated delete bill method
   Future<void> _deleteBill(
@@ -623,15 +761,29 @@ class ViewSavedBillsWidget {
             return AlertDialog(
               backgroundColor: CustomColors.whiteColor,
               title: Text("Delete Bill?"),
-              content: Text("Are you sure you want to delete '${bill['ticketName']}'?"),
+              content: Text(
+                "Are you sure you want to delete '${bill['ticketName']}'?",
+              ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(false),
-                  child: Text("Cancel", style: TextStyle(fontFamily: 'Poppins',color: CustomColors.grey)),
+                  child: Text(
+                    "Cancel",
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      color: CustomColors.grey,
+                    ),
+                  ),
                 ),
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(true),
-                  child: Text("Delete", style: TextStyle(fontFamily: 'Poppins',color: CustomColors.redColor)),
+                  child: Text(
+                    "Delete",
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      color: CustomColors.redColor,
+                    ),
+                  ),
                 ),
               ],
             );
@@ -649,12 +801,20 @@ class ViewSavedBillsWidget {
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Bill deleted successfully!'), backgroundColor: Colors.green, duration: Duration(seconds: 1)),
+          SnackBar(
+            content: Text('Bill deleted successfully!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 1),
+          ),
         );
       } catch (e) {
         print('Error deleting bill: $e');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error deleting bill: $e'), backgroundColor: Colors.red, duration: Duration(seconds: 2)),
+          SnackBar(
+            content: Text('Error deleting bill: $e'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 2),
+          ),
         );
       }
     }
@@ -670,7 +830,10 @@ class ViewSavedBillsWidget {
   ) async {
     if (selectedIndices.isEmpty || selectedIndices.length < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select at least 2 bills to merge!'), backgroundColor: CustomColors.redColor),
+        const SnackBar(
+          content: Text('Please select at least 2 bills to merge!'),
+          backgroundColor: CustomColors.redColor,
+        ),
       );
       return;
     }
@@ -690,11 +853,23 @@ class ViewSavedBillsWidget {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(false),
-                  child: Text("Cancel", style: TextStyle(fontFamily: 'Poppins',color: CustomColors.grey)),
+                  child: Text(
+                    "Cancel",
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      color: CustomColors.grey,
+                    ),
+                  ),
                 ),
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(true),
-                  child: Text("Smart Merge", style: TextStyle(fontFamily: 'Poppins',color: CustomColors.blueColor)),
+                  child: Text(
+                    "Smart Merge",
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      color: CustomColors.blueColor,
+                    ),
+                  ),
                 ),
               ],
             );
@@ -721,11 +896,18 @@ class ViewSavedBillsWidget {
         ticketNames.add(bill['ticketName'] ?? 'Unnamed Ticket');
 
         if (bill['items'] is List) {
-          List<Map<String, dynamic>> items = (bill['items'] as List).map((item) => Map<String, dynamic>.from(item)).toList();
+          List<Map<String, dynamic>> items = (bill['items'] as List)
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList();
 
           for (var item in items) {
-            final String uom = (item['varianceData']?['variance_Uom']?.toString().toLowerCase() ?? '');
-            final bool isWeightItem = uom.contains('kg') || uom.contains('kgs') || uom.contains('gm');
+            final String uom =
+                (item['varianceData']?['variance_Uom']
+                    ?.toString()
+                    .toLowerCase() ??
+                '');
+            final bool isWeightItem =
+                uom.contains('kg') || uom.contains('kgs') || uom.contains('gm');
 
             if (isWeightItem) {
               // Weight items - keep separate with unique ID
@@ -737,7 +919,8 @@ class ViewSavedBillsWidget {
               if (quantityItemsMap.containsKey(itemKey)) {
                 // Combine quantities for same item
                 final existingItem = quantityItemsMap[itemKey]!;
-                final double currentQty = (existingItem['quantity'] as num).toDouble();
+                final double currentQty = (existingItem['quantity'] as num)
+                    .toDouble();
                 final double newQty = (item['quantity'] as num).toDouble();
                 existingItem['quantity'] = currentQty + newQty;
               } else {
@@ -785,7 +968,8 @@ class ViewSavedBillsWidget {
 
       // Update the UI by removing merged bills
       setState(() {
-        for (int index in selectedIndices.toList()..sort((a, b) => b.compareTo(a))) {
+        for (int index
+            in selectedIndices.toList()..sort((a, b) => b.compareTo(a))) {
           allBills.removeAt(index);
         }
       });
@@ -807,15 +991,19 @@ class ViewSavedBillsWidget {
       );
     } catch (e) {
       print('Error merging bills: $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error merging bills: $e'), backgroundColor: CustomColors.redColor));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error merging bills: $e'),
+          backgroundColor: CustomColors.redColor,
+        ),
+      );
     }
   }
 
   String _getQuantityItemKey(Map<String, dynamic> item) {
     final String itemCode = item['itemCode']?.toString() ?? '';
-    final String varianceName = item['varianceData']?['varianceName']?.toString() ?? '';
+    final String varianceName =
+        item['varianceData']?['varianceName']?.toString() ?? '';
     return '$itemCode-$varianceName';
   }
 
@@ -823,42 +1011,101 @@ class ViewSavedBillsWidget {
     return {
       ...item,
       'varianceData': Map<String, dynamic>.from(item['varianceData'] ?? {}),
-      'uniqueId': '${DateTime.now().millisecondsSinceEpoch}-${item['itemCode']}-${UniqueKey().toString()}',
+      'uniqueId':
+          '${DateTime.now().millisecondsSinceEpoch}-${item['itemCode']}-${UniqueKey().toString()}',
     };
   }
 
-  void _loadMergedItemsToCart(BuildContext context, List<Map<String, dynamic>> items, String holdId) {
-    try {
-      var saleProvider = Provider.of<CurrentSaleProvider>(context, listen: false);
+  // Map<String, dynamic> normalizeItem(Map<String, dynamic> item) {
+  //   final variance = item['varianceData'] ?? {};
 
-      // Clear current cart and load merged items
-      saleProvider.clearItems();
-      saleProvider.loadItemsFromBill(items, merge: true, holdId: holdId);
+  //   return {
+  //     "itemCode": item["itemCode"],
+  //     "itemName":
+  //         item["itemName"] ??
+  //         variance["itemName"] ??
+  //         variance["varianceName"] ??
+  //         "Unknown",
+  //     "varianceData": variance,
+  //     "quantity": item["quantity"] ?? 0,
+  //     "price": item["price"] ?? item["sellingPrice"] ?? 0,
+  //     "sellingPrice": item["sellingPrice"] ?? item["price"] ?? 0,
+  //     "total": item["total"] ?? 0,
+  //     // Add all other fields your cart/print expects
+  //   };
+  // }
 
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${items.length} items loaded to cart (smart merge applied)'),
-            backgroundColor: CustomColors.blueColor,
-            duration: Duration(seconds: 3),
-          ),
-        );
-      });
-    } catch (e) {
-      print('Error loading merged items to cart: $e');
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading items to cart: $e'), backgroundColor: CustomColors.redColor));
-      });
-    }
+  Map<String, dynamic> normalizeItem(Map<String, dynamic> item) {
+  final variance = item['varianceData'] ?? {};
+  final String uom = (variance['variance_Uom']?.toString() ?? '').toLowerCase();
+  final bool isKgItem = uom.contains('kg') || uom.contains('kgs') || uom.contains('gm');
+
+  return {
+    "itemCode": item["itemCode"],
+    "itemName": item["itemName"] ?? variance["itemName"] ?? variance["varianceName"] ?? "Unknown",
+    "varianceData": Map<String, dynamic>.from(variance),
+    
+    // PRESERVE BOTH quantity AND weight
+    "quantity": isKgItem 
+        ? 1  // KG items should have quantity = 1
+        : (item["quantity"] ?? item["qty"] ?? 1), 
+    
+    "weight": isKgItem 
+        ? (item["weight"] ?? item["qty"] ?? 0.0)  // Use stored weight for KG
+        : (item["weight"] ?? 0.0),  // PCS items usually have 0 weight
+
+    "price": item["price"] ?? item["sellingPrice"] ?? 0.0,
+    "sellingPrice": item["sellingPrice"] ?? item["price"] ?? 0.0,
+    "total": item["total"] ?? 0.0,
+    
+    // Pass through all original fields (important!)
+    ...item,
+  };
+}
+
+ void _loadMergedItemsToCart(
+  BuildContext context,
+  List<Map<String, dynamic>> items,
+  String holdId,
+) {
+  try {
+    var saleProvider = Provider.of<CurrentSaleProvider>(context, listen: false);
+
+    final normalized = items
+        .map((e) => normalizeItem(Map<String, dynamic>.from(e)))
+        .toList();
+
+    saleProvider.clearItems();
+    saleProvider.loadItemsFromBill(normalized, merge: true, holdId: holdId);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${normalized.length} items loaded (KG weights preserved)'),
+          backgroundColor: CustomColors.blueColor,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    });
+  } catch (e) {
+    print('Error loading merged items: $e');
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: CustomColors.redColor),
+      );
+    });
   }
+}
 
   Widget _buildHeader(String title) {
     return Expanded(
       child: Text(
         title,
-        style: TextStyle(fontFamily: 'Poppins',color: CustomColors.whiteColor, fontWeight: FontWeight.bold),
+        style: TextStyle(
+          fontFamily: 'Poppins',
+          color: CustomColors.whiteColor,
+          fontWeight: FontWeight.bold,
+        ),
         textAlign: TextAlign.center,
       ),
     );

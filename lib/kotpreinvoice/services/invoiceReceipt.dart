@@ -64,7 +64,7 @@ class ReceiptPrinter with ChangeNotifier {
         if (i >= configs.length) {
           // No config, default to dine in
           String uom = uoms[i];
-          double amount = uom.toLowerCase() == 'kg' || uom.toLowerCase() == 'kgs' ? prices[i] * quantities[i] * weights[i] : prices[i] * quantities[i];
+          double amount = uom.toLowerCase() == 'kg' || uom.toLowerCase() == 'Kgs' ? prices[i] * quantities[i] * weights[i] : prices[i] * quantities[i];
           localTotal += amount;
           _addBaseItem(grouped, itemNames[i], varianceNames[i], quantities[i], prices[i], weights[i], uom, 'dine in', amount);
           continue;
@@ -82,7 +82,7 @@ class ReceiptPrinter with ChangeNotifier {
 
           String uom = uoms[i];
           double amount;
-          if (uom.toLowerCase() == 'kg' || uom.toLowerCase() == 'kgs') {
+          if (uom.toLowerCase() == 'kg' || uom.toLowerCase() == 'Kgs') {
             amount = prices[i] * configQty * weights[i];
           } else {
             amount = prices[i] * configQty;

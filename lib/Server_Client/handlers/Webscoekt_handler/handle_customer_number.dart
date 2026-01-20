@@ -10,7 +10,7 @@ Future<void> handleCustomerNumber(
   try {
     await saveAddNewCustomerToHive(jsonData['salesOrderAddCustomer']);
     final addnewCustomer = await getAddnewCustomer();
-    print("📦 Customers in Hive after adding: $addnewCustomer");
+   
   } catch (e, st) {
   } finally {}
 }

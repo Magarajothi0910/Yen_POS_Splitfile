@@ -1,137 +1,3 @@
-// import 'dart:async';
-// import 'dart:convert';
-// import 'dart:io';
-// import 'package:flutter/foundation.dart';
-// import 'package:hive/hive.dart';
-// import 'package:web_socket_channel/io.dart';
-// import 'package:web_socket_channel/web_socket_channel.dart';
-// import 'package:yenpos/Global/globals_data.dart' as globals;
-// import 'package:yenpos/Sale_order/Print_Receipt/invoicePrint.dart';
-// import 'package:yenpos/Sale_order/Provider/customerScreen_provider.dart';
-// import 'package:yenpos/Server_Client/handlers/message_Router.dart';
-
-// class WebSocketService with ChangeNotifier {
-//   static WebSocketService? _instance;
-
-//   final CustomerScreenProvider customerProvider;
-//   final SalesInvoiceReceiptPrinter receiptPrinter;
-
-//   WebSocketService._(this.customerProvider, this.receiptPrinter);
-
-//   static WebSocketService get instance {
-//     if (_instance == null) {
-//       throw StateError('WebSocketService not initialized.');
-//     }
-//     return _instance!;
-//   }
-
-//   static void init(
-//     CustomerScreenProvider customerProvider,
-//     SalesInvoiceReceiptPrinter receiptPrinter,
-//   ) {
-//     _instance ??= WebSocketService._(customerProvider, receiptPrinter);
-//   }
-
-//   WebSocketChannel? channel;
-//   StreamSubscription? _subscription;
-//   bool _isConnected = false;
-//   bool _isConnecting = false;
-
-//   final String deviceName = globals.deviceName ?? 'POS1';
-//   final String clientId = DateTime.now().millisecondsSinceEpoch.toString();
-
-//   // ✅ CONNECT
-//   void connect() {
-//     if (_isConnected || _isConnecting) {
-//       return;
-//     }
-
-//     _isConnecting = true;
-//     final uri = 'ws://${globals.serverip}:${globals.port}';
-
-//     try {
-//       channel = IOWebSocketChannel.connect(uri);
-
-//       _subscription = channel!.stream.listen(
-//         (message) => _handleIncoming(message),
-//         onError: (err) {
-//           _handleDisconnect();
-//         },
-//         onDone: () {
-//           _handleDisconnect();
-//         },
-//         cancelOnError: true,
-//       );
-
-//       _isConnected = true;
-//       _isConnecting = false;
-
-//       _send({
-//         'action': 'newClientConnected',
-//         'deviceName': deviceName,
-//         'clientId': clientId,
-//         'message': 'client_register',
-//       });
-//     } catch (e, st) {
-//       _isConnected = false;
-//       _isConnecting = false;
-//     }
-//   }
-
-//   // ✅ DISCONNECT
-//   void _handleDisconnect() {
-//     _isConnected = false;
-//     _isConnecting = false;
-//     try {
-//       _subscription?.cancel();
-//       channel?.sink.close();
-//     } catch (_) {}
-//     _subscription = null;
-//     channel = null;
-//   }
-
-//   void disconnect() {
-//     _handleDisconnect();
-//   }
-
-//   Future<void> reconnect() async {
-//     disconnect();
-//     connect();
-//   }
-
-//   // ✅ SEND
-//   void _send(Map<String, dynamic> data) {
-//     if (!_isConnected || channel == null) {
-//       return;
-//     }
-//     try {
-//       final msg = jsonEncode(data);
-//       channel!.sink.add(msg);
-//     } catch (e) {
-//     }
-//   }
-
-//   void sendMessage(Map<String, dynamic> data) => _send(data);
-
-//   // ✅ RECEIVE
-//   Future<void> _handleIncoming(dynamic message) async {
-//     try {
-//       final msgStr = message.toString();
-//       await MessageRouter.handle(
-//         msgStr,
-//         customerProvider,
-//         receiptPrinter,
-//         this,
-//       );
-//     } catch (e, st) {
-//     }
-//   }
-
-//   String _shorten(String s, [int limit = 200]) =>
-//       s.length <= limit ? s : '${s.substring(0, limit)}...';
-// }
-
-// unified_websocket_service.dart
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -139,18 +5,22 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
+import 'package:http/http.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:provider/provider.dart';
+import 'package:yenpos/Global/get_device_info.dart';
 
 // --- Your project imports (adjust paths as necessary) ---
 import 'package:yenpos/Global/globals_data.dart' as globals;
+import 'package:yenpos/Sale_order/Widgets/Send_data_to_server.dart';
 import 'package:yenpos/Server_Client/handlers/message_Router.dart';
 import 'package:yenpos/Server_Client/handlers/websocket_handler.dart';
 import 'package:yenpos/Sale_order/Print_Receipt/invoicePrint.dart';
 import 'package:yenpos/Sale_order/Provider/customerScreen_provider.dart';
 import 'package:yenpos/Server_Client/handlers/message_Router.dart';
 import 'package:yenpos/Server_Client/sendDataToClients.dart'; // sendDataToClientsKOT
+import 'package:yenpos/Server_Client/serverreachable.dart';
 import 'package:yenpos/kotpreinvoice/models/printer.dart';
 import 'package:yenpos/kotpreinvoice/providers/order_provider.dart';
 import 'package:yenpos/kotpreinvoice/providers/order_type_provider.dart';
@@ -229,6 +99,8 @@ class WebSocketService with ChangeNotifier {
 
   Timer? _heartbeatTimer;
   Timer? _reconnectTimer;
+  Timer? _deviceInfoTimer;
+
   bool _dialogShown = false;
 
   bool get isConnected => _isConnected;
@@ -246,23 +118,35 @@ class WebSocketService with ChangeNotifier {
         await Hive.openBox('serverBox');
       }
       // print some debug
-      debugPrint(
-        'UnifiedWebSocketService: serverip=${globals.serverip}, appType=${globals.appType}',
-      );
       if (globals.appType == 'server') {
         await _startLocalWebSocketServer();
-        debugPrint(
-          'UnifiedWebSocketService: server mode - local WebSocket server started.',
-        );
       } else {
         // only start client logic; actual connect may be triggered later by UI
-        debugPrint('UnifiedWebSocketService: client mode - ready to connect.');
         // optionally auto-connect:
         // connect();
       }
-    } catch (e, st) {
-      debugPrint('Error during initializeHiveAndStart: $e\n$st');
-    }
+    } catch (e, st) {}
+  }
+
+  void _startDeviceInfoHeartbeat() {
+    _deviceInfoTimer?.cancel();
+
+    _deviceInfoTimer = Timer.periodic(const Duration(minutes: 1), (
+      timer,
+    ) async {
+      try {
+        if (!_isConnected) {
+          return;
+        }
+        final localIP = await getLocalIp();
+        await collectAndSendDeviceInfo(globals.appType, localIP ?? '0.0.0.0');
+      } catch (e) {}
+    });
+  }
+
+  void _stopDeviceInfoHeartbeat() {
+    _deviceInfoTimer?.cancel();
+    _deviceInfoTimer = null;
   }
 
   void sendMessage(Map<String, dynamic> data) => _sendClient(data);
@@ -272,7 +156,6 @@ class WebSocketService with ChangeNotifier {
   // -------------------------
   Future<void> _startLocalWebSocketServer() async {
     if (_wsServer != null) {
-      debugPrint('WebSocket server already running.');
       return;
     }
 
@@ -285,55 +168,37 @@ class WebSocketService with ChangeNotifier {
         shared: true,
       );
 
-      _wsServer!
-          .transform(WebSocketTransformer())
-          .listen(
-            (WebSocket socket) {
-              final channel = IOWebSocketChannel(socket);
-              _clients.add(channel);
-              debugPrint(
-                'New client connected (local server). total clients=${_clients.length}',
-              );
+      _wsServer!.transform(WebSocketTransformer()).listen((WebSocket socket) {
+        final channel = IOWebSocketChannel(socket);
+        _clients.add(channel);
 
-              // optional: notify new client that server is ready
-              try {
-                channel.sink.add(
-                  jsonEncode({
-                    'action': 'server_connected',
-                    'message': 'Welcome client',
-                    'serverTime': DateTime.now().toIso8601String(),
-                  }),
-                );
-              } catch (_) {}
-
-              // setup message handling for this client
-              channel.stream.listen(
-                (data) {
-                  try {
-                    // router in your original server handled Map or String - we reuse _handleIncomingMessage
-                    _handleIncomingMessage(data, channel: channel);
-                  } catch (e, st) {
-                    debugPrint('Error handling message from client: $e\n$st');
-                  }
-                },
-                onError: (err) {
-                  debugPrint('Local client error: $err');
-                },
-                onDone: () {
-                  debugPrint('Local client disconnected.');
-                  _clients.remove(channel);
-                },
-                cancelOnError: true,
-              );
-            },
-            onError: (err) {
-              debugPrint('Local WebSocket server listen error: $err');
-            },
+        // optional: notify new client that server is ready
+        try {
+          channel.sink.add(
+            jsonEncode({
+              'action': 'server_connected',
+              'message': 'Welcome client',
+              'serverTime': DateTime.now().toIso8601String(),
+            }),
           );
+        } catch (_) {}
 
-      debugPrint('Local WebSocket server started on port $port');
+        // setup message handling for this client
+        channel.stream.listen(
+          (data) {
+            try {
+              // router in your original server handled Map or String - we reuse _handleIncomingMessage
+              _handleIncomingMessage(data, channel: channel);
+            } catch (e, st) {}
+          },
+          onError: (err) {},
+          onDone: () {
+            _clients.remove(channel);
+          },
+          cancelOnError: true,
+        );
+      }, onError: (err) {});
     } catch (e, st) {
-      debugPrint('Failed to start local WebSocket server: $e\n$st');
       _wsServer = null;
     }
   }
@@ -345,7 +210,6 @@ class WebSocketService with ChangeNotifier {
       try {
         c.sink.add(msg);
       } catch (e) {
-        debugPrint('Failed to send to a local client, removing: $e');
         try {
           c.sink.close();
         } catch (_) {}
@@ -359,21 +223,18 @@ class WebSocketService with ChangeNotifier {
   // -------------------------
   Future<void> connect() async {
     if (_isConnected || _isConnecting) {
-      debugPrint('connect: already connected/connecting -> skip');
       return;
     }
 
     final serverip = globals.serverip;
     final port = globals.port;
     if (serverip == null || serverip.isEmpty) {
-      debugPrint('connect: serverip not set');
       return;
     }
 
     _isConnecting = true;
     final uri = 'ws://$serverip:$port';
     try {
-      debugPrint('connect: connecting to $uri');
       channel = IOWebSocketChannel.connect(
         uri,
         // optional connect timeout is currently not exposed by IOWebSocketChannel.connect
@@ -384,11 +245,9 @@ class WebSocketService with ChangeNotifier {
           _handleIncomingMessage(message);
         },
         onError: (err) {
-          debugPrint('Client WebSocket error: $err');
           _handleDisconnect();
         },
         onDone: () {
-          debugPrint('Client WebSocket done');
           _handleDisconnect();
         },
         cancelOnError: true,
@@ -398,6 +257,7 @@ class WebSocketService with ChangeNotifier {
       _isConnecting = false;
 
       _startHeartbeatClient();
+      _startDeviceInfoHeartbeat();
 
       // register client on server
       _sendClient({
@@ -406,10 +266,8 @@ class WebSocketService with ChangeNotifier {
         'clientId': DateTime.now().millisecondsSinceEpoch.toString(),
         'message': 'client_register',
       });
-      debugPrint('connect: connected and registered');
       notifyListeners();
     } catch (e, st) {
-      debugPrint('connect error: $e\n$st');
       _isConnected = false;
       _isConnecting = false;
       _showConnectionLostDialog();
@@ -428,6 +286,7 @@ class WebSocketService with ChangeNotifier {
     _isConnected = false;
     _isConnecting = false;
     _stopHeartbeatClient();
+    _stopDeviceInfoHeartbeat();
     notifyListeners();
   }
 
@@ -438,14 +297,12 @@ class WebSocketService with ChangeNotifier {
 
   void _sendClient(Map<String, dynamic> data) {
     if (!_isConnected || channel == null) {
-      debugPrint('_sendClient: not connected');
       return;
     }
     try {
       final msg = jsonEncode(data);
       channel!.sink.add(msg);
     } catch (e) {
-      debugPrint('_sendClient error: $e');
       _handleDisconnect();
     }
   }
@@ -457,14 +314,12 @@ class WebSocketService with ChangeNotifier {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 10), (t) {
       if (!_isConnected) {
-        debugPrint('Heartbeat: disconnected state detected');
         _handleDisconnect();
         return;
       }
       try {
         channel?.sink.add(jsonEncode({'action': 'heartbeat'}));
       } catch (e) {
-        debugPrint('Heartbeat send failed: $e');
         _handleDisconnect();
       }
     });
@@ -477,7 +332,6 @@ class WebSocketService with ChangeNotifier {
 
   void _scheduleReconnect() {
     if (_reconnectTimer != null) {
-      debugPrint('Reconnect timer already running.');
       return;
     }
 
@@ -493,11 +347,9 @@ class WebSocketService with ChangeNotifier {
             !_isConnecting &&
             !isOnLoginScreen &&
             retryCount < maxRetries) {
-          debugPrint('Reconnect attempt ${retryCount + 1}/$maxRetries');
           await connect();
           retryCount++;
           if (_isConnected) {
-            debugPrint('Reconnected successfully');
             _reconnectTimer?.cancel();
             _reconnectTimer = null;
           }
@@ -526,14 +378,11 @@ class WebSocketService with ChangeNotifier {
                     );
                   },
                 );
-              } catch (e, st) {
-                debugPrint('Exception while showing reconnect UI: $e\n$st');
-              }
+              } catch (e, st) {}
             });
           }
         }
       } catch (e, st) {
-        debugPrint('Exception in reconnect timer: $e\n$st');
         _reconnectTimer?.cancel();
         _reconnectTimer = null;
       }
@@ -544,10 +393,11 @@ class WebSocketService with ChangeNotifier {
     _isConnected = false;
     _isConnecting = false;
     _stopHeartbeatClient();
+    _stopDeviceInfoHeartbeat();
+
     _subscription?.cancel();
     _subscription = null;
     channel = null;
-    debugPrint('Client disconnected, scheduling reconnect');
     _showConnectionLostDialog();
     _scheduleReconnect();
     notifyListeners();
@@ -556,10 +406,10 @@ class WebSocketService with ChangeNotifier {
   void sendUpiState(bool isEnabled) {
     if (globals.appType == 'server') {
       _handleLocalUpiUpdate(isEnabled);
-      sendDataToClientsKOT({
+      sendDataToClients({
         'action': 'updateUpiState',
         'isUpiEnabled': isEnabled,
-      });
+      }, globals.clients);
       return;
     }
 
@@ -585,15 +435,8 @@ class WebSocketService with ChangeNotifier {
           listen: false,
         );
         upiProvider.setUpiState(isEnabled);
-        debugPrint('💾 Local UPI state updated on server: $isEnabled');
-      } else {
-        debugPrint(
-          "⚠️ Could not update UPI state — no active context available",
-        );
-      }
-    } catch (e) {
-      debugPrint('⚠️ Failed to update local UPI state: $e');
-    }
+      } else {}
+    } catch (e) {}
   }
 
   // -------------------------
@@ -620,7 +463,6 @@ class WebSocketService with ChangeNotifier {
         // convert to Map if possible
         jsonData = jsonDecode(jsonEncode(message)) as Map<String, dynamic>;
       } else {
-        debugPrint('Invalid message type: ${message.runtimeType}');
         return;
       }
 
@@ -665,9 +507,7 @@ class WebSocketService with ChangeNotifier {
         final bool isUpiEnabled = jsonData['isUpiEnabled'] ?? false;
         try {
           upiProvider.setUpiState(isUpiEnabled);
-        } catch (e) {
-          debugPrint('Failed to update upiProvider: $e');
-        }
+        } catch (e) {}
       }
 
       // If message should be routed to the message router (printing/receipt)
@@ -687,19 +527,17 @@ class WebSocketService with ChangeNotifier {
       // If this message was received by the server from one client and the server should relay to others:
       // (we already broadcast order messages above)
       notifyListeners();
-    } catch (e, st) {
-      debugPrint('Error decoding/handling message: $e\n$st');
-    }
+    } catch (e, st) {}
   }
 
   void sendRemovePrinter(String printerName) {
     if (globals.appType == 'server') {
       printerProvider.removePrinterByName(printerName);
-      sendDataToClientsKOT({
+      sendDataToClients({
         'action': 'removePrinter',
         'printerName': printerName,
         'orderSource': orderProvider.orderSource,
-      });
+      }, globals.clients);
       return;
     }
     if (!_isConnected) {
@@ -732,21 +570,17 @@ class WebSocketService with ChangeNotifier {
         order['seat'] = targetSeat;
         updated = true;
         saveOrderToHive(order);
-        debugPrint(
-          'Updated order $orderId to table $targetTable seat $targetSeat',
-        );
         break;
       }
     }
-    if (!updated) debugPrint('Order not found for seat transfer: $orderId');
-
-    // Remove conflicting seat_tapped actions
-    _receivedActions.removeWhere(
-      (action) =>
-          action['action'] == 'seat_tapped' &&
-          action['tableNumber'] == jsonData['currentTable'] &&
-          action['seat'] == jsonData['currentSeat'],
-    );
+    if (!updated)
+      // Remove conflicting seat_tapped actions
+      _receivedActions.removeWhere(
+        (action) =>
+            action['action'] == 'seat_tapped' &&
+            action['tableNumber'] == jsonData['currentTable'] &&
+            action['seat'] == jsonData['currentSeat'],
+      );
   }
 
   // -------------------------
@@ -755,11 +589,11 @@ class WebSocketService with ChangeNotifier {
   void sendPrinterDetails(Printer printer) {
     if (globals.appType == 'server') {
       _handleLocalPrinterUpdate(printer);
-      sendDataToClientsKOT({
+      sendDataToClients({
         'action': 'updatePrinterItems',
         'printer': printer.toJson(),
         'orderSource': orderProvider.orderSource,
-      });
+      }, globals.clients);
       return;
     }
     if (!_isConnected) {
@@ -787,11 +621,11 @@ class WebSocketService with ChangeNotifier {
     } else {
       printerProvider.addPrinter(printer);
     }
-    sendDataToClientsKOT({
+    sendDataToClients({
       'action': 'updatePrinterItems',
       'printer': printer.toJson(),
       'orderSource': orderProvider.orderSource,
-    });
+    }, globals.clients);
   }
 
   // -------------------------
@@ -802,9 +636,7 @@ class WebSocketService with ChangeNotifier {
       if (!Hive.isBoxOpen('actions')) await Hive.openBox('actions');
       final box = Hive.box('actions');
       await box.add(action);
-    } catch (e) {
-      debugPrint('Error saving action to Hive: $e');
-    }
+    } catch (e) {}
   }
 
   Future<void> saveOrderToHive(Map<String, dynamic> order) async {
@@ -812,9 +644,7 @@ class WebSocketService with ChangeNotifier {
       if (!Hive.isBoxOpen('ordersBox')) await Hive.openBox('ordersBox');
       final box = Hive.box('ordersBox');
       await box.add(order);
-    } catch (e) {
-      debugPrint('Error saving order to Hive: $e');
-    }
+    } catch (e) {}
   }
 
   // -------------------------
@@ -881,8 +711,9 @@ class WebSocketService with ChangeNotifier {
       if (broadcastToLocal) _broadcastToLocalClients(data);
       // optionally call global helper sendDataToClientsKOT (if you use it)
       try {
-        sendDataToClientsKOT(
+        sendDataToClients(
           data,
+          globals.clients,
         ); // your global function that notifies other subsystems
       } catch (_) {}
       return;
@@ -890,7 +721,6 @@ class WebSocketService with ChangeNotifier {
 
     // client mode: send to server
     if (!_isConnected) {
-      debugPrint('sendRaw: not connected -> attempting connect');
       connect();
       // also attempt send later or fail silently; we attempt immediate send if connected
     }
@@ -901,9 +731,6 @@ class WebSocketService with ChangeNotifier {
   void sendDeviceCode(String deviceCode) {
     if (globals.appType == 'server') {
       // on server, treat as local register
-      debugPrint(
-        'sendDeviceCode called on server mode -> no-op or local handling',
-      );
       return;
     }
     if (!_isConnected) {
@@ -931,13 +758,7 @@ class WebSocketService with ChangeNotifier {
       'orderSource': orderProvider.orderSource,
     };
 
-    if (globals.appType == 'server') {
-      _handleIncomingMessage(data);
-      // if you want to notify connected clients
-      _broadcastToLocalClients(data);
-      sendDataToClientsKOT(data);
-      return true;
-    }
+    sendataToServer(data);
 
     if (!_isConnected) {
       await connect();

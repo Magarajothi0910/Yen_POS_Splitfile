@@ -20,7 +20,6 @@ class ForegroundHelper {
     const android = ln.AndroidInitializationSettings('@mipmap/ic_launcher');
     const initSettings = ln.InitializationSettings(android: android);
     await _notifications.initialize(initSettings);
-    print('✅ Local notifications initialized');
   }
 
   /// Show local notification
@@ -46,10 +45,7 @@ class ForegroundHelper {
         body,
         platform,
       );
-      print('🔔 Local notification shown: $title - $body');
     } catch (e, stack) {
-      print('❌ Error showing notification: $e');
-      print(stack);
     }
   }
 
@@ -58,7 +54,6 @@ class ForegroundHelper {
     if (_foregroundInitialized) return;
     _foregroundInitialized = true;
 
-    print('🟡 ForegroundHelper.init() called');
     try {
       if (Platform.isAndroid) {
         final notificationStatus = await Permission.notification.status;
@@ -93,10 +88,7 @@ class ForegroundHelper {
         ),
       );
 
-      print('✅ Foreground task initialized successfully');
     } catch (e, stack) {
-      print('❌ Error during ForegroundHelper.init(): $e');
-      print(stack);
       final box = await Hive.openBox('configBox');
       await box.put('lastInitError', e.toString());
     }
@@ -104,13 +96,11 @@ class ForegroundHelper {
 
   /// Start Foreground service only once
   static Future<void> startIfNotRunning({required String appType}) async {
-    print('🟡 ForegroundHelper.startIfNotRunning($appType)');
     if (!Platform.isAndroid) return;
 
     try {
       final isRunning = await fg.FlutterForegroundTask.isRunningService;
       if (isRunning) {
-        print('⚙️ Foreground service already running — skipping start');
         return;
       }
 
@@ -136,27 +126,20 @@ class ForegroundHelper {
         );
       }
 
-      print('✅ Foreground service started successfully');
     } catch (e, stack) {
-      print('❌ Error starting foreground service: $e');
-      print(stack);
       final box = await Hive.openBox('configBox');
       await box.put('lastServiceError', e.toString());
     }
   }
 
   static Future<void> stop() async {
-    print('🛑 ForegroundHelper.stop() called');
     try {
       final isRunning = await fg.FlutterForegroundTask.isRunningService;
       if (isRunning) {
         await fg.FlutterForegroundTask.stopService();
-        print('🛑 Foreground service stopped');
         _serverNotificationShown = false;
       }
     } catch (e, stack) {
-      print('❌ Error stopping service: $e');
-      print(stack);
     }
   }
 }

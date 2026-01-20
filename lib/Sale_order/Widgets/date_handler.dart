@@ -11,7 +11,7 @@ class DateFormatHelper {
     try {
       return DateFormat('dd-MM-yyyy').parse(dateString);
     } catch (e) {
-      print('Invalid date format: $dateString, Error: $e');
+    
       return null;
     }
   }

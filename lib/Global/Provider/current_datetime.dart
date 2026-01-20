@@ -14,7 +14,8 @@ class CurrentDatetimeService with ChangeNotifier {
   );
 
   // Singleton pattern — so only one instance is used app-wide
-  static final CurrentDatetimeService _instance = CurrentDatetimeService._internal();
+  static final CurrentDatetimeService _instance =
+      CurrentDatetimeService._internal();
   factory CurrentDatetimeService() => _instance;
   CurrentDatetimeService._internal();
 
@@ -23,20 +24,19 @@ class CurrentDatetimeService with ChangeNotifier {
     const url = 'https://yenerp.com/liveapi/datetime';
     try {
       final response = await _dio.get(url);
-      debugPrint('Response data: ${response.data}');
 
       if (response.statusCode == 200) {
         // Handle both JSON or plain-string responses safely
-        final data = response.data is String ? jsonDecode(response.data) : response.data;
+        final data = response.data is String
+            ? jsonDecode(response.data)
+            : response.data;
         currentDate.value = data["current_date"];
         currentTime.value = data["current_time"];
 
         notifyListeners();
       } else {
-        debugPrint('⚠️ Failed to fetch Current Date/Time. Status: ${response.statusCode}');
       }
     } catch (e) {
-      debugPrint('❌ Error fetching Current Date/Time: $e');
     }
   }
 }

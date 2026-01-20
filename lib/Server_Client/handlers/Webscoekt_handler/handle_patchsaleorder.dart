@@ -6,8 +6,10 @@ Future<void> handlePatchSalesOrder(
   Map<String, dynamic> jsonData,
   CustomerScreenProvider customerProvider,
 ) async {
+
   // Extract Sale Order Number
   final soNo = jsonData['saleOrderNo']?.toString() ?? '';
+
   if (soNo.isEmpty) {
     return;
   }
@@ -24,17 +26,22 @@ Future<void> handlePatchSalesOrder(
     }
 
     // Step 3️⃣ Find the matching patched order
-    final matchedOrder = orders.firstWhere(
-      (order) =>
-          (order['data']?['saleOrderNo']?.toString() == soNo) ||
-          (order['saleOrderNo']?.toString() == soNo),
-      orElse: () => {},
-    );
+
+    final matchedOrder = orders.firstWhere((order) {
+      final dataSoNo = order['data']?['saleOrderNo']?.toString();
+      final directSoNo = order['saleOrderNo']?.toString();
+
+
+      return dataSoNo == soNo || directSoNo == soNo;
+    }, orElse: () => {});
 
     if (matchedOrder.isEmpty) {
       return;
     }
+
+
     // Step 4️⃣ Send the matched order to provider for printing
     customerProvider.updatePatchReceiptData(matchedOrder);
-  } catch (e, st) {}
+  } catch (e, st) {
+  }
 }

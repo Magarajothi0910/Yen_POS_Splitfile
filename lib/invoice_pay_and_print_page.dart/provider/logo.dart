@@ -12,7 +12,6 @@ Future<void> fetchAndStoreLogo() async {
   const String logoFileName = "BMlogo.png";
 
   try {
-    print("🌐 Fetching logo from API using Dio...");
     final response = await dio.get<List<int>>(
       logoUrl,
       options: Options(responseType: ResponseType.bytes),
@@ -33,11 +32,8 @@ Future<void> fetchAndStoreLogo() async {
       await box.put('BMlogo_path', filePath);
       await box.put('BMlogo_lastFetched', DateTime.now().toIso8601String());
 
-      print("✅ Logo saved to Hive and file: $filePath (${bytes.lengthInBytes} bytes)");
     } else {
-      print("⚠️ Failed to fetch logo: ${response.statusCode}");
     }
   } catch (e) {
-    print("❌ Error fetching logo: $e");
   }
 }

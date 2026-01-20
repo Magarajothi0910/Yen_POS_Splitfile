@@ -41,6 +41,8 @@ class InvoicePrinter {
       bytes += generator.rawBytes([0x1D, 0x4C, 0x00, 0x00]);
       bytes += generator.rawBytes([0x1B, 0x20, 0x00]);
 
+      final salesPersonName = waiter.split('-')[1].trim();
+
       // Logo
       try {
         final box = Hive.box('logo');
@@ -48,7 +50,9 @@ class InvoicePrinter {
         final String? logoName = box.get('BMlogo_name');
 
         if (imageBytes != null) {
-          print("✅ Loaded logo from Hive ($logoName) | Size: ${imageBytes.lengthInBytes} bytes");
+          print(
+            "✅ Loaded logo from Hive ($logoName) | Size: ${imageBytes.lengthInBytes} bytes",
+          );
           final img.Image? logo = img.decodeImage(imageBytes);
 
           if (logo != null) {
@@ -126,7 +130,8 @@ class InvoicePrinter {
       final now = DateTime.now();
       final formattedDate = DateFormat('dd-MM-yyyy').format(now);
       final formattedTime = DateFormat('hh:mm a').format(now);
-      final tableOnlyNumber = RegExp(r'\d+').firstMatch(tableNumber)?.group(0) ?? tableNumber;
+      final tableOnlyNumber =
+          RegExp(r'\d+').firstMatch(tableNumber)?.group(0) ?? tableNumber;
 
       bytes += generator.feed(1);
 
@@ -163,7 +168,7 @@ class InvoicePrinter {
       bytes += generator.row([
         PosColumn(
           width: 6,
-          text: 'Sales Person: $waiter',
+          text: 'Sales Person: $salesPersonName',
           styles: const PosStyles(align: PosAlign.left),
         ),
         PosColumn(
@@ -206,36 +211,79 @@ class InvoicePrinter {
       for (var order in seatOrders) {
         if (order is! Map<String, dynamic>) continue;
 
-        final List<Map<String, dynamic>> configs = (order['config'] as List?)?.map((e) => e as Map<String, dynamic>).toList() ?? [];
-        final List<double> prices = (order['prices'] as List?)?.map((e) => safeCast<double>(e, 0.0)).toList() ?? [];
+        final List<Map<String, dynamic>> configs =
+            (order['config'] as List?)
+                ?.map((e) => e as Map<String, dynamic>)
+                .toList() ??
+            [];
+        final List<double> prices =
+            (order['prices'] as List?)
+                ?.map((e) => safeCast<double>(e, 0.0))
+                .toList() ??
+            [];
 
         int configIndex = 0;
         for (var config in configs) {
           final varianceName = config['varianceName']?.toString() ?? '';
-          final List<int> configQty = (config['configQty'] as List?)?.map((e) => safeCast<int>(e, 0)).toList() ?? [];
-          final List<List<String>> addOns = (config['addOn'] as List?)?.map((e) => List<String>.from((e as List).map((i) => i.toString()))).toList() ?? [];
-          final List<List<int>> addOnQuantities = (config['addOnQuantities'] as List?)?.map((e) => List<int>.from((e as List).map((i) => safeCast<int>(i, 0)))).toList() ?? [];
-          final List<List<double>> addOnPrices = (config['addOnPrice'] as List?)?.map((e) => List<double>.from((e as List).map((i) => safeCast<double>(i, 0.0)))).toList() ?? [];
+          final List<int> configQty =
+              (config['configQty'] as List?)
+                  ?.map((e) => safeCast<int>(e, 0))
+                  .toList() ??
+              [];
+          final List<List<String>> addOns =
+              (config['addOn'] as List?)
+                  ?.map(
+                    (e) =>
+                        List<String>.from((e as List).map((i) => i.toString())),
+                  )
+                  .toList() ??
+              [];
+          final List<List<int>> addOnQuantities =
+              (config['addOnQuantities'] as List?)
+                  ?.map(
+                    (e) => List<int>.from(
+                      (e as List).map((i) => safeCast<int>(i, 0)),
+                    ),
+                  )
+                  .toList() ??
+              [];
+          final List<List<double>> addOnPrices =
+              (config['addOnPrice'] as List?)
+                  ?.map(
+                    (e) => List<double>.from(
+                      (e as List).map((i) => safeCast<double>(i, 0.0)),
+                    ),
+                  )
+                  .toList() ??
+              [];
 
-          final price = (configIndex < prices.length) ? prices[configIndex] : 0.0;
+          final price = (configIndex < prices.length)
+              ? prices[configIndex]
+              : 0.0;
 
           // Sum quantities for this config (variance)
-          final totalQuantityForConfig = configQty.fold<int>(0, (sum, qty) => sum + qty);
+          final totalQuantityForConfig = configQty.fold<int>(
+            0,
+            (sum, qty) => sum + qty,
+          );
           // Sum add-on totals for this config
           double totalAddOnForConfig = 0.0;
           for (int i = 0; i < configQty.length; i++) {
             if (i < addOnPrices.length && addOnPrices[i].isNotEmpty) {
-              totalAddOnForConfig += addOnPrices[i].reduce((a, b) => a + b) * configQty[i];
+              totalAddOnForConfig +=
+                  addOnPrices[i].reduce((a, b) => a + b) * configQty[i];
             }
           }
-          final itemAmount = (price * totalQuantityForConfig) + totalAddOnForConfig;
+          final itemAmount =
+              (price * totalQuantityForConfig) + totalAddOnForConfig;
 
           final item = {
             'varianceName': varianceName,
             'quantity': totalQuantityForConfig,
             'price': price,
             'itemAmount': itemAmount,
-            'addOns': addOns, // Keep original for printing, but we'll handle per sub if needed
+            'addOns':
+                addOns, // Keep original for printing, but we'll handle per sub if needed
             'addOnQuantities': addOnQuantities,
             'addOnPrices': addOnPrices,
             'configQty': configQty, // Keep for iteration if addons differ
@@ -244,7 +292,8 @@ class InvoicePrinter {
 
           originalSubTotal += itemAmount;
           if (isGSTEnabled) {
-            itemTotalsMap[taxRate] = (itemTotalsMap[taxRate] ?? 0.0) + itemAmount;
+            itemTotalsMap[taxRate] =
+                (itemTotalsMap[taxRate] ?? 0.0) + itemAmount;
           }
 
           rawItems.add(item);
@@ -253,12 +302,14 @@ class InvoicePrinter {
       }
 
       // Group items by varianceName to aggregate quantities and totals
-      final Map<String, Map<String, dynamic>> groupedItems = <String, Map<String, dynamic>>{};
+      final Map<String, Map<String, dynamic>> groupedItems =
+          <String, Map<String, dynamic>>{};
       for (var item in rawItems) {
         final varianceName = item['varianceName'] as String;
         if (groupedItems.containsKey(varianceName)) {
           final existing = groupedItems[varianceName]!;
-          existing['quantity'] = (existing['quantity'] as int) + (item['quantity'] as int);
+          existing['quantity'] =
+              (existing['quantity'] as int) + (item['quantity'] as int);
           existing['itemAmount'] += item['itemAmount'];
           // Note: Addons are not aggregated here; if they differ across groups, you may need more complex logic
           // For now, we'll assume addons are consistent or print the first one's addons
@@ -280,7 +331,8 @@ class InvoicePrinter {
       if (isGSTEnabled) {
         itemTotalsMap.forEach((taxRate, grossWithTax) {
           double proportion = grossWithTax / grossTotal;
-          double discountedGrossForRate = grossWithTax - (0.0 * proportion); // No discount
+          double discountedGrossForRate =
+              grossWithTax - (0.0 * proportion); // No discount
 
           double netForRate = discountedGrossForRate / (1 + (taxRate / 100));
           double taxForRate = discountedGrossForRate - netForRate;
@@ -307,7 +359,8 @@ class InvoicePrinter {
         final quantity = groupedItem['quantity'];
         final price = groupedItem['price'];
         final origAmount = price * quantity;
-        final taxRate = groupedItem['taxRate']; // Fixed to use the item's taxRate
+        final taxRate =
+            groupedItem['taxRate']; // Fixed to use the item's taxRate
         final addOnTotal = groupedItem['itemAmount'] - origAmount;
 
         List<String> itemNameLines = _splitText(itemName, 15);
@@ -394,7 +447,9 @@ class InvoicePrinter {
 
         // For addons, since we grouped, we'll print the addons from the first raw item for this group
         // (assuming addons are consistent; if not, this may need adjustment)
-        final firstRawItem = rawItems.firstWhere((raw) => raw['varianceName'] == groupedItem['varianceName']);
+        final firstRawItem = rawItems.firstWhere(
+          (raw) => raw['varianceName'] == groupedItem['varianceName'],
+        );
         final addOns = firstRawItem['addOns'] as List;
         final addOnQuantities = firstRawItem['addOnQuantities'] as List;
         final addOnPrices = firstRawItem['addOnPrices'] as List;
@@ -408,7 +463,8 @@ class InvoicePrinter {
           if (j < addOns.length && (addOns[j] as List).isNotEmpty) {
             for (int k = 0; k < (addOns[j] as List).length; k++) {
               final addonName = capitalizeWords((addOns[j] as List<String>)[k]);
-              final key = '$addonName'; // Simple key; enhance if needed for variants
+              final key =
+                  '$addonName'; // Simple key; enhance if needed for variants
               final qtyPerUnit = (addOnQuantities[j] as List<int>)[k] ?? 1;
               final totalPerUnit = (addOnPrices[j] as List<double>)[k] ?? 0.0;
               final totalQty = qtyPerUnit * configQty[j];
@@ -417,7 +473,8 @@ class InvoicePrinter {
               if (uniqueAddOns.containsKey(key)) {
                 final existing = uniqueAddOns[key]!;
                 existing['totalQty'] = (existing['totalQty'] as int) + totalQty;
-                existing['totalPrice'] = (existing['totalPrice'] as double) + totalPrice;
+                existing['totalPrice'] =
+                    (existing['totalPrice'] as double) + totalPrice;
               } else {
                 uniqueAddOns[key] = {
                   'name': addonName,
@@ -580,12 +637,14 @@ class InvoicePrinter {
           ]);
           bytes += generator.row([
             PosColumn(
-              text: "SGST(${(rate / 2).toStringAsFixed(1)}%): ${sgstAmount.toStringAsFixed(2)}",
+              text:
+                  "SGST(${(rate / 2).toStringAsFixed(1)}%): ${sgstAmount.toStringAsFixed(2)}",
               width: 6,
               styles: const PosStyles(align: PosAlign.left),
             ),
             PosColumn(
-              text: "CGST(${(rate / 2).toStringAsFixed(1)}%): ${cgstAmount.toStringAsFixed(2)}",
+              text:
+                  "CGST(${(rate / 2).toStringAsFixed(1)}%): ${cgstAmount.toStringAsFixed(2)}",
               width: 6,
               styles: const PosStyles(align: PosAlign.left),
             ),
@@ -605,7 +664,9 @@ class InvoicePrinter {
 
       bytes += generator.feed(1);
 
-      List<String> addressLines = _splitAddress("No.72, Salai Bazaar, Ramanathapuram, Tamil Nadu-623501");
+      List<String> addressLines = _splitAddress(
+        "No.72, Salai Bazaar, Ramanathapuram, Tamil Nadu-623501",
+      );
 
       for (int i = 0; i < addressLines.length; i++) {
         bytes += generator.row([
@@ -654,7 +715,15 @@ class InvoicePrinter {
 
   static String capitalizeWords(String text) {
     if (text.isEmpty) return text;
-    return text.toLowerCase().split(' ').map((word) => word.isNotEmpty ? '${word[0].toUpperCase()}${word.substring(1)}' : word).join(' ');
+    return text
+        .toLowerCase()
+        .split(' ')
+        .map(
+          (word) => word.isNotEmpty
+              ? '${word[0].toUpperCase()}${word.substring(1)}'
+              : word,
+        )
+        .join(' ');
   }
 
   static List<String> _splitText(String text, int maxLineWidth) {

@@ -70,7 +70,8 @@ class _OrderManagementPayandPrintState
   double _originalAmount = 0.0;
   double _upiAndCashAmount = 0.0;
   String salesOrderId = '';
-
+  bool _isInitialSend = true;
+  Map<String, dynamic> _lastSentData = {};
   bool _isPrintButtonEnabled = true;
   late salesInvoiceReceiptPrinter receiptPrinter;
   bool _isCompleteButtonEnabled = false; // default enabled
@@ -294,6 +295,53 @@ class _OrderManagementPayandPrintState
     _validateForm();
   }
 
+  void _sendState({
+    String type = 'state_update',
+    Map<String, dynamic>? extraData,
+  }) {
+    final stateProvider = Provider.of<SalesInvoiceState>(
+      context,
+      listen: false,
+    );
+    final currentData = {
+      'isUpiPaid': stateProvider.isUpiPaid,
+      'isCardPaid': stateProvider.isCardPaid,
+      if (extraData != null) ...extraData,
+    };
+
+    final changedFields = <String, dynamic>{};
+    if (_isInitialSend) {
+      _isInitialSend = false;
+    } else {
+      currentData.forEach((key, value) {
+        if (_lastSentData[key] != value) {
+          changedFields[key] = value;
+        }
+      });
+    }
+
+    if (changedFields.isEmpty) return; // nothing changed
+
+    _lastSentData.addAll(changedFields);
+    final message = {
+      'message': 'changed_fields',
+      'type': type,
+      ...changedFields,
+    };
+
+    try {
+      final jsonData = jsonEncode(message);
+      sendataToServer(jsonDecode(jsonData));
+      developer.log('Sent: $jsonData', name: 'WebSocket');
+    } catch (e) {}
+  }
+
+  double getTotalWithAdjustments() {
+    double totalCharges =
+        (double.tryParse(_customChargeController.text) ?? 0.0);
+    return (widget.totalAmount) + totalCharges;
+  }
+
   Widget _buildPaymentEntry(
     String method,
     TextEditingController controller,
@@ -304,6 +352,9 @@ class _OrderManagementPayandPrintState
       listen: false,
     );
 
+    bool isUpiPaid = method == 'Upi' && stateProvider.isUpiPaid;
+    bool isCardPaid = method == 'Card' && stateProvider.isCardPaid;
+    bool shouldDisable = isUpiPaid || isCardPaid;
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
       padding: const EdgeInsets.all(10),
@@ -413,42 +464,38 @@ class _OrderManagementPayandPrintState
               builder: (context, qrProvider, _) {
                 return IconButton(
                   icon: Icon(
-                    method == 'UPI' ? Icons.qr_code : Icons.credit_card,
-                    color: method == 'UPI' ? Colors.black : Colors.blue,
-                    size: 24,
+                    method == 'Upi' ? Icons.qr_code : Icons.credit_card,
+                    color: shouldDisable ? Colors.grey : Colors.blue,
                   ),
-                  onPressed:
-                      isPaymentEnabled &&
-                          !(method == 'UPI'
-                              ? stateProvider.isUpiPaid
-                              : qrProvider.isCardPaid)
+                  onPressed: isPaymentEnabled && !shouldDisable
                       ? () {
-                          final amountStr = controller.text;
-                          if (amountStr.isNotEmpty) {
-                            final amount = double.tryParse(amountStr);
-                            if (amount != null && amount > 0) {
-                              if (method == 'UPI') {
-                                _showUpiQrDialog(amount);
-                              } else {
-                                _handleCardPayment();
-                              }
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Please enter a valid $method amount greater than 0.',
-                                  ),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                            }
+                          final val = controller.text;
+                          final amt = double.tryParse(val);
+                          if (val.isNotEmpty && amt != null && amt > 0) {
+                            method == 'Upi'
+                                ? _showUpiQrDialog(
+                                    amt,
+                                    onSuccess: () {
+                                      // 🔥 NOW we are OUTSIDE dialog
+                                      Provider.of<SalesInvoiceState>(
+                                        context,
+                                        listen: false,
+                                      ).updateIsUpiPaid(true);
+
+                                      _customUpiController.text =
+                                          Provider.of<SalesInvoiceState>(
+                                            context,
+                                            listen: false,
+                                          ).upiAmount.toStringAsFixed(0);
+
+                                      _sendState(type: 'upi_payment_success');
+                                    },
+                                  )
+                                : _handleCardPayment();
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text(
-                                  'Please enter a $method amount first.',
-                                ),
-                                backgroundColor: Colors.orange,
+                                content: Text('Enter valid $method amount'),
                               ),
                             );
                           }
@@ -515,14 +562,15 @@ class _OrderManagementPayandPrintState
     }
   }
 
-  void _showUpiQrDialog(double amount) {
+  void _showUpiQrDialog(double amount, {required VoidCallback onSuccess}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<RazorpayQRProvider>(context, listen: false).createQR(amount);
     });
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
+      builder: (BuildContext qrDialogContext) {
         return AlertDialog(
           backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
@@ -534,23 +582,25 @@ class _OrderManagementPayandPrintState
               SizedBox(width: 8),
               Text(
                 'UPI QR Code',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
           content: SizedBox(
             height: 600,
             width: 285,
-            child: Consumer<RazorpayQRProvider>(
-              builder: (context, qrProvider, _) {
+            child: Consumer2<RazorpayQRProvider, SalesInvoiceState>(
+              builder: (context, qrProvider, stateProvider, _) {
                 if (qrProvider.isLoading) {
                   return const Center(child: CircularProgressIndicator());
                 } else if (qrProvider.errorMessage != null) {
-                  // Send error message to client
-                  // _sendState(
-                  //   type: 'upi_payment_error',
-                  //   extraData: {'message': qrProvider.errorMessage},
-                  // );
+                  _sendState(
+                    type: 'upi_payment_error',
+                    extraData: {'message': qrProvider.errorMessage},
+                  );
                   return Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -558,7 +608,11 @@ class _OrderManagementPayandPrintState
                       const SizedBox(height: 8),
                       Text(
                         qrProvider.errorMessage!,
-                        style: const TextStyle(color: Colors.red, fontSize: 16),
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          color: Colors.red,
+                          fontSize: 16,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 16),
@@ -567,7 +621,7 @@ class _OrderManagementPayandPrintState
                         label: const Text("Close"),
                         onPressed: () {
                           qrProvider.disconnectWebSocket();
-                          Navigator.pop(context);
+                          Navigator.pop(qrDialogContext);
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color.fromARGB(
@@ -585,19 +639,17 @@ class _OrderManagementPayandPrintState
                     ],
                   );
                 } else if (qrProvider.paymentSuccess) {
-                  Provider.of<SalesInvoiceState>(
-                    context,
-                    listen: false,
-                  ).updateIsUpiPaid(true);
-                  //_sendState(type: 'upi_payment_success');
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    onSuccess();
+                  });
+
                   return Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Lottie.asset(
                         'assets/Payment Successful.json',
                         repeat: false,
-                        height: 580,
-                        //height: double.infinity,
+                        height: 500,
                         width: double.infinity,
                         fit: BoxFit.contain,
                         onLoaded: (composition) {
@@ -611,33 +663,45 @@ class _OrderManagementPayandPrintState
                           );
                         },
                       ),
-                      const Text(
-                        'UPI Payment Successful!',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green,
-                        ),
-                        textAlign: TextAlign.center,
+                      Column(
+                        children: [
+                          Center(
+                            child: const Text(
+                              'UPI Payment Successful!',
+                              style: TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   );
                 } else if (qrProvider.qrImageUrl != null) {
-                  // _sendState(type: 'show_upi_qr', extraData: {'qrUrl': qrProvider.qrImageUrl, 'amount': amount});
+                  _sendState(
+                    type: 'show_upi_qr',
+                    extraData: {
+                      'qrUrl': qrProvider.qrImageUrl,
+                      'amount': amount,
+                    },
+                  );
                   return Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Image.network(
                         qrProvider.qrImageUrl!,
                         height: 535,
-                        //height: double.infinity,
                         width: double.infinity,
                         fit: BoxFit.fill,
                         errorBuilder: (context, error, stackTrace) {
-                          // _sendState(
-                          //   type: 'upi_payment_error',
-                          //   extraData: {'message': 'Failed to load QR code'},
-                          // );
+                          _sendState(
+                            type: 'upi_payment_error',
+                            extraData: {'message': 'Failed to load QR code'},
+                          );
                           return const Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -646,6 +710,7 @@ class _OrderManagementPayandPrintState
                               Text(
                                 'Failed to load QR code',
                                 style: TextStyle(
+                                  fontFamily: 'Poppins',
                                   color: Colors.red,
                                   fontSize: 16,
                                 ),
@@ -664,8 +729,8 @@ class _OrderManagementPayandPrintState
                               label: const Text("Close"),
                               onPressed: () {
                                 qrProvider.disconnectWebSocket();
-                                Navigator.pop(context);
-                                //_sendState(type: 'upi_payment_cancelled');
+                                Navigator.pop(qrDialogContext);
+                                _sendState(type: 'upi_payment_cancelled');
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color.fromARGB(
@@ -686,10 +751,10 @@ class _OrderManagementPayandPrintState
                     ],
                   );
                 } else {
-                  // _sendState(
-                  //   type: 'upi_payment_error',
-                  //   extraData: {'message': 'No QR code generated'},
-                  // );
+                  _sendState(
+                    type: 'upi_payment_error',
+                    extraData: {'message': 'No QR code generated'},
+                  );
                   return const Center(child: Text('No QR generated'));
                 }
               },
@@ -1216,6 +1281,8 @@ class _OrderManagementPayandPrintState
           ? employeeParts[1].trim()
           : '';
 
+      // Convert the customerNumber string to int safely
+      int customerPhoneNumber = int.tryParse(so.customerNumber) ?? 0;
       // ===================================================================================== //
       // 📦 BUILD FULL INVOICE BODY
       // ===================================================================================== //
@@ -1234,11 +1301,11 @@ class _OrderManagementPayandPrintState
         "totalAmount": totalItemTotal,
         "advanceAmount": totalAdvanceAmount,
         "advanceDate": invoiceDate,
-        "status": "Sales Completed",
+        "status": "        ",
         "salesType": "Sales Order",
         "netAmount": totalNet.toStringAsFixed(2),
         "grossAmount": totalCross.toStringAsFixed(2),
-        "customerPhoneNumber": so.customerNumber,
+        "customerPhoneNumber": customerPhoneNumber,
         "salesPersonName": employeeName,
         "salesPersonId": employeeId,
         "branchId": globals.branchId,
@@ -1250,7 +1317,7 @@ class _OrderManagementPayandPrintState
         "invoiceNo": newInvoiceNumber,
         "invoiceDateTime": DateTime.now().toIso8601String(),
         "shiftId": globalsData.shiftId.value.toString(),
-        "customCharge": so.customCharge,
+        "totalCustomCharge": so.totalCustomCharge,
         "discountAmount": (totalNet * (discountPerc / 100)).toStringAsFixed(2),
         "discountPercentage": discountPerc,
         "salesOrderId": so.salesOrderId,
@@ -1268,11 +1335,8 @@ class _OrderManagementPayandPrintState
       });
 
       if (connectivityProvider.isConnected) {
-        print("connection true");
         await sendataToServer(jsonDecode(invoiceJson));
       } else {
-        print("connection false");
-
         await handleInvoice(jsonDecode(invoiceJson), clients);
       }
 

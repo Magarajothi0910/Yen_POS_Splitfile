@@ -40,156 +40,163 @@ class CurrentSaleSectionState extends State<CurrentSaleSection> {
 
   final FocusNode _focusNode = FocusNode();
 
-Future<bool> showConfirmationDialog(BuildContext context) async {
-  return await showDialog<bool>(
-    context: context,
-    barrierDismissible: false,
-    barrierColor: Colors.black54, // Subtle dark overlay
-    builder: (context) => Center(
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 32),
-        constraints: const BoxConstraints(maxWidth: 420),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.15),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(28, 32, 28, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Warning Icon with blue circle background
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.warning_amber_rounded,
-                  color: Colors.blue.shade700,
-                  size: 48,
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Title
-              Text(
-                "Cancel Payment?",
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey[900],
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // Subtitle / Message
-              Text(
-                "All entered payment details including payments, discount, and customer info will be lost.",
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 16,
-                  color: Colors.grey[700],
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              // Action Buttons
-              Row(
-                children: [
-                  // Stay Button
-                  Expanded(
-                    child: SizedBox(
-                      height: 52,
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: Colors.grey.shade300, width: 2),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          backgroundColor: Colors.white,
-                        ),
-                        child: Text(
-                          "No, Stay Here",
-                          style: TextStyle(
-                            fontFamily: 'Poppins',
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[800],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-
-                  // Cancel & Close Button
-                  Expanded(
-                    child: SizedBox(
-                      height: 52,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          // Clear only payment-related data (optional enhancement)
-                          final prov = Provider.of<SalesInvoiceState>(
-                            context,
-                            listen: false,
-                          );
-                          prov.updateMultiple(
-                            cashAmount: 0.0,
-                            upiAmount: 0.0,
-                            cardAmount: 0.0,
-                            isUpiPaid: false,
-                            isCardPaid: false,
-                          );
-
-                          Navigator.pop(context, true); // Confirm cancel
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue.shade600,
-                          elevation: 4,
-                          shadowColor: Colors.blue.withOpacity(0.4),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        child: Text(
-                          "Yes, Cancel",
-                          style: TextStyle(
-                            fontFamily: 'Poppins',
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
+  Future<bool> showConfirmationDialog(BuildContext context) async {
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          barrierColor: Colors.black54, // Subtle dark overlay
+          builder: (context) => Center(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 32),
+              constraints: const BoxConstraints(maxWidth: 420),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.15),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
                   ),
                 ],
               ),
-            ],
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(28, 32, 28, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Warning Icon with blue circle background
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.warning_amber_rounded,
+                        color: Colors.blue.shade700,
+                        size: 48,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Title
+                    Text(
+                      "Cancel Payment?",
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[900],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Subtitle / Message
+                    Text(
+                      "All entered payment details including payments, discount, and customer info will be lost.",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 16,
+                        color: Colors.grey[700],
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+
+                    // Action Buttons
+                    Row(
+                      children: [
+                        // Stay Button
+                        Expanded(
+                          child: SizedBox(
+                            height: 52,
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(
+                                  color: Colors.grey.shade300,
+                                  width: 2,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                backgroundColor: Colors.white,
+                              ),
+                              child: Text(
+                                "No, Stay Here",
+                                style: TextStyle(
+                                  fontFamily: 'Poppins',
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey[800],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+
+                        // Cancel & Close Button
+                        Expanded(
+                          child: SizedBox(
+                            height: 52,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                // Clear only payment-related data (optional enhancement)
+                                final prov = Provider.of<SalesInvoiceState>(
+                                  context,
+                                  listen: false,
+                                );
+                                prov.updateMultiple(
+                                  cashAmount: 0.0,
+                                  upiAmount: 0.0,
+                                  cardAmount: 0.0,
+                                  isUpiPaid: false,
+                                  isCardPaid: false,
+                                );
+
+                                Navigator.pop(context, true); // Confirm cancel
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue.shade600,
+                                elevation: 4,
+                                shadowColor: Colors.blue.withOpacity(0.4),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                              child: Text(
+                                "Yes, Cancel",
+                                style: TextStyle(
+                                  fontFamily: 'Poppins',
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-        ),
-      ),
-    ),
-  ) ??
-      false; // If dismissed (back button), treat as "No"
-}
+        ) ??
+        false; // If dismissed (back button), treat as "No"
+  }
 
   @override
   Widget build(BuildContext context) {
+    final printerIp = Provider.of<PrinterProviderpos>(
+      context,
+      listen: false,
+    ).getOverallPrinterIp();
     return Consumer<CurrentSaleProvider>(
       builder: (context, saleProvider, child) {
         return Column(
@@ -378,235 +385,6 @@ Future<bool> showConfirmationDialog(BuildContext context) async {
                 );
               },
             ),
-
-            // Expanded(
-            //   child:
-            //       saleProvider.saleStatus != 'hold' &&
-            //           saleProvider.currentSaleItems.isNotEmpty
-            //       ? ListView.builder(
-            //           itemCount: saleProvider.currentSaleItems.length,
-            //           itemBuilder: (context, index) {
-            //             final item = saleProvider.currentSaleItems[index];
-            //             print('DEBUG: CurrentSaleSection - Item $index: $item');
-            //             print(
-            //               'DEBUG: CurrentSaleSection - Display: ${saleProvider.buildQuantityPriceDisplay(item)}',
-            //             );
-
-            //             // Fetch system stock for the item
-            //             double systemStock = 0.0;
-            //             final branchwiseItems =
-            //                 GlobalDataManager().branchwiseItems['data']
-            //                     as Map<dynamic, dynamic>?;
-            //             final itemName =
-            //                 item['itemName']?.toString() ?? 'Unknown Item';
-            //             final varianceName =
-            //                 item['varianceData']['varianceName']?.toString() ??
-            //                 '';
-            //             if (branchwiseItems != null &&
-            //                 itemName != 'Unknown Item' &&
-            //                 branchwiseItems.containsKey(itemName)) {
-            //               final itemData =
-            //                   branchwiseItems[itemName]
-            //                       as Map<dynamic, dynamic>?;
-            //               final varianceMap =
-            //                   itemData?['variance'] as Map<dynamic, dynamic>?;
-            //               if (varianceMap != null) {
-            //                 final varianceData = varianceMap.values.firstWhere(
-            //                   (v) =>
-            //                       (v as Map<dynamic, dynamic>)['varianceName']
-            //                           ?.toString() ==
-            //                       varianceName,
-            //                   orElse: () => null,
-            //                 );
-            //                 if (varianceData != null) {
-            //                   systemStock =
-            //                       (varianceData['branchwise']?['${aliasname}']?['systemStock_${aliasname}']
-            //                               as num?)
-            //                           ?.toDouble() ??
-            //                       0.0;
-            //                 }
-            //               }
-            //             }
-            //             print(
-            //               'DEBUG: CurrentSaleSection - System Stock for $varianceName: $systemStock',
-            //             );
-
-            //             return SwipeActionCell(
-            //               backgroundColor: Colors.white,
-            //               trailingActions: [
-            //                 SwipeAction(
-            //                   performsFirstActionWithFullSwipe: true,
-            //                   onTap: (CompletionHandler handler) async {
-            //                     saleProvider.removeItem(index);
-            //                     await handler(true);
-            //                   },
-            //                   color: Colors.red,
-            //                   content: const Icon(
-            //                     Icons.delete,
-            //                     color: Colors.white,
-            //                   ),
-            //                 ),
-            //               ],
-            //               key: Key('${saleProvider.currentSaleItems[index]}'),
-            //               child: ListTile(
-            //                 onTap: () {
-            //                   final item = saleProvider.currentSaleItems[index];
-            //                   final String itemName =
-            //                       item['itemName']?.toString() ??
-            //                       'Unknown Item';
-            //                   final String varianceName =
-            //                       item['varianceData']['varianceName']
-            //                           ?.toString() ??
-            //                       '';
-            //                   final double price =
-            //                       (item['varianceData']['variance_Defaultprice']
-            //                               as num?)
-            //                           ?.toDouble() ??
-            //                       0.0;
-            //                   final double currentQty =
-            //                       (item['quantity'] as num?)?.toDouble() ?? 1.0;
-            //                   print(
-            //                     'DEBUG: Tapped Item - Weight: ${item['weight']}, Quantity: ${item['quantity']}, UOM: ${item['varianceData']['variance_Uom']}',
-            //                   );
-            //                   print('DEBUG: Full Item: $item');
-
-            //                   // if (item.containsKey('varianceData') &&
-            //                   //     item['varianceData'] != null &&
-            //                   //     item['varianceData']['variance_Uom'] != null) {
-            //                   //   String? uom = item['varianceData']['variance_Uom'];
-            //                   print(
-            //                     'DEBUG: CurrentSaleSection - Tapped item UOM: ',
-            //                   );
-            //                   //if (uom == 'Kgs' || uom == 'Kg') {
-            //                   if (item['varianceData']['variance_Uom']
-            //                           ?.toString()
-            //                           .toLowerCase() ==
-            //                       'kgs') {
-            //                     showDialog(
-            //                       context: context,
-            //                       builder: (dialogContext) {
-            //                         return NumericCalculator(
-            //                           varianceName:
-            //                               item['varianceData']['varianceName'],
-            //                           onValueSelected: (weight) {
-            //                             print(
-            //                               'DEBUG: CurrentSaleSection - Updating weight for index $index: $weight',
-            //                             );
-            //                             if (weight <= 0) {
-            //                               ScaffoldMessenger.of(
-            //                                 dialogContext,
-            //                               ).showSnackBar(
-            //                                 const SnackBar(
-            //                                   content: Text(
-            //                                     "Invalid weight. Please enter a valid weight.",
-            //                                   ),
-            //                                   backgroundColor: Colors.red,
-            //                                   duration: Duration(seconds: 2),
-            //                                 ),
-            //                               );
-            //                               return;
-            //                             }
-            //                             if (weight > systemStock) {
-            //                               ScaffoldMessenger.of(
-            //                                 dialogContext,
-            //                               ).showSnackBar(
-            //                                 SnackBar(
-            //                                   content: Text(
-            //                                     "Selected weight (${weight.toStringAsFixed(3)} kg) exceeds available stock (${systemStock.toStringAsFixed(3)} kg).",
-            //                                   ),
-            //                                   backgroundColor: Colors.red,
-            //                                   duration: const Duration(
-            //                                     seconds: 2,
-            //                                   ),
-            //                                 ),
-            //                               );
-            //                               return;
-            //                             }
-            //                             saleProvider.updateItemQuantity(
-            //                               index,
-            //                               weight,
-            //                             );
-            //                           },
-            //                         );
-            //                       },
-            //                     );
-            //                   } else {
-            //                     showCommonQuantityDialog(
-            //                       context: context,
-            //                       itemName: itemName,
-            //                       varianceName: varianceName,
-            //                       price: price,
-            //                       initialQuantity: currentQty,
-            //                       onAddToCart: (newQty) {
-            //                         saleProvider.updateItemQuantity(
-            //                           index,
-            //                           newQty,
-            //                         );
-            //                       },
-            //                     );
-            //                   }
-            //                 },
-            //                 title: Row(
-            //                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            //                   children: [
-            //                     Column(
-            //                       crossAxisAlignment: CrossAxisAlignment.start,
-            //                       children: [
-            //                         CustomText(
-            //                           text:
-            //                               '${item['varianceData']['varianceName']}',
-            //                           style: TextStyle(
-            //                             fontFamily: "Poppins",
-            //                             color: CustomColors.black.withOpacity(
-            //                               0.7,
-            //                             ),
-            //                             fontWeight: FontWeight.bold,
-            //                             fontSize: 15,
-            //                           ),
-            //                         ),
-            //                         CustomText(
-            //                           text: saleProvider
-            //                               .buildQuantityPriceDisplay(item),
-            //                           style: TextStyle(
-            //                             fontFamily: "Poppins",
-            //                             fontSize: 14,
-            //                           ),
-            //                         ),
-            //                       ],
-            //                     ),
-            //                     CustomText(
-            //                       text:
-            //                           '₹${saleProvider.calculateItemTotal(item).toStringAsFixed(2)}',
-            //                       style: TextStyle(
-            //                         fontFamily: "Poppins",
-            //                         fontWeight: FontWeight.bold,
-            //                         fontSize: 15,
-            //                         color: CustomColors.black.withOpacity(0.8),
-            //                       ),
-            //                     ),
-            //                   ],
-            //                 ),
-            //               ),
-            //             );
-            //           },
-            //         )
-            //       : Center(
-            //           child: Column(
-            //             mainAxisAlignment: MainAxisAlignment.center,
-            //             children: [
-            //               Icon(
-            //                 Icons.shopping_cart_outlined,
-            //                 size: 100,
-            //                 color: CustomColors.black.withOpacity(0.1),
-            //               ),
-            //               Text(
-            //                 'No items in cart',
-            //                 style: TextStyle(fontFamily: "Poppins"),
-            //               ),
-            //             ],
-            //           ),
-            //         ),
-            // ),
             Expanded(
               child:
                   saleProvider.saleStatus != 'hold' &&
@@ -638,7 +416,6 @@ Future<bool> showConfirmationDialog(BuildContext context) async {
                                     ?.toString() ??
                                 '';
 
-                            // ⭐⭐⭐ FIXED: Correct Hive structure
                             if (branchwiseItems != null &&
                                 branchwiseItems['data'] != null &&
                                 branchwiseItems['data'] is Map &&
@@ -755,7 +532,10 @@ Future<bool> showConfirmationDialog(BuildContext context) async {
                                   } else {
                                     showCommonQuantityDialog(
                                       context: context,
-                                      itemName: itemName,
+                                      itemName:
+                                          item['itemName'] ??
+                                          item['itemData']?['itemName'] ??
+                                          'Unknown',
                                       varianceName: varianceName,
                                       price: price,
                                       initialQuantity: qty,
@@ -840,99 +620,501 @@ Future<bool> showConfirmationDialog(BuildContext context) async {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Row(
-                  //   mainAxisAlignment: MainAxisAlignment.start,
-                  //   children: [
-                  //     const CustomText(text: 'Discount'),
-                  //     const Spacer(), // This will take all available horizontal space
-                  //     Container(
-                  //       width: 50, // Adjust the width as needed
-                  //       height: 40, // Adjust the height as needed
-                  //       child: TextField(
-                  //         onChanged: (value) {
-                  //           // Update discount percentage
-                  //           saleProvider.discountPercentage =
-                  //               double.tryParse(value) ?? 0.0;
-                  //         },
-                  //         decoration: const InputDecoration(
-                  //           border: OutlineInputBorder(),
-                  //           contentPadding: EdgeInsets.symmetric(
-                  //               vertical: 8,
-                  //               horizontal:
-                  //                   10), // Adjust padding inside the text field
-                  //           isDense:
-                  //               true, // Reduces extra space inside the text field to make it more compact
-                  //         ),
-                  //         textAlign: TextAlign
-                  //             .right, // Aligns the input text to the right
-
-                  //         keyboardType: TextInputType
-                  //             .number, // Ensures that only numbers can be inputted
-                  //       ),
-                  //     ),
-                  //     const CustomText(text: '%'),
-                  //   ],
-                  // ),
                   const CustomSizedBox(height: 16),
+
                   Center(
                     child: CustomButton(
                       text:
                           'Charge ₹ ${saleProvider.calculateTotal().round().toString()}',
-                      onPressed: () {
+                      onPressed: () async {
                         CurrentDatetimeService().fetchCurrentDateTime();
                         debugPrint("currentDate:${currentDate.value}");
                         debugPrint("currentTime:${currentTime.value}");
-                        double totalAmount = saleProvider.calculateTotal();
 
-                        if (totalAmount != 0) {
-                          debugPrint('Opening Payment Dialog...');
+                        double totalAmount = saleProvider.calculateTotal();
+                        if (printerIp == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Set Printer Ip"),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                          return;
+                        }
+
+                        if (totalAmount == 0) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                "Cart is empty! Add items to proceed.",
+                              ),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                          return;
+                        }
+
+                        // === STOCK VALIDATION ===
+                        final globalManager = GlobalDataManager();
+                        final branchwiseItemsBox = await Hive.openBox('items');
+                        final branchwiseData = await branchwiseItemsBox.get(
+                          'branchwiseItems_$aliasname',
+                        );
+
+                        Map<dynamic, dynamic>? branchwiseItems = {};
+                        if (branchwiseData is Map) {
+                          branchwiseItems = Map<dynamic, dynamic>.from(
+                            branchwiseData,
+                          );
+                        }
+
+                        List<Map<String, dynamic>> stockCheckList = [];
+                        bool hasInsufficient = false;
+
+                        for (var item in saleProvider.currentSaleItems) {
+                          debugPrint("Checking stock for item: $item");
+                          final itemName =
+                              item['itemName']?.toString() ??
+                              item['itemData']?['itemName']?.toString() ??
+                              '';
+                          final varianceName =
+                              item['varianceData']['varianceName']
+                                  ?.toString() ??
+                              'Unknown Item';
+                          debugPrint("Checking stock for item: $varianceName");
+                          final itemUom =
+                              (item['varianceData']['variance_Uom']
+                                          ?.toString() ??
+                                      '')
+                                  .toLowerCase();
+                          final bool isKg = itemUom.contains('kg');
+
+                          double requiredQty = isKg
+                              ? (item['weight'] as num?)?.toDouble() ?? 0.0
+                              : (item['quantity'] as num?)?.toDouble() ?? 0.0;
+
+                          double liveStock = globalManager.getSystemStock(
+                            aliasname,
+                            varianceName,
+                          );
+                          double availableStock = liveStock >= 0
+                              ? liveStock
+                              : 0.0;
+
+                          if (liveStock < 0 &&
+                              branchwiseItems != null &&
+                              branchwiseItems['data']?[itemName] != null) {
+                            final itemData = branchwiseItems['data'][itemName];
+                            final varianceMap = itemData['variance'] as Map?;
+                            if (varianceMap != null) {
+                              for (var v in varianceMap.values) {
+                                if (v['varianceName']?.toString() ==
+                                    varianceName) {
+                                  availableStock =
+                                      (v['branchwise']?[aliasname]?['systemStock_$aliasname']
+                                              as num?)
+                                          ?.toDouble() ??
+                                      0.0;
+                                  break;
+                                }
+                              }
+                            }
+                          }
+
+                          final bool sufficient =
+                              requiredQty <= availableStock + 0.001;
+                          if (!sufficient) hasInsufficient = true;
+
+                          stockCheckList.add({
+                            'item': varianceName,
+                            'required': requiredQty,
+                            'available': availableStock,
+                            'uom': isKg ? 'kg' : 'pcs',
+                            'status': sufficient ? 'OK' : 'Insufficient',
+                            'isKg': isKg,
+                          });
+                        }
+
+                        if (hasInsufficient) {
+                          final List<Map<String, dynamic>> insufficientItems =
+                              stockCheckList
+                                  .where(
+                                    (row) => row['status'] == 'Insufficient',
+                                  )
+                                  .toList();
 
                           showDialog(
                             context: context,
-                            barrierDismissible:
-                                true, // ← THIS IS KEY! Prevents outside tap close
-                            builder: (BuildContext context) {
-                              return WillPopScope(
-                                onWillPop: () async {
-                                  // This triggers on back button OR outside tap (when barrierDismissible: false)
-                                  bool shouldClose =
-                                      await showConfirmationDialog(context);
-                                  return shouldClose;
-                                },
-                                child: Dialog(
-                                  alignment: Alignment.centerLeft,
-                                  backgroundColor: CustomColors.whiteColor,
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(8.0),
-                                    child: CustomSizedBox(
-                                      width:
-                                          MediaQuery.of(context).size.width *
-                                          0.5,
-                                      child: SalesInvoicePayAndPrint(
-                                        totalAmount: totalAmount,
-                                        holdBillId:
-                                            saleProvider.holdBillId ?? '',
-                                        customerNumber:
-                                            _customerNumberController.text,
-                                        onDismiss: () {
-                                          debugPrint(
-                                            'Payment completed or dismissed safely',
-                                          );
-                                        },
+                            barrierDismissible: false,
+                            builder: (ctx) => Dialog(
+                              alignment: Alignment.centerLeft,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              elevation: 30,
+                              backgroundColor: Colors.transparent,
+                              child: Container(
+                                width: MediaQuery.of(context).size.width * 0.6,
+                                constraints: const BoxConstraints(
+                                  maxHeight: 700,
+                                ),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [Colors.white, Colors.grey.shade50],
+                                  ),
+                                  borderRadius: BorderRadius.circular(20),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.2),
+                                      blurRadius: 30,
+                                      offset: const Offset(0, 15),
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    // Header - Red Alert
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 20,
+                                        horizontal: 24,
                                       ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red.shade500,
+                                        borderRadius:
+                                            const BorderRadius.vertical(
+                                              top: Radius.circular(20),
+                                            ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.warning_amber_rounded,
+                                            color: Colors.white,
+                                            size: 40,
+                                          ),
+                                          const SizedBox(width: 16),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  "Insufficient Stock",
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 22,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  "The following items exceed available stock. Please adjust quantities.",
+                                                  style: TextStyle(
+                                                    color: Colors.white
+                                                        .withOpacity(0.9),
+                                                    fontSize: 14,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+
+                                    Flexible(
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(24),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            const SizedBox(height: 10),
+
+                                            // Table Header
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 14,
+                                                    horizontal: 12,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.grey.shade400,
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  Expanded(
+                                                    flex: 5,
+                                                    child: Text(
+                                                      "Item",
+                                                      style: TextStyle(
+                                                        color: Colors.white,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        fontSize: 15,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  Expanded(
+                                                    flex: 2,
+                                                    child: Center(
+                                                      child: Text(
+                                                        "Required",
+                                                        style: TextStyle(
+                                                          color: Colors.white,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          fontSize: 15,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  Expanded(
+                                                    flex: 2,
+                                                    child: Center(
+                                                      child: Text(
+                                                        "Available",
+                                                        style: TextStyle(
+                                                          color: Colors.white,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          fontSize: 15,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  Expanded(
+                                                    flex: 2,
+                                                    child: Center(
+                                                      child: Text(
+                                                        "Shortage",
+                                                        style: TextStyle(
+                                                          color: Colors.white,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          fontSize: 15,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+
+                                            const SizedBox(height: 12),
+
+                                            Flexible(
+                                              child: ListView.separated(
+                                                shrinkWrap: true,
+                                                separatorBuilder: (_, __) =>
+                                                    const SizedBox(height: 10),
+                                                itemCount:
+                                                    insufficientItems.length,
+                                                itemBuilder: (context, i) {
+                                                  final row =
+                                                      insufficientItems[i];
+                                                  final double shortage =
+                                                      (row['required']
+                                                          as double) -
+                                                      (row['available']
+                                                          as double);
+
+                                                  return Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          vertical: 16,
+                                                          horizontal: 12,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.red.shade50,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            12,
+                                                          ),
+                                                      border: Border.all(
+                                                        color:
+                                                            Colors.red.shade500,
+                                                        width: 1.8,
+                                                      ),
+                                                    ),
+                                                    child: Row(
+                                                      children: [
+                                                        Expanded(
+                                                          flex: 5,
+                                                          child: Text(
+                                                            row['item'],
+                                                            style: TextStyle(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                              fontSize: 15,
+                                                              color: Colors
+                                                                  .red
+                                                                  .shade600,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        Expanded(
+                                                          flex: 2,
+                                                          child: Center(
+                                                            child: Text(
+                                                              "${row['required'].toStringAsFixed(row['isKg'] ? 3 : 0)} ${row['uom']}",
+                                                              style: TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                color: Colors
+                                                                    .red
+                                                                    .shade600,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        Expanded(
+                                                          flex: 2,
+                                                          child: Center(
+                                                            child: Text(
+                                                              "${row['available'].toStringAsFixed(row['isKg'] ? 3 : 0)} ${row['uom']}",
+                                                              style: TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                color: Colors
+                                                                    .red
+                                                                    .shade600,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        Expanded(
+                                                          flex: 2,
+                                                          child: Center(
+                                                            child: Container(
+                                                              padding:
+                                                                  const EdgeInsets.symmetric(
+                                                                    horizontal:
+                                                                        16,
+                                                                    vertical: 8,
+                                                                  ),
+                                                              decoration: BoxDecoration(
+                                                                color: Colors
+                                                                    .red
+                                                                    .shade500,
+                                                                borderRadius:
+                                                                    BorderRadius.circular(
+                                                                      8,
+                                                                    ),
+                                                              ),
+                                                              child: Text(
+                                                                "-${shortage.toStringAsFixed(row['isKg'] ? 3 : 0)}",
+                                                                style: const TextStyle(
+                                                                  color: Colors
+                                                                      .white,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .bold,
+                                                                  fontSize: 14,
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  );
+                                                },
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+
+                                    // Footer
+                                    Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        24,
+                                        0,
+                                        24,
+                                        24,
+                                      ),
+                                      child: SizedBox(
+                                        width: double.infinity,
+                                        height: 56,
+                                        child: ElevatedButton(
+                                          onPressed: () => Navigator.pop(ctx),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                Colors.red.shade500,
+                                            foregroundColor: Colors.white,
+                                            elevation: 8,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
+                                            ),
+                                          ),
+                                          child: const Text(
+                                            "Close & Adjust Quantities",
+                                            style: TextStyle(
+                                              fontSize: 17,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                          return; // Stop payment
+                        }
+
+                        showDialog(
+                          context: context,
+                          barrierDismissible: true,
+                          builder: (BuildContext context) {
+                            return WillPopScope(
+                              onWillPop: () async =>
+                                  await showConfirmationDialog(context),
+                              child: Dialog(
+                                alignment: Alignment.centerLeft,
+                                backgroundColor: CustomColors.whiteColor,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: CustomSizedBox(
+                                    width:
+                                        MediaQuery.of(context).size.width * 0.5,
+                                    child: SalesInvoicePayAndPrint(
+                                      totalAmount: totalAmount,
+                                      holdBillId: saleProvider.holdBillId ?? '',
+                                      customerNumber:
+                                          _customerNumberController.text,
+                                      onDismiss: () {
+                                        debugPrint(
+                                          'Payment completed or dismissed safely',
+                                        );
+                                      },
                                     ),
                                   ),
                                 ),
-                              );
-                            },
-                          ).then((_) {
-                            // Always reset when dialog closes (whether confirmed or cancelled)
-                            saleProvider.discountPercentage = 0.0;
-                            saleProvider.customCharge = 0.0;
-                            saleProvider.calculateTotal();
-                            _customerNumberController.clear();
-                          });
-                        }
+                              ),
+                            );
+                          },
+                        ).then((_) {
+                          saleProvider.discountPercentage = 0.0;
+                          saleProvider.customCharge = 0.0;
+                          saleProvider.calculateTotal();
+                          _customerNumberController.clear();
+                        });
                       },
                       backgroundColor: CustomColors.primaryColor,
                       textColor: CustomColors.whiteColor,

@@ -66,8 +66,7 @@ Future<void> handleModifyOrder(
 
     // Step 3: Get the most recent order
     final lastOrder = orders.last;
-    print("lastOrder: ${lastOrder}");
-  } catch (e, st) {
+      } catch (e, st) {
     if (orderData != null && orderData['saleOrderNo'] != null) {
       _processedOrders.remove(orderData['saleOrderNo']);
       _activeOrders.remove(orderData['saleOrderNo']);

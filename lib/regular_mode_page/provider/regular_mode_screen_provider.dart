@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:yenpos/Global/global_data_manager.dart';
 import 'package:yenpos/Global/globals_data.dart';
+import 'package:yenpos/regular_mode_page/provider/image_service.dart';
 
 // class RegularModeProvider with ChangeNotifier {
 //   List<Map<String, dynamic>> items = [];
@@ -528,11 +529,16 @@ class RegularModeProvider with ChangeNotifier {
                   'branchwise': branchwise,
                 };
               }).toList();
+              final imageUrl = (item['itemImage'] ?? "").toString();
+
+              if (imageUrl.isNotEmpty) {
+                ImageCacheService.cacheImage(imageUrl); // 🔥 cache image
+              }
 
               return {
                 'name': (item['itemName'] ?? "").toString(),
                 'category': (item['category'] ?? "").toString(),
-                'imagePath': '',
+                'imagePath': imageUrl,
                 'variances': variancesList,
               };
             }

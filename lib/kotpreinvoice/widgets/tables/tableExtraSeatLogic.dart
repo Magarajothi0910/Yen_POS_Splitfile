@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:yenpos/kotpreinvoice/components/extractTableNumber.dart';
 import '../../components/flushbar.dart';
 import '../../providers/order_provider.dart';
 import '../../screens/customerScreen file/seat_transfer.dart';
@@ -95,13 +96,6 @@ void addExtraTableToTable({
 
   final resolvedAreaName = getAreaNameForTable(mainTableNumber);
 
-  // ProductCardScreen(
-  //   tableNumber: newTableNumber,
-  //   seat: nextAvailableSeat ?? '',
-  //   areaName: resolvedAreaName,
-  //   seathiveOrderId: '',
-  // );
-
   showCustomFlushbar(
     context,
     'Extra $newTableNumber is added ',
@@ -109,22 +103,24 @@ void addExtraTableToTable({
   );
 }
 
-// String getDisplaySeatName(String tableNumber, OrderProvider orderProvider) {
-//   final mainTable = extractMainTable(tableNumber);
+String getDisplaySeatName(String tableNumber, OrderProvider orderProvider) {
+  final mainTable = extractMainTable(tableNumber);
 
-//   // If it is extra table like Table 1(C), don't remap
-//   if (tableNumber != mainTable) return tableNumber;
+  // If it is extra table like Table 1(C), don't remap
+  if (tableNumber != mainTable) return tableNumber;
 
-//   // Check if mainTable(A) has a confirm order
-//   final hasConfirmA = orderProvider.orders.any((order) =>
-//       order['table'] == mainTable &&
-//       order['seat'] == 'A' &&
-//       order['status'] == 'confirm');
+  // Check if mainTable(A) has a confirm order
+  final hasConfirmA = orderProvider.orders.any(
+    (order) =>
+        order['table'] == mainTable &&
+        order['seat'] == 'A' &&
+        order['status'] == 'confirm',
+  );
 
-//   // If yes and you're tapping mainTable, display as Table 1(A) no matter where it's actually stored
-//   if (hasConfirmA) {
-//     return mainTable;
-//   } else {
-//     return tableNumber;
-//   }
-// }
+  // If yes and you're tapping mainTable, display as Table 1(A) no matter where it's actually stored
+  if (hasConfirmA) {
+    return mainTable;
+  } else {
+    return tableNumber;
+  }
+}

@@ -11,6 +11,7 @@ class ProductProvider with ChangeNotifier {
   List<Product> _products = [];
   late Box _productBox;
   late Box _tableBox;
+  get tableBox => _tableBox;
   late Box _addOnBox; // Add-on box for storing add-ons
   List<Map<String, dynamic>> _addons = []; // List to store add-ons data
   late Box _variantBox; // Add-on box for storing add-ons
@@ -25,13 +26,13 @@ class ProductProvider with ChangeNotifier {
   bool loading = false;
 
   Future<void> initializeHive() async {
-    _productBox = Hive.box('branchwise_items');
+    // _productBox = Hive.box('items');
     _tableBox = Hive.box('branchwise_tables');
     _addOnBox = Hive.box('addons');
     _variantBox = Hive.box('variants');
 
     // Complete initialization before fetching data
-    await loadProductsFromHive();
+    // await loadProductsFromHive();
     await loadTablesFromHive();
     await _loadAddOnsFromHive();
     await _loadvariantsFromHive();
@@ -43,86 +44,207 @@ class ProductProvider with ChangeNotifier {
   }
 
   Future<void> initProductBox() async {
-    _productBox = Hive.box('productBox');
+    _productBox = Hive.box('items');
   }
+
+  // Future<void> loadProductsFromHive() async {
+  //   try {
+  //     // if (!_productBox.isOpen) {
+  //     //   await Hive.openBox('items');
+  //     // }
+  //     final branchItems = await Hive.openBox('items');
+
+  //     debugPrint("branchItems is $branchItems");
+
+  //     final fullWrapper = branchItems.get('branchwiseItems_$aliasname');
+  //     debugPrint("fullWrapper is $fullWrapper");
+
+  //     final hiveDataRaw = fullWrapper;
+
+  //     debugPrint("hiveDataRaw is $hiveDataRaw");
+
+  //     if (hiveDataRaw != null && hiveDataRaw is Map) {
+  //       final productData = castToStringKeyedMap(hiveDataRaw);
+
+  //       debugPrint("productData is $productData");
+
+  //       if (productData.isEmpty) return;
+
+  //       _products = []; // Reset before appending valid data
+
+  //       productData.forEach((key, value) {
+  //         debugPrint("value is $value");
+  //         final item = castToStringKeyedMap(value['item'] ?? {});
+  //         final variances = castToStringKeyedMap(value['variance'] ?? {});
+
+  //         variances.forEach((varKey, varValue) {
+  //           try {
+  //             final defaultPrice = (varValue['variance_Defaultprice'] is num)
+  //                 ? (varValue['variance_Defaultprice'] as num).toDouble()
+  //                 : double.tryParse(
+  //                         varValue['variance_Defaultprice'].toString(),
+  //                       ) ??
+  //                       (item['item_Defaultprice'] is num
+  //                           ? (item['item_Defaultprice'] as num).toDouble()
+  //                           : double.tryParse(
+  //                               item['item_Defaultprice'].toString(),
+  //                             )) ??
+  //                       0.0;
+
+  //             final branchwise =
+  //                 varValue['branchwise'] as Map<String, dynamic>?;
+  //             int localHiveStock = 0;
+  //             if (branchwise != null && branchwise.containsKey(aliasname)) {
+  //               final branchData =
+  //                   branchwise[aliasname] as Map<String, dynamic>;
+  //               final stockKey = 'localHiveStock_$aliasname';
+  //               const fallbackKey = 'localHiveStock';
+
+  //               if (branchData.containsKey(stockKey)) {
+  //                 localHiveStock =
+  //                     int.tryParse(branchData[stockKey].toString()) ?? 0;
+  //               } else if (branchData.containsKey(fallbackKey)) {
+  //                 localHiveStock =
+  //                     int.tryParse(branchData[fallbackKey].toString()) ?? 0;
+  //               }
+  //             }
+
+  //             _products.add(
+  //               Product.fromJson({
+  //                 ...item,
+  //                 ...varValue,
+  //                 'defaultprice': defaultPrice,
+  //                 'varianceName': varValue['varianceName'] ?? '',
+  //                 'varianceitemCode': varValue['varianceitemCode'] ?? '',
+  //                 'localHiveStock': localHiveStock,
+  //               }),
+  //             );
+  //           } catch (e, stack) {
+  //             debugPrint('Error parsing variance $varKey: $e\n$stack');
+  //           }
+  //         });
+  //       });
+  //     } else {
+  //       debugPrint('No valid product data found in Hive.');
+  //     }
+
+  //     printAllLocalHiveStock();
+
+  //     // Notify listeners safely after build
+  //     WidgetsBinding.instance.addPostFrameCallback((_) {
+  //       notifyListeners();
+  //     });
+  //   } catch (e, stack) {
+  //     debugPrint('Failed to load products from Hive: $e\n$stack');
+  //   }
+  // }
 
   Future<void> loadProductsFromHive() async {
     try {
-      if (!_productBox.isOpen) {
-        await Hive.openBox('productBox');
-      }
+      
+      // Open Hive box
+      final Box branchItems = await Hive.openBox('items');
 
-      final fullWrapper = _productBox.get('data');
-      final hiveDataRaw =
-          (fullWrapper is Map && fullWrapper.containsKey('data'))
-          ? fullWrapper['data']
-          : {};
+      debugPrint("branchItems opened");
 
-      if (hiveDataRaw != null && hiveDataRaw is Map) {
-        final productData = castToStringKeyedMap(hiveDataRaw);
+      final dynamic fullWrapper = branchItems.get('branchwiseItems_$aliasname');
 
-        if (productData.isEmpty) return;
+      // debugPrint("fullWrapper: $fullWrapper");
 
-        _products = []; // Reset before appending valid data
-
-        productData.forEach((key, value) {
-          final item = castToStringKeyedMap(value['item'] ?? {});
-          final variances = castToStringKeyedMap(value['variance'] ?? {});
-
-          variances.forEach((varKey, varValue) {
-            try {
-              final defaultPrice = (varValue['variance_Defaultprice'] is num)
-                  ? (varValue['variance_Defaultprice'] as num).toDouble()
-                  : double.tryParse(
-                          varValue['variance_Defaultprice'].toString(),
-                        ) ??
-                        (item['item_Defaultprice'] is num
-                            ? (item['item_Defaultprice'] as num).toDouble()
-                            : double.tryParse(
-                                item['item_Defaultprice'].toString(),
-                              )) ??
-                        0.0;
-
-              final branchwise =
-                  varValue['branchwise'] as Map<String, dynamic>?;
-              int localHiveStock = 0;
-              if (branchwise != null && branchwise.containsKey(aliasname)) {
-                final branchData =
-                    branchwise[aliasname] as Map<String, dynamic>;
-                final stockKey = 'localHiveStock_$aliasname';
-                const fallbackKey = 'localHiveStock';
-
-                if (branchData.containsKey(stockKey)) {
-                  localHiveStock =
-                      int.tryParse(branchData[stockKey].toString()) ?? 0;
-                } else if (branchData.containsKey(fallbackKey)) {
-                  localHiveStock =
-                      int.tryParse(branchData[fallbackKey].toString()) ?? 0;
-                }
-              }
-
-              _products.add(
-                Product.fromJson({
-                  ...item,
-                  ...varValue,
-                  'defaultprice': defaultPrice,
-                  'varianceName': varValue['varianceName'] ?? '',
-                  'varianceitemCode': varValue['varianceitemCode'] ?? '',
-                  'localHiveStock': localHiveStock,
-                }),
-              );
-            } catch (e, stack) {
-              debugPrint('Error parsing variance $varKey: $e\n$stack');
-            }
-          });
-        });
-      } else {
+      if (fullWrapper == null || fullWrapper is! Map) {
         debugPrint('No valid product data found in Hive.');
+        return;
       }
+
+      final Map<String, dynamic> productData = castToStringKeyedMap(
+        fullWrapper,
+      );
+
+      debugPrint("productData keys: ${productData.keys}");
+
+      // 🔴 IMPORTANT: Only iterate `data`, NOT `categories`
+      final dynamic rawData = productData['data'];
+
+      if (rawData == null || rawData is! Map) {
+        debugPrint('Invalid or missing `data` key in Hive');
+        return;
+      }
+
+      final Map<String, dynamic> dataMap = castToStringKeyedMap(rawData);
+
+      _products = []; // Reset product list
+
+      dataMap.forEach((itemKey, value) {
+        if (value is! Map) return;
+
+        final Map<String, dynamic> item = castToStringKeyedMap(
+          value['item'] ?? {},
+        );
+
+        final Map<String, dynamic> variances = castToStringKeyedMap(
+          value['variance'] ?? {},
+        );
+
+        variances.forEach((varKey, varValue) {
+          try {
+            if (varValue is! Map) return;
+
+            // -------- PRICE RESOLUTION --------
+            final double defaultPrice =
+                (varValue['variance_Defaultprice'] is num)
+                ? (varValue['variance_Defaultprice'] as num).toDouble()
+                : double.tryParse(
+                        varValue['variance_Defaultprice']?.toString() ?? '',
+                      ) ??
+                      (item['item_Defaultprice'] is num
+                          ? (item['item_Defaultprice'] as num).toDouble()
+                          : double.tryParse(
+                              item['item_Defaultprice']?.toString() ?? '',
+                            )) ??
+                      0.0;
+
+            // -------- STOCK RESOLUTION --------
+            int localHiveStock = 0;
+
+            final Map<String, dynamic>? branchwise =
+                varValue['branchwise'] as Map<String, dynamic>?;
+
+            if (branchwise != null && branchwise.containsKey(aliasname)) {
+              final Map<String, dynamic> branchData = castToStringKeyedMap(
+                branchwise[aliasname],
+              );
+
+              final String stockKey = 'localHiveStock_$aliasname';
+
+              if (branchData.containsKey(stockKey)) {
+                localHiveStock =
+                    int.tryParse(branchData[stockKey].toString()) ?? 0;
+              } else if (branchData.containsKey('localHiveStock')) {
+                localHiveStock =
+                    int.tryParse(branchData['localHiveStock'].toString()) ?? 0;
+              }
+            }
+
+            // -------- PRODUCT BUILD --------
+            _products.add(
+              Product.fromJson({
+                ...item,
+                ...varValue,
+                'defaultprice': defaultPrice,
+                'varianceName': varValue['varianceName'] ?? '',
+                'varianceitemCode': varValue['itemCode'] ?? '',
+                'localHiveStock': localHiveStock,
+              }),
+            );
+          } catch (e, stack) {
+            debugPrint('Error parsing variance $varKey: $e\n$stack');
+          }
+        });
+      });
 
       printAllLocalHiveStock();
 
-      // Notify listeners safely after build
+      // Notify listeners safely
       WidgetsBinding.instance.addPostFrameCallback((_) {
         notifyListeners();
       });
@@ -130,6 +252,7 @@ class ProductProvider with ChangeNotifier {
       debugPrint('Failed to load products from Hive: $e\n$stack');
     }
   }
+
   // Utility function to recursively cast dynamic maps
 
   Map<String, dynamic> castToStringKeyedMap(dynamic value) {
@@ -424,7 +547,7 @@ class ProductProvider with ChangeNotifier {
 
     try {
       await _hiveInitialized.future;
-      final response = await dio.get('https://yenerp.com/fastapi/tables/');
+      final response = await dio.get('https://yenerp.com/nextjstestapi/tables/');
 
       if (response.statusCode == 200) {
         try {

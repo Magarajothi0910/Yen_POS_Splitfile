@@ -1,7 +1,6 @@
 // audio_provider.dart
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
-
 import 'dart:io';
 
 import 'Audio_model.dart';
@@ -13,8 +12,8 @@ class AudioProvider extends ChangeNotifier {
   AudioState get state => _state;
   AudioPlayer get player => _player;
 
-  String? _currentId;
-  //String? audioPlayerId;
+  String? _currentFilePath;
+
   AudioProvider() {
     _initializeListeners();
   }
@@ -28,19 +27,17 @@ class AudioProvider extends ChangeNotifier {
 
       if (playerState.processingState == ProcessingState.completed) {
         _player.seek(Duration.zero);
-        _player.pause(); // Automatically pause when the audio is complete
-        _state = _state.copyWith(
-          isPlaying: false,
-          position: Duration.zero,
-        ); // Update state to paused
+        _player.pause();
+        _state = _state.copyWith(isPlaying: false, position: Duration.zero);
+        notifyListeners();
       } else {
         _state = _state.copyWith(
           isPlaying: isPlaying,
           isLoading: isLoading,
           error: null,
         );
+        notifyListeners();
       }
-      notifyListeners();
     });
 
     _player.positionStream.listen((position) {
@@ -64,65 +61,105 @@ class AudioProvider extends ChangeNotifier {
     });
   }
 
-  Future<bool> checkAudio(String? customId) async {
-    try {
-      await loadAudio(customId!); // Call loadAudio
-      if (state.error == null) {
-        //   audioPlayerId = customId;
-        return true; // Audio loaded successfully
-      } else {
-        //  audioPlayerId = null;
-        return false; // Error while loading audio
-      }
-    } catch (e) {
-      //  audioPlayerId = null;
-      return false; // Exception occurred while loading audio
-    }
-  }
-
   Future<void> loadAudio(String filePath) async {
-
-    if (_currentId == filePath) {
-      return; // Avoid reloading if same path
+    if (_currentFilePath == filePath && filePath.isNotEmpty) {
+      return;
     }
-    _currentId = filePath;
+
+    _currentFilePath = filePath;
 
     try {
-      _state = AudioState();
-      _state = _state.copyWith(isLoading: true, error: null);
+      _state = AudioState(
+        isLoading: true,
+        error: null,
+        position: Duration.zero,
+        duration: Duration.zero,
+      );
       notifyListeners();
 
+      await _player.stop();
       await _player.setFilePath(filePath);
 
-      final fileBytes = await File(filePath).readAsBytes();
+      final file = File(filePath);
+      if (await file.exists()) {
+        final fileBytes = await file.readAsBytes();
+        final waveformData = await _generateWaveformData(fileBytes);
 
-      final waveformData = await _generateWaveformData(fileBytes);
-
-      _state = _state.copyWith(
+        _state = AudioState(
+          isLoading: false,
+          waveformData: waveformData,
+          error: null,
+          position: Duration.zero,
+          duration: _player.duration ?? Duration.zero,
+          isPlaying: false,
+        );
+      } else {
+        _state = AudioState(
+          isLoading: false,
+          error: 'Audio file not found',
+          position: Duration.zero,
+          duration: Duration.zero,
+        );
+      }
+    } catch (e) {
+      _state = AudioState(
         isLoading: false,
-        waveformData: waveformData,
-        error: null,
-      );
-    } catch (e, stackTrace) {
-
-      _state = _state.copyWith(
-        isLoading: false,
-        error: 'No audio file found. Please add an audio file to play.',
+        error: 'Failed to load audio file',
+        position: Duration.zero,
+        duration: Duration.zero,
       );
     }
 
     notifyListeners();
   }
 
-  Future<List<int>> _generateWaveformData(List<int> audioBytes) async {
-    // This is a simplified example - in a real app, you'd want to properly analyze the audio data
-    // to generate accurate waveform data
-    List<int> waveformData = [];
-    for (int i = 0; i < audioBytes.length; i += 1000) {
-      int amplitude = audioBytes[i] % 100; // Simplified amplitude calculation
-      waveformData.add(amplitude);
+  /// 🔥 COMPLETE AUDIO RESET - Call this when placing held order
+  Future<void> completeAudioReset() async {
+    try {
+      // 1. Stop playback immediately
+      await _player.stop();
+
+      // 2. Seek to beginning
+      await _player.seek(Duration.zero);
+
+      // 3. Reset to empty state (as if new)
+      _state = AudioState(
+        position: Duration.zero,
+        duration: Duration.zero,
+        isPlaying: false,
+        isLoading: false,
+        waveformData: [],
+        error: null,
+        volume: 1.0,
+        speed: 1.0,
+      );
+
+      // 4. Clear current file path reference
+      _currentFilePath = null;
+
+      // 5. Notify listeners to rebuild UI
+      notifyListeners();
+    } catch (e) {
+      // Force reset state even if error occurs
+      _state = AudioState();
+      _currentFilePath = null;
+      notifyListeners();
     }
-    return waveformData;
+  }
+
+  Future<List<int>> _generateWaveformData(List<int> audioBytes) async {
+    List<int> waveformData = [];
+    final totalSamples = audioBytes.length ~/ 2;
+
+    if (totalSamples == 0) return [];
+
+    final step = totalSamples ~/ 100;
+    for (int i = 0; i < totalSamples && i < 100 * step; i += step) {
+      final amplitude = (audioBytes[i] & 0xFF).abs();
+      waveformData.add(amplitude % 100);
+    }
+
+    return waveformData.isNotEmpty ? waveformData : [50];
   }
 
   void togglePlay() {
@@ -138,11 +175,17 @@ class AudioProvider extends ChangeNotifier {
   }
 
   void setVolume(double volume) {
-    _player.setVolume(volume);
+    _player.setVolume(volume.clamp(0.0, 1.0));
   }
 
   void setSpeed(double speed) {
-    _player.setSpeed(speed);
+    _player.setSpeed(speed.clamp(0.5, 2.0));
+  }
+
+  Future<void> stop() async {
+    await _player.stop();
+    _state = _state.copyWith(isPlaying: false, position: Duration.zero);
+    notifyListeners();
   }
 
   @override

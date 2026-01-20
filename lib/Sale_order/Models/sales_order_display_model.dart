@@ -210,7 +210,7 @@ class SalesOrderDisplay {
   final int discount;
   final double discountAmount;
   final String remark;
-  final double customCharge;
+  final List<double> customCharge;
   List<double>? advanceAmount;
   List<String> advanceDateTime;
   List<List<String>>? advancePaymentType;
@@ -222,7 +222,8 @@ class SalesOrderDisplay {
   final String saleOrderNo;
   final String orderDate;
   final String orderTime;
-  final String customChargeType;
+  final List<String> customChargeType;
+  double? totalCustomCharge;
 
   final String employeeName;
   final String status;
@@ -240,6 +241,8 @@ class SalesOrderDisplay {
   String? image1;
   String? image2;
   String? audio;
+  List<String>? imagePaths;
+
   SalesOrderDisplay({
     required this.salesOrderId,
     required this.itemName,
@@ -280,6 +283,7 @@ class SalesOrderDisplay {
     required this.customerName,
     required this.deliveryType,
     required this.address,
+    required this.totalCustomCharge,
     required this.landmark,
     required this.discount,
     required this.discountAmount,
@@ -312,6 +316,7 @@ class SalesOrderDisplay {
     this.audio,
     this.hiveId,
     this.orderType,
+    this.imagePaths,
   });
 
   String get formattedDeliveryDate {
@@ -338,7 +343,7 @@ class SalesOrderDisplay {
       'uom': uom,
       'sellingPrice': sellingPrice,
       'sellingAmount': sellingAmount,
-
+      'totalCustomCharge': totalCustomCharge,
       'totalAmount': totalAmount,
       'totalAmount2': totalAmount2,
       'netPrice': netPrice,
@@ -393,7 +398,7 @@ class SalesOrderDisplay {
       //  'toApprove': toApprove?.map((x) => x.toJson()).toList(),
       'toApprove': toApprove,
       'isBoxItem': isBoxItem,
-
+      'imagePaths': imagePaths,
       'image1': image1,
       'image2': image2,
       'audio': audio,
@@ -405,6 +410,9 @@ class SalesOrderDisplay {
       salesOrderId: json['salesOrderId'] ?? '',
       itemName:
           (json['itemName'] as List?)?.map((e) => e.toString()).toList() ?? [],
+      imagePaths:
+          (json['imagePaths'] as List?)?.map((e) => e.toString()).toList() ??
+          [],
       varianceName:
           (json['varianceName'] as List?)?.map((e) => e.toString()).toList() ??
           [],
@@ -465,7 +473,12 @@ class SalesOrderDisplay {
       shiftName: json['shiftName'] ?? '',
       user: json['user'] ?? '',
       deliveryDate: json['deliveryDate'] ?? '',
-      customChargeType: json["customChargeType"] ?? '',
+      customChargeType:
+          (json['customChargeType'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
+
       deliveryTime: json['deliveryTime'] ?? '',
       event: json['event'] ?? '',
       customerNumber: json['customerNumber'] ?? '',
@@ -476,10 +489,17 @@ class SalesOrderDisplay {
       discount: (json['discount'] as num?)?.toInt() ?? 0,
       discountAmount: (json['discountAmount'] as num?)?.toDouble() ?? 0.0,
       remark: json['remark'] ?? '',
-      customCharge: (json['customCharge'] as num?)?.toDouble() ?? 0.0,
-      advanceAmount: (json['advanceAmount'] as List?)
-          ?.map((e) => (e as num).toDouble())
-          .toList(),
+      customCharge:
+          (json['customCharge'] as List?)
+              ?.map((e) => (e as num).toDouble())
+              .toList() ??
+          [],
+      totalCustomCharge: (json['totalCustomCharge'] as num?)?.toDouble() ?? 0.0,
+      advanceAmount:
+          (json['advanceAmount'] as List?)
+              ?.map((e) => (e as num).toDouble())
+              .toList() ??
+          [],
       advanceDateTime: List<String>.from(json['advanceDateTime'] ?? []),
       advancePaymentType: json['advancePaymentType'] != null
           ? List<List<String>>.from(
@@ -573,6 +593,11 @@ class SalesOrderDisplay {
     final order = SalesOrderDisplay(
       hiveId: orderMap['hiveId']?.toString() ?? '',
       salesOrderId: orderMap['salesOrderId']?.toString() ?? '',
+      imagePaths: parseList<String>(
+        orderMap['imagePaths'],
+        (v) => v.toString(),
+        'N/A',
+      ),
       itemName: parseList<String>(
         orderMap['itemName'],
         (v) => v.toString(),
@@ -636,7 +661,11 @@ class SalesOrderDisplay {
       branchId: orderMap['branchId'] ?? '',
       branchName: orderMap['branchName'] ?? '',
       aliasName: orderMap['aliasName'] ?? '',
-      customChargeType: orderMap["customChargeType"] ?? '',
+      customChargeType: parseList<String>(
+        orderMap['customChargeType'],
+        (v) => v.toString(),
+        'N/A',
+      ),
       invoiceDate: orderMap['invoiceDate'] ?? '',
       cash: (orderMap['cash']?.toDouble() ?? 0.0),
       card: (orderMap['card']?.toDouble() ?? 0.0),
@@ -662,20 +691,23 @@ class SalesOrderDisplay {
           : 0,
       discountAmount: (orderMap['discountAmount']?.toDouble() ?? 0.0),
       remark: orderMap['remark'] ?? '',
-      customCharge: (orderMap['customCharge']?.toDouble() ?? 0.0),
+      customCharge: parseList<double>(
+        orderMap['customCharge'],
+        (v) => double.tryParse(v.toString()) ?? 0.0,
+        0.0,
+      ),
       tax:
           (orderMap['tax'] as List<dynamic>?)
               ?.map((e) => double.tryParse(e.toString()) ?? 0.0)
               .toList() ??
           [],
       uom: List<String>.from(orderMap['uom'] ?? []),
-      advanceAmount: (orderMap['advanceAmount'] is List)
-          ? List<double>.from(
-              (orderMap['advanceAmount'] as List<dynamic>).map(
-                (x) => (x as num).toDouble(),
-              ),
-            )
-          : [orderMap['advanceAmount']?.toDouble() ?? 0.0],
+      advanceAmount: parseList<double>(
+        orderMap['advanceAmount'],
+        (v) => double.tryParse(v.toString()) ?? 0.0,
+        0.0,
+      ),
+
       advanceDateTime: List<String>.from(orderMap['advanceDateTime'] ?? []),
       advancePaymentType: orderMap['advancePaymentType'] != null
           ? List<List<String>>.from(
@@ -714,6 +746,7 @@ class SalesOrderDisplay {
         (v) => v.toString(),
         'N/A',
       ),
+      totalCustomCharge: (orderMap['totalCustomCharge']?.toDouble() ?? 0.0),
     );
 
     return order;
@@ -790,6 +823,8 @@ class SalesOrderDisplay {
       toApprove: toApprove ?? this.toApprove,
       // isBoxItem: isBoxItem ?? this.isBoxItem,
       isBoxItem: this.isBoxItem ?? [],
+      totalCustomCharge: totalCustomCharge,
+      imagePaths: imagePaths,
     );
   }
 
@@ -859,6 +894,8 @@ class SalesOrderDisplay {
       audio: audio,
       isBoxItem: this.isBoxItem ?? [],
       toApprove: toApprove ?? this.toApprove,
+      totalCustomCharge: totalCustomCharge,
+      imagePaths: imagePaths,
     );
   }
 

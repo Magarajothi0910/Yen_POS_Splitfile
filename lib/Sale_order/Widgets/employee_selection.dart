@@ -104,6 +104,17 @@ class _EmployeeSearchDropdownState extends State<EmployeeSearchDropdown> {
 
   void _debouncedUpdateOverlay() {
     if (_isProgrammaticUpdate) return; // Skip if programmatic update
+
+    // Check if we're restoring an order
+    final customerProvider = Provider.of<CustomerScreenProvider>(
+      context,
+      listen: false,
+    );
+
+    if (customerProvider.isRestoringOrder) {
+      return; // Don't show overlay during restoration
+    }
+
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 300), _updateOverlay);
   }
@@ -127,6 +138,16 @@ class _EmployeeSearchDropdownState extends State<EmployeeSearchDropdown> {
 
   void _updateOverlay() {
     if (_isProgrammaticUpdate) return;
+
+    // Check if we're restoring an order
+    final customerProvider = Provider.of<CustomerScreenProvider>(
+      context,
+      listen: false,
+    );
+
+    if (customerProvider.isRestoringOrder) {
+      return; // Don't show overlay during restoration
+    }
 
     final detailsProvider = Provider.of<DetailsProvider>(
       context,

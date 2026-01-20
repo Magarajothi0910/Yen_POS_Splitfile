@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -23,6 +24,12 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
   OverlayEntry? _overlayEntry;
   final _formKey = GlobalKey<FormState>();
   bool _isAddingCustomer = false;
+  bool _dialogShown = false;
+  String _lastProcessedMobile = '';
+
+  // NEW: Add this flag to track if we just added a customer
+  bool _justAddedCustomer = false;
+  String? _justAddedMobile = '';
 
   @override
   void initState() {
@@ -32,10 +39,8 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
       listen: false,
     );
 
-    // Initial update
     _updateCombinedController(customerProvider);
 
-    // Listener attach
     customerProvider.customerCombinedController.addListener(
       _combinedControllerListener,
     );
@@ -51,16 +56,19 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
     customerSearchProvider.refreshCustomersFromHive();
   }
 
-  /// Listener wrapper
   void _combinedControllerListener() {
     final customerProvider = Provider.of<CustomerScreenProvider>(
       context,
       listen: false,
     );
+
+    if (customerProvider.isRestoringOrder) {
+      return;
+    }
+
     _onMobileNumberChanged(customerProvider.customerCombinedController.text);
   }
 
-  // Update combined controller with mobile number and name
   void _updateCombinedController(CustomerScreenProvider customerProvider) {
     final mobile = customerProvider.mobileNoController.text;
     final name = customerProvider.customerNameController.text;
@@ -73,42 +81,72 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
   }
 
   void _onMobileNumberChanged(String value) async {
-    if (_isAddingCustomer) return;
+    // If we just added this customer, skip the dialog
+    if (_justAddedCustomer &&
+        _justAddedMobile != null &&
+        _justAddedMobile!.isNotEmpty) {
+      final mobile = value.split(' - ').first.replaceAll(RegExp(r'[^0-9]'), '');
+
+      // Check if this is the same mobile we just added
+      if (mobile == _justAddedMobile) {
+        // This is the mobile we just added, so don't show dialog
+        _justAddedCustomer = false; // Reset the flag
+        _justAddedMobile = null;
+        return;
+      }
+    }
+
+    if (_isAddingCustomer || _dialogShown) return;
 
     final customerProvider = Provider.of<CustomerScreenProvider>(
       context,
       listen: false,
     );
 
+    if (customerProvider.isRestoringOrder) {
+      return;
+    }
+
     final mobile = value.split(' - ').first.replaceAll(RegExp(r'[^0-9]'), '');
     customerProvider.mobileNoController.text = mobile;
 
-    // 🔹 Stop everything below 3 digits
-    if (mobile.length < 3) {
+    if (mobile.length < 1) {
       _removeSuggestionsOverlay();
+      _dialogShown = false;
+      _lastProcessedMobile = '';
+      return;
+    }
+
+    if (mobile == _lastProcessedMobile) {
       return;
     }
 
     final provider = context.read<CustomerSearchProvider>();
     await provider.fetchSuggestions(mobile);
 
-    // 🔹 If suggestions found → show dropdown
     if (provider.suggestions.isNotEmpty) {
       _showSuggestionsOverlay();
+      _dialogShown = false;
       return;
     }
 
-    // 🔹 If user hasn't typed 10 digits → DO NOT show add dialog
     if (mobile.length != 10) {
       _removeSuggestionsOverlay();
+      _dialogShown = false;
       return;
     }
 
-    // 🔹 10 digits typed AND no suggestions → show Add Customer Dialog
-    if (!_isAddingCustomer) {
+    if (!_isAddingCustomer && !_dialogShown && mobile != _lastProcessedMobile) {
       _isAddingCustomer = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _showAddCustomerDialog(customerProvider);
+      _dialogShown = true;
+      _lastProcessedMobile = mobile;
+
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (mounted) {
+          await _showAddCustomerDialog(customerProvider, mobile);
+          _isAddingCustomer = false;
+          _dialogShown = false;
+        }
       });
     }
   }
@@ -195,24 +233,20 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
     final searchProvider = context.read<CustomerSearchProvider>();
     searchProvider.clearSuggestions();
 
-    // Temporarily remove listener to prevent unwanted triggers
     customerProvider.customerCombinedController.removeListener(
       _combinedControllerListener,
     );
 
-    // Update fields
     final mobile = suggestion['mobile'] ?? '';
     final name = suggestion['name'] ?? '';
 
     customerProvider.mobileNoController.text = mobile;
     customerProvider.customerNameController.text = name;
 
-    // ✅ Correctly update combined controller text to include both mobile + name
     customerProvider.customerCombinedController.text = name.isNotEmpty
         ? '$mobile - $name'
         : mobile;
 
-    // Re-attach listener
     customerProvider.customerCombinedController.addListener(
       _combinedControllerListener,
     );
@@ -225,7 +259,6 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
     String mobile,
     CustomerScreenProvider provider,
   ) async {
-    // --- 1️⃣ Check Hive ---
     try {
       final box = HiveManager.customers;
       final existsInHive = box.values.any(
@@ -234,7 +267,6 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
       if (existsInHive) return true;
     } catch (e) {}
 
-    // --- 2️⃣ Check API ---
     try {
       final uri = Uri.parse(
         "https://yenerp.com/fluttertestapi/customers/by-customer?customerPhoneNumber=$mobile",
@@ -244,7 +276,6 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
-        // Handle both Map or List
         bool existsInApi = false;
         if (data is List) {
           existsInApi = data.isNotEmpty;
@@ -266,17 +297,16 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
 
   Future<void> _showAddCustomerDialog(
     CustomerScreenProvider customerProvider,
+    String currentMobile, // NEW: Get current mobile
   ) async {
-    // Controllers for this dialog instance
     final TextEditingController mobileController = TextEditingController(
-      text: customerProvider.mobileNoController.text,
+      text: currentMobile, // Use the current mobile directly
     );
 
     final TextEditingController customerNameController = TextEditingController(
       text: generateCustId(),
     );
 
-    // Local form key for this dialog only
     final GlobalKey<FormState> _dialogFormKey = GlobalKey<FormState>();
 
     await showDialog(
@@ -306,12 +336,10 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
             ),
             child: StatefulBuilder(
               builder: (context, setState) {
-                // Submit button enabled only if name is not empty
                 bool isSubmitEnabled = customerNameController.text
                     .trim()
                     .isNotEmpty;
 
-                // Listener to update button state dynamically
                 customerNameController.addListener(() {
                   setState(() {});
                 });
@@ -340,7 +368,6 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
                         ],
                       ),
                       const SizedBox(height: 20),
-                      // Mobile number field
                       TextFormField(
                         controller: mobileController,
                         keyboardType: TextInputType.phone,
@@ -371,7 +398,6 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
                         },
                       ),
                       const SizedBox(height: 16),
-                      // Customer name field
                       TextFormField(
                         controller: customerNameController,
                         inputFormatters: [
@@ -394,14 +420,12 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      // Buttons
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           TextButton(
                             onPressed: () {
                               Navigator.pop(context);
-                              _isAddingCustomer = false;
                             },
                             child: const Text(
                               "Cancel",
@@ -428,7 +452,6 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
                             ),
                             onPressed: isSubmitEnabled
                                 ? () async {
-                                    // Validate form
                                     if (!_dialogFormKey.currentState!
                                         .validate())
                                       return;
@@ -437,7 +460,6 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
                                     final name = customerNameController.text
                                         .trim();
 
-                                    // Check if customer already exists
                                     final exists = await _checkCustomerExists(
                                       mobile,
                                       customerProvider,
@@ -456,14 +478,12 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
                                       return;
                                     }
 
-                                    // Add new customer
                                     await customerProvider.sendNewCustomer(
                                       mobile,
                                       name,
                                       context,
                                     );
 
-                                    // Update provider controllers
                                     customerProvider.mobileNoController.text =
                                         mobile;
                                     customerProvider
@@ -472,8 +492,16 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
                                         name;
 
                                     _updateCombinedController(customerProvider);
+
+                                    // NEW: Set flags to prevent dialog from showing again
+                                    setState(() {
+                                      _justAddedCustomer = true;
+                                      _justAddedMobile = mobile;
+                                      _lastProcessedMobile =
+                                          ''; // Reset so it can be processed again if needed
+                                    });
+
                                     Navigator.of(context).pop();
-                                    _isAddingCustomer = false;
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: Text(
@@ -544,7 +572,7 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
               keyboardType: TextInputType.text,
               decoration: InputDecoration(
                 border: const OutlineInputBorder(),
-                labelText: 'Customer Mobile & Name',
+                labelText: 'Customer MobileNo',
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.close),
                   onPressed: () {
@@ -552,6 +580,11 @@ class _CustomerSearchDropdownState extends State<CustomerSearchDropdown> {
                     customerProvider.customerNameController.clear();
                     customerProvider.customerCombinedController.clear();
                     _removeSuggestionsOverlay();
+
+                    // NEW: Reset flags when clearing
+                    _justAddedCustomer = false;
+                    _justAddedMobile = null;
+
                     FocusScope.of(context).unfocus();
                   },
                 ),

@@ -277,7 +277,7 @@ class RegularModeProvider with ChangeNotifier {
 
       return {};
     } catch (e) {
-      print("❌ getVarianceDetails ERROR: $e");
+    
       return {};
     }
   }

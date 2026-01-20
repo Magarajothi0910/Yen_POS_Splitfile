@@ -10,6 +10,7 @@ import 'package:yenpos/Global/Widget/custom_colors.dart';
 import 'package:yenpos/Global/globals_data.dart';
 import 'package:yenpos/birthday_cakes_screen/models/birthdayCake_model.dart';
 import 'package:yenpos/birthday_cakes_screen/provider/birthdayCake_provider.dart';
+import 'package:yenpos/invoice_pay_and_print_page.dart/provider/payment_provider.dart';
 import 'package:yenpos/invoice_pay_and_print_page.dart/salesInvoicePayandPrint.dart';
 
 import '../../regular_mode_page/provider/cart_page_provider.dart';
@@ -36,10 +37,12 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen>
   MobileScannerController _scannerController = MobileScannerController();
   final GlobalKey _qrKey = GlobalKey(debugLabel: 'QR');
   final AudioPlayer _audioPlayer = AudioPlayer(); // Add audio player
+  late SalesInvoiceState _Prov;
 
   @override
   void initState() {
     super.initState();
+
     _scrollController.addListener(_onScroll);
     _manualFocusNode.addListener(_onFocusChange);
 
@@ -74,6 +77,7 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen>
         });
       }
     });
+    _Prov = Provider.of<SalesInvoiceState>(context, listen: false);
   }
 
   @override
@@ -96,6 +100,12 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen>
 
   @override
   void dispose() {
+    print('dispose called start');
+
+    print('dispose called : ${_Prov.employee.text}');
+    _Prov.employee.text = "";
+    print('dispose after clear : ${_Prov.employee.text}');
+
     routeObserver.unsubscribe(this);
     _qrFocusNode.dispose();
     _manualFocusNode.dispose();
@@ -104,8 +114,10 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen>
     _scrollController.dispose();
     _isAtTopNotifier.dispose();
     _scannerController.dispose();
-    _audioPlayer.dispose(); // Dispose audio player
+    _audioPlayer.dispose();
+
     super.dispose();
+    print('dispose called end');
   }
 
   Future<void> _playBeepSound() async {
@@ -254,7 +266,7 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen>
                 content: Text(
                   "Cannot add to cart: Cake with CakeID $cakeId is expired.",
                 ),
-                duration: const Duration(milliseconds: 500),
+                duration: const Duration(milliseconds: 1000),
               ),
             );
             return;
@@ -262,7 +274,10 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen>
 
           provider.removeCakeById(cakeId);
 
-          final result =await itemProvider.checkVarianceItemCode(itemCode,aliasname);
+          final result = await itemProvider.checkVarianceItemCode(
+            aliasname,
+            itemCode,
+          );
 
           if (result.isNotEmpty) {
             final itemData = result.first;
@@ -284,14 +299,14 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen>
                     color: CustomColors.whiteColor,
                   ),
                 ),
-                duration: const Duration(milliseconds: 500),
+                duration: const Duration(milliseconds: 1000),
               ),
             );
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text("Item not found for ItemCode: $itemCode"),
-                duration: const Duration(milliseconds: 500),
+                duration: const Duration(milliseconds: 1000),
               ),
             );
           }
@@ -301,7 +316,7 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen>
               content: Text(
                 "No cake found with CakeID: $cakeId. Item not added to cart.",
               ),
-              duration: const Duration(milliseconds: 500),
+              duration: const Duration(milliseconds: 1000),
             ),
           );
         }
@@ -309,7 +324,7 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("Invalid QR data. 'CakeID' or 'ItemCode' not found."),
-            duration: const Duration(milliseconds: 500),
+            duration: const Duration(milliseconds: 1000),
           ),
         );
       }
@@ -318,7 +333,7 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text("Error: ${e.toString()}"),
-          duration: const Duration(milliseconds: 500),
+          duration: const Duration(milliseconds: 1000),
         ),
       );
     } finally {
@@ -340,7 +355,7 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Please enter a valid Cake ID."),
-          duration: Duration(milliseconds: 500),
+          duration: Duration(milliseconds: 1000),
         ),
       );
       return;
@@ -398,7 +413,8 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen>
         provider.removeCakeById(cakeId);
 
         final result = await itemProvider.checkVarianceItemCode(
-          matchingCake.itemCode,aliasname
+          aliasname,
+          matchingCake.itemCode,
         );
 
         if (result.isNotEmpty) {
@@ -416,14 +432,14 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen>
               content: Text(
                 "Item added to cart: ${itemData['varianceData']['varianceName']}",
               ),
-              duration: const Duration(milliseconds: 500),
+              duration: const Duration(milliseconds: 1000),
             ),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text("Item not found for CakeID: $cakeId"),
-              duration: const Duration(milliseconds: 500),
+              duration: const Duration(milliseconds: 1000),
             ),
           );
         }
@@ -433,7 +449,7 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen>
             content: Text(
               "No cake found with CakeID: $cakeId. Item not added to cart.",
             ),
-            duration: const Duration(milliseconds: 500),
+            duration: const Duration(milliseconds: 1000),
           ),
         );
       }
@@ -442,7 +458,7 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text("Error: ${e.toString()}"),
-          duration: const Duration(milliseconds: 500),
+          duration: const Duration(milliseconds: 1000),
         ),
       );
     } finally {
@@ -962,7 +978,7 @@ class _BirthdayCakesScreenState extends State<BirthdayCakesScreen>
                             controller: _qrController,
                             focusNode: _qrFocusNode,
                             autofocus: true,
-                          //  readOnly: true,
+                            //  readOnly: true,
                             showCursor: false,
                             enableInteractiveSelection: false,
                             keyboardType: TextInputType.none,

@@ -12,12 +12,15 @@ class InvoiceService {
   /// Generate a shorter HiveInvoiceId
   String generateShortHiveInvoiceId() {
     final random = Random();
-    final timestamp = DateTime.now().millisecondsSinceEpoch.toString().substring(6); // Shortened timestamp
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123454549'; // Alphanumeric characters
-    final randomId = List<int>.generate(
-      6,
-      (_) => random.nextInt(characters.length),
-    ).map((index) => characters[index]).join(); // Generate a 6-character random ID
+    final timestamp = DateTime.now().millisecondsSinceEpoch
+        .toString()
+        .substring(6); // Shortened timestamp
+    const characters =
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123454549'; // Alphanumeric characters
+    final randomId =
+        List<int>.generate(6, (_) => random.nextInt(characters.length))
+            .map((index) => characters[index])
+            .join(); // Generate a 6-character random ID
     return '$timestamp-$randomId'; // Combines timestamp and random alphanumeric ID
   }
 
@@ -26,7 +29,9 @@ class InvoiceService {
     await box.add(invoiceData);
   }
 
-  Future<Response> postInvoiceToFastAPI(Map<String, dynamic> invoiceData) async {
+  Future<Response> postInvoiceToFastAPI(
+    Map<String, dynamic> invoiceData,
+  ) async {
     final Dio dio = Dio(
       BaseOptions(
         // baseUrl: 'https://your-base-url.com', // optional, if you have a base URL
@@ -37,26 +42,17 @@ class InvoiceService {
     );
 
     try {
-      debugPrint("Posting invoice data to    : $invoiceData");
-      
-
       final response = await dio.post(
         apiUrl, // replace with your actual endpoint or use full URL directly
         data: invoiceData,
       );
 
-      debugPrint("Invoice Posted Successfully: ${response.statusCode}");
       return response;
     } on DioException catch (e) {
       if (e.type == DioExceptionType.connectionTimeout) {
-        debugPrint("Connection Timeout Exception");
       } else if (e.type == DioExceptionType.receiveTimeout) {
-        debugPrint("Receive Timeout Exception");
       } else if (e.type == DioExceptionType.badResponse) {
-        debugPrint("Bad Response: ${e.response?.statusCode}");
-      } else {
-        debugPrint("Unexpected Error: $e");
-      }
+      } else {}
       rethrow; // rethrow to handle outside if needed
     }
   }

@@ -16,7 +16,7 @@ class DeviceProviderDine extends ChangeNotifier {
       sendTimeout: const Duration(seconds: 10),
     ),
   );
-    const url = 'https://yenerp.com/fastapi/devicecode/';
+    const url = 'https://yenerp.com/nextjstestapi/devicecode/';
 
     try {
       print("📡 Fetching device data from: $url");
@@ -92,7 +92,7 @@ class DeviceProviderDine extends ChangeNotifier {
       sendTimeout: const Duration(seconds: 10),
     ),
   );
-    final url = 'https://yenerp.com/fastapi/devicecode/$deviceCodeId';
+    final url = 'https://yenerp.com/nextjstestapi/devicecode/$deviceCodeId';
 
     try {
       print("🛠️ Patching device status to 0 for ID: $deviceCodeId");

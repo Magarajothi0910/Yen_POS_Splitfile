@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class OrderTypeProviderDine with ChangeNotifier {
-  String _orderType = 'Dine In';
+  String _orderType = 'Dinning';
 
   String get orderType => _orderType;
 

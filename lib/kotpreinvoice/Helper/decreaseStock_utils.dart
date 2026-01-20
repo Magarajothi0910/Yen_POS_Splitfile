@@ -41,7 +41,7 @@ Future<void> sendDecreaseStockUpdateGlobally({
   final stockUpdatePayload = {
     'type': 'decreaseStockUpdateFromKot',
     'branchAlias': aliasname,
-    'varianceItemCodes': itemCodes,
+    'varianceitemCodes': itemCodes,
     'varianceNames': names,
     'stockUpdates': quantities,
   };

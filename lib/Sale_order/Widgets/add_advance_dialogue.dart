@@ -8,9 +8,11 @@ import 'package:provider/provider.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:yenpos/Global/Provider/connectivity_internet.dart';
 import 'package:yenpos/Global/globals_data.dart';
+import 'package:yenpos/Global/globals_data.dart' as globals;
 import 'package:yenpos/Global/salesorder_websocket_service.dart';
 import 'package:yenpos/Sale_order/Models/sales_order_display_model.dart';
 import 'package:yenpos/Sale_order/Print_Receipt/allorderprint.dart';
+import 'package:yenpos/Sale_order/Provider/cartProvider.dart';
 import 'package:yenpos/Sale_order/Widgets/Send_data_to_server.dart';
 import 'package:yenpos/Sale_order/Widgets/advance_amount_payment_keybaord.dart';
 import 'package:yenpos/Sale_order/Widgets/cheque_details.dart';
@@ -71,7 +73,8 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
   final FocusNode _chequeAmountFocus = FocusNode();
   final FocusNode _chequeNameFocus = FocusNode();
   final FocusNode _chequeDateFocus = FocusNode();
-
+  bool _isInitialSend = true;
+  Map<String, dynamic> _lastSentData = {};
   // from kot payment variable
   final TextEditingController _discountController = TextEditingController();
   final TextEditingController _customChargeController = TextEditingController();
@@ -86,10 +89,54 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
 
   // NEW: missing controllers/vars that were used in original code
   final TextEditingController advanceController = TextEditingController();
+  void _sendState({
+    String type = 'state_update',
+    Map<String, dynamic>? extraData,
+  }) {
+    final stateProvider = Provider.of<SalesInvoiceState>(
+      context,
+      listen: false,
+    );
+    final currentData = {
+      'isUpiPaid': stateProvider.isUpiPaid,
+      'isCardPaid': stateProvider.isCardPaid,
+      if (extraData != null) ...extraData,
+    };
+
+    final changedFields = <String, dynamic>{};
+    if (_isInitialSend) {
+      _isInitialSend = false;
+    } else {
+      currentData.forEach((key, value) {
+        if (_lastSentData[key] != value) {
+          changedFields[key] = value;
+        }
+      });
+    }
+
+    if (changedFields.isEmpty) return; // nothing changed
+
+    _lastSentData.addAll(changedFields);
+    final message = {
+      'message': 'changed_fields',
+      'type': type,
+      ...changedFields,
+    };
+
+    try {
+      final jsonData = jsonEncode(message);
+      sendataToServer(jsonDecode(jsonData));
+    } catch (e) {}
+  }
 
   @override
   void initState() {
     super.initState();
+    // 9️⃣ Send via WebSocket
+    final cartProvider = Provider.of<CartProvider>(context, listen: false);
+
+    cartProvider.clearCart();
+    globals.cartItems.clear();
 
     final initialAdvanceList = widget.salesOrder.advanceAmount ?? [];
 
@@ -100,7 +147,7 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
     totalAmount = List.from(initialAdvanceList);
 
     double alreadyPaid = initialAdvanceList.fold(0.0, (sum, e) => sum + e);
-    double customCharge = widget.salesOrder.customCharge ?? 0.0;
+    double customCharge = widget.salesOrder.totalCustomCharge ?? 0.0;
 
     _originalAmount = alreadyPaid;
     _upiAndCashAmount = alreadyPaid;
@@ -232,7 +279,7 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
 
     final alreadyPaid =
         widget.salesOrder.advanceAmount?.fold(0.0, (sum, e) => sum + e) ?? 0.0;
-    final customCharge = widget.salesOrder.customCharge ?? 0.0;
+    final customCharge = widget.salesOrder.totalCustomCharge ?? 0.0;
 
     final remaining =
         widget.salesOrder.totalAmount +
@@ -308,14 +355,15 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
     }
   }
 
-  void _showUpiQrDialog(double amount) {
+  void _showUpiQrDialog(double amount, {required VoidCallback onSuccess}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<RazorpayQRProvider>(context, listen: false).createQR(amount);
     });
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
+      builder: (BuildContext qrDialogContext) {
         return AlertDialog(
           backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
@@ -327,23 +375,25 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
               SizedBox(width: 8),
               Text(
                 'UPI QR Code',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
           content: SizedBox(
             height: 600,
             width: 285,
-            child: Consumer<RazorpayQRProvider>(
-              builder: (context, qrProvider, _) {
+            child: Consumer2<RazorpayQRProvider, SalesInvoiceState>(
+              builder: (context, qrProvider, stateProvider, _) {
                 if (qrProvider.isLoading) {
                   return const Center(child: CircularProgressIndicator());
                 } else if (qrProvider.errorMessage != null) {
-                  // Send error message to client
-                  // _sendState(
-                  //   type: 'upi_payment_error',
-                  //   extraData: {'message': qrProvider.errorMessage},
-                  // );
+                  _sendState(
+                    type: 'upi_payment_error',
+                    extraData: {'message': qrProvider.errorMessage},
+                  );
                   return Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -351,7 +401,11 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                       const SizedBox(height: 8),
                       Text(
                         qrProvider.errorMessage!,
-                        style: const TextStyle(color: Colors.red, fontSize: 16),
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          color: Colors.red,
+                          fontSize: 16,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 16),
@@ -360,7 +414,7 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                         label: const Text("Close"),
                         onPressed: () {
                           qrProvider.disconnectWebSocket();
-                          Navigator.pop(context);
+                          Navigator.pop(qrDialogContext);
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color.fromARGB(
@@ -378,19 +432,17 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                     ],
                   );
                 } else if (qrProvider.paymentSuccess) {
-                  Provider.of<SalesInvoiceState>(
-                    context,
-                    listen: false,
-                  ).updateIsUpiPaid(true);
-                  //_sendState(type: 'upi_payment_success');
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    onSuccess();
+                  });
+
                   return Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Lottie.asset(
                         'assets/Payment Successful.json',
                         repeat: false,
-                        height: 580,
-                        //height: double.infinity,
+                        height: 500,
                         width: double.infinity,
                         fit: BoxFit.contain,
                         onLoaded: (composition) {
@@ -404,33 +456,45 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                           );
                         },
                       ),
-                      const Text(
-                        'UPI Payment Successful!',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green,
-                        ),
-                        textAlign: TextAlign.center,
+                      Column(
+                        children: [
+                          Center(
+                            child: const Text(
+                              'UPI Payment Successful!',
+                              style: TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   );
                 } else if (qrProvider.qrImageUrl != null) {
-                  // _sendState(type: 'show_upi_qr', extraData: {'qrUrl': qrProvider.qrImageUrl, 'amount': amount});
+                  _sendState(
+                    type: 'show_upi_qr',
+                    extraData: {
+                      'qrUrl': qrProvider.qrImageUrl,
+                      'amount': amount,
+                    },
+                  );
                   return Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Image.network(
                         qrProvider.qrImageUrl!,
                         height: 535,
-                        //height: double.infinity,
                         width: double.infinity,
                         fit: BoxFit.fill,
                         errorBuilder: (context, error, stackTrace) {
-                          // _sendState(
-                          //   type: 'upi_payment_error',
-                          //   extraData: {'message': 'Failed to load QR code'},
-                          // );
+                          _sendState(
+                            type: 'upi_payment_error',
+                            extraData: {'message': 'Failed to load QR code'},
+                          );
                           return const Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -439,6 +503,7 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                               Text(
                                 'Failed to load QR code',
                                 style: TextStyle(
+                                  fontFamily: 'Poppins',
                                   color: Colors.red,
                                   fontSize: 16,
                                 ),
@@ -457,8 +522,8 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                               label: const Text("Close"),
                               onPressed: () {
                                 qrProvider.disconnectWebSocket();
-                                Navigator.pop(context);
-                                //_sendState(type: 'upi_payment_cancelled');
+                                Navigator.pop(qrDialogContext);
+                                _sendState(type: 'upi_payment_cancelled');
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color.fromARGB(
@@ -479,10 +544,10 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                     ],
                   );
                 } else {
-                  // _sendState(
-                  //   type: 'upi_payment_error',
-                  //   extraData: {'message': 'No QR code generated'},
-                  // );
+                  _sendState(
+                    type: 'upi_payment_error',
+                    extraData: {'message': 'No QR code generated'},
+                  );
                   return const Center(child: Text('No QR generated'));
                 }
               },
@@ -802,6 +867,10 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                                 onPressed: _isCompleteButtonEnabled
                                     ? () async {
                                         try {
+                                          print(
+                                            "▶️ Add Advance button pressed",
+                                          );
+
                                           // 1️⃣ Parse amounts
                                           final cash =
                                               double.tryParse(
@@ -824,8 +893,15 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                                               ) ??
                                               0;
 
+                                          print(
+                                            "💰 Entered amounts -> Cash: $cash, Card: $card, UPI: $upi, Cheque: $cheque",
+                                          );
+
                                           final totalEntered =
                                               cash + card + upi + cheque;
+                                          print(
+                                            "💵 Total entered amount: $totalEntered",
+                                          );
 
                                           // 2️⃣ Existing paid amount
                                           final alreadyPaid =
@@ -836,14 +912,26 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                                                   ) ??
                                               0;
 
+                                          print(
+                                            "📦 Already paid amount: $alreadyPaid",
+                                          );
+
                                           // 3️⃣ Remaining balance before this transaction
                                           final remainingBalanceBefore =
                                               widget.salesOrder.totalAmount -
                                               alreadyPaid;
 
+                                          print(
+                                            "📉 Remaining balance before payment: $remainingBalanceBefore",
+                                          );
+
                                           // 4️⃣ Validate entered amount
                                           if (totalEntered >
                                               remainingBalanceBefore) {
+                                            print(
+                                              "❌ Error: Entered amount exceeds remaining balance",
+                                            );
+
                                             ScaffoldMessenger.of(
                                               context,
                                             ).showSnackBar(
@@ -884,6 +972,13 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                                             modeAmounts.add(cheque);
                                           }
 
+                                          print(
+                                            "🧾 Payment types: $paymentTypes",
+                                          );
+                                          print(
+                                            "🧮 Mode wise amounts: $modeAmounts",
+                                          );
+
                                           // 6️⃣ Merge with existing values
                                           List<double> existingAdvanceAmount =
                                               widget.salesOrder.advanceAmount ??
@@ -906,7 +1001,10 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                                                   .advanceDateTime ??
                                               [];
 
-                                          // ✅ Add new entry
+                                          print(
+                                            "📚 Existing advance amounts: $existingAdvanceAmount",
+                                          );
+
                                           existingAdvanceAmount = [
                                             ...existingAdvanceAmount,
                                             totalEntered,
@@ -924,12 +1022,26 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                                             DateTime.now().toIso8601String(),
                                           ];
 
+                                          print(
+                                            "✅ Updated advance amounts: $existingAdvanceAmount",
+                                          );
+                                          print(
+                                            "🕒 Updated datetime list: $existingDateTime",
+                                          );
+
                                           // 7️⃣ Recalculate updated remaining balance
                                           final updatedAlreadyPaid =
                                               alreadyPaid + totalEntered;
                                           final updatedRemainingBalance =
                                               widget.salesOrder.totalAmount -
                                               updatedAlreadyPaid;
+
+                                          print(
+                                            "📊 Updated already paid: $updatedAlreadyPaid",
+                                          );
+                                          print(
+                                            "📉 Updated remaining balance: $updatedRemainingBalance",
+                                          );
 
                                           // 8️⃣ Build API payload
                                           Map<String, dynamic> requestBody = {
@@ -953,22 +1065,36 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                                             "sync": "No",
                                             "edit": "No",
                                           };
+
+                                          print(
+                                            "📤 Patch payload: $patchPayload",
+                                          );
+
                                           final connectivityProvider =
                                               Provider.of<ConnectivityProvider>(
                                                 context,
                                                 listen: false,
                                               );
+
                                           if (connectivityProvider
                                               .isConnected) {
-                                            print("connected true");
+                                            print(
+                                              "🌐 Internet available → Sending to server",
+                                            );
                                             await sendataToServer(patchPayload);
                                           } else {
-                                            print("connected false");
+                                            print(
+                                              "📴 Offline → Saving locally",
+                                            );
                                             handlePatchSaleOrder(patchPayload);
                                           }
-                                          // 9️⃣ Send via WebSocket
 
                                           Navigator.of(context).pop();
+
+                                          print(
+                                            "🎉 Advance payment updated successfully",
+                                          );
+
                                           ScaffoldMessenger.of(
                                             context,
                                           ).showSnackBar(
@@ -983,7 +1109,10 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
                                               duration: Duration(seconds: 2),
                                             ),
                                           );
-                                        } catch (e, stack) {}
+                                        } catch (e, stack) {
+                                          print("🔥 Exception occurred: $e");
+                                          print("📍 StackTrace: $stack");
+                                        }
                                       }
                                     : null,
                                 child: const Text(
@@ -1043,6 +1172,10 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
       context,
       listen: false,
     );
+
+    bool isUpiPaid = method == 'Upi' && stateProvider.isUpiPaid;
+    bool isCardPaid = method == 'Card' && stateProvider.isCardPaid;
+    bool shouldDisable = isUpiPaid || isCardPaid;
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
@@ -1153,42 +1286,38 @@ class _AddAdvancePaymentState extends State<AddAdvancePayment> {
               builder: (context, qrProvider, _) {
                 return IconButton(
                   icon: Icon(
-                    method == 'UPI' ? Icons.qr_code : Icons.credit_card,
-                    color: method == 'UPI' ? Colors.black : Colors.blue,
-                    size: 24,
+                    method == 'Upi' ? Icons.qr_code : Icons.credit_card,
+                    color: shouldDisable ? Colors.grey : Colors.blue,
                   ),
-                  onPressed:
-                      isPaymentEnabled &&
-                          !(method == 'UPI'
-                              ? stateProvider.isUpiPaid
-                              : qrProvider.isCardPaid)
+                  onPressed: isPaymentEnabled && !shouldDisable
                       ? () {
-                          final amountStr = controller.text;
-                          if (amountStr.isNotEmpty) {
-                            final amount = double.tryParse(amountStr);
-                            if (amount != null && amount > 0) {
-                              if (method == 'UPI') {
-                                _showUpiQrDialog(amount);
-                              } else {
-                                _handleCardPayment();
-                              }
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Please enter a valid $method amount greater than 0.',
-                                  ),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                            }
+                          final val = controller.text;
+                          final amt = double.tryParse(val);
+                          if (val.isNotEmpty && amt != null && amt > 0) {
+                            method == 'Upi'
+                                ? _showUpiQrDialog(
+                                    amt,
+                                    onSuccess: () {
+                                      // 🔥 NOW we are OUTSIDE dialog
+                                      Provider.of<SalesInvoiceState>(
+                                        context,
+                                        listen: false,
+                                      ).updateIsUpiPaid(true);
+
+                                      _customUpiController.text =
+                                          Provider.of<SalesInvoiceState>(
+                                            context,
+                                            listen: false,
+                                          ).upiAmount.toStringAsFixed(0);
+
+                                      _sendState(type: 'upi_payment_success');
+                                    },
+                                  )
+                                : _handleCardPayment();
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text(
-                                  'Please enter a $method amount first.',
-                                ),
-                                backgroundColor: Colors.orange,
+                                content: Text('Enter valid $method amount'),
                               ),
                             );
                           }

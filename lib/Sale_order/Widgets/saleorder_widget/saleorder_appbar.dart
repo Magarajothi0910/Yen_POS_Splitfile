@@ -6,11 +6,11 @@ import 'package:yenpos/Sale_order/Provider/cart_selection_provider.dart';
 import 'package:yenpos/Sale_order/Provider/customerScreen_provider.dart';
 import 'package:yenpos/Sale_order/Widgets/saleorder_widget/create_order_widgets.dart';
 
-
 class SalesOrderAppBar {
   static PreferredSizeWidget build(BuildContext context) {
     final selectionProvider = Provider.of<CartSelectionProvider>(context);
-    
+    final orderTypeProvider = Provider.of<CustomerScreenProvider>(context);
+
     return AppBar(
       automaticallyImplyLeading: false,
       backgroundColor: Colors.white,
@@ -23,62 +23,74 @@ class SalesOrderAppBar {
       centerTitle: false,
       flexibleSpace: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: Row(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Expanded(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SalesOrderWidgets.buildNavButton(
-                    label: 'Current Orders',
-                    onPressed: () =>
-                        Navigator.of(context).pushNamed('/current-orders'),
+            Row(
+              children: [
+                Expanded(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SalesOrderWidgets.buildNavButton(
+                        label: 'Current Orders',
+                        onPressed: () =>
+                            Navigator.of(context).pushNamed('/current-orders'),
+                      ),
+                      const SizedBox(width: 10),
+                      SalesOrderWidgets.buildNavButton(
+                        label: 'All Orders',
+                        onPressed: () async {
+                          Navigator.of(context).pushNamed('/all-orders');
+                        },
+                      ),
+                      const SizedBox(width: 10),
+                      SalesOrderWidgets.buildCreateOrderButton(
+                        selectionProvider,
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 10),
-                  SalesOrderWidgets.buildNavButton(
-                    label: 'All Orders',
-                    onPressed: () async {
-                      Navigator.of(context).pushNamed('/all-orders');
-                    },
-                  ),
-                  const SizedBox(width: 10),
-                  SalesOrderWidgets.buildCreateOrderButton(selectionProvider),
-                ],
-              ),
+                ),
+              ],
             ),
-            _buildStoreTypeToggle(context),
+            const SizedBox(height: 8),
+            // ✅ Toggle Row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ChoiceChip(
+                  label: Text('Inhouse'),
+                  selected: orderTypeProvider.orderType == 'Inhouse',
+                  onSelected: (selected) {
+                    if (selected) orderTypeProvider.setOrderType('Inhouse');
+                  },
+                  selectedColor: Colors.blue,
+                  labelStyle: TextStyle(
+                    color: orderTypeProvider.orderType == 'Inhouse'
+                        ? Colors.white
+                        : Colors.black,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                ChoiceChip(
+                  label: Text('Warehouse'),
+                  selected: orderTypeProvider.orderType == 'Warehouse',
+                  onSelected: (selected) {
+                    if (selected) orderTypeProvider.setOrderType('Warehouse');
+                  },
+                  selectedColor: Colors.blue,
+                  labelStyle: TextStyle(
+                    color: orderTypeProvider.orderType == 'Warehouse'
+                        ? Colors.white
+                        : Colors.black,
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
-      toolbarHeight: kToolbarHeight,
-    );
-  }
-
-  static Widget _buildStoreTypeToggle(BuildContext context) {
-    final customerProvider = Provider.of<CustomerScreenProvider>(context);
-
-    return ToggleButtons(
-      constraints: BoxConstraints(minHeight: 40.0, minWidth: 80.0),
-      borderRadius: BorderRadius.circular(8.0),
-      borderWidth: 2,
-      borderColor: Colors.blueGrey,
-      selectedBorderColor: Colors.blue,
-      fillColor: Colors.blue,
-      splashColor: Colors.blue.withOpacity(0.3),
-      color: Colors.black,
-      selectedColor: Colors.white,
-      isSelected: [
-        customerProvider.selectedStoreType == 'Inhouse',
-        customerProvider.selectedStoreType == 'Warehouse',
-      ],
-      onPressed: (index) {
-        final type = index == 0 ? 'Inhouse' : 'Warehouse';
-        customerProvider.saveStoreType(type);
-      },
-      children: [
-        SalesOrderWidgets.buildToggleButtonLabel('Inhouse'),
-        SalesOrderWidgets.buildToggleButtonLabel('Warehouse'),
-      ],
+      toolbarHeight: kToolbarHeight * 2, // taller to fit toggle
     );
   }
 }

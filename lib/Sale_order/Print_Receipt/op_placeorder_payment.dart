@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
+import 'package:yenpos/Global/global_data_manager.dart';
 import 'package:yenpos/Global/globals_data.dart';
 import 'package:yenpos/Sale_order/Models/sales_order_display_model.dart';
 import 'package:yenpos/Sale_order/Print_Receipt/allorderprint.dart';
@@ -14,7 +15,9 @@ import 'package:yenpos/Sale_order/Provider/customerScreen_provider.dart';
 import 'package:yenpos/Sale_order/Provider/discount_service.dart'
     as globaldiscount;
 import 'package:yenpos/Sale_order/Provider/get_sales_order_service.dart';
+import 'package:yenpos/Sale_order/Widgets/Send_data_to_server.dart';
 import 'package:yenpos/Sale_order/Widgets/cheque_details.dart';
+import 'package:yenpos/Sale_order/Widgets/customcharge_keybaord.dart';
 import 'package:yenpos/Sale_order/Widgets/paymentDetail_keybaord.dart';
 import 'package:yenpos/Sale_order/Widgets/top_message.dart';
 import 'package:yenpos/invoice_pay_and_print_page.dart/provider/payment_provider.dart';
@@ -99,7 +102,8 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
   final TextEditingController chequeBankController = TextEditingController();
   final TextEditingController chequeDateController = TextEditingController();
   OverlayEntry? _overlayEntry;
-
+  bool _isInitialSend = true;
+  Map<String, dynamic> _lastSentData = {};
   final ScrollController _scrollController = ScrollController();
 
   late final List<TextEditingController> controllers;
@@ -171,7 +175,20 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
       _upiAmount = int.tryParse(_upiController.text) ?? 0;
       _validateAmount(_upiController, "UPI");
     });
+    // ✅ Use widget.totalAmount (which should already include custom charge if any)
+    totalAmount = widget.totalAmount;
 
+    // But original amount should be without custom charge
+    _originalAmount = widget.totalAmount - widget.customCharge;
+
+    cashOptions.addAll(_generateCashOptions(totalAmount));
+
+    // Other initializations...
+
+    // ✅ Start with correct deducted amount based on widget.discount
+    deductedAmount = widget.deductedAmount;
+    discount = widget.discount;
+    customCharge = widget.customCharge;
     // 🔹 Card validation
     _cardController.addListener(() {
       _cardAmount = int.tryParse(_cardController.text) ?? 0;
@@ -190,6 +207,46 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
       final value = _discountController.text;
       _applyDiscount(value);
     });
+  }
+
+  void _sendState({
+    String type = 'state_update',
+    Map<String, dynamic>? extraData,
+  }) {
+    final stateProvider = Provider.of<SalesInvoiceState>(
+      context,
+      listen: false,
+    );
+    final currentData = {
+      'isUpiPaid': stateProvider.isUpiPaid,
+      'isCardPaid': stateProvider.isCardPaid,
+      if (extraData != null) ...extraData,
+    };
+
+    final changedFields = <String, dynamic>{};
+    if (_isInitialSend) {
+      _isInitialSend = false;
+    } else {
+      currentData.forEach((key, value) {
+        if (_lastSentData[key] != value) {
+          changedFields[key] = value;
+        }
+      });
+    }
+
+    if (changedFields.isEmpty) return; // nothing changed
+
+    _lastSentData.addAll(changedFields);
+    final message = {
+      'message': 'changed_fields',
+      'type': type,
+      ...changedFields,
+    };
+
+    try {
+      final jsonData = jsonEncode(message);
+      sendataToServer(jsonDecode(jsonData));
+    } catch (e) {}
   }
 
   /// ✅ Generic validation method (common for Cash, UPI, Card, Cheque)
@@ -263,14 +320,15 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
     return "0";
   }
 
-  void _showUpiQrDialog(double amount) {
+  void _showUpiQrDialog(double amount, {required VoidCallback onSuccess}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<RazorpayQRProvider>(context, listen: false).createQR(amount);
     });
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
+      builder: (BuildContext qrDialogContext) {
         return AlertDialog(
           backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
@@ -282,23 +340,25 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
               SizedBox(width: 8),
               Text(
                 'UPI QR Code',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
           content: SizedBox(
             height: 600,
             width: 285,
-            child: Consumer<RazorpayQRProvider>(
-              builder: (context, qrProvider, _) {
+            child: Consumer2<RazorpayQRProvider, SalesInvoiceState>(
+              builder: (context, qrProvider, stateProvider, _) {
                 if (qrProvider.isLoading) {
                   return const Center(child: CircularProgressIndicator());
                 } else if (qrProvider.errorMessage != null) {
-                  // Send error message to client
-                  // _sendState(
-                  //   type: 'upi_payment_error',
-                  //   extraData: {'message': qrProvider.errorMessage},
-                  // );
+                  _sendState(
+                    type: 'upi_payment_error',
+                    extraData: {'message': qrProvider.errorMessage},
+                  );
                   return Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -306,7 +366,11 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
                       const SizedBox(height: 8),
                       Text(
                         qrProvider.errorMessage!,
-                        style: const TextStyle(color: Colors.red, fontSize: 16),
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          color: Colors.red,
+                          fontSize: 16,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 16),
@@ -315,7 +379,7 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
                         label: const Text("Close"),
                         onPressed: () {
                           qrProvider.disconnectWebSocket();
-                          Navigator.pop(context);
+                          Navigator.pop(qrDialogContext);
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color.fromARGB(
@@ -333,19 +397,17 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
                     ],
                   );
                 } else if (qrProvider.paymentSuccess) {
-                  Provider.of<SalesInvoiceState>(
-                    context,
-                    listen: false,
-                  ).updateIsUpiPaid(true);
-                  //_sendState(type: 'upi_payment_success');
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    onSuccess();
+                  });
+
                   return Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Lottie.asset(
                         'assets/Payment Successful.json',
                         repeat: false,
-                        height: 580,
-                        //height: double.infinity,
+                        height: 500,
                         width: double.infinity,
                         fit: BoxFit.contain,
                         onLoaded: (composition) {
@@ -359,33 +421,45 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
                           );
                         },
                       ),
-                      const Text(
-                        'UPI Payment Successful!',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green,
-                        ),
-                        textAlign: TextAlign.center,
+                      Column(
+                        children: [
+                          Center(
+                            child: const Text(
+                              'UPI Payment Successful!',
+                              style: TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   );
                 } else if (qrProvider.qrImageUrl != null) {
-                  // _sendState(type: 'show_upi_qr', extraData: {'qrUrl': qrProvider.qrImageUrl, 'amount': amount});
+                  _sendState(
+                    type: 'show_upi_qr',
+                    extraData: {
+                      'qrUrl': qrProvider.qrImageUrl,
+                      'amount': amount,
+                    },
+                  );
                   return Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Image.network(
                         qrProvider.qrImageUrl!,
                         height: 535,
-                        //height: double.infinity,
                         width: double.infinity,
                         fit: BoxFit.fill,
                         errorBuilder: (context, error, stackTrace) {
-                          // _sendState(
-                          //   type: 'upi_payment_error',
-                          //   extraData: {'message': 'Failed to load QR code'},
-                          // );
+                          _sendState(
+                            type: 'upi_payment_error',
+                            extraData: {'message': 'Failed to load QR code'},
+                          );
                           return const Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -394,6 +468,7 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
                               Text(
                                 'Failed to load QR code',
                                 style: TextStyle(
+                                  fontFamily: 'Poppins',
                                   color: Colors.red,
                                   fontSize: 16,
                                 ),
@@ -412,8 +487,8 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
                               label: const Text("Close"),
                               onPressed: () {
                                 qrProvider.disconnectWebSocket();
-                                Navigator.pop(context);
-                                //_sendState(type: 'upi_payment_cancelled');
+                                Navigator.pop(qrDialogContext);
+                                _sendState(type: 'upi_payment_cancelled');
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color.fromARGB(
@@ -434,10 +509,10 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
                     ],
                   );
                 } else {
-                  // _sendState(
-                  //   type: 'upi_payment_error',
-                  //   extraData: {'message': 'No QR code generated'},
-                  // );
+                  _sendState(
+                    type: 'upi_payment_error',
+                    extraData: {'message': 'No QR code generated'},
+                  );
                   return const Center(child: Text('No QR generated'));
                 }
               },
@@ -561,6 +636,10 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
       listen: false,
     );
 
+    bool isUpiPaid = method == 'Upi' && stateProvider.isUpiPaid;
+    bool isCardPaid = method == 'Card' && stateProvider.isCardPaid;
+    bool shouldDisable = isUpiPaid || isCardPaid;
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
       padding: const EdgeInsets.all(10),
@@ -670,42 +749,38 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
               builder: (context, qrProvider, _) {
                 return IconButton(
                   icon: Icon(
-                    method == 'UPI' ? Icons.qr_code : Icons.credit_card,
-                    color: method == 'UPI' ? Colors.black : Colors.blue,
-                    size: 24,
+                    method == 'Upi' ? Icons.qr_code : Icons.credit_card,
+                    color: shouldDisable ? Colors.grey : Colors.blue,
                   ),
-                  onPressed:
-                      isPaymentEnabled &&
-                          !(method == 'UPI'
-                              ? stateProvider.isUpiPaid
-                              : qrProvider.isCardPaid)
+                  onPressed: isPaymentEnabled && !shouldDisable
                       ? () {
-                          final amountStr = controller.text;
-                          if (amountStr.isNotEmpty) {
-                            final amount = double.tryParse(amountStr);
-                            if (amount != null && amount > 0) {
-                              if (method == 'UPI') {
-                                _showUpiQrDialog(amount);
-                              } else {
-                                _handleCardPayment();
-                              }
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Please enter a valid $method amount greater than 0.',
-                                  ),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                            }
+                          final val = controller.text;
+                          final amt = double.tryParse(val);
+                          if (val.isNotEmpty && amt != null && amt > 0) {
+                            method == 'Upi'
+                                ? _showUpiQrDialog(
+                                    amt,
+                                    onSuccess: () {
+                                      // 🔥 NOW we are OUTSIDE dialog
+                                      Provider.of<SalesInvoiceState>(
+                                        context,
+                                        listen: false,
+                                      ).updateIsUpiPaid(true);
+
+                                      _customUpiController.text =
+                                          Provider.of<SalesInvoiceState>(
+                                            context,
+                                            listen: false,
+                                          ).upiAmount.toStringAsFixed(0);
+
+                                      _sendState(type: 'upi_payment_success');
+                                    },
+                                  )
+                                : _handleCardPayment();
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text(
-                                  'Please enter a $method amount first.',
-                                ),
-                                backgroundColor: Colors.orange,
+                                content: Text('Enter valid $method amount'),
                               ),
                             );
                           }
@@ -779,12 +854,16 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
         );
         return; // stop further discount application
       }
+
+      // ✅ IMPORTANT: Custom charge ah current value paarthukittu vaangunga
       customCharge = double.tryParse(_customChargeController.text) ?? 0;
+
       // Step 2: Continue with normal discount logic
       discount = double.tryParse(value) ?? 0;
 
       deductedAmount = (discount / 100) * _originalAmount;
 
+      // ✅ FIX: Total amount = Original + Custom Charge - Discount
       totalAmount = _originalAmount + customCharge - deductedAmount;
 
       if (discount > globaldiscount.globalDiscountPercentage) {
@@ -818,7 +897,8 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
         );
       }
 
-      // 🔥 Recalculate total (Original + Charge - Discount)
+      // ✅ FIX: Recalculate total (Original + Charge - Discount)
+      // Discount ah current value paarthukittu vaangunga
       totalAmount = _originalAmount + customCharge - deductedAmount;
 
       // Update balance after new total
@@ -943,72 +1023,33 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
                           ),
                           const SizedBox(width: 15),
 
-                          // ================= CUSTOM CHARGE DROPDOWN =================
-                          Expanded(
-                            flex: 4,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.grey[50],
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.grey.shade300),
-                              ),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<String>(
-                                  value: selectedChargeType,
-                                  isExpanded: true,
-                                  icon: const Icon(
-                                    Icons.arrow_drop_down_rounded,
-                                    size: 22,
-                                  ),
-                                  items: chargeTypes.map((value) {
-                                    return DropdownMenuItem(
-                                      value: value,
-                                      child: Text(value),
-                                    );
-                                  }).toList(),
-                                  onChanged: (newValue) {
-                                    setState(() {
-                                      selectedChargeType = newValue!;
-                                    });
-                                  },
-                                ),
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(width: 10),
-
-                          // ================= CUSTOM CHARGE AMOUNT FIELD =================
                           Expanded(
                             flex: 3,
-                            child: TextFormField(
-                              controller: _customChargeController,
-                              readOnly: false,
-                              decoration: InputDecoration(
-                                prefixIcon: const Icon(
-                                  Icons.currency_rupee,
-                                  color: Colors.black,
-                                ),
-                                filled: true,
-                                fillColor: Colors.grey[50],
-                                labelText: "Charge",
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide.none,
-                                ),
-                              ),
-                              onTap: () {
-                                ActiveField.activate(
-                                  context: context,
-                                  ctrl: _customChargeController,
-                                  node: FocusNode(),
-                                  numeric: true,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                _showCustomChargeDialog(
+                                  cartProvider,
+                                  customerScreenProvider,
+                                  setState,
                                 );
                               },
-                              onChanged: _applyCustomCharge,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue, // Always blue
+                                foregroundColor:
+                                    Colors.white, // Always white text
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              child: Text(
+                                cartProvider.customCharge.value != 0
+                                    ? "Custom Charge: ₹${cartProvider.customCharge.value.toStringAsFixed(0)}"
+                                    : "Custom Charge",
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
                           ),
                         ],
@@ -1272,8 +1313,7 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
                                                 widget.remark,
                                                 widget.path,
                                                 widget.apiprovider,
-                                                widget.img1,
-                                                widget.img2,
+
                                                 widget.audioOrderId,
                                                 widget.holdId,
                                                 selectedPaymentMethod ==
@@ -1338,21 +1378,22 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
                                                     await customerScreenProvider
                                                         .outletSaveOrder(
                                                           widget.salesOrder,
-
                                                           widget.totalAdvance,
                                                           widget.orderAmount,
                                                           discount,
                                                           deductedAmount,
                                                           totalAmount,
                                                           totalAmount,
-                                                          widget.remark,
 
+                                                          widget.remark,
                                                           widget
                                                               .selectedStoreType,
                                                           context,
-                                                          payments, // 👈 pass payments map
-                                                          customCharge,
-                                                          selectedChargeType,
+                                                          payments,
+                                                          cartProvider
+                                                              .customChargeTypes, // ✅ List<String>
+                                                          cartProvider
+                                                              .customChargeValues, // ✅ List<double>
                                                         );
 
                                                     // Clear UI and provider data
@@ -1497,6 +1538,437 @@ class _OpPlaceOrderPaymentPrintState extends State<OpPlaceOrderPaymentPrint> {
           ),
         ],
       ),
+    );
+  }
+
+  void _showCustomChargeDialog(
+    CartProvider cartProvider,
+    CustomerScreenProvider customerProvider,
+    void Function(void Function()) setState,
+  ) {
+    // Get controllers from cartProvider instead of creating new ones
+    Map<String, TextEditingController> controllers = {};
+
+    // Initialize controllers from cartProvider if they exist, otherwise create new ones
+    for (var charge in GlobalDataManager().charges) {
+      final chargeType = charge['chargeType'];
+
+      if (cartProvider.customChargeControllers.containsKey(chargeType)) {
+        // Use existing controller from cartProvider
+        controllers[chargeType] =
+            cartProvider.customChargeControllers[chargeType]!;
+      } else {
+        // Create new controller and add it to cartProvider
+        final controller = TextEditingController(
+          text: (charge['amount'] ?? 0).toStringAsFixed(2),
+        );
+        controllers[chargeType] = controller;
+        cartProvider.customChargeControllers[chargeType] = controller;
+      }
+    }
+
+    // Initialize chargeValues map with current values
+    Map<String, double> chargeValues = {
+      for (var charge in GlobalDataManager().charges)
+        charge['chargeType']: (charge['amount'] ?? 0).toDouble(),
+    };
+
+    // Track which controllers have been cleared by user selection
+    Set<String> clearedControllers = {};
+
+    // Register controllers in keyboard provider
+    final keyboardProvider = context.read<CustomchargeKeyboardProvider>();
+    controllers.forEach((key, controller) {
+      keyboardProvider.registerController(key, controller);
+    });
+
+    final mergedControllers = Listenable.merge(controllers.values);
+
+    String selectedChargeType =
+        customerProvider.selectedChargeType ??
+        (GlobalDataManager().charges.isNotEmpty
+            ? GlobalDataManager().charges.first['chargeType']
+            : "");
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(25),
+              ),
+              backgroundColor: Colors.transparent,
+              child: Container(
+                width: 360,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.85),
+                  borderRadius: BorderRadius.circular(25),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 15,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                  border: Border.all(
+                    color: Colors.blueAccent.withOpacity(0.4),
+                    width: 1.5,
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Header
+                    AnimatedBuilder(
+                      animation: mergedControllers,
+                      builder: (context, _) {
+                        double totalCustomCharges = controllers.values.fold(
+                          0.0,
+                          (sum, ctrl) {
+                            final value = double.tryParse(ctrl.text) ?? 0.0;
+                            return sum + value;
+                          },
+                        );
+
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 14,
+                            horizontal: 16,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.blueAccent,
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    "Total Charges: Rs.${totalCustomCharges.toStringAsFixed(0)}",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 19,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Charge list
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 200),
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: GlobalDataManager().charges.length,
+                        separatorBuilder: (_, __) =>
+                            Divider(color: Colors.grey.shade300, height: 1),
+                        itemBuilder: (context, index) {
+                          final charge = GlobalDataManager().charges[index];
+                          final controller = controllers[charge['chargeType']]!;
+                          final isSelected =
+                              selectedChargeType == charge['chargeType'];
+
+                          // Check if this controller should show 0.00 or be empty
+                          final shouldShowZero =
+                              !clearedControllers.contains(
+                                charge['chargeType'],
+                              ) &&
+                              (controller.text.isEmpty ||
+                                  controller.text == '0.00');
+
+                          return GestureDetector(
+                            onTap: () {
+                              setStateDialog(() {
+                                selectedChargeType = charge['chargeType'];
+                                customerProvider.selectedChargeType =
+                                    selectedChargeType;
+                                keyboardProvider.setActiveController(
+                                  charge['chargeType'],
+                                );
+
+                                // Clear the controller when selecting
+                                controller.clear();
+                                // Mark this controller as cleared
+                                clearedControllers.add(charge['chargeType']);
+                                // Update chargeValues
+                                chargeValues[charge['chargeType']] = 0.0;
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 6,
+                                horizontal: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? Colors.blue.withOpacity(0.1)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? Colors.blueAccent.withOpacity(0.5)
+                                      : Colors.transparent,
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    charge['chargeType'],
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    width: 90,
+                                    child: IgnorePointer(
+                                      child: ValueListenableBuilder<TextEditingValue>(
+                                        valueListenable: controller,
+                                        builder: (context, value, _) {
+                                          // Show 0.00 if controller is empty and hasn't been cleared by user
+                                          String displayText = value.text;
+                                          if (shouldShowZero &&
+                                              value.text.isEmpty) {
+                                            displayText = '0.00';
+                                          }
+
+                                          return TextFormField(
+                                            controller: controller,
+                                            textAlign: TextAlign.right,
+                                            style: const TextStyle(
+                                              color: Colors.black87,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                            ),
+                                            decoration: InputDecoration(
+                                              isDense: true,
+                                              contentPadding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 8,
+                                                    horizontal: 10,
+                                                  ),
+                                              filled: true,
+                                              fillColor: isSelected
+                                                  ? Colors.blue.shade50
+                                                  : Colors.grey.withOpacity(
+                                                      0.1,
+                                                    ),
+                                              border: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                                borderSide: BorderSide.none,
+                                              ),
+                                              focusedBorder: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                                borderSide: const BorderSide(
+                                                  color: Colors.blueAccent,
+                                                  width: 2,
+                                                ),
+                                              ),
+                                              hintText: shouldShowZero
+                                                  ? '0.00'
+                                                  : null,
+                                              hintStyle: const TextStyle(
+                                                color: Colors.grey,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Keyboard
+                    Container(
+                      height: 220,
+                      margin: const EdgeInsets.only(top: 8),
+                      child: Consumer<CustomchargeKeyboardProvider>(
+                        builder: (context, provider, _) {
+                          if (selectedChargeType.isEmpty) {
+                            return Container(
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Center(
+                                child: Text(
+                                  'Select a charge to edit',
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+
+                          final controller = controllers[selectedChargeType];
+                          if (controller == null) {
+                            return Container(
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Center(
+                                child: Text(
+                                  'Selected charge not found',
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+
+                          return CustomchargeKeyboardWidgetAll2(
+                            controller: controller,
+                            controllerKey: selectedChargeType,
+                            onClose: () {
+                              Navigator.pop(context);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Action buttons
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.black54,
+                          ),
+                          onPressed: () {
+                            Navigator.pop(context);
+                          },
+                          child: const Text("Cancel"),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blueAccent,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                          ),
+                          onPressed: () {
+                            // Update the chargeValues map with current controller values
+                            for (var charge in GlobalDataManager().charges) {
+                              final chargeType = charge['chargeType'];
+                              final controller = controllers[chargeType];
+                              if (controller != null) {
+                                // If controller is empty but hasn't been cleared by user, use 0.00
+                                final textValue =
+                                    controller.text.isEmpty &&
+                                        !clearedControllers.contains(chargeType)
+                                    ? '0.00'
+                                    : controller.text;
+
+                                final value = double.tryParse(textValue) ?? 0.0;
+                                chargeValues[chargeType] = value;
+
+                                final index = GlobalDataManager().charges
+                                    .indexWhere(
+                                      (c) => c['chargeType'] == chargeType,
+                                    );
+                                if (index != -1) {
+                                  GlobalDataManager().charges[index]['amount'] =
+                                      value;
+                                }
+                              }
+                            }
+
+                            double totalCustomCharges = chargeValues.values
+                                .fold(0.0, (sum, value) => sum + value);
+
+                            // ✅ FIX: Update total amount with new custom charge
+                            setState(() {
+                              customCharge = totalCustomCharges;
+
+                              // ✅ IMPORTANT: Recalculate total amount with new custom charge
+                              totalAmount =
+                                  _originalAmount +
+                                  customCharge -
+                                  deductedAmount;
+
+                              customerProvider.selectedChargeType =
+                                  selectedChargeType;
+                              cartProvider.customCharge.value =
+                                  totalCustomCharges;
+
+                              // Store individual charge types and values
+                              cartProvider.customChargeTypes.clear();
+                              cartProvider.customChargeValues.clear();
+
+                              chargeValues.forEach((type, value) {
+                                if (value > 0) {
+                                  cartProvider.customChargeTypes.add(type);
+                                  cartProvider.customChargeValues.add(value);
+                                }
+                              });
+
+                              // IMPORTANT: Ensure all controllers are in cartProvider
+                              for (var entry in controllers.entries) {
+                                cartProvider.customChargeControllers[entry
+                                        .key] =
+                                    entry.value;
+                              }
+
+                              // ✅ Update balance with new total
+                              _updateBalance();
+                            });
+
+                            Navigator.pop(context);
+                          },
+                          child: const Text(
+                            "Apply All",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

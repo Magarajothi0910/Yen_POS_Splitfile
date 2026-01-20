@@ -699,7 +699,7 @@ class ViewSavedBillsWidget {
   //   }
   // }
 
-  Future<void> _loadBillAndRemove(
+Future<void> _loadBillAndRemove(
   BuildContext context,
   Map<String, dynamic> bill,
   Box box,
@@ -710,37 +710,60 @@ class ViewSavedBillsWidget {
   try {
     var saleProvider = Provider.of<CurrentSaleProvider>(context, listen: false);
 
+    // Clear current cart first
+    saleProvider.clearItems();
+
+    // Normalize and load items
     List<Map<String, dynamic>> items = (bill['items'] as List)
-        .map((item) => normalizeItem(Map<String, dynamic>.from(item)))
+        .map((item) {
+          Map<String, dynamic> normalized = normalizeItem(Map<String, dynamic>.from(item));
+          
+          // DEBUG: Print the normalized item structure
+          print('🚀 Loading item to cart:');
+          print('  - itemName: ${normalized['itemName']}');
+          print('  - itemData: ${normalized['itemData']}');
+          print('  - varianceData: ${normalized['varianceData']}');
+          print('  - quantity: ${normalized['quantity']}');
+          print('  - weight: ${normalized['weight']}');
+          
+          return normalized;
+        })
         .toList();
 
-    saleProvider.clearItems();
+    // Load items to cart
     saleProvider.loadItemsFromBill(
       items,
       merge: false,
       holdId: bill['holdId']?.toString(),
     );
 
+    // Remove from saved bills
     int hiveKey = bill['_hiveKey'];
     await box.deleteAt(hiveKey);
 
+    // Update UI
     setState(() {
       allBills.removeAt(index);
     });
 
+    // Close dialog
     Navigator.of(context).pop();
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Bill loaded successfully! KG weights preserved.'),
+        content: Text('Bill loaded to cart!'),
         backgroundColor: Colors.green,
         duration: Duration(seconds: 2),
       ),
     );
   } catch (e) {
-    print('Error loading bill: $e');
+    print('❌ Error loading bill: $e');
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      SnackBar(
+        content: Text('Error loading bill: $e'),
+        backgroundColor: Colors.red,
+        duration: Duration(seconds: 3),
+      ),
     );
   }
 }
@@ -1035,32 +1058,117 @@ class ViewSavedBillsWidget {
   //   };
   // }
 
-  Map<String, dynamic> normalizeItem(Map<String, dynamic> item) {
+ Map<String, dynamic> normalizeItem(Map<String, dynamic> item) {
+  // Extract all possible sources of item name
   final variance = item['varianceData'] ?? {};
-  final String uom = (variance['variance_Uom']?.toString() ?? '').toLowerCase();
+  final itemData = item['itemData'] ?? {};
+  
+  // Get UOM
+  final String uom = (variance['variance_Uom']?.toString() ?? 
+                     itemData['item_Uom']?.toString() ?? 
+                     'pcs').toLowerCase();
   final bool isKgItem = uom.contains('kg') || uom.contains('kgs') || uom.contains('gm');
 
-  return {
-    "itemCode": item["itemCode"],
-    "itemName": item["itemName"] ?? variance["itemName"] ?? variance["varianceName"] ?? "Unknown",
-    "varianceData": Map<String, dynamic>.from(variance),
-    
-    // PRESERVE BOTH quantity AND weight
-    "quantity": isKgItem 
-        ? 1  // KG items should have quantity = 1
-        : (item["quantity"] ?? item["qty"] ?? 1), 
-    
-    "weight": isKgItem 
-        ? (item["weight"] ?? item["qty"] ?? 0.0)  // Use stored weight for KG
-        : (item["weight"] ?? 0.0),  // PCS items usually have 0 weight
+  // FIXED: Extract itemName - check multiple sources
+  String itemName = item['itemName'] ?? 
+                    itemData['itemName'] ?? 
+                    variance['itemName'] ?? 
+                    variance['varianceName'] ?? 
+                    item['varianceData']?['varianceName'] ?? // Add this
+                    'Unknown Item';
 
-    "price": item["price"] ?? item["sellingPrice"] ?? 0.0,
-    "sellingPrice": item["sellingPrice"] ?? item["price"] ?? 0.0,
-    "total": item["total"] ?? 0.0,
-    
-    // Pass through all original fields (important!)
-    ...item,
+  // FIXED: Extract itemCode - check multiple sources  
+  String itemCode = item['itemCode'] ?? 
+                    itemData['itemCode'] ?? 
+                    variance['varianceitemCode'] ?? 
+                    variance['itemCode'] ??
+                    item['varianceData']?['varianceitemCode'] ?? // Add this
+                    '';
+
+  // Extract tax
+  double tax = (variance['tax']?.toDouble() ?? 
+                variance['variancetax']?.toDouble() ?? 
+                itemData['tax']?.toDouble() ?? 
+                variance['varianceTax']?.toDouble() ??
+                5.0);
+
+  // FIXED: Build proper itemData structure
+  Map<String, dynamic> finalItemData = {
+    "itemId": itemData['itemId'] ?? itemCode,
+    "itemName": itemName,
+    "itemCode": itemCode,
+    "tax": tax,
+    "item_Uom": uom,
+    "category": itemData['category'] ?? variance['category'] ?? 'General',
   };
+
+  // FIXED: Build proper varianceData structure
+  Map<String, dynamic> finalVarianceData = {
+    ...variance,
+    "varianceName": variance['varianceName'] ?? itemName,
+    "variance_Defaultprice": (variance['variance_Defaultprice'] as num?)?.toDouble() ?? 
+                             (item['price'] as num?)?.toDouble() ??
+                             (item['varianceData']?['variance_Defaultprice'] as num?)?.toDouble() ??
+                             0.0,
+    "variance_Uom": uom,
+    "varianceitemCode": itemCode,
+    "variancetax": tax,
+  };
+
+  // Extract quantity and weight
+  double quantity = 1.0;
+  double weight = 0.0;
+  
+  if (isKgItem) {
+    quantity = 1.0; // KG items always have quantity = 1
+    weight = (item["weight"] ?? item["qty"] ?? 0.0).toDouble();
+  } else {
+    quantity = (item["quantity"] ?? item["qty"] ?? 1.0).toDouble();
+    weight = 0.0;
+  }
+
+  // FIXED: Return complete item structure
+  Map<String, dynamic> result = {
+    // Core identification
+    "itemName": itemName,
+    "itemCode": itemCode,
+    
+    // Required structures for cart
+    "itemData": finalItemData,
+    "varianceData": finalVarianceData,
+    
+    // Quantity/Weight
+    "quantity": quantity,
+    "weight": weight,
+    
+    // Pricing
+    "price": (item['price'] ?? 
+              variance['variance_Defaultprice'] ?? 
+              finalVarianceData['variance_Defaultprice'] ?? 
+              0.0).toDouble(),
+    
+    "total": (item['total'] ?? 
+              item['totalPrice'] ?? 
+              (quantity * (finalVarianceData['variance_Defaultprice'] as num?)!.toDouble() ?? 0.0)).toDouble(),
+    
+    "totalPrice": (item['totalPrice'] ?? 
+                   item['total'] ?? 
+                   (quantity * (finalVarianceData['variance_Defaultprice'] as num?)!.toDouble() ?? 0.0)).toDouble(),
+    
+    // Unique identifier
+    "id": item['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
+    
+    // Add cartKey for merging
+    "cartKey": "${itemCode}_${finalVarianceData['varianceName']}",
+  };
+
+  // Debug output
+  print('✅ Normalized item:');
+  print('  itemName: ${result['itemName']}');
+  print('  itemCode: ${result['itemCode']}');
+  print('  varianceName: ${result['varianceData']?['varianceName']}');
+  
+  return result;
 }
 
  void _loadMergedItemsToCart(

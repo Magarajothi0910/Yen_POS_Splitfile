@@ -34,8 +34,10 @@ class SalesOrder {
   double discount;
   double discountAmount;
   String remark;
-  double? customCharge;
-  String? customChargeType;
+  List<double>? customCharge;
+  double? totalCustomCharge;
+
+  List<String>? customChargeType;
 
   List<double> advanceAmount;
   double totalAmount;
@@ -86,6 +88,7 @@ class SalesOrder {
     required this.uom,
     required this.qty,
     required this.price,
+    required this.totalCustomCharge,
     required this.totalAmount,
     this.holdOrderId,
     this.deliveryDate,
@@ -130,15 +133,27 @@ class SalesOrder {
 
   factory SalesOrder.fromJson(Map<String, dynamic> json) {
     return SalesOrder(
-      itemName: List<String>.from(json['itemName']?.map((x) => x.toString()) ?? []),
-      varianceName: List<String>.from(json['varianceName']?.map((x) => x.toString()) ?? []),
-      itemCode: List<String>.from(json['itemCode']?.map((x) => x.toString()) ?? []),
+      itemName: List<String>.from(
+        json['itemName']?.map((x) => x.toString()) ?? [],
+      ),
+      varianceName: List<String>.from(
+        json['varianceName']?.map((x) => x.toString()) ?? [],
+      ),
+      itemCode: List<String>.from(
+        json['itemCode']?.map((x) => x.toString()) ?? [],
+      ),
       qty: List<int>.from(json['qty'] ?? []),
       tax: List<int>.from(json['tax'] ?? []),
       uom: List<String>.from(json['uom']?.map((x) => x.toString()) ?? []),
-      amount: List<double>.from(json['amount']?.map((x) => (x as num).toDouble()) ?? []),
-      sellingAmount: List<double>.from(json['sellingAmount']?.map((x) => (x as num).toDouble()) ?? []),
-      weight: List<double>.from(json['weight']?.map((x) => (x as num).toDouble()) ?? []),
+      amount: List<double>.from(
+        json['amount']?.map((x) => (x as num).toDouble()) ?? [],
+      ),
+      sellingAmount: List<double>.from(
+        json['sellingAmount']?.map((x) => (x as num).toDouble()) ?? [],
+      ),
+      weight: List<double>.from(
+        json['weight']?.map((x) => (x as num).toDouble()) ?? [],
+      ),
       price: List<int>.from(json['price'] ?? []),
       sellingPrice: List<int>.from(json['sellingPrice'] ?? []),
       totalAmount2: (json['totalAmount2'] as num?)?.toDouble(),
@@ -148,9 +163,14 @@ class SalesOrder {
       branchId: json['branchId']?.toString(),
       holdOrderId: json['holdOrderId']?.toString(),
       branchName: json['branchName']?.toString(),
-      customChargeType: json['customChargeType']?.toString(),
+      customChargeType: List<String>.from(
+        json['customChargeType']?.map((x) => x.toString()) ?? [],
+      ),
+
       aliasName: json['aliasName']?.toString(),
-      shiftId: json['shiftId'] != null ? List<String>.from(json['shiftId'].map((x) => x.toString())) : null,
+      shiftId: json['shiftId'] != null
+          ? List<String>.from(json['shiftId'].map((x) => x.toString()))
+          : null,
       event: json['event']?.toString() ?? '',
       customerNumber: json['customerNumber']?.toString() ?? '',
       customerName: json['customerName']?.toString() ?? '',
@@ -161,14 +181,35 @@ class SalesOrder {
       discountAmount: (json['discountAmount'] as num?)?.toDouble() ?? 0.0,
       remark: json['remark']?.toString() ?? '',
       boxQty: json['boxQty'] ?? 0,
-      customCharge: (json['customCharge'] as num?)?.toDouble() ?? 0.0,
-      advanceAmount: List<double>.from(json['advanceAmount']?.map((x) => (x as num).toDouble()) ?? []),
+      totalCustomCharge: (json['totalCustomCharge'] as num?)?.toDouble(),
+      customCharge: List<double>.from(
+        json['customCharge']?.map((x) => (x as num).toDouble()) ?? [],
+      ),
+
+      advanceAmount: List<double>.from(
+        json['advanceAmount']?.map((x) => (x as num).toDouble()) ?? [],
+      ),
       advancePaymentType: json['advancePaymentType'] != null
-          ? List<List<String>>.from(json['advancePaymentType'].map((x) => List<String>.from(x.map((y) => y.toString()))))
+          ? List<List<String>>.from(
+              json['advancePaymentType'].map(
+                (x) => List<String>.from(x.map((y) => y.toString())),
+              ),
+            )
           : null,
       modeWiseAmount: json['modeWiseAmount'] != null
-          ? List<List<double>>.from(json['modeWiseAmount'].map((x) => List<double>.from(x.map((y) => (y as num).toDouble()))))
+          ? List<List<double>>.from(
+              json['modeWiseAmount'].map(
+                (x) => List<double>.from(x.map((y) => (y as num).toDouble())),
+              ),
+            )
           : null,
+      itemWiseDiscount: List<double>.from(
+        json['itemWiseDiscount']?.map((x) => (x as num).toDouble()) ?? [],
+      ),
+      itemWiseDiscountAmount: List<double>.from(
+        json['itemWiseDiscountAmount']?.map((x) => (x as num).toDouble()) ?? [],
+      ),
+
       finalPrice: (json['finalPrice'] as num?)?.toDouble() ?? 0.0,
       balanceAmount: (json['balanceAmount'] as num?)?.toDouble() ?? 0.0,
       saleOrderNo: json['saleOrderNo']?.toString() ?? '',
@@ -185,12 +226,20 @@ class SalesOrder {
       companyName: json['companyName']?.toString(),
       orderType: json['orderType']?.toString(),
       eventDate: json['eventDate']?.toString(),
-      isBoxItem: json['isBoxItem'] != null ? List<String>.from(json['isBoxItem'].map((x) => x.toString())) : null,
+      isBoxItem: json['isBoxItem'] != null
+          ? List<String>.from(json['isBoxItem'].map((x) => x.toString()))
+          : null,
       approvalOrderId: json['approvalOrderId']?.toString(),
       approvalDetails: json['approvalDetails'] != null
-          ? List<ApprovalOrderDetail>.from(json['approvalDetails'].map((x) => ApprovalOrderDetail.fromJson(x)))
+          ? List<ApprovalOrderDetail>.from(
+              json['approvalDetails'].map(
+                (x) => ApprovalOrderDetail.fromJson(x),
+              ),
+            )
           : null,
-      imagePaths: json['imagePaths'] != null ? List<String>.from(json['imagePaths'].map((x) => x.toString())) : null,
+      imagePaths: json['imagePaths'] != null
+          ? List<String>.from(json['imagePaths'].map((x) => x.toString()))
+          : null,
       audioPath: json['audioPath']?.toString(),
     );
   }
@@ -215,6 +264,7 @@ class SalesOrder {
       'deliveryTime': deliveryTime,
       'totalAmount': totalAmount,
       'event': event,
+      'totalCustomCharge': totalCustomCharge,
       'customerNumber': customerNumber,
       'customerName': customerName,
       'deliveryType': deliveryType,

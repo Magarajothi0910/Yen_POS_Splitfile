@@ -32,7 +32,7 @@ class SelectedItemsDialog extends StatelessWidget {
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      backgroundColor: Colors.transparent,
+      backgroundColor: Colors.white,
       child: Container(
         constraints: BoxConstraints(
           maxHeight: MediaQuery.of(context).size.height * 0.85,
@@ -41,20 +41,8 @@ class SelectedItemsDialog extends StatelessWidget {
         ),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.white.withOpacity(0.98), Colors.blue.shade50],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              blurRadius: 25,
-              spreadRadius: 2,
-              color: Colors.black.withOpacity(0.25),
-              offset: const Offset(0, 12),
-            ),
-          ],
+          color: Colors.white, // Explicitly set background to white
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -75,10 +63,10 @@ class SelectedItemsDialog extends StatelessWidget {
                   ),
                   SizedBox(width: 10),
                   Text(
-                    'Selected Items Summary',
+                    'Selected Gifted Items Summary',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 20,
+                      fontSize: 15,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 0.6,
                     ),
@@ -100,9 +88,7 @@ class SelectedItemsDialog extends StatelessWidget {
                         : 0.0;
                     final discounted = itemTotal - discountAmount;
 
-                    return AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeInOut,
+                    return Container(
                       margin: const EdgeInsets.symmetric(vertical: 6),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -111,13 +97,10 @@ class SelectedItemsDialog extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.grey.shade300,
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
+                        border: Border.all(
+                          color: Colors.grey.shade300,
+                          width: 1,
+                        ),
                       ),
                       child: Row(
                         children: [

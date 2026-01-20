@@ -70,17 +70,17 @@ class AdvanceAmountKeyboardWidgetAll2 extends StatelessWidget {
     required this.controller,
     this.onClose,
     this.onChanged,
-    this.isDiscount = false, // ✅ default false
+    this.isDiscount = false,
   });
 
   final TextEditingController controller;
   final VoidCallback? onClose;
-  final bool isDiscount; // ✅ discount mode flag
-  final VoidCallback? onChanged; // 👈 add callback
+  final bool isDiscount;
+  final VoidCallback? onChanged;
+
   void _insert(BuildContext context, String txt) {
     final newText = controller.text + txt;
 
-    // ✅ Discount validation
     if (ActiveField.isDiscount.value) {
       final value = double.tryParse(newText);
       if (value != null && (value > 100 || value <= 0)) {
@@ -95,11 +95,9 @@ class AdvanceAmountKeyboardWidgetAll2 extends StatelessWidget {
       }
     }
 
-    // ✅ Custom charge validation
-    // ✅ Custom charge validation (max 5 digits)
     if (ActiveField.isCustomCharge.value) {
       if (newText.length > 5) {
-        return; // ❌ block input beyond 5 digits
+        return;
       }
     }
 
@@ -122,7 +120,7 @@ class AdvanceAmountKeyboardWidgetAll2 extends StatelessWidget {
     final provider = context.read<AdvanceAmountKeyboard>();
 
     // 🚫 block switching if numeric is locked (like custom charge)
-    if (ActiveField.isNumeric.value) {
+    if (ActiveField.isCustomCharge.value) {
       if (k == 'ABC' || k == '⇧') return;
     }
 
@@ -150,15 +148,15 @@ class AdvanceAmountKeyboardWidgetAll2 extends StatelessWidget {
     }
   }
 
-  /// normal numeric keyboard
+  /// Normal numeric keyboard with ABC toggle
   List<List<String>> get _numeric => [
     ['1', '2', '3'],
     ['4', '5', '6'],
     ['7', '8', '9'],
-    ['.', '0', '⌫'],
+    ['ABC', '.', '0', '⌫'], // Changed: Added 'ABC' button
   ];
 
-  /// 🚫 locked numeric (used for custom charge)
+  /// Locked numeric (used for custom charge) - no toggle
   List<List<String>> get _numericLocked => [
     ['1', '2', '3'],
     ['4', '5', '6'],
@@ -166,12 +164,13 @@ class AdvanceAmountKeyboardWidgetAll2 extends StatelessWidget {
     ['0', '⌫'],
   ];
 
+  /// Alphabet keyboard layout
   List<List<String>> _alpha(bool upper) {
     const base = [
       ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
       ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
       ['⇧', 'z', 'x', 'c', 'v', 'b', 'n', 'm', '⌫'],
-      ['123', 'SPACE'],
+      ['123', 'SPACE'], // Changed: Added '123' button
     ];
     return base
         .map(
@@ -190,11 +189,12 @@ class AdvanceAmountKeyboardWidgetAll2 extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<AdvanceAmountKeyboard>(
       builder: (context, provider, _) {
-        final layout = ActiveField.isNumeric.value
-            ? _numericLocked
+        // Decide which layout to use
+        final layout = ActiveField.isCustomCharge.value
+            ? _numericLocked // Locked numeric for custom charge
             : provider.isNumeric
-            ? _numeric
-            : _alpha(provider.isUpperCase);
+            ? _numeric // Normal numeric with ABC toggle
+            : _alpha(provider.isUpperCase); // Alphabet layout
 
         return Column(
           children: [
@@ -267,6 +267,16 @@ class AdvanceAmountKeyboardWidgetAll2 extends StatelessWidget {
         return const Icon(Icons.space_bar);
       case '⇧':
         return const Icon(Icons.arrow_upward);
+      case '123':
+      case 'ABC':
+        return Text(
+          k,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Colors.blue,
+          ),
+        );
       default:
         return Text(
           k,

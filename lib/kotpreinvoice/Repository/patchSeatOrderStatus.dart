@@ -1,5 +1,9 @@
 // ignore: file_names, depend_on_referenced_packages
 import 'package:hive/hive.dart';
+import 'package:yenpos/Global/globals_data.dart';
+import 'package:yenpos/Server_Client/sendDataToClients.dart';
+import 'package:yenpos/kotpreinvoice/handlers/handleseatTransfer.dart';
+import 'package:yenpos/kotpreinvoice/services/hive_service.dart';
 
 import '../services/sendDataToClients.dart';
 import '../services/sync_service.dart';
@@ -29,19 +33,6 @@ Future<void> handlePatchOrderStatusBySeathiveOrderId({
   }
 
   if (!dataUpdated) {
-    // final orderBox = await Hive.openBox('ordersBox');
-    // for (int i = 0; i < orderBox.length; i++) {
-    //   var orderData = orderBox.getAt(i);
-    //   if (orderData['seathiveOrderId'] == seathiveOrderId) {
-    //     orderData['status'] = newStatus;
-    //     orderData['orderRemark'] = orderRemark;
-    //     orderData['preinvoiceTime'] = preinvoiceTime;
-    //     orderData['edit'] = "Yes";
-    //     orderData['statusEdited'] = "true";
-    //     await orderBox.putAt(i, orderData);
-    //     dataUpdated = true;
-    //   }
-    // }
     final orderBox = await Hive.box('ordersBox');
     for (var key in orderBox.keys) {
       var orderData = orderBox.get(key);
@@ -58,21 +49,22 @@ Future<void> handlePatchOrderStatusBySeathiveOrderId({
     }
   }
 
+
   if (dataUpdated) {
-    sendDataToClientsKOT(
-      {
-        'action': 'updateOrderStatus',
-        'seathiveOrderId': seathiveOrderId,
-        'status': newStatus,
-        'orderRemark': orderRemark,
-        'preinvoiceTime': preinvoiceTime,
-        'statusEdited': "true",
-        'edit': "Yes",
-      },
-    );
+    sendDataToClients({
+      'action': 'updateOrderStatus',
+      'seathiveOrderId': seathiveOrderId,
+      'status': newStatus,
+      'orderRemark': orderRemark,
+      'preinvoiceTime': preinvoiceTime,
+      'statusEdited': "true",
+      'edit': "Yes",
+    }, clients);
 
     print("Preinvoice new status: $newStatus");
     await SyncServiceKot().patchEditedOrders();
+
+    // loadOrdersFromHiveUtility();
   } else {
     print("❌ No matching orders found with seathiveOrderId: $seathiveOrderId");
   }

@@ -62,9 +62,7 @@ Future<void> handleOpenSalesOrder(
 
     final lastOrder = orders.last;
 
-    // UI update (optional)
-    // print("🟦 STEP 7: Updating customer screen");
-    // customerProvider.updateReceiptData(lastOrder);
+  
 
   } catch (e, st) {
   } finally {

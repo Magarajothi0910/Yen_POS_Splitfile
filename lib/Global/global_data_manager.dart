@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-class GlobalDataManager extends ChangeNotifier{
+class GlobalDataManager extends ChangeNotifier {
   static final GlobalDataManager _instance = GlobalDataManager._internal();
 
   factory GlobalDataManager() {
@@ -18,6 +18,8 @@ class GlobalDataManager extends ChangeNotifier{
   dynamic _events;
   dynamic _deliveryTypes;
   dynamic _charges;
+  dynamic _advancePercent;
+  dynamic _discounts;
 
   dynamic _billReceiptSettings;
   dynamic _mixboxData; // Add this field for mixbox data
@@ -36,36 +38,45 @@ class GlobalDataManager extends ChangeNotifier{
     _salesorders = value;
   }
 
-final Map<String, double> _liveStockCache = <String, double>{};
+  final Map<String, double> _liveStockCache = <String, double>{};
 
-// void updateStockLive({
-//   required String branchAlias,
-//   required String varianceName,  // ← Now uses NAME
-//   required double newStock,
-// }) {
-//   final key = '$branchAlias|$varianceName';  // e.g. "AR|SPL MIXTURE 250g"
-//   _liveStockCache[key] = newStock;
-//   print("LIVE STOCK → $key = $newStock");  
-//   notifyListeners();
-// }
 
-void updateStockLive({
-  required String branchAlias,
-  required String varianceName,
-  required double systemStock,
-  required double soStock,
-}) {
-  final key = '$branchAlias|$varianceName';
-  final effectiveStock = (systemStock - soStock).clamp(0.0, double.infinity);
-  _liveStockCache[key] = effectiveStock;
-  print("LIVE STOCK → $key = $effectiveStock (system: $systemStock, SO: $soStock)");
-  notifyListeners();
-}
+  final Map<String, double> _systemStockCache = {};
+  final Map<String, double> _soStockCache = {};
 
-double getLiveStock(String branchAlias, String varianceName) {
-  final key = '$branchAlias|$varianceName';
-  return _liveStockCache[key] ?? -1;
-}
+  void updateStockLive({
+    required String branchAlias,
+    required String varianceName,
+    required double systemStock,
+    required double soStock,
+  }) {
+    final key = '$branchAlias|$varianceName';
+
+    // Update both caches
+    _systemStockCache[key] = systemStock;
+    _soStockCache[key] = soStock;
+
+    // Effective available stock (free stock not on SO)
+    final double effectiveStock = (systemStock - soStock).clamp(
+      0.0,
+      double.infinity,
+    );
+
+  
+    notifyListeners();
+  }
+
+  // Get raw system stock
+  double getSystemStock(String branchAlias, String varianceName) {
+    final key = '$branchAlias|$varianceName';
+    return _systemStockCache[key] ?? -1;
+  }
+
+  // Get SO stock (committed/reserved)
+  double getSoStock(String branchAlias, String varianceName) {
+    final key = '$branchAlias|$varianceName';
+    return _soStockCache[key] ?? -1;
+  }
 
   // Getter and setter for branches
   dynamic get branches => _branches;
@@ -98,6 +109,18 @@ double getLiveStock(String branchAlias, String varianceName) {
 
   set charges(dynamic value) {
     _charges = value;
+  }
+
+  dynamic get advancePercents => _advancePercent;
+
+  set advancePercent(dynamic value) {
+    _advancePercent = value;
+  }
+
+  dynamic get discounts => _discounts;
+
+  set discounts(dynamic value) {
+    _discounts = value;
   }
 
   // Getter and setter for billReceiptSettings

@@ -6,10 +6,8 @@ import 'package:yenpos/Server_Client/sendDataToClients.dart';
 
 Future<void> handleApprovalOrder(Map<String, dynamic>? salesOrder) async {
   if (salesOrder == null) {
-    print("⚠️ Received null salesOrder. Exiting handleApprovalOrder.");
     return;
   }
-  print("📥 Received approval order data: $salesOrder");
 
   // Step 0: Extract actual sales approval order
   Map<String, dynamic>? orderData;
@@ -27,13 +25,9 @@ Future<void> handleApprovalOrder(Map<String, dynamic>? salesOrder) async {
   }
 
   if (orderData == null) {
-    print("⚠️ Could not extract order data. Exiting.");
     return;
   }
 
-  print(
-    "🔹 Handling approval order: ${orderData['saleOrderNo'] ?? 'Unknown SaleOrderNo'}",
-  );
 
   // Step 1: Save to Hive (with proper duplicate handling)
   await _saveOrUpdateApprovalOrder(orderData);
@@ -41,13 +35,7 @@ Future<void> handleApprovalOrder(Map<String, dynamic>? salesOrder) async {
   // Step 2: Retrieve all saved approval orders
   final approvalOrders = await getSavedApprovalOrder();
 
-  print(
-    "✅ Total saved approval orders after handling: ${approvalOrders.length}",
-  );
   for (int i = 0; i < approvalOrders.length; i++) {
-    print(
-      "📄 Approval Order $i: SaleOrderNo=${approvalOrders[i]['saleOrderNo'] ?? 'null'}, Customer=${approvalOrders[i]['customerName'] ?? 'null'}",
-    );
   }
 
   printHiveBoxDetails();
@@ -61,7 +49,6 @@ Future<void> _saveOrUpdateApprovalOrder(Map<String, dynamic> orderData) async {
 
   final saleOrderNo = orderData['saleOrderNo']?.toString();
   if (saleOrderNo == null || saleOrderNo.isEmpty) {
-    print("⚠️ saleOrderNo is null or empty. Cannot save order. Skipping...");
     return;
   }
 
@@ -79,33 +66,22 @@ Future<void> _saveOrUpdateApprovalOrder(Map<String, dynamic> orderData) async {
   }
 
   if (existingKey != null) {
-    print(
-      "🔄 Updating existing order with saleOrderNo: $saleOrderNo at key: $existingKey",
-    );
     await box.put(existingKey, orderData);
   } else {
-    print("✅ Saving new order with saleOrderNo: $saleOrderNo");
     await box.add(orderData);
   }
 
-  print("📦 Hive box total items now: ${box.length}");
 } // ------------------------
 
 // Print Hive box full structure
 // ------------------------
 void printHiveBoxDetails() {
   var box = HiveManager.salesApprovalOrder;
-  print("\n================ Hive Box Full Details ================");
-  print("Total items: ${box.length}");
   box.toMap().forEach((key, value) {
-    print("Key: $key");
     if (value is Map) {
       value.forEach((k, v) {
-        print("   $k : $v");
       });
     } else {
-      print("   $value");
     }
   });
-  print("======================================================\n");
 }

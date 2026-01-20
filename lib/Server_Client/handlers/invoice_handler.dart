@@ -1,7 +1,11 @@
+
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
+import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:yenpos/Global/globals_data.dart';
 import 'package:yenpos/Sale_order/Print_Receipt/invoicePrint.dart';
 import 'package:yenpos/Server_Client/handlers/Token_service.dart';
 import 'package:yenpos/Server_Client/hive_service.dart';
@@ -42,23 +46,17 @@ Future<void> handleInvoice(
   Set<WebSocketChannel> clients,
 ) async {
   try {
-    print("handleInvoice called with data: ${jsonEncode(data)}");
 
     final salesOrderRaw = data['salesOrderId'];
     if (salesOrderRaw is! Map<String, dynamic>) {
-      print("Invalid salesOrderId format");
       return;
     }
 
-    print("salesOrderRaw extracted successfully.");
 
     final branchName = salesOrderRaw['branchName']?.toString();
     final aliasName = salesOrderRaw['aliasName']?.toString() ?? 'AR';
     final status = salesOrderRaw['status'] ?? 'Unknown';
 
-    print(
-      "Invoice details — Branch: $branchName | Alias: $aliasName | Status: $status",
-    );
 
     // Generate Hive Invoice ID
     if (branchName != null) {
@@ -67,19 +65,17 @@ Future<void> handleInvoice(
       final hiveInvoiceId = await invoiceNumberGenerator
           .generateInvoiceNumber();
       salesOrderRaw['invoiceNo'] = hiveInvoiceId;
-      print("Generated Hive Invoice ID: $hiveInvoiceId");
     }
+    final invoiceNo = Hive.box('invoiceNo');
+    final invNoKeys = invoiceNo.keys.last;
+    final invNoValues = invoiceNo.values.last;
 
     // Save invoice locally
-    print("Saving invoice to local Hive...");
     await savePosInvoiceToHive(data);
-    print("Invoice saved locally.");
     printer.updateReceiptData(salesOrderRaw);
-    print("Invoice Printed");
 
     // STOCK DECREASE — FIXED FOR WEIGHTED ITEMS (Kgs)
     try {
-      print("Processing stock decrease...");
 
       // Extract lists safely
       final List<dynamic> varianceCodesRaw =
@@ -130,7 +126,6 @@ Future<void> handleInvoice(
             : 'Pcs';
 
         if (code == null || code.isEmpty || name == null || name.isEmpty) {
-          print("Skipping invalid item at index $i");
           continue;
         }
 
@@ -153,7 +148,6 @@ Future<void> handleInvoice(
         );
 
         if (deduction <= 0) {
-          print("Zero deduction for $name → skipped");
           continue;
         }
 
@@ -161,13 +155,9 @@ Future<void> handleInvoice(
         varianceNames.add(name);
         deductionAmounts.add(deduction);
 
-        print(
-          "Will decrease: $name ($code) by $deduction $uomVal ${weight > 0 ? '(weight: $weight kg)' : '(qty: $qty)'}",
-        );
       }
 
       if (varianceCodes.isNotEmpty) {
-        print("Decreasing stock for ${varianceCodes.length} items...");
         await decreaseLocalHiveStock(
           clients: clients,
           branchAlias: aliasName,
@@ -176,27 +166,45 @@ Future<void> handleInvoice(
           stockDeductionAmounts: deductionAmounts, // Now double!
           uoms: uomRaw.map((e) => e.toString()).toList(),
         );
-        print("Stock successfully decreased (weighted items supported)");
       } else {
-        print("No valid items to decrease stock");
       }
     } catch (e, st) {
-      print("Error in stock decrease: $e\n$st");
     }
 
     // Notify all clients
     final clientData = {'action': 'invoiceGenerated', 'invoice': data};
+    final invNo = {
+      'action': "invoiceNoGenerated",
+      'invNoKeys': invNoKeys,
+      'invNoValues': invNoValues,
+    };
     sendDataToClients(clientData, clients);
-    print("WebSocket clients notified about invoice generation.");
+    sendDataToClients(invNo, clients);
 
     // Sync to server
-    print("Sending invoice data to API...");
+
     bool success = await _syncService.postInvoiceOrder({
       "data": [salesOrderRaw],
     });
 
     if (success) {
-      print("Invoice successfully synced with API.");
+      if (isWhatsAppEnabled) {
+        await sendBillToCustomer(salesOrderRaw['invoiceNo'], salesOrderRaw);
+      }
+      String billNumber = salesOrderRaw['invoiceNo'];
+      String phoneNumber = salesOrderRaw['customerPhone'] ?? '';
+      String totalAmount = salesOrderRaw['grossAmount'].toString();
+
+      // Send SMS
+      if (isSMSEnabled) {
+        String smsApiUrl =
+            'https://mailcon.in/vb/apikey.php?apikey=w31prN4CCtJg7XvK&senderid=BMUMMY&templateid=1707167058380400950&number=$phoneNumber&message=WELCOME TO BESTMUMMY BILL NO:$billNumber BILL AMOUNT: $totalAmount VISIT OUR 45 THANK YOU FOR VISITING AGAIN';
+
+        var smsResponse = await http.get(Uri.parse(smsApiUrl));
+        if (smsResponse.statusCode == 200) {
+        } else {
+        }
+      }
 
       // ✅ Update sync status in Hive
       try {
@@ -209,25 +217,33 @@ Future<void> handleInvoice(
           existing['sync'] = 'Yes'; // <-- Update status
           await box.put(hiveKey, existing);
 
-          print("Hive updated → sync = Yes for invoice: $hiveKey");
 
           final sync = {'action': 'syncInvoice', 'invoiceHiveKey': hiveKey};
 
           sendDataToClients(sync, clients);
-          debugPrint("Sent syncInvoice message to clients for key: $hiveKey");
         } else {
-          print("Invoice not found in Hive to update sync status");
         }
       } catch (e) {
-        print("Error updating sync=Yes in Hive: $e");
       }
 
-      print("Invoice successfully Printed.");
     } else {
-      print("Invoice sync failed, will retry later.");
     }
   } catch (e, stacktrace) {
-    print("Exception in handleInvoice: $e\n$stacktrace");
+  }
+}
+
+Future<void> sendBillToCustomer(
+  String invoiceNo,
+  Map<String, dynamic> invoiceData,
+) async {
+  final response = await http.post(
+    Uri.parse('https://yenerp.com/fluttertestapi/invoices/api/send-bill'),
+    headers: {'Content-Type': 'application/json'},
+    body: json.encode({'invoiceNo': invoiceNo, 'invoiceData': invoiceData}),
+  );
+  if (response.statusCode == 200) {
+    final result = json.decode(response.body);
+  } else {
   }
 }
 
@@ -236,40 +252,26 @@ Future<void> handleSaleOrderInvoice(
   Set<WebSocketChannel> clients,
 ) async {
   try {
-    print("========================================================");
-    print("🔔 handleSaleOrderInvoice() CALLED");
-    print("📦 Incoming Raw Data: ${jsonEncode(data)}");
-    print("========================================================");
 
     // ------------------------------------------------------------
     // Extract salesOrderId
     // ------------------------------------------------------------
     final salesOrderRaw = data['salesOrderId'];
-    print("📌 Extracted 'salesOrderId': ${jsonEncode(salesOrderRaw)}");
 
     if (salesOrderRaw is! Map<String, dynamic>) {
-      print("❌ ERROR: Expected 'salesOrderId' to be Map<String,dynamic>");
-      print("--------------------------------------------------------");
       return;
     }
-    print("✅ salesOrderRaw is valid map.");
-    print("--------------------------------------------------------");
 
     // Extract basic details
     final branchName = salesOrderRaw['branchName']?.toString();
     final aliasName = salesOrderRaw['aliasName']?.toString() ?? 'AR';
     final status = salesOrderRaw['status'] ?? 'Unknown';
 
-    print("🏪 Branch Name: $branchName");
-    print("🔖 Alias Name: $aliasName");
-    print("📌 Status: $status");
-    print("--------------------------------------------------------");
 
     // ------------------------------------------------------------
     // Generate Hive invoice number
     // ------------------------------------------------------------
     if (branchName != null) {
-      print("🧮 Generating Hive Invoice No...");
       final invoiceNumberGenerator = InvoiceNumberGenerator.instance;
 
       final hiveInvoiceId = await invoiceNumberGenerator
@@ -277,31 +279,22 @@ Future<void> handleSaleOrderInvoice(
 
       salesOrderRaw['invoiceNo'] = hiveInvoiceId;
 
-      print("🆕 GENERATED Hive Invoice ID: $hiveInvoiceId");
-      print("--------------------------------------------------------");
     }
+    final invoiceNo = Hive.box('invoiceNo');
+    final invNoKeys = invoiceNo.keys.last;
+    final invNoValues = invoiceNo.values.last;
 
     // ------------------------------------------------------------
     // Save invoice to Hive
     // ------------------------------------------------------------
-    print("💾 Saving invoice locally to Hive...");
     await savePosInvoiceToHive(data);
-    print("✅ Invoice saved to Hive successfully.");
-    print("--------------------------------------------------------");
 
     // ------------------------------------------------------------
     // STOCK DECREASE SECTION
     // ------------------------------------------------------------
-    print("📉 Starting STOCK DECREASE process...");
 
     try {
-      print("📥 Extracting item arrays from salesOrderRaw...");
 
-      print("➡ varianceitemCode: ${salesOrderRaw['itemCode']}");
-      print("➡ varianceName: ${salesOrderRaw['varianceName']}");
-      print("➡ qty: ${salesOrderRaw['qty']}");
-      print("➡ weight: ${salesOrderRaw['weight']}");
-      print("➡ uom: ${salesOrderRaw['uom']}");
 
       final List<dynamic> varianceCodesRaw = salesOrderRaw['itemCode'] is List
           ? List.from(salesOrderRaw['itemCode'])
@@ -324,13 +317,6 @@ Future<void> handleSaleOrderInvoice(
           ? List.from(salesOrderRaw['uom'])
           : [salesOrderRaw['uom'] ?? 'Pcs'];
 
-      print("📊 Parsed lists:");
-      print("   📌 varianceCodesRaw: $varianceCodesRaw");
-      print("   📌 varianceNamesRaw: $varianceNamesRaw");
-      print("   📌 qtyRaw: $qtyRaw");
-      print("   📌 weightRaw: $weightRaw");
-      print("   📌 uomRaw: $uomRaw");
-      print("--------------------------------------------------------");
 
       final int maxItems = [
         varianceCodesRaw.length,
@@ -340,16 +326,12 @@ Future<void> handleSaleOrderInvoice(
         uomRaw.length,
       ].reduce((a, b) => a > b ? a : b);
 
-      print("🧮 Total items to process: $maxItems");
-      print("--------------------------------------------------------");
 
       List<String> varianceCodes = [];
       List<String> varianceNames = [];
       List<double> deductionAmounts = [];
 
       for (int i = 0; i < maxItems; i++) {
-        print("--------------------------------------------------------");
-        print("🔍 PROCESSING ITEM INDEX: $i");
 
         final code = i < varianceCodesRaw.length
             ? varianceCodesRaw[i]?.toString().trim()
@@ -365,14 +347,8 @@ Future<void> handleSaleOrderInvoice(
             ? uomRaw[i]?.toString() ?? 'Pcs'
             : 'Pcs';
 
-        print("   ➡ Item Code: $code");
-        print("   ➡ Item Name: $name");
-        print("   ➡ Qty Raw: $qtyVal");
-        print("   ➡ Weight Raw: $weightVal");
-        print("   ➡ UOM: $uomVal");
 
         if (code == null || code.isEmpty || name == null || name.isEmpty) {
-          print("   ❌ INVALID ITEM — Skipping");
           continue;
         }
 
@@ -383,8 +359,6 @@ Future<void> handleSaleOrderInvoice(
             ? weightVal.toDouble()
             : double.tryParse(weightVal) ?? 0.0;
 
-        print("   🔢 Parsed Qty: $qty");
-        print("   ⚖ Parsed Weight: $weight");
 
         final deduction = getStockDeductionAmount(
           uom: uomVal,
@@ -392,10 +366,8 @@ Future<void> handleSaleOrderInvoice(
           qty: qty,
         );
 
-        print("   📉 Calculated Deduction: $deduction");
 
         if (deduction <= 0) {
-          print("   ⚠ Zero deduction. Skipping...");
           continue;
         }
 
@@ -403,18 +375,10 @@ Future<void> handleSaleOrderInvoice(
         varianceNames.add(name);
         deductionAmounts.add(deduction);
 
-        print("   ✅ Added for stock decrease → $name ($code)");
       }
 
-      print("--------------------------------------------------------");
-      print("📦 FINAL STOCK DECREASE DATA:");
-      print("   Codes: $varianceCodes");
-      print("   Names: $varianceNames");
-      print("   Deductions: $deductionAmounts");
-      print("--------------------------------------------------------");
 
       if (varianceCodes.isNotEmpty) {
-        print("🚀 Sending to decreaseLocalHiveSaleorderStock...");
         await decreaseLocalHiveSaleorderStock(
           clients: clients,
           branchAlias: aliasName,
@@ -423,43 +387,33 @@ Future<void> handleSaleOrderInvoice(
           stockDeductionAmounts: deductionAmounts,
           uoms: uomRaw.map((e) => e.toString()).toList(),
         );
-        print("✅ STOCK successfully decreased!");
       } else {
-        print("⚠ No valid items to decrease stock.");
       }
     } catch (e, st) {
-      print("❌ STOCK PROCESSING ERROR: $e");
-      print("$st");
     }
 
-    print("--------------------------------------------------------");
 
     // ------------------------------------------------------------
     // Notify clients
     // ------------------------------------------------------------
-    print("📢 Notifying WebSocket Clients...");
-    print("Invoice data: $data");
     final clientData = {'action': 'invoiceGenerated', 'invoice': data};
+    final invNo = {
+      'action': "invoiceNoGenerated",
+      'invNoKeys': invNoKeys,
+      'invNoValues': invNoValues,
+    };
     sendDataToClients(clientData, clients);
-    print("✅ Clients notified.");
-    print("--------------------------------------------------------");
+    sendDataToClients(invNo, clients);
 
     // ------------------------------------------------------------
     // SYNC TO API
     // ------------------------------------------------------------
-    print("🌐 Syncing invoice to API...");
     bool success = await _syncService.postInvoiceOrder(salesOrderRaw);
 
     if (success) {
-      print("✅ API SYNC SUCCESS!");
     } else {
-      print("❌ API SYNC FAILED — Will Retry Later");
     }
 
-    print("========================================================");
   } catch (e, stacktrace) {
-    print("❌ FATAL ERROR IN handleSaleOrderInvoice: $e");
-    print(stacktrace);
-    print("========================================================");
   }
 }

@@ -72,6 +72,104 @@ class EditCustomerScreenProvider with ChangeNotifier {
   String? selectedChargeType;
   File? pickedImage1;
   File? pickedImage2;
+  ValueNotifier<double> customCharge = ValueNotifier<double>(0);
+  Map<String, TextEditingController?> customChargeControllers = {};
+
+  /// 📸 Multiple picked images
+  List<File> pickedImages = [];
+
+  /// Update images from ImagePickerWidget
+  void setPickedImages(List<File> images) {
+    pickedImages = images;
+    notifyListeners();
+  }
+
+  // Custom charges management
+
+  Map<String, double> customChargeValues =
+      {}; // Only store charges with values > 0
+
+  List<String> customChargeTypes = [];
+
+  // Custom charges management
+
+  List<double> customChargeAmounts = [];
+
+  // Add method to set custom charges - Using Map approach
+  void setCustomCharges(Map<String, double> charges) {
+    // Clear existing charges
+    customChargeValues.clear();
+    customChargeTypes.clear();
+    customChargeAmounts.clear();
+
+    // Add only charges with values > 0
+    charges.forEach((type, value) {
+      if (value > 0) {
+        // For Map approach
+        customChargeValues[type] = value;
+
+        // For List approach (optional, if you need both)
+        customChargeTypes.add(type);
+        customChargeAmounts.add(value);
+      }
+    });
+
+    // Calculate total
+    customCharge.value = customChargeValues.values.fold(
+      0.0,
+      (sum, value) => sum + value,
+    );
+
+    notifyListeners();
+  }
+
+  // Helper method to get charges in list format for API
+  List<String> getCustomChargeTypes() {
+    return customChargeValues.keys.toList();
+  }
+
+  List<double> getCustomChargeAmounts() {
+    return customChargeValues.values.toList();
+  }
+
+  // Alternative: If you want to keep only Map and convert when needed
+  Map<String, double> getCustomCharges() {
+    return Map.from(customChargeValues);
+  }
+
+  // Clear all custom charges
+  void clearCustomCharges() {
+    customChargeValues.clear();
+    customChargeTypes.clear();
+    customChargeAmounts.clear();
+    customCharge.value = 0;
+
+    // Clear all controllers
+    customChargeControllers.forEach((key, controller) {
+      controller?.clear();
+    });
+
+    notifyListeners();
+  }
+
+  // Add individual charge
+  void addCustomCharge(String type, double value) {
+    if (value > 0) {
+      customChargeValues[type] = value;
+      customCharge.value = customCharge.value + value;
+      notifyListeners();
+    }
+  }
+
+  // Remove individual charge
+  void removeCustomCharge(String type) {
+    if (customChargeValues.containsKey(type)) {
+      double removedValue = customChargeValues[type]!;
+      customChargeValues.remove(type);
+      customCharge.value = customCharge.value - removedValue;
+      notifyListeners();
+    }
+  }
 
   // Global ScaffoldMessengerKey to safely show SnackBars without relying on context
   final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
@@ -85,15 +183,6 @@ class EditCustomerScreenProvider with ChangeNotifier {
   void setSelectedOrderType(String? newValue) {
     selectedOrderType = newValue;
     notifyListeners(); // Notify listeners to update the UI
-  }
-
-  /// 📸 Multiple picked images
-  List<File> pickedImages = [];
-
-  /// Update images from ImagePickerWidget
-  void setPickedImages(List<File> images) {
-    pickedImages = images;
-    notifyListeners();
   }
 
   List<String> getEventList() {
@@ -151,7 +240,7 @@ class EditCustomerScreenProvider with ChangeNotifier {
   double get effectiveCustomCharge {
     return isModifyMode.value
         ? modifiedCustomCharge
-        : (originalOrder?.customCharge ?? 0.0);
+        : (originalOrder?.totalCustomCharge ?? 0.0);
   }
 
   SalesOrderDisplay? originalOrder;
@@ -457,30 +546,30 @@ class EditCustomerScreenProvider with ChangeNotifier {
     List<Map<String, dynamic>> decreasedItems,
     String? path,
     ApiServiceSalesOrderProvider apiprovider,
-    File? img1,
-    File? img2,
+    List<File> pickedImages,
     double modifiedTotal,
     bool isModifyMode,
     double totalAdvanceAmount,
   ) {
     double orderAmount = modifiedTotal;
     double discount = 0;
-    double customCharge = 0;
-    double deductedAmount = 0;
+    double customCharge =
+        modifiedCustomCharge; // Get custom charge from provider
+    double deductedAmount = salesorder.discountAmount ?? 0;
 
-    double totalAmount = modifiedTotal + customCharge - deductedAmount;
-    debugPrint("💰 Initial Total Amount: $totalAmount");
+    // ✅ Calculate total amount including custom charge
+    double itemTotal = modifiedTotal;
+    double customChargeTotal = customCharge;
+    double totalAmount2 = itemTotal + customChargeTotal;
+    double finalPrice = itemTotal + customChargeTotal - deductedAmount;
+    double balanceAmount = finalPrice - totalAdvanceAmount;
 
     // Clear or set advanceAmountController
     if (!isModifyMode) {
       advanceAmountController.clear();
-      debugPrint("🧹 Advance amount cleared (new order).");
     } else if (salesorder.advanceAmount != null &&
         salesorder.advanceAmount!.isNotEmpty) {
       advanceAmountController.text = salesorder.advanceAmount!.first.toString();
-      debugPrint(
-        "🔄 Advance amount loaded from existing order: ${advanceAmountController.text}",
-      );
     }
 
     showDialog(
@@ -488,7 +577,22 @@ class EditCustomerScreenProvider with ChangeNotifier {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Confirm Order'),
-          content: const Text('Are you sure you want to complete the order?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Are you sure you want to complete the order?'),
+              const SizedBox(height: 10),
+              if (customCharge > 0) Text('Custom Charge: ₹$customCharge'),
+              if (deductedAmount > 0) Text('Discount: ₹$deductedAmount'),
+              Text('Item Total: ₹$itemTotal'),
+              Text('Final Price: ₹$finalPrice'),
+              if (pickedImages.isNotEmpty)
+                Text('Images: ${pickedImages.length}'),
+              Text('Advance Amount: ₹$totalAdvanceAmount'),
+              Text('Balance Amount: ₹$balanceAmount'),
+            ],
+          ),
           actions: [
             TextButton(
               onPressed: () {
@@ -498,10 +602,6 @@ class EditCustomerScreenProvider with ChangeNotifier {
             ),
             TextButton(
               onPressed: () async {
-                double balanceAmount = totalAmount - totalAdvanceAmount;
-                debugPrint(
-                  "📊 Calculated Balance Amount: Total=$totalAmount - Advance=$totalAdvanceAmount = Balance=$balanceAmount",
-                );
 
                 try {
                   await saveModifiedOrder(
@@ -509,17 +609,14 @@ class EditCustomerScreenProvider with ChangeNotifier {
                     increasedItems,
                     decreasedItems,
                     path,
-                    img1,
-                    img2,
-                    totalAmount,
+                    pickedImages,
+                    itemTotal,
                     totalAdvanceAmount,
                     balanceAmount,
                     context,
                     isModifyMode,
                   );
                 } catch (e, stack) {
-                  debugPrint("❌ Error in saveModifiedOrder: $e");
-                  debugPrint(stack.toString());
                 }
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
@@ -557,23 +654,55 @@ class EditCustomerScreenProvider with ChangeNotifier {
     List<Map<String, dynamic>> increasedItems,
     List<Map<String, dynamic>> decreasedItems,
     String? audioPath,
-    File? newImage1,
-    File? newImage2,
-    double totalAmount,
+    List<File> newImages,
+    double itemTotal,
     double totalAdvance,
     double balanceAmount,
     BuildContext context,
     bool isModified,
   ) async {
-    debugPrint(
-      "🚀 saveModifiedOrder called for order: ${originalOrder.saleOrderNo}",
-    );
-    debugPrint(
-      "📊 TotalAmount=$totalAmount, Advance=$totalAdvance, Balance=$balanceAmount",
-    );
-
     try {
-      // Step 1: Prepare JSON for original order (POST)
+      // Step 1: Calculate modified item total
+      double modifiedItemTotal = calculateModifiedItemTotal(
+        originalOrder,
+        increasedItems,
+        decreasedItems,
+      );
+
+
+      // Step 2: Get custom charges from provider
+      final editProvider = context.read<EditCustomerScreenProvider>();
+      final Map<String, double> currentCharges =
+          editProvider.customChargeValues;
+
+      // Convert to list format for API
+      List<String> customChargeTypes = [];
+      List<double> customChargeValues = [];
+
+      // Add only charges with values > 0
+      currentCharges.forEach((type, value) {
+        if (value > 0) {
+          customChargeTypes.add(type);
+          customChargeValues.add(value);
+        }
+      });
+
+      // Calculate custom charge total
+      double customChargeTotal = customChargeValues.fold(
+        0,
+        (sum, value) => sum + value,
+      );
+
+      // Get discount/deductions from original order
+      double deductedAmount = originalOrder.discountAmount ?? 0;
+
+      // Calculate using the formula
+      double totalAmount2 = modifiedItemTotal + customChargeTotal;
+      double finalPrice =
+          modifiedItemTotal + customChargeTotal - deductedAmount;
+      double computedBalanceAmount = finalPrice - totalAdvance;
+
+      // Step 3: Prepare original order JSON
       final jsonSalesOrder = jsonEncode({
         "data": originalOrder.toJson(),
         "deviceName": globals.deviceName,
@@ -582,27 +711,30 @@ class EditCustomerScreenProvider with ChangeNotifier {
         "sync": "No",
         "edit": "No",
       });
-      debugPrint("📝 Original order JSON prepared: $jsonSalesOrder");
+
+      // Step 4: Prepare modified order data
       final modifiedOrderData = _mergeOrderModifications(
         originalOrder,
         increasedItems,
         decreasedItems,
+        modifiedItemTotal, // Pass item total
         totalAdvance,
-        audioPath,
-        newImage1,
-        newImage2,
+        computedBalanceAmount,
+        audioPath ?? originalOrder.audio,
+        newImages,
         dateController.text,
         timeController.text,
         customerNameController.text,
         mobileNoController.text,
         addressController.text,
         searchController.text,
-        selectedChargeType.toString(),
-        double.tryParse(customChargeController.text) ?? 0,
-        originalOrder.discountAmount ?? 0,
+        customChargeTypes,
+        customChargeValues,
+        deductedAmount,
+        customChargeTotal,
+        totalAmount2,
+        finalPrice,
       );
-
-      debugPrint("📝 Modified order data merged: $modifiedOrderData");
 
       final jsonModifiedSalesOrder = jsonEncode({
         "data": modifiedOrderData,
@@ -612,31 +744,23 @@ class EditCustomerScreenProvider with ChangeNotifier {
         "sync": "No",
         "edit": "Yes",
       });
-      debugPrint("📝 Modified order JSON prepared: $jsonModifiedSalesOrder");
 
-      // Step 3: Check connectivity
+      // Step 5: Check connectivity
       final connectivityProvider = Provider.of<ConnectivityProvider>(
         context,
         listen: false,
       );
-      debugPrint("🌐 Connectivity status: ${connectivityProvider.isConnected}");
 
       if (connectivityProvider.isConnected) {
-        debugPrint("📡 Sending original order to server...");
         await sendataToServer(jsonDecode(jsonSalesOrder));
-        debugPrint("✅ Original order sent successfully.");
 
-        debugPrint("📡 Sending modified order to server...");
         await sendataToServer(jsonDecode(jsonModifiedSalesOrder));
-        debugPrint("✅ Modified order sent successfully.");
       } else {
-        debugPrint("⚠️ No internet. Saving orders locally...");
         handleModifyOrder(jsonDecode(jsonSalesOrder));
         handlePatchSaleOrder(jsonDecode(jsonModifiedSalesOrder));
-        debugPrint("✅ Orders handled locally.");
       }
 
-      // Step 4: Show success message
+      // Step 6: Show success message
       if (context.mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -648,8 +772,7 @@ class EditCustomerScreenProvider with ChangeNotifier {
         });
       }
 
-      // Step 5: Clear temp variables & trackers
-      debugPrint("🧹 Clearing temporary variables and trackers...");
+      // Step 7: Clear temp variables & trackers
       increasedItems.clear();
       decreasedItems.clear();
       globals.quantityChangesNotifier.value = {};
@@ -659,10 +782,7 @@ class EditCustomerScreenProvider with ChangeNotifier {
 
       exitModifyMode();
       notifyListeners();
-      debugPrint("✅ saveModifiedOrder completed successfully.");
     } catch (e, stackTrace) {
-      debugPrint("❌ Exception in saveModifiedOrder: $e");
-      debugPrint(stackTrace.toString());
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -674,89 +794,244 @@ class EditCustomerScreenProvider with ChangeNotifier {
     } finally {
       if (context.mounted) {
         Navigator.of(context).pop(); // Close dialog
-        debugPrint("🛑 Dialog closed.");
       }
     }
   }
 
-  // Helper to calculate amount for weighted products
+  // Helper function to calculate modified item total
+  double calculateModifiedItemTotal(
+    SalesOrderDisplay originalOrder,
+    List<Map<String, dynamic>> increasedItems,
+    List<Map<String, dynamic>> decreasedItems,
+  ) {
+    // Start with original item total
+    double originalItemTotal = originalOrder.amount.fold<double>(
+      0,
+      (sum, amount) => sum + amount,
+    );
+    double itemTotal = originalItemTotal;
+
+    // Add increased items
+    for (var item in increasedItems) {
+      double itemAmount = calculateItemAmount(item);
+      itemTotal += itemAmount;
+    }
+
+    // Subtract decreased items
+    for (var item in decreasedItems) {
+      double itemAmount = calculateItemAmount(item);
+      itemTotal -= itemAmount;
+    }
+
+    return itemTotal;
+  }
 
   // Helper: Calculate item amount with detailed logs
   double calculateItemAmount(Map<String, dynamic> item) {
-    final uom = (item['uom'] ?? '').toString().toLowerCase();
-    final qty = (item['quantity'] ?? 0).toDouble();
-    final weight = (item['weight'] ?? 0).toDouble();
-    final price = (item['price'] ?? 0).toDouble();
+    final uom = item['uom']?.toString().toLowerCase() ?? '';
+    final bool isKgUnit = uom == 'kg' || uom == 'kgs';
+    final double itemWeight = (item['weight'] ?? 0).toDouble();
+    final double itemQty = (item['quantity'] ?? 0).toDouble();
+    final double pricePerUnit = (item['price'] ?? 0).toDouble();
 
-    return (uom == 'kg' || uom == 'kgs') ? qty * weight * price : qty * price;
+    double calculatedAmount = isKgUnit
+        ? itemQty * itemWeight * pricePerUnit
+        : itemQty * pricePerUnit;
+
+
+    return calculatedAmount;
   }
 
-  // Merge modifications safely with detailed print statements
+  // Merge modifications with complete calculation logic
   Map<String, dynamic> _mergeOrderModifications(
     SalesOrderDisplay originalOrder,
     List<Map<String, dynamic>> increasedItems,
     List<Map<String, dynamic>> decreasedItems,
+    double itemTotal,
     double totalAdvance,
+    double balanceAmount,
     String? audioPath,
-    File? newImage1,
-    File? newImage2,
+    List<File> newImages,
     String? newDeliveryDate,
     String? newDeliveryTime,
     String? customerName,
     String? customerMobile,
     String? customerAddress,
     String? employeeName,
-    String? customChargeType,
-    double customCharge,
-    double discountAmount,
+    List<String> newCustomChargeTypes,
+    List<double> newCustomChargeValues,
+    double deductedAmount,
+    double customChargeTotal,
+    double totalAmount2,
+    double finalPrice,
   ) {
-    List<String> varianceNames = List.from(originalOrder.varianceName);
-    List<String> itemNames = List.from(originalOrder.itemName);
-    List<int> qty = List.from(originalOrder.qty);
-    List<String> uom = List.from(originalOrder.uom);
-    List<num> amount = List.from(originalOrder.amount);
-    List<num> price = List.from(originalOrder.price);
+    // Clone original order data
+    List<String> varianceNames = [...originalOrder.varianceName];
+    List<String> itemNames = [...originalOrder.itemName];
+    List<int> qty = originalOrder.qty.map((n) => n.toInt()).toList();
+    List<String> uom = [...originalOrder.uom];
+    List<num> amount = [...originalOrder.amount];
+    List<num> price = [...originalOrder.price];
 
-    for (final item in increasedItems) {
-      final index = varianceNames.indexOf(item['varianceName']);
-      final int q = (item['quantity'] ?? 0).toInt();
-      final double a = calculateItemAmount(item);
 
-      if (index != -1) {
-        qty[index] += q;
-        amount[index] += a;
+    // Process increased items
+    for (var item in increasedItems) {
+      int existingIndex = varianceNames.indexOf(item['varianceName']);
+      double addQty = (item['quantity'] ?? 0).toDouble();
+      double addAmount = calculateItemAmount(item);
+
+      if (existingIndex != -1) {
+        qty[existingIndex] += addQty.toInt();
+        amount[existingIndex] += addAmount;
       } else {
         varianceNames.add(item['varianceName']);
         itemNames.add(item['itemName']);
-        qty.add(q);
+        qty.add(addQty.toInt());
         uom.add(item['uom']);
-        amount.add(a);
+        amount.add(addAmount);
         price.add(item['price']);
       }
     }
 
-    for (final item in decreasedItems) {
-      final index = varianceNames.indexOf(item['varianceName']);
-      if (index == -1) continue;
+    // Process decreased items
+    for (var item in decreasedItems) {
+      int existingIndex = varianceNames.indexOf(item['varianceName']);
+      double subQty = (item['quantity'] ?? 0).toDouble();
+      double subAmount = calculateItemAmount(item);
 
-      qty[index] = (qty[index] - (item['quantity'] ?? 0).toInt()).toInt();
-      amount[index] -= calculateItemAmount(item);
+      if (existingIndex != -1) {
+        qty[existingIndex] -= subQty.toInt();
+        amount[existingIndex] -= subAmount;
 
-      if (qty[index] <= 0) {
-        varianceNames.removeAt(index);
-        itemNames.removeAt(index);
-        qty.removeAt(index);
-        uom.removeAt(index);
-        amount.removeAt(index);
-        price.removeAt(index);
+        if (qty[existingIndex] <= 0 || amount[existingIndex] <= 0) {
+          varianceNames.removeAt(existingIndex);
+          itemNames.removeAt(existingIndex);
+          qty.removeAt(existingIndex);
+          uom.removeAt(existingIndex);
+          amount.removeAt(existingIndex);
+          price.removeAt(existingIndex);
+        }
+      } else {
       }
     }
 
-    final double itemTotal = amount.fold(0.0, (a, b) => a + b.toDouble());
+    // Recalculate item total from updated amounts
+    double recalculatedItemTotal = amount.fold<double>(
+      0,
+      (sum, element) => sum + element.toDouble(),
+    );
 
-    final double finalPrice = itemTotal - discountAmount + customCharge;
+    // Parse and format event date to ISO
+    String eventDateIso = '';
+    if (birthdaydateController.text.isNotEmpty) {
+      try {
+        String dateText = birthdaydateController.text;
+        DateTime parsedEventDate;
 
-    final double balance = finalPrice - totalAdvance;
+        if (dateText.contains('-')) {
+          // Try parsing as dd-MM-yyyy first (most common format)
+          List<String> parts = dateText.split('-');
+          if (parts.length == 3) {
+            int day = int.tryParse(parts[0]) ?? 1;
+            int month = int.tryParse(parts[1]) ?? 1;
+            int year = int.tryParse(parts[2]) ?? DateTime.now().year;
+
+            // Validate year - if it's 2 digits, assume 2000s
+            if (year < 100) {
+              year += 2000;
+            }
+
+            parsedEventDate = DateTime(year, month, day);
+          } else {
+            parsedEventDate = DateFormat('dd-MM-yyyy').parseStrict(dateText);
+          }
+        } else {
+          parsedEventDate = DateTime.parse(dateText);
+        }
+
+        eventDateIso = parsedEventDate.toIso8601String();
+      } catch (e) {
+        eventDateIso = DateTime.now().toIso8601String();
+      }
+    }
+
+    // Parse and format delivery date + time to ISO
+    String deliveryDateIso = '';
+    if (newDeliveryDate != null && newDeliveryDate.isNotEmpty) {
+      try {
+        DateTime parsedDeliveryDate;
+
+        if (newDeliveryDate.contains('-')) {
+          List<String> parts = newDeliveryDate.split('-');
+          if (parts.length == 3) {
+            int day = int.tryParse(parts[0]) ?? DateTime.now().day;
+            int month = int.tryParse(parts[1]) ?? DateTime.now().month;
+            int year = int.tryParse(parts[2]) ?? DateTime.now().year;
+
+            // Validate year
+            if (year < 100) {
+              year += 2000;
+            }
+
+            parsedDeliveryDate = DateTime(year, month, day);
+          } else {
+            parsedDeliveryDate = DateFormat(
+              'dd-MM-yyyy',
+            ).parseStrict(newDeliveryDate);
+          }
+        } else {
+          parsedDeliveryDate = DateTime.parse(newDeliveryDate);
+        }
+
+        if (newDeliveryTime != null && newDeliveryTime.isNotEmpty) {
+          try {
+            DateTime parsedTime = DateFormat('h:mm a').parse(newDeliveryTime);
+            parsedDeliveryDate = parsedDeliveryDate.copyWith(
+              hour: parsedTime.hour,
+              minute: parsedTime.minute,
+            );
+          } catch (e) {
+          }
+        }
+
+        deliveryDateIso = parsedDeliveryDate.toIso8601String();
+      } catch (e) {
+        deliveryDateIso = DateTime.now().toIso8601String();
+      }
+    }
+
+    List<String> finalCustomChargeTypes = [];
+    List<double> finalCustomChargeValues = [];
+
+    // Add only user-entered charges (which already have values > 0)
+    for (int i = 0; i < newCustomChargeTypes.length; i++) {
+      if (i < newCustomChargeValues.length && newCustomChargeValues[i] > 0) {
+        finalCustomChargeTypes.add(newCustomChargeTypes[i]);
+        finalCustomChargeValues.add(newCustomChargeValues[i]);
+      }
+    }
+
+    // Prepare image paths
+    List<String> imagePathsList = [];
+    if (newImages.isNotEmpty) {
+      for (var file in newImages) {
+        if (file is File) {
+          imagePathsList.add(file.path);
+        } else if (file is String) {
+          imagePathsList.add(file.path);
+        }
+      }
+    }
+
+    // If no new images but original order has images, preserve them
+    if (imagePathsList.isEmpty && originalOrder.imagePaths != null) {
+      if (originalOrder.imagePaths is List) {
+        imagePathsList = List<String>.from(originalOrder.imagePaths!);
+      } else if (originalOrder.imagePaths is String &&
+          (originalOrder.imagePaths as String).isNotEmpty) {
+        imagePathsList = [originalOrder.imagePaths as String];
+      }
+    }
 
     return {
       'varianceName': varianceNames,
@@ -765,21 +1040,38 @@ class EditCustomerScreenProvider with ChangeNotifier {
       'uom': uom,
       'amount': amount,
       'price': price,
-
-      'discountAmount': discountAmount,
-      'customChargeType': customChargeType,
-      'customCharge': customCharge,
-
-      'totalAmount': finalPrice,
-      'totalAmount2': finalPrice,
-      'finalPrice': finalPrice,
-
-      'advanceAmount': [totalAdvance],
-      'balanceAmount': balance,
-
+      'event': selectedEvent,
+      'deliveryType': selectedDeliveryType,
+      'address': addressController.text ?? '',
+      'landmark': landmarkController.text ?? '',
+      'employeeName': employeeName ?? '',
+      'customChargeType': finalCustomChargeTypes,
+      'customCharge': finalCustomChargeValues,
+      'totalCustomCharge': customChargeTotal,
+      'totalAmount': recalculatedItemTotal,
+      'totalAmount2': totalAmount2,
+      'branchId': originalOrder.branchId ?? "",
+      'branchName': originalOrder.branchName ?? "Aranmanai",
+      'shiftId': originalOrder.shiftId ?? ["0"],
+      'aliasName': originalOrder.aliasName ?? "AR",
+      'deliveryDate': deliveryDateIso,
+      'deliveryTime': newDeliveryTime ?? '',
+      'eventDate': eventDateIso,
+      'customerNumber': customerMobile ?? originalOrder.customerNumber,
+      'customerName': customerName ?? originalOrder.customerName,
+      'customerAddress': customerAddress ?? originalOrder.address,
+      'discount': originalOrder.discount ?? 0,
+      'discountAmount': deductedAmount,
+      'remark': originalOrder.remark ?? 'FVH',
       'audioPath': audioPath ?? '',
-      'imagePath1': newImage1?.path ?? '',
-      'imagePath2': newImage2?.path ?? '',
+      'advanceAmount': [totalAdvance],
+
+      'finalPrice': finalPrice,
+      'balanceAmount': balanceAmount,
+      'status': decreasedItems.isNotEmpty
+          ? 'Pending Approval'
+          : 'Confirm Order',
+      'imagePaths': imagePathsList,
     };
   }
 

@@ -6,7 +6,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 
 class SyncServiceKot {
   // final String apiUrl = 'https://yenerp.com/fastapi/orders/';
-  final String apiUrl = 'https://yenerp.com/fastapi/orders/';
+  final String apiUrl = 'https://yenerp.com/fluttertestapi/orders/';
   final String invoiceApiUrl = 'https://yenerp.com/fluttertestapi/invoices/';
   final String kotTableStatusUrl = 'https://yenerp.com/fastapi/kottablesstatus';
 
@@ -262,17 +262,50 @@ class SyncServiceKot {
             if (orderData['statusEdited'] == 'true' &&
                 orderData.containsKey('seathiveOrderId')) {
               final seathiveOrderId = orderData['seathiveOrderId'].toString();
-              final status = orderData['status'];
-              bool patchedStatus = await patchOrderStatusWithRetry(
+              final status =
+                  orderData['status']?.toString().toLowerCase() ?? 'unknown';
+
+              print('🔄 Patching status → $seathiveOrderId = $status');
+
+              final success = await patchOrderStatusWithRetry(
                 seathiveOrderId,
                 status,
               );
-              if (patchedStatus) {
-                orderData['edit'] = 'No';
-                orderData['statusEdited'] = 'false';
-                await orderBox.putAt(i, orderData);
-                print("✅ Status patched for order $seathiveOrderId");
+
+              if (success) {
+                if (status == 'invoiced') {
+                  await orderBox.deleteAt(i);
+                  print('🗑️ Order removed after invoiced');
+                } else {
+                  orderData['statusEdited'] = 'false';
+                  orderData['edit'] = 'No';
+                  orderData['patchInProgress'] = false;
+                  await orderBox.putAt(i, orderData);
+                }
               } else {
+                // queueSync(() async {
+                //   final box = Hive.box('ordersBox');
+                //   final latest = box.getAt(i);
+
+                //   if (latest == null) return;
+                //   if (latest['statusEdited'] != 'true') return;
+
+                //   final retryOk = await patchOrderStatusBySeathiveOrderId(
+                //     seathiveOrderId,
+                //     status,
+                //   );
+
+                //   if (retryOk) {
+                //     if (status == 'invoiced') {
+                //       await box.deleteAt(i);
+                //     } else {
+                //       latest['statusEdited'] = 'false';
+                //       latest['edit'] = 'No';
+                //       await box.putAt(i, latest);
+                //     }
+                //   }
+                // });
+
                 print(
                   "⚠️ Queuing failed status patch for order $seathiveOrderId...",
                 );
@@ -469,7 +502,7 @@ class SyncServiceKot {
 
   Future<bool> patchOrderTableAndSeat(
     String seathiveOrderId,
-    int table,
+    String table,
     String seat,
   ) async {
     try {

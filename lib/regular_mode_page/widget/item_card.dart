@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:yenpos/Global/Widget/custom_colors.dart';
 import 'package:yenpos/Global/Widget/custom_textWidgets.dart';
+import 'package:yenpos/regular_mode_page/provider/image_service.dart';
 
 import '../provider/favorite_page_provider.dart';
 
@@ -19,12 +20,23 @@ class _ItemCardState extends State<ItemCard> {
   Widget build(BuildContext context) {
     final favoriteProvider = Provider.of<FavoriteProvider>(context);
     bool isFavorite = favoriteProvider.isFavorite(widget.item);
+    final imageUrl = widget.item['imagePath'] ?? '';
+    final cachedBytes = imageUrl.isNotEmpty
+        ? ImageCacheService.getImage(imageUrl)
+        : null;
+
+    Widget _fallbackLetter() {
+      return Center(
+        child: Text(
+          widget.item['name'][0].toString().toUpperCase(),
+          style: const TextStyle(fontSize: 40, fontFamily: "Poppins"),
+        ),
+      );
+    }
 
     return Card(
       color: CustomColors.whiteColor,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(0),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
       elevation: 4,
       child: Stack(
         children: [
@@ -32,30 +44,50 @@ class _ItemCardState extends State<ItemCard> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(
+                // child: Container(
+                //   color: Colors.grey[200],
+                //   child: Center(
+                //     child: CustomText(
+                //       text: widget.item['name']?.isNotEmpty ?? false
+                //           ? widget.item['name'][0]
+                //           : '',
+                //       style:  TextStyle(
+                //         fontFamily: "Poppins",
+                //         fontSize: 40,
+
+                //         color: CustomColors.black,
+                //       ),
+                //     ),
+                //   ),
+                // ),
                 child: Container(
                   color: Colors.grey[200],
-                  child: Center(
-                    child: CustomText(
-                      text: widget.item['name']?.isNotEmpty ?? false
-                          ? widget.item['name'][0]
-                          : '',
-                      style:  TextStyle(
-                        fontFamily: "Poppins",
-                        fontSize: 40,
-                      
-                        color: CustomColors.black,
-                      ),
-                    ),
-                  ),
+
+                  child: cachedBytes != null
+                      ? Image.memory(cachedBytes, fit: BoxFit.cover)
+                      : imageUrl.toString().isNotEmpty
+                      ? Image.network(
+                          imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) {
+                            return _fallbackLetter();
+                          },
+                        )
+                      : _fallbackLetter(),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.only(top: 15, bottom: 15),
+                padding: const EdgeInsets.only(
+                  top: 5,
+                  bottom: 5,
+                  left: 2,
+                  right: 1,
+                ),
                 child: CustomText(
                   text: widget.item['name'] ?? '',
                   textAlign: TextAlign.center,
-                  style:  TextStyle(
-                     fontFamily: "Poppins",
+                  style: TextStyle(
+                    fontFamily: "Poppins",
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                     color: CustomColors.black,
@@ -110,9 +142,7 @@ class ItemCakeCard extends StatelessWidget {
 
     return Card(
       color: CustomColors.whiteColor,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(0),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
       elevation: 4,
       child: Stack(
         children: [
@@ -177,10 +207,7 @@ class ItemCakeCard extends StatelessWidget {
                 color: Colors.blue, // Badge background color
                 shape: BoxShape.circle,
               ),
-              constraints: const BoxConstraints(
-                minWidth: 30,
-                minHeight: 30,
-              ),
+              constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
               child: Center(
                 child: Text(
                   physicalStock.toString(), // Display the physicalStock value

@@ -6,24 +6,24 @@ import 'package:yenpos/Sale_order/Widgets/Send_data_to_server.dart';
 import '../models/printer.dart';
 import '../providers/printer_provider.dart';
 
-void saveOrderToHive(Map<String, dynamic> order) async {
+// void saveOrderToHive(Map<String, dynamic> order) async {
+//   try {
+//     var orderBox = Hive.box('ordersBox');
+
+//     if (order.containsKey('date') && order['date'] is DateTime) {
+//       order['date'] = DateFormat('dd-MM-yyyy').format(order['date']);
+//     }
+
+//     await orderBox.add(order); // ✅ No encoding
+//     print('Order saved in Hive: ${order['hiveOrderId']}');
+//   } catch (e) {
+//     print('Error saving order to Hive: $e');
+//   }
+// }
+
+Future<List<Map<String, dynamic>>> loadInvoicesFromHiveKOT() async {
   try {
-    var orderBox = Hive.box('ordersBox');
-
-    if (order.containsKey('date') && order['date'] is DateTime) {
-      order['date'] = DateFormat('dd-MM-yyyy').format(order['date']);
-    }
-
-    await orderBox.add(order); // ✅ No encoding
-    print('Order saved in Hive: ${order['hiveOrderId']}');
-  } catch (e) {
-    print('Error saving order to Hive: $e');
-  }
-}
-
-Future<List<Map<String, dynamic>>> loadInvoicesFromHive() async {
-  try {
-    var invoiceBox = Hive.box('invoices');
+    var invoiceBox = Hive.box('invoicesKOT');
     List<Map<String, dynamic>> invoices = [];
 
     for (int i = 0; i < invoiceBox.length; i++) {
@@ -59,7 +59,7 @@ Future<List<Map<String, dynamic>>> loadInvoicesFromHive() async {
   }
 }
 
-Future<List<Map<String, dynamic>>> loadOrdersFromHive() async {
+Future<List<Map<String, dynamic>>> loadOrdersFromHiveUtility() async {
   try {
     print('📂 Opening Hive box: ordersBox...');
     var orderBox = Hive.box('ordersBox');

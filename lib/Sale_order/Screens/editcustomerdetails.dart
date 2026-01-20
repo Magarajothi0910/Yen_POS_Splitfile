@@ -12,6 +12,7 @@ import 'package:yenpos/Sale_order/Provider/editcustomerscreenProvider.dart';
 import 'package:yenpos/Sale_order/Provider/get_sales_order_service.dart';
 import 'package:yenpos/Sale_order/Screens/all_orders.dart';
 import 'package:yenpos/Sale_order/Screens/edit_customerr_dropdown.dart';
+import 'package:yenpos/Sale_order/Widgets/customcharge_keybaord.dart';
 import 'package:yenpos/Sale_order/Widgets/date_handler.dart';
 import 'package:yenpos/Sale_order/Widgets/image-picker-widget.dart';
 import 'package:yenpos/Sale_order/Widgets/photoScreen.dart';
@@ -134,59 +135,209 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
     );
 
     if (widget.selectedOrder != null) {
-      String deliveryDate = widget.selectedOrder!.deliveryDate;
 
-      customerScreenProvider.dateController.text = DateFormat(
-        'dd-MM-yyyy',
-      ).format(DateTime.parse(deliveryDate));
-      String formattedEventDate = widget.selectedOrder!.eventDate ?? '';
+      final customerScreenProvider = Provider.of<EditCustomerScreenProvider>(
+        context,
+        listen: false,
+      );
 
-      // ✅ Use helper method
-      if (formattedEventDate != null && formattedEventDate.isNotEmpty) {
-        String? formattedDate = DateFormatHelper.validateAndConvert(
-          formattedEventDate,
+      if (widget.selectedOrder != null) {
+        String deliveryDate = widget.selectedOrder!.deliveryDate;
+
+        customerScreenProvider.dateController.text = DateFormat(
+          'dd-MM-yyyy',
+        ).format(DateTime.parse(deliveryDate));
+        String formattedEventDate = widget.selectedOrder!.eventDate ?? '';
+
+        // ✅ Use helper method
+        if (formattedEventDate != null && formattedEventDate.isNotEmpty) {
+          String? formattedDate = DateFormatHelper.validateAndConvert(
+            formattedEventDate,
+          );
+          if (formattedDate != null) {
+            customerScreenProvider.birthdaydateController.text = formattedDate;
+          }
+        }
+
+        customerScreenProvider.timeController.text =
+            widget.selectedOrder!.deliveryTime;
+        customerScreenProvider.selectedOrderType =
+            widget.selectedOrder!.orderType;
+        customerScreenProvider.setSelectedEvent(widget.selectedOrder!.event);
+
+        customerScreenProvider.setSelectedDeliveryType(
+          widget.selectedOrder!.deliveryType,
         );
-        if (formattedDate != null) {
-          customerScreenProvider.birthdaydateController.text = formattedDate;
+
+        if (widget.selectedOrder!.deliveryType == 'Door Delivery') {
+          customerScreenProvider.landmarkController.text =
+              widget.selectedOrder!.landmark;
+          customerScreenProvider.addressController.text =
+              widget.selectedOrder!.address;
+        }
+
+        customerScreenProvider.customerNameController.text =
+            widget.selectedOrder!.customerName;
+        customerScreenProvider.customChargeController.text =
+            (widget.selectedOrder!.customCharge).toString();
+
+        customerScreenProvider.mobileNoController.text =
+            widget.selectedOrder!.customerNumber;
+
+        customerScreenProvider.searchController.text =
+            widget.selectedOrder!.employeeName;
+
+        customerScreenProvider.audioPlayerId =
+            widget.selectedOrder!.salesOrderId;
+        customerScreenProvider.photoScreenId =
+            widget.selectedOrder!.salesOrderId;
+      } else {}
+
+      // ✅ CORRECTED: Custom Charge population with multiple types
+
+      // Check if customChargeType and customCharge arrays exist
+      if (widget.selectedOrder!.customChargeType != null &&
+          widget.selectedOrder!.customCharge != null) {
+
+        // Clear existing controllers
+        customerScreenProvider.customChargeControllers.clear();
+
+        // Create controllers for each charge type
+        for (
+          int i = 0;
+          i < widget.selectedOrder!.customChargeType!.length;
+          i++
+        ) {
+          String chargeType = widget.selectedOrder!.customChargeType![i];
+          double chargeValue = 0.0;
+
+          // Get corresponding value if available
+          if (i < widget.selectedOrder!.customCharge!.length) {
+            // Handle both int and double types
+            dynamic value = widget.selectedOrder!.customCharge![i];
+            if (value is int) {
+              chargeValue = value.toDouble();
+            } else if (value is double) {
+              chargeValue = value;
+            } else if (value is String) {
+              chargeValue = double.tryParse(value) ?? 0.0;
+            }
+          }
+
+          // Create and set controller
+          final controller = TextEditingController(
+            text: chargeValue > 0 ? chargeValue.toStringAsFixed(2) : '0.00',
+          );
+
+          customerScreenProvider.customChargeControllers[chargeType] =
+              controller;
+
+        }
+
+        // Calculate total custom charge
+        double totalCustomCharge = 0.0;
+        if (widget.selectedOrder!.customCharge != null) {
+          for (var charge in widget.selectedOrder!.customCharge!) {
+            if (charge is int) {
+              totalCustomCharge += charge.toDouble();
+            } else if (charge is double) {
+              totalCustomCharge += charge;
+            } else if (charge is String) {
+              totalCustomCharge += double.tryParse(charge.toString()) ?? 0.0;
+            }
+          }
+        }
+
+        // Set the total custom charge
+        customerScreenProvider.customChargeController.text = totalCustomCharge
+            .toStringAsFixed(2);
+        customerScreenProvider.modifiedCustomCharge = totalCustomCharge;
+
+      } else {
+        // Fallback to single custom charge value
+        customerScreenProvider.customChargeController.text =
+            (widget.selectedOrder!.totalCustomCharge ?? 0).toString();
+        customerScreenProvider.modifiedCustomCharge =
+            widget.selectedOrder!.totalCustomCharge ?? 0;
+      }
+
+      // ... (മറ്റ് existing code) ...
+
+    } else {
+    }
+
+    // Clear existing controllers first
+    customerScreenProvider.customChargeControllers.clear();
+
+    // Clear the selected charge type
+    customerScreenProvider.selectedChargeType = null;
+
+    // Check if customChargeType and customCharge arrays exist
+    if (widget.selectedOrder!.customChargeType != null &&
+        widget.selectedOrder!.customCharge != null) {
+
+      // Create controllers ONLY for charges that exist in this order
+      for (int i = 0; i < widget.selectedOrder!.customChargeType!.length; i++) {
+        String chargeType = widget.selectedOrder!.customChargeType![i];
+        double chargeValue = 0.0;
+
+        // Get corresponding value if available
+        if (i < widget.selectedOrder!.customCharge!.length) {
+          // Handle both int and double types
+          dynamic value = widget.selectedOrder!.customCharge![i];
+          if (value is int) {
+            chargeValue = value.toDouble();
+          } else if (value is double) {
+            chargeValue = value;
+          } else if (value is String) {
+            chargeValue = double.tryParse(value) ?? 0.0;
+          }
+        }
+
+        // Create controller ONLY if value > 0
+        // This ensures empty controllers for charges not in this order
+        final controller = TextEditingController(
+          text: chargeValue > 0 ? chargeValue.toStringAsFixed(2) : '',
+        );
+
+        customerScreenProvider.customChargeControllers[chargeType] = controller;
+
+      }
+
+      // Calculate total custom charge from THIS order only
+      double totalCustomCharge = 0.0;
+      if (widget.selectedOrder!.customCharge != null) {
+        for (var charge in widget.selectedOrder!.customCharge!) {
+          if (charge is int) {
+            totalCustomCharge += charge.toDouble();
+          } else if (charge is double) {
+            totalCustomCharge += charge;
+          } else if (charge is String) {
+            totalCustomCharge += double.tryParse(charge.toString()) ?? 0.0;
+          }
         }
       }
 
-      customerScreenProvider.timeController.text =
-          widget.selectedOrder!.deliveryTime;
-      customerScreenProvider.selectedOrderType =
-          widget.selectedOrder!.orderType;
-      customerScreenProvider.setSelectedEvent(widget.selectedOrder!.event);
+      // Set the total custom charge
+      customerScreenProvider.customChargeController.text = totalCustomCharge
+          .toStringAsFixed(2);
+      customerScreenProvider.modifiedCustomCharge = totalCustomCharge;
 
-      customerScreenProvider.setSelectedDeliveryType(
-        widget.selectedOrder!.deliveryType,
-      );
-      customerScreenProvider.setSelectedCustomChargeType(
-        widget.selectedOrder!.customChargeType,
-      );
+    } else {
+      // Fallback to single custom charge value
+      double singleCharge = widget.selectedOrder!.totalCustomCharge ?? 0;
+      customerScreenProvider.customChargeController.text = singleCharge > 0
+          ? singleCharge.toStringAsFixed(2)
+          : '0.00';
+      customerScreenProvider.modifiedCustomCharge = singleCharge;
+    }
 
-      if (widget.selectedOrder!.deliveryType == 'Door Delivery') {
-        customerScreenProvider.landmarkController.text =
-            widget.selectedOrder!.landmark;
-        customerScreenProvider.addressController.text =
-            widget.selectedOrder!.address;
-      }
+    // ... (മറ്റ് existing code) ...
 
-      customerScreenProvider.customerNameController.text =
-          widget.selectedOrder!.customerName;
-      customerScreenProvider.customChargeController.text =
-          (widget.selectedOrder!.customCharge).toString();
-      customerScreenProvider.modifiedCustomCharge =
-          widget.selectedOrder!.customCharge;
 
-      customerScreenProvider.mobileNoController.text =
-          widget.selectedOrder!.customerNumber;
-
-      customerScreenProvider.searchController.text =
-          widget.selectedOrder!.employeeName;
-
-      customerScreenProvider.audioPlayerId = widget.selectedOrder!.salesOrderId;
-      customerScreenProvider.photoScreenId = widget.selectedOrder!.salesOrderId;
-    } else {}
+    // Print all controllers and their values
+    customerScreenProvider.customChargeControllers.forEach((key, controller) {
+    });
   }
 
   @override
@@ -751,119 +902,44 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                             // ========================= LEFT DROPDOWN + INPUT ==========================
                             Expanded(
                               flex: 4,
-                              child: Container(
-                                height: 50,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
-                                    color: Colors.blueAccent,
-                                    width: 1,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.05),
-                                      offset: const Offset(0, 2),
-                                      blurRadius: 6,
-                                    ),
-                                  ],
-                                ),
-                                child: StatefulBuilder(
-                                  builder: (context, setState) {
-                                    final chargeList = customerScreenProvider
-                                        .getChargesList();
+                              child: StatefulBuilder(
+                                builder: (context, setState) {
+                                  return Row(
+                                    children: [
+                                      Expanded(
+                                        flex: 3,
+                                        child: ElevatedButton(
+                                          onPressed: () {
 
-                                    return Row(
-                                      children: [
-                                        // ---------------------- Dropdown -----------------------
-                                        Expanded(
-                                          flex: 5,
-                                          child: DropdownButtonHideUnderline(
-                                            child: DropdownButton<String>(
-                                              value: customerScreenProvider
-                                                  .selectedChargeType,
-                                              isExpanded: true,
-                                              dropdownColor: Colors.white,
-                                              icon: const Icon(
-                                                Icons.arrow_drop_down_rounded,
-                                                size: 22,
-                                              ),
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w600,
-                                                color: Colors.black87,
-                                              ),
-
-                                              items: chargeList.map((value) {
-                                                return DropdownMenuItem(
-                                                  value: value,
-                                                  child: Text(value),
-                                                );
-                                              }).toList(),
-
-                                              onChanged: _isEditing
-                                                  ? (newValue) {
-                                                      customerScreenProvider
-                                                          .setSelectedCustomChargeType(
-                                                            newValue,
-                                                          );
-                                                      setState(() {});
-                                                    }
-                                                  : null,
+                                            _showCustomDialog(
+                                              customerScreenProvider,
+                                              setState,
+                                            );
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.blue,
+                                            foregroundColor: Colors.white,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
                                             ),
                                           ),
-                                        ),
-
-                                        const SizedBox(width: 10),
-
-                                        // ---------------------- Input Field -----------------------
-                                        Expanded(
-                                          flex: 3,
-                                          child: TextFormField(
-                                            controller: customerScreenProvider
-                                                .customChargeController,
-                                            enabled: _isEditing,
-                                            focusNode: customerScreenProvider
-                                                .customChargeFocus,
-                                            keyboardType: TextInputType.number,
-                                            inputFormatters: [
-                                              FilteringTextInputFormatter
-                                                  .digitsOnly,
-                                              LengthLimitingTextInputFormatter(
-                                                5,
-                                              ),
-                                            ],
+                                          child: Text(
+                                            customerScreenProvider
+                                                        .modifiedCustomCharge !=
+                                                    0
+                                                ? "Custom Charge: ₹${customerScreenProvider.modifiedCustomCharge.toString()}"
+                                                : "Custom Charge",
                                             style: const TextStyle(
                                               fontSize: 14,
                                               fontWeight: FontWeight.w600,
                                             ),
-                                            decoration: InputDecoration(
-                                              isDense: true,
-                                              filled: true,
-                                              fillColor: Colors.grey.shade100,
-                                              contentPadding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 6,
-                                                  ),
-                                              border: OutlineInputBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(10),
-                                                borderSide: BorderSide(
-                                                  color: Colors.blue.shade300,
-                                                  width: 1,
-                                                ),
-                                              ),
-                                            ),
                                           ),
                                         ),
-                                      ],
-                                    );
-                                  },
-                                ),
+                                      ),
+                                    ],
+                                  );
+                                },
                               ),
                             ),
                           ],
@@ -973,18 +1049,12 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
                                     color: Color.fromARGB(255, 196, 155, 155),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
-                                  // child: PhotosScreen(
-                                  //     customId: customerScreenProvider
-                                  //         .photoScreenId!),
                                   child: PhotosScreen(
-                                    imagePaths: [
-                                      widget.selectedOrder!.image1 ?? '',
-                                      widget.selectedOrder!.image2 ?? '',
-                                    ],
+                                    imagePaths:
+                                        widget.selectedOrder!.imagePaths ?? [],
                                   ),
                                 ),
                               ),
-
                             // Minus button for image
                             if (_isEditing &&
                                 _showMinusButtonforimage &&
@@ -1024,6 +1094,298 @@ class _EditCustomerDetailsState extends State<EditCustomerDetails> {
           ],
         ),
       ),
+    );
+  }
+
+  void _showCustomDialog(
+    EditCustomerScreenProvider customerScreenProvider,
+    void Function(void Function()) setState,
+  ) {
+    // Initialize with current values
+    final Map<String, TextEditingController> controllers = {};
+    final Map<String, double> initialValues = {};
+
+    // 1. Get all charge types from GlobalDataManager
+    for (var charge in GlobalDataManager().charges) {
+      final chargeType = charge['chargeType'];
+      double currentValue = 0.0;
+
+      // Check if we have existing value for this charge type
+      if (customerScreenProvider.customChargeValues.containsKey(chargeType)) {
+        currentValue = customerScreenProvider.customChargeValues[chargeType]!;
+      }
+
+      // Create controller with current value (only if > 0, otherwise empty)
+      final controller = TextEditingController(
+        text: currentValue > 0 ? currentValue.toStringAsFixed(2) : '',
+      );
+      controllers[chargeType] = controller;
+      initialValues[chargeType] = currentValue;
+    }
+
+    // 2. Register controllers with keyboard provider
+    final keyboardProvider = context.read<CustomchargeKeyboardProvider>();
+    controllers.forEach((key, controller) {
+      keyboardProvider.registerController(key, controller);
+    });
+
+    String selectedChargeType =
+        customerScreenProvider.selectedChargeType ??
+        (GlobalDataManager().charges.isNotEmpty
+            ? GlobalDataManager().charges.first['chargeType']
+            : '');
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(25),
+              ),
+              child: Container(
+                width: 360,
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Header with total
+                    AnimatedBuilder(
+                      animation: Listenable.merge(controllers.values),
+                      builder: (context, _) {
+                        double total = controllers.values.fold(0.0, (
+                          sum,
+                          ctrl,
+                        ) {
+                          final text = ctrl.text.trim();
+                          return text.isNotEmpty
+                              ? (double.tryParse(text) ?? 0.0)
+                              : 0.0;
+                        });
+                        return Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.blueAccent,
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          child: Text(
+                            "Total Charges: Rs.${total.toStringAsFixed(0)}",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 19,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Charge list
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 200),
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: GlobalDataManager().charges.length,
+                        separatorBuilder: (_, __) => Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final charge = GlobalDataManager().charges[index];
+                          final controller = controllers[charge['chargeType']]!;
+                          final isSelected =
+                              selectedChargeType == charge['chargeType'];
+
+                          return GestureDetector(
+                            onTap: () {
+                              setStateDialog(() {
+                                selectedChargeType = charge['chargeType'];
+                                customerScreenProvider.selectedChargeType =
+                                    selectedChargeType;
+                                keyboardProvider.setActiveController(
+                                  charge['chargeType'],
+                                );
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 6,
+                                horizontal: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? Colors.blue.withOpacity(0.1)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? Colors.blueAccent.withOpacity(0.5)
+                                      : Colors.transparent,
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    charge['chargeType'],
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    width: 90,
+                                    child: IgnorePointer(
+                                      child: TextFormField(
+                                        controller: controller,
+                                        textAlign: TextAlign.right,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                        decoration: InputDecoration(
+                                          isDense: true,
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                vertical: 8,
+                                                horizontal: 10,
+                                              ),
+                                          filled: true,
+                                          fillColor: isSelected
+                                              ? Colors.blue.shade50
+                                              : Colors.grey.withOpacity(0.1),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                            borderSide: BorderSide.none,
+                                          ),
+                                          hintText: '',
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Keyboard
+                    Container(
+                      height: 220,
+                      margin: const EdgeInsets.only(top: 8),
+                      child: Consumer<CustomchargeKeyboardProvider>(
+                        builder: (context, provider, _) {
+                          if (selectedChargeType.isEmpty) {
+                            return const Center(
+                              child: Text('Select a charge to edit'),
+                            );
+                          }
+
+                          final controller = controllers[selectedChargeType];
+                          if (controller == null) {
+                            return const Center(
+                              child: Text('Selected charge not found'),
+                            );
+                          }
+
+                          return CustomchargeKeyboardWidgetAll2(
+                            controller: controller,
+                            controllerKey: selectedChargeType,
+                            onClose: () {
+                              Navigator.pop(context);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Action buttons
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text("Cancel"),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blueAccent,
+                          ),
+                          onPressed: () {
+                            // 1. Collect only charges with values > 0
+                            final Map<String, double> updatedCharges = {};
+                            controllers.forEach((chargeType, controller) {
+                              final text = controller.text.trim();
+                              if (text.isNotEmpty) {
+                                final value = double.tryParse(text) ?? 0.0;
+                                if (value > 0) {
+                                  updatedCharges[chargeType] = value;
+                                }
+                              }
+                            });
+
+                            // 2. Calculate total
+                            double totalCharges = updatedCharges.values.fold(
+                              0.0,
+                              (sum, value) => sum + value,
+                            );
+
+                            // 3. Update provider
+                            setState(() {
+                              // Store only charges with values
+                              customerScreenProvider.customChargeValues.clear();
+                              customerScreenProvider.customChargeValues.addAll(
+                                updatedCharges,
+                              );
+
+                              // Update total charge controller
+                              customerScreenProvider
+                                  .customChargeController
+                                  .text = totalCharges > 0
+                                  ? totalCharges.toStringAsFixed(2)
+                                  : '0.00';
+
+                              // Store controllers for future use
+                              customerScreenProvider.customChargeControllers
+                                  .clear();
+                              customerScreenProvider.customChargeControllers
+                                  .addAll(controllers);
+
+                              // Update selected type
+                              customerScreenProvider.selectedChargeType =
+                                  selectedChargeType;
+                            });
+
+
+                            Navigator.pop(context);
+                          },
+                          child: const Text(
+                            "Apply All",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

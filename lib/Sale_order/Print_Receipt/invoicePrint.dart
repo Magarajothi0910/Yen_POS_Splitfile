@@ -1,3 +1,5 @@
+
+
 import 'package:flutter/material.dart';
 import 'package:yenpos/Global/globals_data.dart' as globals;
 import 'package:yenpos/Sale_order/Models/sales_invoicemodel.dart';
@@ -8,6 +10,7 @@ class SalesInvoiceReceiptPrinter with ChangeNotifier {
   Map<String, dynamic>? receiptData;
   late salesInvoiceReceiptPrinter receiptPrinter;
   final PrinterProviderpos printerProvider;
+
   SalesInvoiceReceiptPrinter({required this.printerProvider}) {
     receiptPrinter = salesInvoiceReceiptPrinter(
       employeeNameController: TextEditingController(),
@@ -29,8 +32,11 @@ class SalesInvoiceReceiptPrinter with ChangeNotifier {
       invoiceNo: '',
       saleOrderNo: "",
       printerProvider: printerProvider,
+      salesReturnNo: '',
+      salesType: '',
     );
   }
+
   num safeNum(value) {
     if (value == null) return 0;
     if (value is int || value is double) return value;
@@ -39,89 +45,73 @@ class SalesInvoiceReceiptPrinter with ChangeNotifier {
   }
 
   void updateReceiptData(Map<String, dynamic> orderData) {
-    debugPrint(
-      "🟦 [updateReceiptData] Called with orderData: ${orderData.keys.toList()}",
-    );
 
-    // ✅ FIX: Handle both nested and top-level data structures
     final data = orderData.containsKey('data') && orderData['data'] is Map
         ? orderData['data']
         : orderData;
 
     try {
-      // 🔹 Employee & Customer Info
+      // 👤 Employee & Customer
       receiptPrinter.employeeNameController.text =
           data['salesPersonName']?.toString() ?? '';
       receiptPrinter.customerNumberController.text =
           data['customerPhoneNumber']?.toString() ?? '';
-      debugPrint(
-        "👤 Employee: ${receiptPrinter.employeeNameController.text}, "
-        "Customer: ${receiptPrinter.customerNumberController.text}",
-      );
 
-      // 🔹 Discount & Custom Charge
+
+      // 💸 Discount & Custom Charge
       receiptPrinter.discountController =
           (data['discountPercentage'] ?? data['discountAmount'] ?? 0.0)
               .toDouble();
-      receiptPrinter.customChargeController = (data['customCharge'] ?? 0.0)
-          .toDouble();
-      debugPrint(
-        "💸 Discount: ${receiptPrinter.discountController}, "
-        "CustomCharge: ${receiptPrinter.customChargeController}",
-      );
+      receiptPrinter.customChargeController = () {
+        final value = data['customCharge'];
 
-      // 🔹 Payment & Amounts
+        if (value is List && value.isNotEmpty) {
+          return safeNum(value.first).toDouble();
+        } else {
+          return safeNum(value).toDouble();
+        }
+      }();
+
+
+      // 💰 Payment
       receiptPrinter.selectedPaymentOptionValue =
           data['paymentOption']?.toString() ?? '';
-      receiptPrinter.totalAmount = (data['totalAmount'] ?? 0.0).toDouble();
-      receiptPrinter.cashAmount = (data['cash'] ?? 0.0).toDouble();
-      receiptPrinter.cardAmount = (data['card'] ?? 0.0).toDouble();
-      receiptPrinter.upiAmount = (data['upi'] ?? 0.0).toDouble();
+      receiptPrinter.totalAmount = safeNum(data['totalAmount']).toDouble();
+      receiptPrinter.cashAmount = safeNum(data['cash']).toDouble();
+      receiptPrinter.cardAmount = safeNum(data['card']).toDouble();
+      receiptPrinter.upiAmount = safeNum(data['upi']).toDouble();
 
-      debugPrint(
-        "💰 Payment Option: ${receiptPrinter.selectedPaymentOptionValue}",
-      );
-      debugPrint(
-        "💵 Cash: ${receiptPrinter.cashAmount}, "
-        "💳 Card: ${receiptPrinter.cardAmount}, 🆙 UPI: ${receiptPrinter.upiAmount}",
-      );
 
-      // 🔹 Advance Amount
+      // 💰 Advance
       if (data['advanceAmount'] is List && data['advanceAmount'].isNotEmpty) {
-        receiptPrinter.advanceAmount = (data['advanceAmount'][0] ?? 0.0)
-            .toDouble();
+        receiptPrinter.advanceAmount = safeNum(
+          data['advanceAmount'][0],
+        ).toDouble();
       } else {
-        receiptPrinter.advanceAmount = (data['advanceAmount'] ?? 0.0)
-            .toDouble();
+        receiptPrinter.advanceAmount = safeNum(
+          data['advanceAmount'],
+        ).toDouble();
       }
 
-      // 🔹 Balance & Other Info
-      receiptPrinter.balanceAmount = (data['balanceAmount'] ?? 0.0).toDouble();
+      // 📄 Invoice Info
+      receiptPrinter.balanceAmount = safeNum(data['balanceAmount']).toDouble();
       receiptPrinter.customerType = data['customerType']?.toString() ?? '';
       receiptPrinter.invoiceNo = data['invoiceNo']?.toString() ?? '';
       receiptPrinter.saleOrderNo = data['saleOrderNo']?.toString() ?? '';
 
-      debugPrint(
-        "📄 Invoice No: ${receiptPrinter.invoiceNo}, "
-        "Balance: ${receiptPrinter.balanceAmount}, "
-        "Type: ${receiptPrinter.customerType}",
-      );
 
-      // 🔹 Delivery Info
+      receiptPrinter.salesReturnNo = data['salesReturnNo']?.toString() ?? '';
+      receiptPrinter.salesType = data['salesType']?.toString() ?? '';
+
+
+      // 🚚 Delivery
       receiptPrinter.deliveryDateprint = data['deliveryDate']?.toString() ?? '';
       receiptPrinter.deliveryTimeprint = data['deliveryTime']?.toString() ?? '';
       receiptPrinter.customAmountController.text =
           data['customAmount']?.toString() ?? '';
 
-      debugPrint(
-        "🚚 Delivery Date: ${receiptPrinter.deliveryDateprint}, "
-        "Time: ${receiptPrinter.deliveryTimeprint}",
-      );
-      debugPrint(
-        "💰 Custom Amount: ${receiptPrinter.customAmountController.text}",
-      );
 
-      // 🔹 Advance Payment Type
+      // 🏦 Advance Payment Type
       if (data['advancePaymentType'] is List &&
           data['advancePaymentType'].isNotEmpty) {
         receiptPrinter.selectedPaymentOption =
@@ -130,20 +120,9 @@ class SalesInvoiceReceiptPrinter with ChangeNotifier {
         receiptPrinter.selectedPaymentOption =
             data['advancePaymentType']?.toString() ?? '';
       }
-      debugPrint(
-        "🏦 Advance Payment Type: ${receiptPrinter.selectedPaymentOption}",
-      );
 
-      // 🔹 Advance DateTime
-      String advanceDateTime = '';
-      if (data['advanceDateTime'] is List &&
-          data['advanceDateTime'].isNotEmpty) {
-        advanceDateTime = data['advanceDateTime'][0].toString();
-      } else if (data['advanceDateTime'] != null) {
-        advanceDateTime = data['advanceDateTime'].toString();
-      }
 
-      // 🔹 Load Items into Globals
+      // 📦 Items
       globals.invoiceItems = [];
 
       if (data.containsKey('varianceName') && data['varianceName'] is List) {
@@ -192,21 +171,14 @@ class SalesInvoiceReceiptPrinter with ChangeNotifier {
             );
 
             globals.invoiceItems.add(item);
-            debugPrint(
-              "✅ Added item ${i + 1}: ${item.itemName} | Qty: ${item.qty}, Price: ${item.price}, Amount: ${item.amount}",
-            );
-          } catch (itemErr) {}
+
+          } catch (itemErr, st) {}
         }
       } else {}
 
-      debugPrint(
-        "✅ Total items loaded into globals.invoiceItems: ${globals.invoiceItems.length}",
-      );
-
-      // 🔹 Print Receipt
+      // 🖨️ Print
       printReceipt();
 
-      // 🔹 Notify Listeners
       notifyListeners();
     } catch (e, st) {}
   }

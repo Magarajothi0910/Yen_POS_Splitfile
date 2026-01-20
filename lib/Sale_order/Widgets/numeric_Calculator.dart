@@ -3,13 +3,16 @@ import 'package:yenpos/Global/Widget/scaffold_global.dart';
 
 // ignore: must_be_immutable
 class NumericCalculator extends StatefulWidget {
-  String? varianceName; // Add the varianceName parameter
-
+  final String? varianceName;
+  final double? initialValue; // Add initialValue parameter
+  final bool isEditing; // Add flag to distinguish between adding new vs editing
   final Function(double) onValueSelected;
 
   NumericCalculator({
     super.key,
     this.varianceName,
+    this.initialValue,
+    this.isEditing = false,
     required this.onValueSelected,
   });
 
@@ -18,7 +21,22 @@ class NumericCalculator extends StatefulWidget {
 }
 
 class _NumericCalculatorState extends State<NumericCalculator> {
-  String _display = '0'; // Treat the display as a String
+  String _display = '0';
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize with initialValue if provided, otherwise start with '0'
+    if (widget.initialValue != null && widget.initialValue! > 0) {
+      _display = widget.initialValue!.toStringAsFixed(3);
+      // Remove trailing zeros
+      _display = _display.replaceAll(RegExp(r'\.?0*$'), '');
+      if (_display.endsWith('.')) {
+        _display = _display.substring(0, _display.length - 1);
+      }
+      if (_display.isEmpty) _display = '0';
+    }
+  }
 
   void _appendToDisplay(String value) {
     setState(() {
@@ -57,6 +75,49 @@ class _NumericCalculatorState extends State<NumericCalculator> {
     });
   }
 
+  void _handleQuickButton(double value) {
+    // Convert value to kg (divide by 1000)
+    double convertedValue = value / 1000;
+
+    // Validate the value
+    if (convertedValue == 0.0) {
+      GlobalScaffold.showMessage(
+        message: 'Please enter a value greater than zero',
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 2),
+      );
+      return;
+    }
+
+    // Call the callback with the converted value
+    widget.onValueSelected(convertedValue);
+
+    // Close the dialog
+    if (context.mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  void _handleAddToCart() {
+    // Parse the display value to a double. If parsing fails, default to 0.0.
+    double value = double.tryParse(_display) ?? 0.0;
+
+    if (value == 0.0) {
+      GlobalScaffold.showMessage(
+        message: 'Please enter a value greater than zero',
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 2),
+      );
+      return;
+    }
+
+    widget.onValueSelected(value);
+    // Close the dialog.
+    if (context.mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -70,7 +131,7 @@ class _NumericCalculatorState extends State<NumericCalculator> {
         width: 250, // Smaller width for a more compact size
         padding: const EdgeInsets.all(16), // Padding inside the dialog
         constraints: const BoxConstraints(
-          maxHeight: 500,
+          maxHeight: 600, // Increased height to accommodate new buttons
         ), // Set a max height to prevent overflow
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -102,6 +163,18 @@ class _NumericCalculatorState extends State<NumericCalculator> {
               ),
             ),
             const SizedBox(height: 10),
+
+            // Quick buttons row with converted values
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildQuickButton('25g', 25),
+                _buildQuickButton('30g', 30),
+                _buildQuickButton('40g', 40),
+                _buildQuickButton('50g', 50),
+              ],
+            ),
+            const SizedBox(height: 15),
 
             // Using a Column to arrange the buttons in rows
             Column(
@@ -151,33 +224,14 @@ class _NumericCalculatorState extends State<NumericCalculator> {
               ],
             ),
 
-            const SizedBox(height: 10),
+            const SizedBox(height: 15),
 
             // Center the "Add to Cart" button and apply padding
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Center(
                 child: ElevatedButton(
-                  onPressed: () {
-                    // Parse the display value to a double. If parsing fails, default to 0.0.
-                    double value = double.tryParse(_display) ?? 0.0;
-                    // Call the callback provided by the parent widget.
-
-                    if (value == 0.0) {
-                      GlobalScaffold.showMessage(
-                        message: 'Please enter a value greater than zero',
-                        backgroundColor: Colors.red,
-                        duration: const Duration(seconds: 2),
-                      );
-                      return;
-                    }
-
-                    widget.onValueSelected(value);
-                    // Close the dialog.
-                    if (context.mounted) {
-                      Navigator.of(context).pop();
-                    }
-                  },
+                  onPressed: _handleAddToCart,
                   style: ElevatedButton.styleFrom(
                     backgroundColor:
                         Colors.blue, // Set the button color to blue
@@ -220,6 +274,31 @@ class _NumericCalculatorState extends State<NumericCalculator> {
       child: Text(
         text,
         style: const TextStyle(color: Colors.white, fontSize: 16),
+      ),
+    );
+  }
+
+  Widget _buildQuickButton(String label, double value) {
+    return ElevatedButton(
+      onPressed: () => _handleQuickButton(value),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.blueAccent, // Different shade of blue
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12.0),
+        ),
+        padding: const EdgeInsets.symmetric(
+          vertical: 8.0,
+          horizontal: 12.0, // Adjusted padding for smaller quick buttons
+        ),
+        minimumSize: const Size(50, 40), // Smaller minimum size
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 14, // Smaller font size for quick buttons
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }

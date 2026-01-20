@@ -52,7 +52,13 @@ class ProductSearchState extends ChangeNotifier {
   bool get submitFlag => submitflag;
 
   // 🛠️ Constructor with context for provider access
-  ProductSearchState(BuildContext context, {required String tableNumber, required String seat, required String areaName, required String? seathiveOrderId}) {
+  ProductSearchState(
+    BuildContext context, {
+    required String tableNumber,
+    required String seat,
+    required String areaName,
+    required String? seathiveOrderId,
+  }) {
     _tableNumber = tableNumber;
     _seat = seat;
     _areaName = areaName;
@@ -80,7 +86,10 @@ class ProductSearchState extends ChangeNotifier {
       _searchController.addListener(() => _onSearchChanged(context));
 
       // 🧹 Clear initial search
-      Provider.of<SearchProviderDine>(context, listen: false).clearSearchQuery();
+      Provider.of<SearchProviderDine>(
+        context,
+        listen: false,
+      ).clearSearchQuery();
       _searchController.clear();
 
       // 🧹 Initialize pax from provider
@@ -156,7 +165,10 @@ class ProductSearchState extends ChangeNotifier {
   void _onSearchChanged(BuildContext context) {
     if (_debounce?.isActive ?? false) _debounce?.cancel();
     _debounce = Timer(debounceDuration, () {
-      final searchProvider = Provider.of<SearchProviderDine>(context, listen: false);
+      final searchProvider = Provider.of<SearchProviderDine>(
+        context,
+        listen: false,
+      );
       searchProvider.updateSearchQuery(_searchController.text.trim());
       if (_scrollController.hasClients) {
         _scrollController.jumpTo(0.0);
@@ -177,7 +189,10 @@ class ProductSearchState extends ChangeNotifier {
   void updateSelectedEmployee(String? employee, BuildContext context) {
     if (employee != null) {
       selectedEmployee = employee;
-      Provider.of<EmployeeProvider>(context, listen: false).setSelectedWaiter(employee); // 📌 Sync with EmployeeProvider
+      Provider.of<EmployeeProvider>(
+        context,
+        listen: false,
+      ).setSelectedWaiter(employee); // 📌 Sync with EmployeeProvider
       notifyListeners(); // 🔔 Update waiter dropdown
       print('👤 Selected employee updated: $selectedEmployee');
     }
@@ -187,7 +202,10 @@ class ProductSearchState extends ChangeNotifier {
   void updateSelectedPax(String? pax, BuildContext context) {
     if (pax != null) {
       _selectedPax = pax;
-      Provider.of<PaxProviderDine>(context, listen: false).setSelectedPax(pax); // 📌 Sync with PaxProvider
+      Provider.of<PaxProviderDine>(
+        context,
+        listen: false,
+      ).setSelectedPax(pax); // 📌 Sync with PaxProvider
       notifyListeners(); // 🔔 Update pax dropdown
       print('👥 Selected pax updated: $_selectedPax');
     }
@@ -196,7 +214,10 @@ class ProductSearchState extends ChangeNotifier {
   // 💾 Auto-save hold order
   void _autoSaveHoldOrder(BuildContext context) {
     final cartProvider = Provider.of<CartProviderKOT>(context, listen: false);
-    final holdOrderProvider = Provider.of<HoldOrderProvider>(context, listen: false);
+    final holdOrderProvider = Provider.of<HoldOrderProvider>(
+      context,
+      listen: false,
+    );
     if (cartProvider.cart.isNotEmpty) {
       holdOrderProvider.saveHoldOrder(_tableNumber, _seat, cartProvider.cart);
       print('💾 Hold order saved for table $_tableNumber, seat $_seat');
@@ -216,9 +237,18 @@ class ProductSearchState extends ChangeNotifier {
 
   // 📤 Submit order with validation and error handling
   void _submitOrder(BuildContext context) {
-    final holdOrderProvider = Provider.of<HoldOrderProvider>(context, listen: false);
-    final submissionProvider = Provider.of<SubmissionProviderDine>(context, listen: false);
-    final employeeProvider = Provider.of<EmployeeProvider>(context, listen: false);
+    final holdOrderProvider = Provider.of<HoldOrderProvider>(
+      context,
+      listen: false,
+    );
+    final submissionProvider = Provider.of<SubmissionProviderDine>(
+      context,
+      listen: false,
+    );
+    final employeeProvider = Provider.of<EmployeeProvider>(
+      context,
+      listen: false,
+    );
     final cartProvider = Provider.of<CartProviderKOT>(context, listen: false);
 
     final waiter = selectedEmployee ?? employeeProvider.selectedWaiter;
@@ -267,13 +297,20 @@ class ProductSearchState extends ChangeNotifier {
       context: context,
       builder: (BuildContext dialogContext) => AlertDialog(
         backgroundColor: Colors.white,
-        title: const Text("Confirm Submission..", style: TextStyle(fontWeight: FontWeight.bold)),
-        content: Text("Are you sure you want to submit the order for $_tableNumber?"),
+        title: const Text(
+          "Confirm Submission..",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          "Are you sure you want to submit the order for $_tableNumber?",
+        ),
         actions: [
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               backgroundColor: Colors.red,
               foregroundColor: Colors.black,
@@ -284,7 +321,9 @@ class ProductSearchState extends ChangeNotifier {
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               backgroundColor: const Color(0xFFA5D6A7),
               foregroundColor: Colors.black,
@@ -305,16 +344,24 @@ class ProductSearchState extends ChangeNotifier {
                       submissionProvider.stopSubmitting();
                       submitflag = false;
                       _searchController.clear();
-                      Provider.of<SearchProviderDine>(context, listen: false).clearSearchQuery();
-                      Provider.of<OrderTypeProviderDine>(context, listen: false).setOrderType('');
+                      Provider.of<SearchProviderDine>(
+                        context,
+                        listen: false,
+                      ).clearSearchQuery();
+                      Provider.of<OrderTypeProviderDine>(
+                        context,
+                        listen: false,
+                      ).setOrderType('');
 
                       // 🔄 Navigate to TableScreen
                       if (dialogContext.mounted) {
                         Navigator.of(dialogContext).pop();
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(builder: (context) => const TableScreen()),
-                        );
+                        // Navigator.pushReplacement(
+                        //   context,
+                        //   MaterialPageRoute(
+                        //     builder: (context) => const TableScreen(),
+                        //   ),
+                        // );
                         print('🔄 Navigated to TableScreen');
                         // Provider.of<BottomNavProviderKOT>(context, listen: false).updateIndex(0);
                       }
@@ -356,9 +403,18 @@ class ProductSearchState extends ChangeNotifier {
   // 🔄 Process order data with error handling
   Future<void> _processOrder(BuildContext context) async {
     final cartProvider = Provider.of<CartProviderKOT>(context, listen: false);
-    final productProvider = Provider.of<ProductProvider>(context, listen: false);
-    final orderTypeProvider = Provider.of<OrderTypeProviderDine>(context, listen: false);
-    final employeeProvider = Provider.of<EmployeeProvider>(context, listen: false);
+    final productProvider = Provider.of<ProductProvider>(
+      context,
+      listen: false,
+    );
+    final orderTypeProvider = Provider.of<OrderTypeProviderDine>(
+      context,
+      listen: false,
+    );
+    final employeeProvider = Provider.of<EmployeeProvider>(
+      context,
+      listen: false,
+    );
 
     try {
       final now = DateTime.now();
@@ -387,7 +443,9 @@ class ProductSearchState extends ChangeNotifier {
       for (var entry in cartProvider.cart.entries) {
         final product = productProvider.products.firstWhere(
           (product) => product.varianceName == entry.key,
-          orElse: () => throw Exception('Product not found: ${entry.key}'), // 🔍 Error if product missing
+          orElse: () => throw Exception(
+            'Product not found: ${entry.key}',
+          ), // 🔍 Error if product missing
         );
 
         itemNames.add(product.name);
@@ -414,30 +472,34 @@ class ProductSearchState extends ChangeNotifier {
         taxes.add(diningTaxPercentage);
 
         // 🛠️ Build configs for addons/variants
-        List<List<String>> addons = List.generate(
-          quantity.toInt(),
-          (i) {
-            if (entry.value['addons'] != null && entry.value['addons'].length > i) {
-              final addon = entry.value['addons'][i];
-              return addon is List<String> ? addon : [addon.toString()];
-            }
-            return <String>[];
-          },
-        );
+        List<List<String>> addons = List.generate(quantity.toInt(), (i) {
+          if (entry.value['addons'] != null &&
+              entry.value['addons'].length > i) {
+            final addon = entry.value['addons'][i];
+            return addon is List<String> ? addon : [addon.toString()];
+          }
+          return <String>[];
+        });
 
         List<String> variants = List.generate(
           quantity.toInt(),
-          (i) => (entry.value['variants']?.length ?? 0) > i ? entry.value['variants'][i] : "",
+          (i) => (entry.value['variants']?.length ?? 0) > i
+              ? entry.value['variants'][i]
+              : "",
         );
 
         List<String> type = List.generate(
           quantity.toInt(),
-          (i) => (entry.value['type']?.length ?? 0) > i ? entry.value['type'][i] : "",
+          (i) => (entry.value['type']?.length ?? 0) > i
+              ? entry.value['type'][i]
+              : "",
         );
 
         List<String> remarks = List.generate(
           quantity.toInt(),
-          (i) => (entry.value['remarks']?.length ?? 0) > i ? entry.value['remarks'][i] : "",
+          (i) => (entry.value['remarks']?.length ?? 0) > i
+              ? entry.value['remarks'][i]
+              : "",
         );
 
         varianceWeights[product.varianceName] = weight;
@@ -446,7 +508,9 @@ class ProductSearchState extends ChangeNotifier {
         Map<String, dynamic> config = {
           "varianceName": product.varianceName,
           "weight": itemWeight,
-          "configQty": quantity > 0 ? List.generate(quantity.toInt(), (i) => 1) : [],
+          "configQty": quantity > 0
+              ? List.generate(quantity.toInt(), (i) => 1)
+              : [],
           "addOn": addons.isEmpty ? [""] : addons,
           "variance": variants.contains('Default') ? [""] : variants,
           "type": type.isEmpty ? [""] : type,
@@ -455,21 +519,23 @@ class ProductSearchState extends ChangeNotifier {
         configs.add(config);
       }
 
-      final double totalAmount = amounts.fold(0.0, (sum, item) => sum + item) + totalAddonsAmount;
+      final double totalAmount =
+          amounts.fold(0.0, (sum, item) => sum + item) + totalAddonsAmount;
 
       // 📦 Prepare final order payload
       final order = {
         'type': 'order',
         'date': formattedDate,
         'time': formattedTime,
-        'branchName': aliasname,
+        'branchName': branchName,
+        'aliasName': aliasname,
         'table': _tableNumber,
         'seat': _seat,
         'areaName': _areaName,
         'deviceId': storedDeviceId,
         'itemNames': itemNames,
         'varianceNames': varianceNames,
-        'varianceItemCodes': varianceItemCodes,
+        'varianceitemCodes': varianceItemCodes,
         'prices': prices,
         'weights': weights,
         'quantities': quantities,
@@ -526,7 +592,10 @@ class ProductSearchState extends ChangeNotifier {
         return Container(
           margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 40),
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(10.0)),
+          decoration: BoxDecoration(
+            color: Colors.blue,
+            borderRadius: BorderRadius.circular(10.0),
+          ),
           child: Stack(
             clipBehavior: Clip.none,
             children: [
@@ -535,13 +604,21 @@ class ProductSearchState extends ChangeNotifier {
                   Expanded(
                     child: Text(
                       "Tap the itemName in cart to add Variants and Add-ons & Parcel.",
-                      style: const TextStyle(fontSize: 14, color: Colors.white, fontWeight: FontWeight.w500),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
                   GestureDetector(
                     onTap: () => Navigator.of(dialogContext).pop(),
-                    child: const Icon(Icons.close, color: Colors.white, size: 18),
+                    child: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                   ),
                 ],
               ),
@@ -556,7 +633,13 @@ class ProductSearchState extends ChangeNotifier {
   List<Product> _filteredProducts(List<Product> products, String query) {
     if (query.isEmpty) return products;
     final lowerQuery = query.toLowerCase();
-    return products.where((product) => product.name.toLowerCase().contains(lowerQuery) || product.varianceName.toLowerCase().contains(lowerQuery)).toList();
+    return products
+        .where(
+          (product) =>
+              product.name.toLowerCase().contains(lowerQuery) ||
+              product.varianceName.toLowerCase().contains(lowerQuery),
+        )
+        .toList();
   }
 
   // 🔄 Retry initialization on error
@@ -586,18 +669,30 @@ class ProductSearchScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     // 🛠️ Provide state to widget tree
     return ChangeNotifierProvider(
-      create: (ctx) => ProductSearchState(ctx, tableNumber: tableNumber, seat: seat, areaName: areaName, seathiveOrderId: seathiveOrderId),
+      create: (ctx) => ProductSearchState(
+        ctx,
+        tableNumber: tableNumber,
+        seat: seat,
+        areaName: areaName,
+        seathiveOrderId: seathiveOrderId,
+      ),
       child: Consumer<ProductSearchState>(
         builder: (context, state, _) {
           // 🚨 Show error screen if initialization failed
           if (state.errorMessage != null) {
             return Scaffold(
-              appBar: AppBar(title: Text('$tableNumber - $seat'), backgroundColor: Colors.white),
+              appBar: AppBar(
+                title: Text('$tableNumber - $seat'),
+                backgroundColor: Colors.white,
+              ),
               body: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(state.errorMessage!, style: const TextStyle(color: Colors.red)),
+                    Text(
+                      state.errorMessage!,
+                      style: const TextStyle(color: Colors.red),
+                    ),
                     const SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: () => state.retryInit(context),
@@ -611,7 +706,9 @@ class ProductSearchScreen extends StatelessWidget {
 
           // ⏳ Show loading if device ID not loaded
           if (state.storedDeviceId == null) {
-            return const Scaffold(body: Center(child: CircularProgressIndicator()));
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
           }
 
           return _buildMainUI(context, state);
@@ -631,7 +728,10 @@ class ProductSearchScreen extends StatelessWidget {
         automaticallyImplyLeading: false,
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
-        title: Text('$tableNumber - $seat', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        title: Text(
+          '$tableNumber - $seat',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
         actions: [
           Flexible(
             fit: FlexFit.loose,
@@ -676,9 +776,12 @@ class ProductSearchScreen extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(
-                  child: buildWaiterDropdown(context, onChanged: (value) {
-                    state.updateSelectedEmployee(value, context);
-                  }),
+                  child: buildWaiterDropdown(
+                    context,
+                    onChanged: (value) {
+                      state.updateSelectedEmployee(value, context);
+                    },
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -696,7 +799,10 @@ class ProductSearchScreen extends StatelessWidget {
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10.0),
-                          borderSide: const BorderSide(color: Colors.black12, width: 2.0),
+                          borderSide: const BorderSide(
+                            color: Colors.black12,
+                            width: 2.0,
+                          ),
                         ),
                       ),
                       idleDuration: const Duration(seconds: 2),
@@ -710,7 +816,10 @@ class ProductSearchScreen extends StatelessWidget {
           Expanded(
             child: Consumer<SearchProviderDine>(
               builder: (context, searchProvider, child) {
-                final products = state._filteredProducts(productProvider.products, searchProvider.searchQuery);
+                final products = state._filteredProducts(
+                  productProvider.products,
+                  searchProvider.searchQuery,
+                );
                 if (products.isEmpty) {
                   return const Center(child: Text('No products found.'));
                 }
@@ -719,16 +828,29 @@ class ProductSearchScreen extends StatelessWidget {
                   itemCount: products.length,
                   itemBuilder: (context, index) {
                     final product = products[index];
-                    final isInCart = cartProvider.cart.containsKey(product.varianceName);
-                    final quantity = isInCart ? cartProvider.cart[product.varianceName]!['qty'] ?? 0 : 0;
+                    final isInCart = cartProvider.cart.containsKey(
+                      product.varianceName,
+                    );
+                    final quantity = isInCart
+                        ? cartProvider.cart[product.varianceName]!['qty'] ?? 0
+                        : 0;
                     bool isHintShown = false;
                     return ListTile(
                       title: GestureDetector(
                         onTap: () {
-                          _addToCart(context, state, cartProvider, product, isHintShown);
+                          _addToCart(
+                            context,
+                            state,
+                            cartProvider,
+                            product,
+                            isHintShown,
+                          );
                           state._autoSaveHoldOrder(context);
                         },
-                        child: Text("${product.name} - ${product.varianceName}", style: const TextStyle(fontSize: 13)),
+                        child: Text(
+                          "${product.name} - ${product.varianceName}",
+                          style: const TextStyle(fontSize: 13),
+                        ),
                       ),
                       subtitle: Text('₹${product.price.toStringAsFixed(2)}'),
                       trailing: Row(
@@ -742,15 +864,26 @@ class ProductSearchScreen extends StatelessWidget {
                                 width: 60,
                                 child: ElevatedButton(
                                   onPressed: () {
-                                    _addToCart(context, state, cartProvider, product, isHintShown);
+                                    _addToCart(
+                                      context,
+                                      state,
+                                      cartProvider,
+                                      product,
+                                      isHintShown,
+                                    );
                                     state._autoSaveHoldOrder(context);
                                   },
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.blue,
                                     foregroundColor: Colors.white,
                                     elevation: 2,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 10,
+                                    ),
                                   ),
                                   child: const Text("Add"),
                                 ),
@@ -767,10 +900,21 @@ class ProductSearchScreen extends StatelessWidget {
                                       color: Colors.red,
                                       shape: BoxShape.circle,
                                       boxShadow: [
-                                        BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 4, offset: const Offset(2, 2)),
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.2),
+                                          blurRadius: 4,
+                                          offset: const Offset(2, 2),
+                                        ),
                                       ],
                                     ),
-                                    child: Text('$quantity', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                                    child: Text(
+                                      '$quantity',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
                                   ),
                                 ),
                             ],
@@ -791,7 +935,9 @@ class ProductSearchScreen extends StatelessWidget {
               }
               return ConstrainedBox(
                 constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.5, // Limit to half screen height
+                  maxHeight:
+                      MediaQuery.of(context).size.height *
+                      0.5, // Limit to half screen height
                 ),
                 child: SingleChildScrollView(
                   child: CartItems(
@@ -810,7 +956,13 @@ class ProductSearchScreen extends StatelessWidget {
   }
 
   // ➕ Helper to add item to cart with hint logic
-  void _addToCart(BuildContext context, ProductSearchState state, CartProviderKOT cartProvider, Product product, bool isHintShown) {
+  void _addToCart(
+    BuildContext context,
+    ProductSearchState state,
+    CartProviderKOT cartProvider,
+    Product product,
+    bool isHintShown,
+  ) {
     final uom = product.variance_Uom.toLowerCase();
     if (uom == "kg" || uom == "Kgs") {
       cartProvider.addToCart(product.varianceName, weight: 50);
@@ -819,7 +971,9 @@ class ProductSearchScreen extends StatelessWidget {
     }
 
     // 💡 Show hint for first item
-    if (!isHintShown && cartProvider.cart.length == 1 && cartProvider.cart.values.first['qty'] == 1) {
+    if (!isHintShown &&
+        cartProvider.cart.length == 1 &&
+        cartProvider.cart.values.first['qty'] == 1) {
       state.showHintDialog(context, product.varianceName);
       print('💡 Hint dialog shown for ${product.varianceName}');
     }

@@ -4,6 +4,7 @@ import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:yenpos/Global/globals_data.dart';
 import 'package:yenpos/kotpreinvoice/providers/submissionProvider.dart';
+import 'package:yenpos/kotpreinvoice/services/hive_service.dart';
 import 'package:yenpos/kotpreinvoice/services/invoice_number_service.dart';
 import '../../models/printer.dart';
 import '../../../kotpreinvoice/providers/bottomNavprovider.dart';
@@ -104,14 +105,6 @@ void showTableActionsDialog({
                               )
                               .toList();
 
-                          ordersForSeat.forEach((order) {
-                            print("order remark is ${order}");
-
-                            (order['config'] as List).forEach((ord) {
-                              print("ordersForSeat config are $ord");
-                            });
-                          });
-
                           if (ordersForSeat.isNotEmpty) {
                             Navigator.pop(context);
 
@@ -211,98 +204,6 @@ void showTableActionsDialog({
                                   listen: false,
                                 );
 
-                            // // 🟡 Step 1: Check if Pre-Invoice printer is configured
-                            // final preInvoicePrinter = printerProvider.printers
-                            //     .firstWhere(
-                            //       (printer) => printer.type == 'PreInvoice',
-                            //       orElse: () =>
-                            //           Printer(name: '', ipAddress: '', type: ''),
-                            //     );
-
-                            // if (preInvoicePrinter.ipAddress.isEmpty) {
-                            //   // 🟥 Printer not configured → show your reusable dialog
-                            //   await promptForPrinterIp(rootContext);
-
-                            //   // 🟢 Re-check after user potentially set the printer
-                            //   final updatedPrinter = printerProvider.printers
-                            //       .firstWhere(
-                            //         (printer) => printer.type == 'PreInvoice',
-                            //         orElse: () =>
-                            //             Printer(name: '', ipAddress: '', type: ''),
-                            //       );
-
-                            //   if (updatedPrinter.ipAddress.isEmpty) {
-                            //     return;
-                            //   }
-                            // }
-
-                            // // ✅ Step 2: Proceed only if Pre-Invoice printer exists
-                            // if (isActiveOrder) {
-                            //   showDialog(
-                            //     context: rootContext,
-                            //     builder: (ctx) => AlertDialog(
-                            //       title: const Text("Confirm Pre-Invoice"),
-                            //       content: const Text(
-                            //         "Are you sure you want to generate the Pre-Invoice?",
-                            //       ),
-                            //       actions: [
-                            //         ElevatedButton(
-                            //           onPressed: () => Navigator.of(ctx).pop(),
-                            //           style: ElevatedButton.styleFrom(
-                            //             backgroundColor: Colors.red.shade100,
-                            //             foregroundColor: Colors.red,
-                            //             elevation: 2,
-                            //             shape: RoundedRectangleBorder(
-                            //               borderRadius: BorderRadius.circular(12),
-                            //             ),
-                            //             padding: const EdgeInsets.symmetric(
-                            //               horizontal: 16,
-                            //               vertical: 10,
-                            //             ),
-                            //           ),
-                            //           child: const Text(
-                            //             'Cancel',
-                            //             style: TextStyle(
-                            //               fontWeight: FontWeight.w500,
-                            //               fontSize: 14,
-                            //             ),
-                            //           ),
-                            //         ),
-                            //         ElevatedButton(
-                            //           style: ElevatedButton.styleFrom(
-                            //             backgroundColor: const Color(0xFFE0F2F1),
-                            //             foregroundColor: Colors.teal,
-                            //             elevation: 2,
-                            //             shape: RoundedRectangleBorder(
-                            //               borderRadius: BorderRadius.circular(12),
-                            //             ),
-                            //             padding: const EdgeInsets.symmetric(
-                            //               horizontal: 16,
-                            //               vertical: 10,
-                            //             ),
-                            //           ),
-                            //           onPressed: () async {
-                            //             Navigator.of(ctx).pop();
-
-                            //             final filteredOrders =
-                            //                 filterValidSeatOrders(
-                            //                   allOrders: seatOrders,
-                            //                   tableNumber: tableNumber,
-                            //                   seat: selectedSeat,
-                            //                 );
-
-                            //             if (filteredOrders.isEmpty) {
-                            //               WidgetsBinding.instance
-                            //                   .addPostFrameCallback((_) {
-                            //                     showCustomFlushbar(
-                            //                       rootContext,
-                            //                       "No valid orders found to print.",
-                            //                       type: FlushbarType.info,
-                            //                     );
-                            //                   });
-                            //               return;
-                            //             }
-
                             final preInvoicePrinter = printerProvider.printers
                                 .firstWhere(
                                   (printer) => printer.type == 'PreInvoice',
@@ -315,51 +216,19 @@ void showTableActionsDialog({
                                   },
                                 );
 
-                            //             requestAndPrintPreInvoice(
-                            //               areaName: areaName,
-                            //               channel: channel!,
-                            //               ipAddress: preInvoicePrinter.ipAddress,
-                            //               seat: selectedSeat,
-                            //               seatOrders:
-                            //                   seatOrders
-                            //                       as List<Map<String, dynamic>>,
-                            //               seathiveOrderId:
-                            //                   seatOrders.first['seathiveOrderId'],
-                            //               tableNumber: tableNumber,
-                            //               userName: userName,
-                            //               waiter: createdBy,
-                            //             );
-
-                            //             WidgetsBinding.instance
-                            //                 .addPostFrameCallback((_) {
-                            //                   showCustomFlushbar(
-                            //                     rootContext,
-                            //                     "Invoice generated successfully!",
-                            //                     type: FlushbarType.success,
-                            //                   );
-                            //                 });
-                            //             orderProvider.notifyListeners();
-                            //           },
-                            //           child: const Text(
-                            //             "Confirm",
-                            //             style: TextStyle(
-                            //               fontWeight: FontWeight.w600,
-                            //               fontSize: 14,
-                            //             ),
-                            //           ),
-                            //         ),
-                            //       ],
-                            //     ),
-                            //   );
-                            // } else {
-                            //   WidgetsBinding.instance.addPostFrameCallback((_) {
-                            //     showCustomFlushbar(
-                            //       context,
-                            //       "Already the table is pre-invoiced.",
-                            //       type: FlushbarType.warning,
-                            //     );
-                            //   });
-                            // }
+                            sendPreInvoiceToServer(
+                              context: Context,
+                              tableNumber: tableNumber,
+                              seat: selectedSeat,
+                              areaName: areaName,
+                              seatOrders:
+                                  seatOrders as List<Map<String, dynamic>>,
+                              ipAddress: preInvoicePrinter.ipAddress,
+                              userName: userName,
+                              waiter: createdBy,
+                              seathiveOrderId:
+                                  seatOrders.first['seathiveOrderId'],
+                            );
                             submissionProvider.startSubmitting();
 
                             try {
@@ -401,28 +270,22 @@ void showTableActionsDialog({
                                 "🖨️ Printing receipt for seat $selectedSeat",
                               );
 
-                              // Use a fresh WebSocket channel for each request to avoid subscription conflicts
-                              final freshChannel = IOWebSocketChannel.connect(
-                                'ws://$serverip:$port',
-                              );
-
-                              await requestAndPrintPreInvoice(
-                                areaName: seatOrders.first['areaName'],
-                                channel: freshChannel,
-                                ipAddress: preInvoicePrinter.ipAddress,
-                                seat: selectedSeat,
-                                seatOrders:
-                                    seatOrders as List<Map<String, dynamic>>,
-                                seathiveOrderId: seatOrders.isNotEmpty
-                                    ? seatOrders.first['seathiveOrderId']
-                                    : '',
-                                tableNumber: tableNumber,
-                                userName: userName,
-                                waiter: createdBy,
-                              );
+                              // await requestAndPrintPreInvoice(
+                              //   areaName: seatOrders.first['areaName'],
+                              //   channel: freshChannel,
+                              //   ipAddress: preInvoicePrinter.ipAddress,
+                              //   seat: selectedSeat,
+                              //   seatOrders:
+                              //       seatOrders as List<Map<String, dynamic>>,
+                              //   seathiveOrderId: seatOrders.isNotEmpty
+                              //       ? seatOrders.first['seathiveOrderId']
+                              //       : '',
+                              //   tableNumber: tableNumber,
+                              //   userName: userName,
+                              //   waiter: createdBy,
+                              // );
 
                               // Close the fresh channel
-                              freshChannel.sink.close();
 
                               WidgetsBinding.instance.addPostFrameCallback((_) {
                                 showCustomFlushbar(

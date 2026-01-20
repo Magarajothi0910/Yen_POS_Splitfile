@@ -14,9 +14,9 @@ String formatElapsedTime(int totalSeconds) {
   String formattedSeconds = seconds.toString().padLeft(2, '0');
 
   if (hours > 0) {
-    return "($hours:$formattedMinutes:${formattedSeconds}min)"; // Example: (1:10:22 min)
+    return "(${hours}h:${formattedMinutes}m:${formattedSeconds}s)"; // Example: (1:10:22 min)
   } else {
-    return "($minutes:${formattedSeconds}min)"; // Example: (12:22 min)
+    return "(${minutes}m:${formattedSeconds}s)"; // Example: (12:22 min)
   }
 }
 
@@ -31,8 +31,9 @@ int calculateElapsedTime(String? preinvoiceTime) {
     DateTime now = DateTime.now();
 
     // ✅ Parse only if format is correct
-    DateTime preInvoiceDateTime =
-        DateFormat("hh:mm:ss a").parse(preinvoiceTime);
+    DateTime preInvoiceDateTime = DateFormat(
+      "hh:mm:ss a",
+    ).parse(preinvoiceTime);
 
     // Attach today's date to preInvoiceDateTime
     preInvoiceDateTime = DateTime(
@@ -61,14 +62,13 @@ int calculateElapsedTime(String? preinvoiceTime) {
 Color getCardColor(int elapsedSeconds) {
   int elapsedMinutes = elapsedSeconds ~/ 60;
 
-  if (elapsedMinutes > 6) {
-    // Pastel Red for very old
-    return const Color(0xFFFFC1C1);
-  } else if (elapsedMinutes > 2) {
-    // Pastel Yellow-Orange for medium wait
-    return const Color(0xFFFFE0B2);
+  if (elapsedMinutes <= 2) {
+    return const Color(0xFFFFEBEE); // Very Light Red (pastel)
+  } else if (elapsedMinutes <= 4) {
+    return const Color.fromARGB(255, 238, 174, 181); // Light Red
+  } else if (elapsedMinutes <= 6) {
+    return const Color.fromARGB(255, 246, 148, 148); // Medium Light Red
   } else {
-    // Pastel Green for fresh/recent
-    return const Color(0xFFC8E6C9);
+    return const Color.fromARGB(255, 247, 120, 120); // Strong but still Light Red
   }
 }

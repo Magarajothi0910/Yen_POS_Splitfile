@@ -29,7 +29,6 @@ class ServerTaskHandler extends TaskHandler {
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
-    print("🚀 [ServerTaskHandler] Starting background server...");
 
     WebSocketService.instance.connect();
     try {
@@ -40,7 +39,6 @@ class ServerTaskHandler extends TaskHandler {
       serverBox = await Hive.openBox('serverBox');
     } catch (e) {
       await configBox.put('lastError', 'Failed to initialize Hive: $e');
-      print("❌ Hive initialization failed: $e");
       return;
     }
 
@@ -48,13 +46,11 @@ class ServerTaskHandler extends TaskHandler {
       try {
         final appType = configBox.get('appType') ?? '';
         if (appType != 'server') {
-          print("⚙️ AppType is not 'server' — skipping WebSocket start.");
           return;
         }
 
         final ip = await getLocalIp();
         if (ip == null) {
-          print("⚠️ Failed to get local IP. Retrying...");
           _retryCount++;
           await Future.delayed(Duration(seconds: 5));
           continue;
@@ -71,8 +67,6 @@ class ServerTaskHandler extends TaskHandler {
         // ✅ Bind server (shared allows reuse for background tasks)
         _wsServer = await HttpServer.bind(InternetAddress.anyIPv4, port, shared: true);
 
-        print("✅ [SERVER STARTED] at ws://$ip:$port");
-        print("===========================================");
 
         // ✅ Handle new WebSocket connections
         _wsServer!
@@ -82,7 +76,6 @@ class ServerTaskHandler extends TaskHandler {
                 final channel = IOWebSocketChannel(socket); // ✅ FIXED HERE
                 clients.add(channel);
 
-                print("🟢 [CLIENT CONNECTED] Total: ${clients.length}");
 
                 // ✅ Central handler
                 handleWebSocket(channel, clients, (data) {
@@ -92,15 +85,12 @@ class ServerTaskHandler extends TaskHandler {
                 socket.done
                     .then((_) {
                       clients.remove(channel);
-                      print("🔴 [CLIENT DISCONNECTED] Total: ${clients.length}");
                     })
                     .catchError((error) {
                       clients.remove(channel);
-                      print("❌ [CLIENT ERROR] $error");
                     });
               },
               onError: (e) {
-                print("❌ [SERVER SOCKET ERROR] $e");
               },
             );
 
@@ -110,7 +100,6 @@ class ServerTaskHandler extends TaskHandler {
         _retryCount = 0;
         break;
       } catch (e, st) {
-        print("🔥 [SERVER START ERROR] $e");
         _retryCount++;
         await Future.delayed(Duration(seconds: 5 * _retryCount));
       }
@@ -118,7 +107,6 @@ class ServerTaskHandler extends TaskHandler {
 
     if (_retryCount >= _maxRetries) {
       await configBox.put('lastError', 'Max retries exceeded for server start');
-      print("🚨 Max retries exceeded. Server failed to start.");
     }
   }
 
@@ -128,7 +116,6 @@ class ServerTaskHandler extends TaskHandler {
       _udpSender?.close();
       _udpSender = await UDP.bind(Endpoint.any(port:  Port(udpPort)));
 
-      print("📡 [UDP RESPONDER] Listening on port 23456");
 
       _udpSender!.asStream().listen(
         (datagram) async {
@@ -137,7 +124,6 @@ class ServerTaskHandler extends TaskHandler {
             if (message == 'WHO_IS_SERVER') {
               final ip = serverip;
               final response = 'SERVER:$ip:8686';
-              print("📩 [UDP] Responding: $response");
 
               await _udpSender!.send(utf8.encode(response), Endpoint.broadcast(port:  Port(udpPort)));
             }
@@ -145,27 +131,22 @@ class ServerTaskHandler extends TaskHandler {
         },
         onError: (e) async {
           await configBox.put('lastError', 'UDP listener error: $e');
-          print("⚠️ UDP listener error: $e");
         },
       );
     } catch (e) {
       await configBox.put('lastError', 'Failed to start UDP responder: $e');
-      print("❌ Failed to start UDP responder: $e");
     }
   }
 
   @override
   void onRepeatEvent(DateTime timestamp) async {
-    print("🔄 [ServerTaskHandler] Repeat event triggered.");
 
     // Restart WebSocket if stopped
     if (_wsServer == null) {
-      print("⚠️ WebSocket server not running — restarting...");
       await onStart(timestamp, TaskStarter.system);
     } else {
       final ip = await getLocalIp();
       if (ip != serverip) {
-        print("🔁 IP address changed — restarting server...");
         await _wsServer?.close(force: true);
         _wsServer = null;
         _udpSender?.close();
@@ -176,14 +157,12 @@ class ServerTaskHandler extends TaskHandler {
 
     // Restart UDP responder if closed
     if (_udpSender == null) {
-      print("⚠️ UDP responder not running — restarting...");
       await startUdpResponder();
     }
   }
 
   @override
   Future<void> onDestroy(DateTime timestamp) async {
-    print("🧹 [ServerTaskHandler] Cleaning up server...");
     await _wsServer?.close(force: true);
     _udpSender?.close();
     await Hive.close();

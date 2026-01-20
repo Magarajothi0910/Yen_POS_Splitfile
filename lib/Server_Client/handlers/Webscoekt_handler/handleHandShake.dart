@@ -6,7 +6,7 @@ import 'package:yenpos/Server_Client/sendDataToClients.dart';
 handleHandShake(
   Map<String, dynamic> data,
 ) async {
-  print('Client HandShake : $data');
+ 
   final d = {'type': 'handshake','message': 'From Client'};
   //sendDataToClients(d, clients);
  // sendataToServer(d);

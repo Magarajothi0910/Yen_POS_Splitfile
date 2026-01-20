@@ -29,7 +29,8 @@ class salesOrderReceiptPrinter {
   List<String>? advanceDateTime; // ✅ fixed
   double customChargeController;
   String selectedPaymentOptionValue;
-  String chargeType;
+  List<String>? chargeType;
+  List<double>? customCharge;
 
   double totalAmount;
   double totalAmount2;
@@ -72,6 +73,7 @@ class salesOrderReceiptPrinter {
     // required this.context,
     required this.customerType,
     required this.customAmountController,
+    required this.customCharge,
     required this.selectedPaymentOption,
     required this.selectedPaymentOptionAmount,
 
@@ -716,6 +718,24 @@ class salesOrderReceiptPrinter {
       } catch (e) {
         formattedDeliveryDate = deliveryDateprint; // fallback
       }
+
+      // Calculate total item-wise discount
+      double totalItemDiscount = 0.0;
+      double totalOriginalAmount = 0.0;
+      for (var item in cartItems) {
+        double amount = item.uom == 'Kgs'
+            ? (item.weight * item.quantity.value * item.pricePerKg).toDouble()
+            : (item.quantity.value * item.pricePerKg).toDouble();
+        totalOriginalAmount += amount;
+        totalItemDiscount += (item.itemWiseDiscountAmount ?? 0);
+      }
+
+      // Calculate overall discount
+      double overallDiscountAmount =
+          (totalOriginalAmount - totalItemDiscount) *
+          (discountController / 100);
+      double totalDiscount = totalItemDiscount + overallDiscountAmount;
+
       for (int copy = 0; copy < 2; copy++) {
         bytes = []; // Reset bytes for each copy
         try {
@@ -851,7 +871,7 @@ class salesOrderReceiptPrinter {
         bytes += generator.row([
           createPosColumn(
             width: 12,
-            text: '==============================================',
+            text: '----------------------------------------------',
             styles: createPosStyles(align: PosAlign.center),
           ),
         ]);
@@ -933,7 +953,7 @@ class salesOrderReceiptPrinter {
             ),
             createPosColumn(
               width: 1,
-              text: '${item.tax}',
+              text: '${item.tax}%',
               styles: createPosStyles(align: PosAlign.center),
             ),
 
@@ -1012,10 +1032,11 @@ class salesOrderReceiptPrinter {
         bytes += generator.row([
           createPosColumn(
             width: 12,
-            text: '==================================================',
+            text: '----------------------------------------------',
             styles: createPosStyles(align: PosAlign.center),
           ),
         ]);
+
         // Helper function to format label and value neatly
         // Helper function
         // Helper function for fixed-width label and value
@@ -1048,12 +1069,47 @@ class salesOrderReceiptPrinter {
           ),
         ]);
 
-        if ((customChargeController ?? 0) != 0) {
+        if (chargeType != null &&
+            chargeType!.isNotEmpty &&
+            customCharge != null &&
+            customCharge!.isNotEmpty) {
+          for (int i = 0; i < chargeType!.length; i++) {
+            if (i < customCharge!.length) {
+              double chargeAmount = (customCharge![i] as num).toDouble();
+              if (chargeAmount > 0) {
+                bytes += generator.row([
+                  createPosColumn(
+                    width: 12,
+                    text: formatLabelValueFixed(
+                      label: '${chargeType![i]} (+)',
+                      value: 'Rs ${chargeAmount.toStringAsFixed(0)}',
+                    ),
+                    styles: createPosStyles(align: PosAlign.right),
+                  ),
+                ]);
+              }
+            }
+          }
+
+          // Then show the Total Amount after all custom charges
           bytes += generator.row([
             createPosColumn(
               width: 12,
               text: formatLabelValueFixed(
-                label: '${chargeType.toString()} (+)',
+                label: 'Total Amount',
+                value: 'Rs ${totalAmount2.toStringAsFixed(0)}',
+              ),
+              styles: createPosStyles(align: PosAlign.right, bold: true),
+            ),
+          ]);
+        }
+        // Fallback to single custom charge if using the old format
+        else if ((customChargeController ?? 0) != 0) {
+          bytes += generator.row([
+            createPosColumn(
+              width: 12,
+              text: formatLabelValueFixed(
+                label: '${chargeType} (+)',
                 value: 'Rs ${customChargeController.toStringAsFixed(0)}',
               ),
               styles: createPosStyles(align: PosAlign.right),
@@ -1170,7 +1226,7 @@ class salesOrderReceiptPrinter {
         bytes += generator.row([
           createPosColumn(
             width: 12,
-            text: '==================================================',
+            text: '----------------------------------------------',
             styles: createPosStyles(align: PosAlign.center),
           ),
         ]);
@@ -1224,9 +1280,64 @@ class salesOrderReceiptPrinter {
             }
           }
         }
-        // Inside _printReceiptDetails function
-        bytes += generator.feed(1);
 
+        // FINAL FOOTER
+        bytes += generator.row([
+          createPosColumn(
+            width: 12,
+            text: '----------------------------------------------',
+            styles: createPosStyles(align: PosAlign.center),
+          ),
+        ]); // Inside _printReceiptDetails function
+        bytes += generator.feed(1);
+        // YOU SAVED SECTION (after balance amount)
+        if (totalDiscount > 0) {
+          bytes += generator.row([
+            createPosColumn(
+              width: 12,
+              text: '****************************************',
+              styles: createPosStyles(
+                align: PosAlign.center,
+                codeTable: 'CP1252',
+              ),
+            ),
+          ]);
+          bytes += generator.row([
+            createPosColumn(
+              width: 12,
+              text: 'You Saved in this Purchase!',
+              styles: createPosStyles(
+                align: PosAlign.center,
+                codeTable: 'CP1252',
+                bold: true,
+              ),
+            ),
+          ]);
+          bytes += generator.row([
+            createPosColumn(
+              width: 12,
+              text: 'RS ${totalDiscount.toStringAsFixed(0)}',
+              styles: createPosStyles(
+                align: PosAlign.center,
+                codeTable: 'CP1252',
+                bold: true,
+                height: PosTextSize.size1,
+                width: PosTextSize.size2,
+              ),
+            ),
+          ]);
+          bytes += generator.row([
+            createPosColumn(
+              width: 12,
+              text: '****************************************',
+              styles: createPosStyles(
+                align: PosAlign.center,
+                codeTable: 'CP1252',
+              ),
+            ),
+          ]);
+        }
+        bytes += generator.feed(1);
         const int maxLineWidth = 18;
         List<String> addressLines = splitAddress(globals.branchAddress);
 

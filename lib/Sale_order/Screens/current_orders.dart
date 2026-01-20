@@ -679,6 +679,7 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
     int index, {
     bool showAsBoxItem = false,
   }) {
+    // Safe access for all arrays
     final varianceName = (salesOrder.varianceName.length > index)
         ? salesOrder.varianceName[index]
         : 'Unknown';
@@ -697,18 +698,52 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
         ? salesOrder.amount[index]
         : 0.0;
 
+    /// ----------------------------
+    /// CORRECT SELLING AMOUNT SOURCE
+    /// ----------------------------
+    final sellingAmount = (salesOrder.sellingAmount.length > index)
+        ? salesOrder.sellingAmount[index]
+        : (salesOrder.amount.length > index ? salesOrder.amount[index] : 0.0);
+
+    /// ----------------------------
+    /// DISCOUNT VALUES
+    /// ----------------------------
+    final discountPercent =
+        (salesOrder.itemWiseDiscount != null &&
+            salesOrder.itemWiseDiscount!.length > index)
+        ? salesOrder.itemWiseDiscount![index]
+        : 0.0;
+
+    final discountAmount =
+        salesOrder.itemWiseDiscountAmount != null &&
+            salesOrder.itemWiseDiscountAmount!.length > index
+        ? salesOrder.itemWiseDiscountAmount![index]
+        : 0.0;
+
+    /// ----------------------------
+    /// FINAL AMOUNT AFTER DISCOUNT
+    /// ----------------------------
+    final finalAmount = sellingAmount - discountAmount;
+
     String priceDescription;
-    if (uom.toLowerCase() == 'kg' || uom.toLowerCase() == 'kgs') {
+
+
+    // Check for both "kg" and "kgs"
+    bool isKg = uom.toLowerCase() == "kg" || uom.toLowerCase() == "kgs";
+
+    if (isKg) {
+
       if (weight >= 1) {
-        priceDescription =
-            '$qty $uom (${weight.toStringAsFixed(2)} kg) × Rs.${price.toStringAsFixed(0)}/kg';
+        priceDescription = '${weight} kg × ₹${price.toStringAsFixed(0)}/kg';
       } else {
+        double grams = weight * 1000;
         priceDescription =
-            '$qty × ${(weight * 1000).toStringAsFixed(0)} g × Rs.${price.toStringAsFixed(0)}/kg';
+            '${qty.toInt()} × ${grams.toStringAsFixed(0)} g × ₹${price.toStringAsFixed(0)}/kg';
       }
     } else {
-      priceDescription = '$qty $uom × Rs.${price.toStringAsFixed(0)}';
+      priceDescription = '${qty.toInt()} ${uom} × ₹${price.toStringAsFixed(0)}';
     }
+
 
     return ListTile(
       contentPadding: EdgeInsets.zero,
@@ -717,16 +752,67 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
         style: TextStyle(
           fontSize: 12,
           color: showAsBoxItem ? Colors.blue.shade800 : Colors.grey.shade800,
+          fontWeight: FontWeight.bold, // Added from second function
         ),
       ),
-      subtitle: Text(priceDescription, style: const TextStyle(fontSize: 10)),
-      trailing: Text(
-        '₹${amount.toStringAsFixed(2)}',
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: showAsBoxItem ? Colors.blue.shade800 : Colors.black,
-        ),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            priceDescription,
+            style: TextStyle(fontSize: 10), // Changed from const
+          ),
+
+          // Discount line under item (from second function)
+          if (discountAmount > 0) ...[
+            Text(
+              '- ₹${discountAmount.toStringAsFixed(2)} (${discountPercent}% off)',
+              style: TextStyle(
+                fontSize: 9,
+                color: Colors.green[700],
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ],
+      ),
+      trailing: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          /// If discount exists → show strikeout + final amount
+          if (discountAmount > 0) ...[
+            Text(
+              '₹${sellingAmount.toStringAsFixed(2)}',
+              style: TextStyle(
+                fontSize: 10,
+                color: Colors.red,
+                decoration: TextDecoration.lineThrough,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+
+            Text(
+              '₹${finalAmount.toStringAsFixed(2)}',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: showAsBoxItem ? Colors.blue.shade800 : Colors.black,
+              ),
+            ),
+          ]
+          /// If NO discount → show only amount (normal)
+          else ...[
+            Text(
+              '₹${amount.toStringAsFixed(2)}',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: showAsBoxItem ? Colors.blue.shade800 : Colors.black,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -747,7 +833,6 @@ class _CurrentOrdersPageState extends State<CurrentOrdersPage> {
 
     // double customCharge = (salesOrder.customCharge ?? 0.0).toDouble();
     double customCharge = customerprovider.modifiedCustomCharge;
-    print("custom charge: $customCharge");
     double totalAmount2 =
         (salesOrder.totalAmount2 ?? salesOrder.totalAmount ?? 0.0).toDouble();
     double discount = (salesOrder.discount ?? 0.0).toDouble();

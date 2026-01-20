@@ -29,21 +29,67 @@ class CartProviderKOT with ChangeNotifier {
     notifyListeners();
   }
 
-  void addToCart(String varianceName, {int? weight}) {
+  // void addToCart(String varianceName, {double? weight}) {
+  //   debugPrint("_cart data is 1 ${_cart} , $weight , $varianceName");
+
+  //   if (_cart.containsKey(varianceName)) {
+  //     if (weight != null && weight > 0) {
+  //       debugPrint(
+  //         "_cart[varianceName]['weight'] is ${_cart[varianceName]['weight']} - weight is $weight",
+  //       );
+  //       _cart[varianceName]['weight'] = _cart[varianceName]['weight'] + weight;
+  //       notifyListeners();
+  //       return;
+  //     }
+
+  //     _cart[varianceName]['qty'] = (_cart[varianceName]['qty'] as int) + 1;
+  //   } else {
+  //     _cart[varianceName] = {
+  //       'weight': weight ?? 0,
+  //       'qty': 1,
+  //       'selectedAddOns': {},
+  //       'totalAmount': 0,
+  //     };
+  //     debugPrint("_cart data is  ${_cart}");
+  //   }
+  //   notifyListeners(); // Notify listeners about the changes
+  // }
+
+  void addToCart(String varianceName, {double? weight}) {
+    debugPrint("addToCart: $varianceName, weight: $weight");
+
     if (_cart.containsKey(varianceName)) {
       if (weight != null && weight > 0) {
-        _cart[varianceName]['weight'] = weight;
+        // Safely get current weight (default to 0.0 if missing or null)
+        double currentWeight =
+            (_cart[varianceName]['weight'] as num?)?.toDouble() ?? 0.0;
+
+        // Add and round to 3 decimal places to avoid floating-point garbage
+        double newWeight = currentWeight + weight;
+        _cart[varianceName]['weight'] = double.parse(
+          newWeight.toStringAsFixed(3),
+        );
+
+        debugPrint(
+          "Updated weight: $currentWeight + $weight = ${_cart[varianceName]['weight']}",
+        );
+      } else {
+        // Normal quantity increase
+        _cart[varianceName]['qty'] = (_cart[varianceName]['qty'] as int) + 1;
       }
-      _cart[varianceName]['qty'] = (_cart[varianceName]['qty'] as int) + 1;
     } else {
+      // New item
       _cart[varianceName] = {
-        'weight': weight ?? 0,
+        'weight': weight != null && weight > 0
+            ? double.parse(weight.toStringAsFixed(3)) // Clean from start
+            : 0.0,
         'qty': 1,
         'selectedAddOns': {},
-        'totalAmount': 0,
+        'totalAmount': 0.0,
       };
     }
-    notifyListeners(); // Notify listeners about the changes
+
+    notifyListeners();
   }
 
   void addAddOn(String varianceName, String addOnName, int addOnValue) {

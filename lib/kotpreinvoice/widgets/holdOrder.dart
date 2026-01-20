@@ -394,7 +394,7 @@ class HoldOrdersDropdownState extends State<HoldOrdersDropdown> {
                 Navigator.of(context).pop();
                 Navigator.of(context).pop();
 
-                _showHoldOrdersDialog(context);
+                // _showHoldOrdersDialog(context);
               },
               style: TextButton.styleFrom(foregroundColor: Colors.red),
               child: const Text('Delete'),
@@ -404,6 +404,73 @@ class HoldOrdersDropdownState extends State<HoldOrdersDropdown> {
       },
     );
   }
+
+  // @override
+  // Widget build(BuildContext context) {
+  //   final holdOrderProvider = Provider.of<HoldOrderProvider>(
+  //     context,
+  //     listen: false,
+  //   );
+  //   final holdOrders = holdOrderProvider.getAllHoldOrders();
+
+  //   return SizedBox(
+  //     // width: double.infinity,
+  //     child: Stack(
+  //       clipBehavior: Clip.none,
+  //       children: [
+  //         ElevatedButton(
+  //           style: ElevatedButton.styleFrom(
+  //             backgroundColor: Colors.white70,
+  //             shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+  //             padding: const EdgeInsets.symmetric(vertical: 17),
+  //             minimumSize: const Size(double.infinity, 40),
+  //           ),
+  //           onPressed: () {
+  //             if (holdOrders.isNotEmpty) {
+  //               _showHoldOrdersDialog(context);
+  //             }
+  //           },
+  //           child: const Text(
+  //             "Hold Orders (",
+  //             style: TextStyle(
+  //               fontSize: 15,
+  //               letterSpacing: 0.5,
+  //               color: Colors.blue,
+  //             ),
+  //           ),
+  //         ),
+
+  //         if (holdOrders.isNotEmpty)
+  //           Positioned(
+  //             top: -6,
+  //             left: -6,
+  //             child: Container(
+  //               padding: const EdgeInsets.all(4),
+  //               decoration: const BoxDecoration(
+  //                 color: Colors.red,
+  //                 shape: BoxShape.circle,
+  //                 boxShadow: [
+  //                   BoxShadow(
+  //                     color: Colors.black26,
+  //                     blurRadius: 4,
+  //                     offset: Offset(2, 2),
+  //                   ),
+  //                 ],
+  //               ),
+  //               child: Text(
+  //                 '${holdOrders.length}',
+  //                 style: const TextStyle(
+  //                   color: Colors.white,
+  //                   fontSize: 12,
+  //                   fontWeight: FontWeight.bold,
+  //                 ),
+  //               ),
+  //             ),
+  //           ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -415,59 +482,44 @@ class HoldOrdersDropdownState extends State<HoldOrdersDropdown> {
 
     return SizedBox(
       // width: double.infinity,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white70,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-              padding: const EdgeInsets.symmetric(vertical: 17),
-              minimumSize: const Size(double.infinity, 40),
-            ),
-            onPressed: () {
-              if (holdOrders.isNotEmpty) {
-                _showHoldOrdersDialog(context);
-              }
-            },
-            child: const Text(
-              "Hold Orders",
-              style: TextStyle(
-                fontSize: 15,
-                letterSpacing: 0.5,
-                color: Colors.blue,
-              ),
-            ),
-          ),
-
-          if (holdOrders.isNotEmpty)
-            Positioned(
-              top: -6,
-              left: -6,
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: const BoxDecoration(
-                  color: Colors.red,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 4,
-                      offset: Offset(2, 2),
-                    ),
-                  ],
+      child: TextButton(
+        style: TextButton.styleFrom(
+          shadowColor: Colors.black,
+          elevation: 1,
+          backgroundColor: Colors.white70,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+          padding: const EdgeInsets.symmetric(vertical: 19),
+          minimumSize: const Size(double.infinity, 40),
+        ),
+        onPressed: () {
+          if (holdOrders.isNotEmpty) {
+            _showHoldOrdersDialog(context);
+          }
+        },
+        child: RichText(
+          text: TextSpan(
+            children: [
+              const TextSpan(
+                text: 'Hold Orders ',
+                style: TextStyle(
+                  fontSize: 17,
+                  letterSpacing: 0.5,
+                  color: Colors.blue,
                 ),
-                child: Text(
-                  '${holdOrders.length}',
+              ),
+              if (holdOrders.isNotEmpty)
+                TextSpan(
+                  text: '(${holdOrders.length})',
                   style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
+                    fontSize: 17,
+                    letterSpacing: 0.5,
+                    color: Colors.blue, // Red color for the count
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
-            ),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }

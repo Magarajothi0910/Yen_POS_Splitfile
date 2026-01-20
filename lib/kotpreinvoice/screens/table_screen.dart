@@ -5,12 +5,18 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:yenpos/Global/globals_data.dart';
+import 'package:yenpos/Hive_Manager/hive_manager_kot.dart';
 import 'package:yenpos/Hive_Manager/hive_manager_saleOrder.dart';
 import 'package:yenpos/Server_Client/websocketService.dart';
+import 'package:yenpos/invoice_pay_and_print_page.dart/provider/payment_provider.dart';
+import 'package:yenpos/invoice_pay_and_print_page.dart/salesInvoicePayandPrint.dart';
+import 'package:yenpos/kotpreinvoice/components/time_formater.dart';
 import 'package:yenpos/kotpreinvoice/providers/search_provider.dart';
 import 'package:yenpos/kotpreinvoice/providers/timerProvider.dart';
+import 'package:yenpos/kotpreinvoice/screens/preInvoiceTAb.dart';
 // import 'package:yenpos/kotpreinvoice/providers/timerProvider.dart';
 import 'package:yenpos/kotpreinvoice/screens/viewtocart.dart';
+import 'package:yenpos/kotpreinvoice/services/autosaveholdorder.dart';
 import 'package:yenpos/kotpreinvoice/utils/custom_snackbar.dart';
 import 'package:yenpos/kotpreinvoice/widgets/bottomNav.dart';
 import 'package:yenpos/kotpreinvoice/widgets/product_Search/idle_keyboard_hide.dart';
@@ -32,6 +38,85 @@ import '../../kotpreinvoice/components/globalAppbar.dart';
 import 'package:flutter/foundation.dart';
 import '../services/table_actions_service.dart';
 
+class PreInvoiceState extends ChangeNotifier {
+  String? _storedDeviceCode;
+  String? _errorMessage;
+  Timer? _timer;
+
+  String? get storedDeviceCode => _storedDeviceCode;
+  String? get errorMessage => _errorMessage;
+
+  PreInvoiceState() {
+    debugPrint('🟢 PreInvoiceState initialized');
+    _initState();
+  }
+
+  // 🔹 Initialize data safely
+  Future<void> _initState() async {
+    try {
+      await loadDeviceCode();
+      startTimer();
+    } catch (e, stack) {
+      _errorMessage = 'Initialization failed: $e';
+      debugPrint('❌ Error during initialization: $e');
+      debugPrint(stack.toString());
+      notifyListeners();
+    }
+  }
+
+  // 📡 Load device code from Hive with error handling
+  Future<void> loadDeviceCode() async {
+    debugPrint('📥 Loading device code from Hive...');
+    try {
+      final box = await Hive.openBox('deviceData');
+      final code = box.get('deviceCode', defaultValue: 'UnknownDevice');
+      _storedDeviceCode = code?.toString();
+      debugPrint('✅ Device code loaded: $_storedDeviceCode');
+    } on HiveError catch (hiveError) {
+      _errorMessage = 'Hive error: ${hiveError.message}';
+      debugPrint('🚨 HiveError: ${hiveError.message}');
+    } catch (e, stack) {
+      _errorMessage = 'Failed to load device code: $e';
+      debugPrint('❌ Exception while loading device code: $e');
+      debugPrint(stack.toString());
+    }
+    notifyListeners();
+  }
+
+  // ⏲️ Start periodic timer to update UI
+  void startTimer() {
+    try {
+      _timer?.cancel(); // Cancel previous timer if any
+      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        // debugPrint(
+        //   '⏱️ Timer tick: ${DateTime.now()} | Device: $_storedDeviceCode',
+        // );
+        notifyListeners();
+      });
+      debugPrint('✅ Timer started successfully');
+    } catch (e, stack) {
+      _errorMessage = 'Failed to start timer: $e';
+      debugPrint('❌ Error starting timer: $e');
+      debugPrint(stack.toString());
+      notifyListeners();
+    }
+  }
+
+  // 🧹 Clean up resources safely
+  @override
+  void dispose() {
+    debugPrint('🧹 Disposing PreInvoiceState...');
+    try {
+      _timer?.cancel();
+      debugPrint('🛑 Timer cancelled successfully');
+    } catch (e, stack) {
+      debugPrint('⚠️ Error cancelling timer: $e');
+      debugPrint(stack.toString());
+    }
+    super.dispose();
+  }
+}
+
 class TableScreen extends StatefulWidget {
   const TableScreen({super.key});
 
@@ -45,7 +130,9 @@ class _TableScreenState extends State<TableScreen> {
   late Box _tableBox;
   late Box invoice;
 
-  // IOWebSocketChannel? channel;
+  late Box ordersBox;
+
+  late WebSocketChannel channel;
   Timer? _refreshTimer;
   Timer? _debounceTimer;
 
@@ -57,6 +144,12 @@ class _TableScreenState extends State<TableScreen> {
   final ValueNotifier<String?> selectedAreaNotifier = ValueNotifier(null);
   final ValueNotifier<bool> isLoadingNotifier = ValueNotifier(true);
   bool _isProviderInitialized = false;
+
+  late OrderProvider _orderProv;
+  late ProductProvider _productProv;
+  late CartProviderKOT _cartProv;
+  late SalesInvoiceState _salesProv;
+  late ProductEventProvider _productEvent;
 
   // New state variables for the split layout
   final ValueNotifier<String?> selectedTableNotifier = ValueNotifier<String?>(
@@ -75,59 +168,83 @@ class _TableScreenState extends State<TableScreen> {
     'all',
   );
 
+  // Timer? _timer;
+
   @override
   void initState() {
     super.initState();
 
-    debugPrint('🚀 Initializing TableScreen...');
+    // final Box ordersBox = Hive.box('ordersBox');
 
-    final invoicebox = HiveManager.invoiceBox;
+    final Box ordersBox = Hive.box('ordersBox');
 
-    print("Invoice box length is :${invoicebox.length}");
+    // ordersBox.toMap().forEach((orderKey, orderValue) {
+    //   debugPrint('================ ORDER $orderKey ================');
+    //   debugPrint(const JsonEncoder.withIndent('  ').convert(orderValue));
+    // });
 
-    if (globals.tables.isEmpty) {
-      debugPrint('❌ Error: globals.tables is empty');
-    } else {
-      for (var area in globals.tables) {
-        final areaName = area['areaName'].toString();
-        areaKeys[areaName] = GlobalKey();
-        final tables = area['tables'] as List<Map<String, dynamic>>?;
-        if (tables == null || tables.isEmpty) {
-          debugPrint('⚠️ Area $areaName has no tables');
-        } else {
-          debugPrint('📋 Area $areaName has ${tables.length} tables');
-        }
-      }
-    }
-    showProductCardNotifier.addListener(() {
-      debugPrint(
-        "🎯 showProductCardNotifier changed to: ${showProductCardNotifier.value}",
-      );
-    });
+    // final Box invoiceBox = HiveManagerKot().invoicesBox;
 
-    productCardDataNotifier.addListener(() {
-      debugPrint(
-        "🎯 productCardDataNotifier changed to: ${productCardDataNotifier.value}",
-      );
-    });
+    // if (globals.tables.isEmpty) {
+    //   debugPrint('❌ Error: globals.tables is empty');
+    // } else {
+    //   for (var area in globals.tables) {
+    //     final areaName = area['areaName'].toString();
+    //     areaKeys[areaName] = GlobalKey();
+    //     final tables = area['tables'] as List<Map<String, dynamic>>?;
 
-    final orderProvider = Provider.of<OrderProvider>(context, listen: false);
-    orderProvider.chargeSubmit = true;
+    //     if (tables == null || tables.isEmpty) {
+    //     } else {}
+    //   }
+    // }
+    // showProductCardNotifier.addListener(() {});
+
+    // productCardDataNotifier.addListener(() {});
+
+    _orderProv = Provider.of<OrderProvider>(context, listen: false);
+    _cartProv = Provider.of<CartProviderKOT>(context, listen: false);
+    _productProv = Provider.of<ProductProvider>(context, listen: false);
+    _salesProv = Provider.of<SalesInvoiceState>(context, listen: false);
+    _productEvent = Provider.of<ProductEventProvider>(context, listen: false);
+    // orderProvider.loadOrdersFromHive();
+    // productProvider.loadProductsFromHive();
+
+    // if (isBranchItems) {
+    //   debugPrint("loadProductsFromHive before : $isBranchItems");
+    //   isBranchItems = false;
+    //   debugPrint("loadProductsFromHive after : $isBranchItems");
+    // }
+
+    _salesProv.employee.text = '';
+    createdBy = '';
+
+    _cartProv.clearCart();
+    _cartProv.clearTableSeat();
+
+    debugPrint("CART DATA IS CLEARED !!! ");
+    _orderProv.chargeSubmit = true;
 
     initializeProvider();
-    _scrollController.addListener(_onScroll);
+    // _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final eventProvider = Provider.of<ProductEventProvider>(
-        context,
-        listen: false,
-      );
-      eventProvider.addListener(_handleProductEvents);
+      if (mounted) {
+        final eventProvider = Provider.of<ProductEventProvider>(
+          context,
+          listen: false,
+        );
+        eventProvider.addListener(_handleProductEvents);
+      }
     });
+    // _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+    //   if (mounted) setState(() {}); // ← this forces rebuild of everything
+    // });
   }
 
   void _onScroll() {
+    if (!mounted) return;
     if (_debounceTimer?.isActive ?? false) return;
     _debounceTimer = Timer(const Duration(milliseconds: 100), () {
+      if (!mounted) return;
       try {
         String? mostVisibleArea;
         double closestPosition = double.infinity;
@@ -185,15 +302,16 @@ class _TableScreenState extends State<TableScreen> {
           debugPrint('ℹ️ No visible area detected');
         }
       } catch (e, stack) {
-        debugPrint('❌ Error in _onScroll: $e\n$stack');
         if (mounted) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            showCustomFlushbar(
-              context,
-              'Error detecting visible area',
-              type: FlushbarType.error,
-            );
-            debugPrint("❌ Error detecting visible area → Flushbar shown");
+            if (mounted) {
+              // Check again
+              showCustomFlushbar(
+                context,
+                'Error detecting visible area',
+                type: FlushbarType.error,
+              );
+            }
           });
         }
       }
@@ -201,6 +319,7 @@ class _TableScreenState extends State<TableScreen> {
   }
 
   void _handleProductEvents() {
+    if (!mounted) return; // ← Critical
     final eventProvider = Provider.of<ProductEventProvider>(
       context,
       listen: false,
@@ -258,6 +377,7 @@ class _TableScreenState extends State<TableScreen> {
   }
 
   void _checkInitialVisibleArea() {
+    if (!mounted) return;
     if (_scrollController.hasClients) {
       debugPrint('🔄 Checking initial visible area');
       try {
@@ -333,19 +453,21 @@ class _TableScreenState extends State<TableScreen> {
   }
 
   Future<void> initializeProvider() async {
-    debugPrint('📡 Initializing providers...');
     try {
+      final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+
+      await orderProvider.loadOrdersFromHive();
+
+      // orderProvider.loadOrdersFromHive();
+
       final productProvider = Provider.of<ProductProvider>(
         context,
         listen: false,
       );
 
-      debugPrint('🛍️ Loading products from Hive...');
       await productProvider.loadProductsFromHive();
-      debugPrint('✅ Loaded products successfully');
 
       areaNames = globals.tables.map((e) => e['areaName'].toString()).toList();
-      debugPrint('📋 Area names loaded: $areaNames');
 
       _tableBox = Hive.box('branchwise_tables');
       final dynamic data = _tableBox.get('data');
@@ -356,7 +478,7 @@ class _TableScreenState extends State<TableScreen> {
       );
       debugPrint('📦 Extra tables loaded: ${extraTablesNotifier.value}');
 
-      await initWebSocketAndData();
+      // await initWebSocketAndData();
       if (mounted) {
         debugPrint('🔄 Syncing missing extra tables...');
         await syncMissingExtraTablesFromOrders(context, extraTablesNotifier);
@@ -404,7 +526,7 @@ class _TableScreenState extends State<TableScreen> {
       //   await orderProvider.initializeHive();
       //   await orderProvider.requestDataFromServer();
       // }
-      await orderProvider.requestDataFromServer();
+      // await orderProvider.requestDataFromServer();
     } catch (e) {
       debugPrint('❌ Error initializing WebSocket and data: $e');
     }
@@ -419,8 +541,18 @@ class _TableScreenState extends State<TableScreen> {
 
     updatedExtras.forEach((mainTable, extras) {
       final remaining = extras.where((extraTable) {
-        return orderProvider.getTableTotalPrice(extraTable) > 0;
+        // Extract seat from extraTable like "Table1(B)" → "B"
+        final seatMatch = RegExp(r'\(([A-Z])\)$').firstMatch(extraTable);
+        final seat =
+            seatMatch?.group(1) ??
+            'A'; // fallback to 'A' if no match (shouldn't happen for extras)
+
+        // Now check total price for this specific seat on the extra table
+        final totalForSeat = orderProvider.getTableTotalPrice(extraTable, seat);
+
+        return totalForSeat > 0;
       }).toList();
+
       if (remaining.length != extras.length) {
         box.put(mainTable, remaining);
         updatedExtras[mainTable] = remaining;
@@ -433,32 +565,47 @@ class _TableScreenState extends State<TableScreen> {
 
   @override
   void dispose() {
-    final eventProvider = Provider.of<ProductEventProvider>(
-      context,
-      listen: false,
-    );
-    eventProvider.removeListener(_handleProductEvents);
-    final cartProvider = Provider.of<CartProviderKOT>(context, listen: false);
+    debugPrint("dispose for table screen");
+    _salesProv.employee.text = '';
+    createdBy = '';
+    debugPrint("dispose for table screen 01 ");
 
-    eventProvider.removeListener(_handleProductEvents);
-    super.dispose();
+    // ← Critical: Remove listener before disposing controller
+    _scrollController.removeListener(_onScroll);
+    debugPrint("dispose for table screen 02 ");
+
     _refreshTimer?.cancel();
+    debugPrint("dispose for table screen 03 ");
+
     _debounceTimer?.cancel();
+
     Hive.box('extra_tables').compact();
     extraTablesNotifier.dispose();
     isLoadingNotifier.dispose();
     selectedTableNotifier.dispose();
+
     selectedAreaForTableNotifier.dispose();
     showProductCardNotifier.dispose();
     productCardDataNotifier.dispose();
-    cartProvider.currentTableNumber.dispose();
-    cartProvider.currentSeat.dispose();
-    cartProvider.currentAreaName.dispose();
-    cartProvider.currentSeathiveOrderId.dispose();
     _scrollController.dispose();
-    // channel?.sink.close();
+    debugPrint("dispose for table screen 05 ");
 
-    super.dispose();
+    _productEvent.removeListener(_handleProductEvents);
+    debugPrint("dispose for table screen 06 ");
+
+    // final cartProvider = Provider.of<CartProviderKOT>(context, listen: false);
+    // _cartProv.currentTableNumber.dispose();
+    // _cartProv.currentSeat.dispose();
+    // _cartProv.currentAreaName.dispose();
+    // _cartProv.currentSeathiveOrderId.dispose();
+    _cartProv.currentTableNumber.value = '';
+    _cartProv.currentSeat.value = '';
+    _cartProv.currentAreaName.value = '';
+    _cartProv.currentSeathiveOrderId.value = '';
+
+    debugPrint("dispose for table screen 07 ");
+
+    super.dispose(); // Only once!
   }
 
   bool _hasHoldOrder(String tableNumber, String seat) {
@@ -471,201 +618,12 @@ class _TableScreenState extends State<TableScreen> {
       // Use the proper method to check for hold orders
       final hasOrder = holdOrderProvider.hasHoldOrder(tableNumber, seat);
 
-      // Debug logging
-      if (hasOrder) {
-        debugPrint('✅ Hold order found for $tableNumber - Seat $seat');
-      }
-
       return hasOrder;
     } catch (e) {
       debugPrint('❌ Error checking hold order for $tableNumber: $e');
       return false;
     }
   }
-
-  // void sendSeatActionToServer(
-  //   String tableNumber,
-  //   String seat,
-  //   String areaName,
-  // ) {
-  //   try {
-  //     final orderProvider = Provider.of<OrderProvider>(context, listen: false);
-  //     final holdOrderProvider = Provider.of<HoldOrderProvider>(
-  //       context,
-  //       listen: false,
-  //     );
-  //     final cartProvider = Provider.of<CartProviderKOT>(context, listen: false);
-
-  //     debugPrint(
-  //       "🟢 Preparing to send seat action: Table=$tableNumber, Seat=$seat, Area=$areaName",
-  //     );
-
-  //     List<Map<String, dynamic>> ordersForSeat = [];
-  //     try {
-  //       ordersForSeat = orderProvider
-  //           .getActiveOrdersForSeat(tableNumber, seat)
-  //           .where(
-  //             (order) => order['table'] == tableNumber && order['seat'] == seat,
-  //           )
-  //           .toList();
-  //       debugPrint("📦 Active orders for seat: ${ordersForSeat.length}");
-  //     } catch (e, stack) {
-  //       debugPrint("🚨 Error fetching active orders: $e\n$stack");
-  //     }
-
-  //     String seathiveOrderId = '';
-  //     try {
-  //       final activeOrder = ordersForSeat.isNotEmpty
-  //           ? ordersForSeat.firstWhere(
-  //               (order) => order['status'] == 'active',
-  //               orElse: () => <String, dynamic>{},
-  //             )
-  //           : <String, dynamic>{};
-
-  //       if (activeOrder.isNotEmpty) {
-  //         seathiveOrderId = activeOrder['seathiveOrderId'] ?? '';
-  //         debugPrint("📝 Active order ID found: $seathiveOrderId");
-  //       } else {
-  //         debugPrint("⚠️ No active order found for this seat.");
-  //       }
-  //     } catch (e, stack) {
-  //       debugPrint("🚨 Error determining active order: $e\n$stack");
-  //     }
-
-  //     // NEW: Update the productCardViewList data
-  //     cartProvider.currentTableNumber.value = tableNumber;
-  //     cartProvider.currentSeat.value = seat;
-  //     cartProvider.currentAreaName.value = areaName;
-  //     cartProvider.currentSeathiveOrderId.value = seathiveOrderId;
-
-  //     final webSocketService = Provider.of<WebSocketService>(
-  //       context,
-  //       listen: false,
-  //     );
-  //     final data = {
-  //       'action': 'seat_tapped',
-  //       'table': tableNumber,
-  //       'seat': seat,
-  //       'seathiveOrderId': seathiveOrderId,
-  //     };
-
-  //     try {
-  //       if (globals.appType == 'server') {
-  //         debugPrint("🌐 Running on server, sending data to clients: $data");
-  //         sendDataToClientsKOT(data);
-  //       } else {
-  //         if (webSocketService.isConnected &&
-  //             webSocketService.channel != null) {
-  //           debugPrint("🌐 WebSocket connected, sending data...");
-  //           try {
-  //             webSocketService.channel!.sink.add(jsonEncode(data));
-  //             debugPrint("✅ Data sent to server: $data");
-  //           } catch (e, stack) {
-  //             debugPrint("❌ WebSocket send error: $e\n$stack");
-  //             WidgetsBinding.instance.addPostFrameCallback((_) {
-  //               if (context.mounted) {
-  //                 showCustomFlushbar(
-  //                   context,
-  //                   "WebSocket send error: $e",
-  //                   type: FlushbarType.error,
-  //                 );
-  //               }
-  //             });
-  //           }
-  //         } else {
-  //           debugPrint("⚠️ WebSocket not ready. Attempting reconnect...");
-  //           try {
-  //             webSocketService.reconnect();
-  //           } catch (e) {
-  //             debugPrint("🚨 Error while reconnecting WebSocket: $e");
-  //           }
-  //           if (context.mounted) {
-  //             WidgetsBinding.instance.addPostFrameCallback((_) {
-  //               showCustomFlushbar(
-  //                 context,
-  //                 "WebSocket not ready. Reconnecting...",
-  //                 type: FlushbarType.warning,
-  //               );
-  //             });
-  //           }
-  //           return;
-  //         }
-  //       }
-  //     } catch (e, stack) {
-  //       debugPrint("🚨 Error in WebSocket handling: $e\n$stack");
-  //     }
-
-  //     try {
-  //       debugPrint("🛒 Loading hold order into cart...");
-  //       cartProvider.clearCart();
-  //       final holdOrder = holdOrderProvider.loadHoldOrder(tableNumber, seat);
-  //       if (holdOrder != null) {
-  //         holdOrder.forEach((key, value) {
-  //           cartProvider.cart[key] = value;
-  //         });
-  //         debugPrint("✅ Hold order loaded for table $tableNumber seat $seat");
-  //       } else {
-  //         debugPrint(
-  //           "ℹ️ No hold order found for table $tableNumber seat $seat",
-  //         );
-  //       }
-  //     } catch (e, stack) {
-  //       debugPrint("🚨 Error loading hold order: $e\n$stack");
-  //     }
-
-  //     // UPDATED: Show ProductCardScreen as overlay on left side
-  //     // if (mounted) {
-  //     //   Future.delayed(const Duration(milliseconds: 100), () {
-  //     //     try {
-  //     //       final navigationAreaName = areaName.isNotEmpty
-  //     //           ? areaName
-  //     //           : getAreaNameForTable(extractMainTable(tableNumber));
-  //     //       if (navigationAreaName.isEmpty) {
-  //     //         debugPrint(
-  //     //           "❌ No area found for table $tableNumber, cannot navigate",
-  //     //         );
-  //     //         if (mounted) {
-  //     //           WidgetsBinding.instance.addPostFrameCallback((_) {
-  //     //             showCustomFlushbar(
-  //     //               context,
-  //     //               "No area found for table $tableNumber",
-  //     //               type: FlushbarType.error,
-  //     //             );
-  //     //           });
-  //     //         }
-  //     //         return;
-  //     //       }
-
-  //     //       // Set the data for ProductCardScreen and show it as overlay
-  //     //       productCardDataNotifier.value = {
-  //     //         'tableNumber': tableNumber,
-  //     //         'areaName': navigationAreaName,
-  //     //         'seat': seat,
-  //     //         'seathiveOrderId': seathiveOrderId,
-  //     //       };
-  //     //       showProductCardNotifier.value = true;
-
-  //     //       debugPrint(
-  //     //         "➡️ Showing ProductCardScreen as overlay for Table=$tableNumber, Seat=$seat, Area=$navigationAreaName",
-  //     //       );
-  //     //     } catch (e, stack) {
-  //     //       debugPrint("🚨 Error showing ProductCardScreen: $e\n$stack");
-  //     //     }
-  //     //   });
-  //     // }
-  //   } catch (e, stack) {
-  //     debugPrint("💥 Fatal error in sendSeatActionToServer: $e\n$stack");
-  //     if (mounted) {
-  //       WidgetsBinding.instance.addPostFrameCallback((_) {
-  //         showCustomFlushbar(
-  //           context,
-  //           "Failed to send seat action: $e",
-  //           type: FlushbarType.error,
-  //         );
-  //       });
-  //     }
-  //   }
-  // }
 
   void _loadConfirmedOrdersToCart(
     String tableNumber,
@@ -675,6 +633,7 @@ class _TableScreenState extends State<TableScreen> {
     try {
       final orderProvider = Provider.of<OrderProvider>(context, listen: false);
       final cartProvider = Provider.of<CartProviderKOT>(context, listen: false);
+      final prov = Provider.of<SalesInvoiceState>(context, listen: false);
       final productProvider = Provider.of<ProductProvider>(
         context,
         listen: false,
@@ -693,19 +652,7 @@ class _TableScreenState extends State<TableScreen> {
           )
           .toList();
 
-      final justOrders = orderProvider.orders
-          .where(
-            (order) => order['table'] == tableNumber && order['seat'] == seat,
-            // order['status'] == 'confirm',
-          )
-          .toList();
-
-      for (final just in justOrders) {
-        final varianceNames = List<String>.from(just['varianceNames'] ?? []);
-        final status = just['status']?.toString() ?? '';
-        print("justOrders varianceNames is ${varianceNames}");
-        print("justOrders status is ${status}");
-      }
+      debugPrint('confirmedOrders is $confirmedOrders');
 
       if (confirmedOrders.isEmpty) {
         debugPrint('⚠️ No confirmed orders found for $tableNumber seat $seat');
@@ -716,11 +663,18 @@ class _TableScreenState extends State<TableScreen> {
       final firstOrder = confirmedOrders.first;
       final seathiveOrderId = firstOrder['seathiveOrderId']?.toString() ?? '';
 
+      if (confirmedOrders.isNotEmpty) {
+        prov.employee.text = firstOrder['waiter'];
+        createdBy = firstOrder['waiter'];
+      }
+
       // Load items into cart
       for (final order in confirmedOrders) {
+        debugPrint("order ${order['weights']}");
         final varianceNames = List<String>.from(order['varianceNames'] ?? []);
+        final weights = List<double>.from(order['weights'] ?? []);
         final status = order['status']?.toString() ?? '';
-        // print("varianceNames is ${varianceNames}");
+        print("weights is ${weights}");
         // print("status is ${status}");
         final quantities =
             (order['quantities'] as List?)
@@ -730,10 +684,11 @@ class _TableScreenState extends State<TableScreen> {
         for (int i = 0; i < varianceNames.length; i++) {
           final varianceName = varianceNames[i];
           final quantity = quantities[i];
+          final weight = weights[i];
 
           // Add items to cart
           for (int j = 0; j < quantity; j++) {
-            cartProvider.addToCart(varianceName);
+            cartProvider.addToCart(varianceName, weight: weight);
           }
         }
       }
@@ -877,11 +832,11 @@ class _TableScreenState extends State<TableScreen> {
   }
 
   Widget buildLegendIndicatorWithCount(
-    Color color,
     String label,
     int count,
-    VoidCallback onTap,
-  ) {
+    VoidCallback onTap, {
+    Color? indicatorColor,
+  }) {
     return ValueListenableBuilder<String>(
       valueListenable: currentFilterNotifier,
       builder: (context, currentFilter, _) {
@@ -890,39 +845,55 @@ class _TableScreenState extends State<TableScreen> {
         return InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(8),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            decoration: BoxDecoration(
-              color: isSelected ? Colors.blue : Colors.grey.shade300,
-              borderRadius: BorderRadius.circular(8),
-              border: isSelected
-                  ? Border.all(color: Colors.blue, width: 2)
-                  : null,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 16,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    color: color,
-                    shape: BoxShape.circle,
-                    // border: Border.all(color: Colors.grey.shade400),
+          child: Material(
+            elevation: 4.0,
+            shadowColor: Colors.black,
+            color: isSelected ? Colors.blue : Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              decoration: BoxDecoration(
+                color: isSelected ? Colors.blue : Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: isSelected
+                    ? Border.all(color: Colors.blue, width: 2)
+                    : null,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ✅ Show circle ONLY if indicatorColor is provided
+                  if (indicatorColor != null) ...[
+                    Container(
+                      width: 16,
+                      height: 16,
+                      decoration: BoxDecoration(
+                        color: indicatorColor,
+                        shape: BoxShape.circle,
+                        border: label == 'Available'
+                            ? Border.all(
+                                color: Colors.grey.shade300,
+                                width: 1.5, // adjust thickness if needed
+                              )
+                            : null,
+                      ),
+                    ),
+
+                    const SizedBox(width: 4),
+                  ],
+
+                  Text(
+                    "$label ($count)",
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      color: isSelected ? Colors.white : Colors.black,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  "$label ($count)",
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: isSelected
-                        ? FontWeight.bold
-                        : FontWeight.normal,
-                    color: Colors.black,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -946,11 +917,7 @@ class _TableScreenState extends State<TableScreen> {
     double tableTotal,
     String seat,
   ) {
-    // Check if table has hold order first
-    if (_hasHoldOrder(tableNumber, seat)) {
-      return Colors.orange; // Orange border for hold orders
-    }
-    // Then check if table has active orders
+    // Only default table coloring here
     return tableTotal > 0 ? Colors.teal : Colors.grey.shade300;
   }
 
@@ -1012,82 +979,89 @@ class _TableScreenState extends State<TableScreen> {
                     children: [
                       Consumer<CartProviderKOT>(
                         builder: (context, provider, child) {
-                          return Column(
-                            children: [
-                              Expanded(
-                                child: Row(
-                                  children: [
-                                    // Left side - Tables Grid (67% of screen)
-                                    Expanded(
-                                      flex: 2,
-                                      child: Container(
-                                        constraints: BoxConstraints(
-                                          maxHeight: screenHeight,
-                                        ),
-                                        child: Column(
-                                          children: [
-                                            Expanded(
-                                              child: Stack(
-                                                children: [
-                                                  _buildTableGrid(
-                                                    orderProvider,
-                                                    screenHeight,
-                                                    cardWidth,
-                                                    cardHeight,
-                                                    columns,
-                                                  ),
-                                                  if (showProductCard)
-                                                    _buildProductCardScreenOverlay(),
-                                                ],
+                          return GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onTap: () {
+                              FocusManager.instance.primaryFocus?.unfocus();
+                            },
+                            child: Column(
+                              children: [
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      // Left side - Tables Grid (67% of screen)
+                                      Expanded(
+                                        flex: 2,
+                                        child: Container(
+                                          constraints: BoxConstraints(
+                                            maxHeight: screenHeight,
+                                          ),
+                                          child: Column(
+                                            children: [
+                                              Expanded(
+                                                child: Stack(
+                                                  children: [
+                                                    _buildTableGrid(
+                                                      // orderProvider,
+                                                      screenHeight,
+                                                      cardWidth,
+                                                      cardHeight,
+                                                      columns,
+                                                    ),
+                                                    if (showProductCard)
+                                                      _buildProductCardScreenOverlay(),
+                                                  ],
+                                                ),
                                               ),
-                                            ),
-                                          ],
+                                            ],
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    const VerticalDivider(width: 1),
-                                    // Right side - Product Card View (33% of screen)
-                                    Expanded(
-                                      flex: 1,
-                                      child: Container(
-                                        constraints: BoxConstraints(
-                                          maxHeight: screenHeight,
-                                        ),
-                                        // UPDATED: Use ValueListenableBuilder to pass dynamic data
-                                        child: ValueListenableBuilder4(
-                                          valueListenable1:
-                                              cartProvider.currentTableNumber,
-                                          valueListenable2:
-                                              cartProvider.currentSeat,
-                                          valueListenable3:
-                                              cartProvider.currentAreaName,
-                                          valueListenable4: cartProvider
-                                              .currentSeathiveOrderId,
-                                          builder:
-                                              (
-                                                context,
-                                                tableNum,
-                                                seatVal,
-                                                areaNameVal,
-                                                seathiveId,
-                                                _,
-                                              ) {
-                                                return RepaintBoundary(
-                                                  child: productCardViewList(
-                                                    tableNumber: tableNum,
-                                                    seat: seatVal,
-                                                    areaName: areaNameVal,
-                                                    seathiveOrderId: seathiveId,
-                                                  ),
-                                                );
-                                              },
+                                      const VerticalDivider(width: 1),
+                                      // Right side - Product Card View (33% of screen)
+                                      Expanded(
+                                        flex: 1,
+                                        child: Container(
+                                          constraints: BoxConstraints(
+                                            maxHeight: screenHeight,
+                                          ),
+                                          // UPDATED: Use ValueListenableBuilder to pass dynamic data
+                                          child: ValueListenableBuilder4(
+                                            valueListenable1:
+                                                cartProvider.currentTableNumber,
+                                            valueListenable2:
+                                                cartProvider.currentSeat,
+                                            valueListenable3:
+                                                cartProvider.currentAreaName,
+                                            valueListenable4: cartProvider
+                                                .currentSeathiveOrderId,
+                                            builder:
+                                                (
+                                                  context,
+                                                  tableNum,
+                                                  seatVal,
+                                                  areaNameVal,
+                                                  seathiveId,
+                                                  _,
+                                                ) {
+                                                  return RepaintBoundary(
+                                                    child: productCardViewList(
+                                                      tableNumber: tableNum,
+                                                      seat: seatVal,
+                                                      areaName: areaNameVal,
+                                                      seathiveOrderId:
+                                                          seathiveId,
+                                                    ),
+                                                  );
+                                                },
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           );
                         },
                       ),
@@ -1104,15 +1078,15 @@ class _TableScreenState extends State<TableScreen> {
 
   // UPDATED: Method to build the table grid with hold order support
   Widget _buildTableGrid(
-    OrderProvider orderProvider,
+    // OrderProvider orderProvider,
     double screenHeight,
     double cardWidth,
     double cardHeight,
     int columns,
   ) {
     // CHANGED: Use Consumer to listen for OrderProvider changes
-    return Consumer<HoldOrderProvider>(
-      builder: (context, holdOrderProvider, child) {
+    return Consumer3<HoldOrderProvider, OrderProvider, PreInvoiceState>(
+      builder: (context, holdOrderProvider, orderProvider, preInvoiceState, child) {
         final categoryProvider = Provider.of<CategoryProvider>(context);
         final productProvider = Provider.of<ProductProvider>(context);
         final timerProvider = Provider.of<TimerProvider>(context);
@@ -1139,7 +1113,7 @@ class _TableScreenState extends State<TableScreen> {
         final Map<String, int> tableCounts = allTables.fold(
           {'occupied': 0, 'available': 0, 'hold': 0},
           (counts, tableNumber) {
-            final total = orderProvider.getTableTotalPrice(tableNumber);
+            final total = orderProvider.getActiveTableCount(tableNumber);
             final seatMatch = RegExp(r'\((\w)\)$').firstMatch(tableNumber);
             final seat = seatMatch != null ? seatMatch.group(1)! : 'A';
 
@@ -1155,12 +1129,13 @@ class _TableScreenState extends State<TableScreen> {
         );
 
         final int allCount = allTables.length;
-        final int availableCount = tableCounts['available']!;
         final int holdCount = tableCounts['hold']!;
         final int confirmCount = orderProvider.getLockedTableSeatCount(
           allTables,
         );
-        final int occupiedCount = tableCounts['occupied']! - confirmCount;
+        final int occupiedCount = tableCounts['occupied']!;
+        final int availableCount =
+            allCount - (holdCount + confirmCount + occupiedCount);
 
         TextEditingController _searchController = TextEditingController();
 
@@ -1175,68 +1150,9 @@ class _TableScreenState extends State<TableScreen> {
             Stack(
               children: [
                 Padding(
-                  padding: const EdgeInsets.only(left: 10, top: 10),
+                  padding: const EdgeInsets.only(left: 0, top: 10),
                   child: Row(
                     children: [
-                      Expanded(
-                        child: SizedBox(
-                          height: 55,
-                          child: IdleKeyboardHide(
-                            controller: _searchController,
-                            decoration: InputDecoration(
-                              filled: true,
-                              fillColor: Colors.grey.shade50,
-                              labelText: 'Search Products',
-                              labelStyle: const TextStyle(color: Colors.grey),
-                              hintText: 'Search Products',
-                              hintStyle: const TextStyle(color: Colors.grey),
-                              prefixIcon: const Icon(
-                                Icons.search,
-                                color: Colors.grey,
-                              ),
-                              suffixIcon: IconButton(
-                                icon: const Icon(
-                                  Icons.clear,
-                                  color: Colors.grey,
-                                ),
-                                onPressed: () {
-                                  Provider.of<SearchProviderDine>(
-                                    context,
-                                    listen: false,
-                                  ).clearSearchQuery();
-                                  _searchController.clear();
-                                  FocusScope.of(context).unfocus();
-                                },
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: Colors.grey,
-                                ),
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: Colors.grey,
-                                ),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: const BorderSide(
-                                  color: Colors.grey,
-                                  width: 2,
-                                ),
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                vertical: 20,
-                                horizontal: 12,
-                              ),
-                            ),
-                            idleDuration: const Duration(seconds: 2),
-                          ),
-                        ),
-                      ),
-
                       Expanded(
                         flex: 3,
                         child: Container(
@@ -1315,44 +1231,49 @@ class _TableScreenState extends State<TableScreen> {
                 ),
               ],
             ),
+
             Padding(
               padding: const EdgeInsets.all(10.0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   buildLegendIndicatorWithCount(
-                    Colors.transparent,
                     "All",
                     allCount,
                     () => currentFilterNotifier.value = 'all',
                   ),
+
                   buildLegendIndicatorWithCount(
-                    Colors.teal.shade500,
                     "Occupied",
                     occupiedCount,
                     () => currentFilterNotifier.value = 'occupied',
+                    indicatorColor: Colors.teal.shade500,
                   ),
+
                   buildLegendIndicatorWithCount(
-                    Colors.white,
                     "Available",
                     availableCount,
                     () => currentFilterNotifier.value = 'available',
+                    indicatorColor: Colors.white,
                   ),
+
                   buildLegendIndicatorWithCount(
-                    const Color(0xFFFFF9C4),
                     "Hold",
                     holdCount,
                     () => currentFilterNotifier.value = 'hold',
+                    indicatorColor: Colors.orange,
                   ),
+
                   buildLegendIndicatorWithCount(
-                    Colors.red,
                     "PreInvoiced",
                     confirmCount,
                     () => currentFilterNotifier.value = 'preinvoiced',
+                    indicatorColor: Colors.red,
                   ),
                 ],
               ),
             ),
+
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
@@ -1415,9 +1336,7 @@ class _TableScreenState extends State<TableScreen> {
                         // FILTER TABLES WITHIN THIS AREA BASED ON LEGEND
                         final filteredTables = tables.where((table) {
                           final tableNumber = table['tableNumber'].toString();
-                          final total = orderProvider.getTableTotalPrice(
-                            tableNumber,
-                          );
+
                           final seatMatch = RegExp(
                             r'\((\w)\)$',
                           ).firstMatch(tableNumber);
@@ -1429,6 +1348,10 @@ class _TableScreenState extends State<TableScreen> {
                             (order) =>
                                 order['table'] == tableNumber &&
                                 order['status'] == 'confirm',
+                          );
+                          final total = orderProvider.getTableTotalPrice(
+                            tableNumber,
+                            seat,
                           );
 
                           switch (currentFilter) {
@@ -1532,10 +1455,6 @@ class _TableScreenState extends State<TableScreen> {
 
                                           final currentTable =
                                               combinedTables[index]['tableNumber'];
-                                          final double tableTotal =
-                                              orderProvider.getTableTotalPrice(
-                                                currentTable,
-                                              );
                                           final allOrders =
                                               orderProvider.orders;
                                           final seatMatch = RegExp(
@@ -1545,13 +1464,54 @@ class _TableScreenState extends State<TableScreen> {
                                               ? seatMatch.group(1)!
                                               : 'A';
 
-                                          // FIXED: Real-time seat locking check
+                                          final double tableTotal =
+                                              orderProvider.getTableTotalPrice(
+                                                currentTable,
+                                                seatToCheck,
+                                              ); // FIXED: Real-time seat locking check
                                           final isSeatLocked = allOrders.any(
                                             (order) =>
                                                 order['table'] ==
                                                     currentTable &&
                                                 order['seat'] == seatToCheck &&
                                                 order['status'] == 'confirm',
+                                          );
+                                          final invoice = allOrders
+                                              .where(
+                                                (order) =>
+                                                    order['table'] ==
+                                                        currentTable &&
+                                                    order['seat'] ==
+                                                        seatToCheck &&
+                                                    order['status'] ==
+                                                        'confirm',
+                                              )
+                                              .toList();
+
+                                          // if (invoice.isNotEmpty) {
+                                          //   // debugPrint(
+                                          //   //   "invoice preinvoiceTime: ${invoice.first['preinvoiceTime']}",
+                                          //   // );
+                                          // } else {
+                                          //   // debugPrint(
+                                          //   //   "No confirmed invoice found for this table and seat",
+                                          //   // );
+                                          // }
+                                          final preinvoiceTime =
+                                              invoice.isNotEmpty
+                                              ? invoice.first['preinvoiceTime']
+                                              : '';
+
+                                          int elapsedSeconds =
+                                              preinvoiceTime.isNotEmpty
+                                              ? calculateElapsedTime(
+                                                  preinvoiceTime,
+                                                )
+                                              : 0;
+                                          String formattedElapsedTime =
+                                              formatElapsedTime(elapsedSeconds);
+                                          Color cardColor = getCardColor(
+                                            elapsedSeconds,
                                           );
 
                                           final isOrdered = allOrders.any(
@@ -1596,44 +1556,6 @@ class _TableScreenState extends State<TableScreen> {
                                                     '🛠️ Showing customer actions for $currentTable, seat $resolvedSeat',
                                                   );
 
-                                                  // ✅ Check WebSocket connection
-                                                  // WebSocketChannel?
-                                                  // activeChannel = channel;
-                                                  // if (activeChannel == null) {
-                                                  //   try {
-                                                  //     debugPrint(
-                                                  //       '⚠️ WebSocket channel is null — trying to reconnect...',
-                                                  //     );
-                                                  //     activeChannel =
-                                                  //         IOWebSocketChannel.connect(
-                                                  //           'ws://$serverip:$port',
-                                                  //         );
-                                                  //     debugPrint(
-                                                  //       '✅ WebSocket reconnected successfully.',
-                                                  //     );
-                                                  //   } catch (e) {
-                                                  //     debugPrint(
-                                                  //       '❌ Failed to reconnect WebSocket: $e',
-                                                  //     );
-                                                  //     if (mounted) {
-                                                  //       WidgetsBinding.instance
-                                                  //           .addPostFrameCallback((
-                                                  //             _,
-                                                  //           ) {
-                                                  //             showCustomFlushbar(
-                                                  //               context,
-                                                  //               'Failed to connect to server. Please try again.',
-                                                  //               type:
-                                                  //                   FlushbarType
-                                                  //                       .error,
-                                                  //             );
-                                                  //           });
-                                                  //     }
-                                                  //     return;
-                                                  //   }
-                                                  // }
-
-                                                  // ✅ Proceed to show the customer actions modal
                                                   showTableActionsDialog(
                                                     // channel: activeChannel,
                                                     context: context,
@@ -1708,7 +1630,7 @@ class _TableScreenState extends State<TableScreen> {
                                             },
                                             behavior:
                                                 HitTestBehavior.translucent,
-                                            onTapUp: (details) {
+                                            onTapUp: (details) async {
                                               if (!_scrollController
                                                   .position
                                                   .isScrollingNotifier
@@ -1716,6 +1638,23 @@ class _TableScreenState extends State<TableScreen> {
                                                 debugPrint(
                                                   '👆 Tap on table is: $currentTable',
                                                 );
+
+                                                final prov =
+                                                    Provider.of<
+                                                      SalesInvoiceState
+                                                    >(context, listen: false);
+
+                                                prov.updateMultiple(
+                                                  selectedEmployeeFirstName:
+                                                      "", // or extract if available
+                                                  selectedEmployeeNumber:
+                                                      "", // or extract if available
+                                                );
+
+                                                prov.employee.text = '';
+
+                                                // Optional: update global if needed elsewhere
+                                                createdBy = '';
                                                 try {
                                                   final seatMatch = RegExp(
                                                     r'\((\w)\)$',
@@ -1734,12 +1673,10 @@ class _TableScreenState extends State<TableScreen> {
                                                   print(
                                                     "seatToSend is ... $seatToSend",
                                                   );
-                                                  print(
-                                                    "resolvedAreaName is $resolvedAreaName",
-                                                  );
 
                                                   final allOrders =
                                                       orderProvider.orders;
+
                                                   final isSeatConfirmed =
                                                       allOrders.any(
                                                         (order) =>
@@ -1752,18 +1689,6 @@ class _TableScreenState extends State<TableScreen> {
                                                       );
 
                                                   if (isSeatConfirmed) {
-                                                    final invoicebox =
-                                                        HiveManager.invoiceBox;
-
-                                                    print(
-                                                      "Invoice box length is :${invoicebox.length}",
-                                                    );
-
-                                                    orderProvider.orders.forEach(
-                                                      (element) => print(
-                                                        "orders is ${element['varianceNames']} : ${element['status']}  :   ${element['table']}  : ${element['seat']}",
-                                                      ),
-                                                    );
                                                     debugPrint(
                                                       '🔒 Table $currentTable is pre-invoiced - loading orders for view',
                                                     );
@@ -1825,11 +1750,7 @@ class _TableScreenState extends State<TableScreen> {
                                                   //   seatToCheck,
                                                   // ),
                                                   color: isSeatLocked
-                                                      ? timerProvider
-                                                            .getPreinvoiceTimeColor(
-                                                              currentTable,
-                                                              seatToCheck,
-                                                            )
+                                                      ? cardColor
                                                       : isOrdered
                                                       ? timerProvider
                                                             .getOrderTimeColor(
@@ -1845,18 +1766,29 @@ class _TableScreenState extends State<TableScreen> {
                                                   border: Border.all(
                                                     color: isSeatLocked
                                                         ? Colors.red
+                                                        : hasHold ||
+                                                              _hasHoldOrder(
+                                                                currentTable,
+                                                                seatToCheck,
+                                                              ) // Prioritize hold for color
+                                                        ? Colors.orange
                                                         : isOrdered
-                                                        ? Colors.teal.shade300
-                                                        : getTableBorderColor(
-                                                            currentTable,
-                                                            tableTotal,
-                                                            seatToCheck,
-                                                          ),
+                                                        ? const Color.fromARGB(
+                                                            153,
+                                                            43,
+                                                            185,
+                                                            171,
+                                                          )
+                                                        : tableTotal > 0
+                                                        ? Colors.teal
+                                                        : Colors.grey.shade300,
                                                     width: hasHold
                                                         ? 2
                                                         : isOrdered
-                                                        ? 1.5
-                                                        : 0, // Thicker border for hold orders
+                                                        ? 2
+                                                        : tableTotal > 0
+                                                        ? 1 // or whatever you want for normal active tables without "ordered" flag
+                                                        : 0,
                                                   ),
                                                   boxShadow: const [
                                                     BoxShadow(
@@ -1905,25 +1837,20 @@ class _TableScreenState extends State<TableScreen> {
                                                             ),
                                                           ),
                                                           Consumer<
-                                                            TimerProvider
+                                                            PreInvoiceState
                                                           >(
                                                             builder:
                                                                 (
                                                                   context,
-                                                                  timerProvider,
+                                                                  preInvoiceState,
                                                                   child,
                                                                 ) {
-                                                                  final hasTimer =
-                                                                      timerProvider.hasTimer(
-                                                                        currentTable,
-                                                                        seatToCheck,
-                                                                      );
-                                                                  if (hasTimer) {
+                                                                  if (isSeatLocked) {
                                                                     return Text(
-                                                                      timerProvider.getFormattedTime(
-                                                                        currentTable,
-                                                                        seatToCheck,
-                                                                      ),
+                                                                      formattedElapsedTime
+                                                                              .isNotEmpty
+                                                                          ? formattedElapsedTime
+                                                                          : '',
                                                                       style: TextStyle(
                                                                         fontSize:
                                                                             11,
@@ -1948,7 +1875,7 @@ class _TableScreenState extends State<TableScreen> {
                                                         child: Icon(
                                                           Icons.lock,
                                                           size: 18,
-                                                          color: Colors.white,
+                                                          color: Colors.red,
                                                         ),
                                                       ),
                                                   ],
@@ -1982,8 +1909,6 @@ class _TableScreenState extends State<TableScreen> {
     final data = productCardDataNotifier.value;
     if (data.isEmpty) return const SizedBox();
 
-    print("productCardDataNotifier is $data");
-
     return Container(
       width: MediaQuery.of(context).size.width * 0.67,
       decoration: BoxDecoration(
@@ -2005,18 +1930,17 @@ class _TableScreenState extends State<TableScreen> {
               seat: data['seat'],
               seathiveOrderId: data['seathiveOrderId'],
               onClose: () {
-                showProductCardNotifier.value = false;
-                productCardDataNotifier.value = {};
-
                 // Refresh data when ProductCardScreen closes
                 final orderProvider = Provider.of<OrderProvider>(
                   context,
                   listen: false,
                 );
+                showProductCardNotifier.value = false;
+                productCardDataNotifier.value = {};
                 if (globals.appType != 'server') {
                   orderProvider.requestDataFromServer();
                 } else {
-                  loadOrdersFromHive();
+                  orderProvider.loadOrdersFromHive();
                 }
               },
             ),

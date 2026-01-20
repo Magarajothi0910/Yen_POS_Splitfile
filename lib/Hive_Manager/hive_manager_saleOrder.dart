@@ -18,6 +18,8 @@ class HiveManager {
   static Box? _customCharges;
   static Box? _customers;
   static Box? _branches;
+  static Box? _discounts;
+  static Box? _advancePercent;
 
   late Box? userBox;
   late Box? serverBox;
@@ -38,6 +40,8 @@ class HiveManager {
     _customCharges = await Hive.openBox('charges');
     _customers = await Hive.openBox('customerBox');
     _branches = await Hive.openBox('branches');
+    _discounts = await Hive.openBox('discounts');
+    _advancePercent = await Hive.openBox('advancePercent');
 
     _toApproveOrderBox = await Hive.openBox('toApproveOrderBox');
     _holdOrderBox = await Hive.openBox('holdOrders');
@@ -103,6 +107,24 @@ class HiveManager {
       );
     }
     return _holdOrderBox!;
+  }
+
+  static Box get discounts {
+    if (_discounts == null) {
+      throw Exception(
+        'Hold order Hive not initialized! Call HiveManager.initialize() first',
+      );
+    }
+    return _discounts!;
+  }
+
+  static Box get advancePercent {
+    if (_advancePercent == null) {
+      throw Exception(
+        'Hold order Hive not initialized! Call HiveManager.initialize() first',
+      );
+    }
+    return _advancePercent!;
   }
 
   static Box get salesOrderNumberBox {

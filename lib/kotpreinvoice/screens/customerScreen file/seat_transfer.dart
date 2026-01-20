@@ -67,8 +67,10 @@ void showAvailableTablesForTransfer(
 
                       final availableTables = areaTables.where((table) {
                         final tableNumber = table['tableNumber'].toString();
+                        final seat = table['seat'].toString();
                         final total = orderProvider.getTableTotalPrice(
                           tableNumber,
+                          seat,
                         );
                         return total == 0 && tableNumber != currentTable;
                       }).toList();
@@ -197,15 +199,6 @@ void showAvailableTablesForTransfer(
                                                     PrinterProviderDine
                                                   >(context, listen: false);
 
-                                              final timerProvider =
-                                                  Provider.of<TimerProvider>(
-                                                    context,
-                                                    listen: false,
-                                                  );
-
-                                              print(
-                                                "🌐 Sending seat transfer request...",
-                                              );
                                               final success =
                                                   await webSocketService
                                                       .sendSeatTransfer(
@@ -240,14 +233,14 @@ void showAvailableTablesForTransfer(
                                                 "✅ Seat transfer request sent: {currentTable: $currentTable, currentSeat: $currentSeat, targetTable: $tableNumber, targetSeat: A, seathiveOrderId: $seathiveOrderId}",
                                               );
 
-                                              timerProvider.stopTimer(
-                                                currentTable,
-                                                currentSeat,
-                                              );
-                                              timerProvider.startTimer(
-                                                tableNumber,
-                                                currentSeat,
-                                              );
+                                              // timerProvider.stopTimer(
+                                              //   currentTable,
+                                              //   currentSeat,
+                                              // );
+                                              // timerProvider.startTimer(
+                                              //   tableNumber,
+                                              //   currentSeat,
+                                              // );
                                               // 🔍 Fetch order details
                                               final seatOrders = orderProvider
                                                   .getActiveOrdersForSeat(
@@ -318,14 +311,12 @@ void showAvailableTablesForTransfer(
                                   decoration: BoxDecoration(
                                     color: Colors.white,
                                     borderRadius: BorderRadius.circular(12),
-                                    // border: Border.all(
-                                    //   color: Colors.grey,
-                                    // ),
+
                                     boxShadow: const [
                                       BoxShadow(
                                         color: Color.fromARGB(76, 0, 0, 0),
-                                        blurRadius: 4,
-                                        offset: Offset(2, 2),
+                                        blurRadius: 2,
+                                        offset: Offset(1, 1),
                                       ),
                                     ],
                                   ),
@@ -344,7 +335,7 @@ void showAvailableTablesForTransfer(
                                           style: TextStyle(
                                             fontSize: 16,
                                             fontWeight: FontWeight.bold,
-                                            color: Colors.black38,
+                                            color: Colors.black54,
                                           ),
                                         ),
                                       ],

@@ -132,26 +132,6 @@ class _EditOutletCustomerDetailsState extends State<EditOutletCustomerDetails> {
     }
   }
 
-  void _toggleEditing() {
-    setState(() {
-      _isEditing = !_isEditing;
-    });
-  }
-
-  // This function is triggered when both images are selected
-
-  // void handleRecordingComplete(String path) {
-  //   setState(() {
-  //     recordedFilePath = path;
-  //   });
-  //   print('Recording completed. File path: $path');
-  // }
-
-  void _validateForm() {
-    setState(() {
-      _isFormValid = _formKey.currentState?.validate() ?? false;
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -556,23 +536,12 @@ class _EditOutletCustomerDetailsState extends State<EditOutletCustomerDetails> {
                             child: DropdownButtonFormField<String>(
                               autovalidateMode:
                                   AutovalidateMode.onUserInteraction,
-
                               value:
-                                  GlobalDataManager().deliveryTypes.any(
-                                    (item) =>
-                                        item['deliveryType'] ==
-                                        customerScreenProvider
-                                            .selectedDeliveryType,
-                                  )
-                                  ? customerScreenProvider.selectedDeliveryType
-                                  : null, // prevents mismatch
-
+                                  customerScreenProvider.selectedDeliveryType,
                               hint: const Text(
                                 'Delivery Type',
                                 style: TextStyle(fontSize: 11),
                               ),
-
-                              // 🔥 Map dynamic delivery types
                               items: GlobalDataManager().deliveryTypes
                                   .map<DropdownMenuItem<String>>((item) {
                                     return DropdownMenuItem<String>(
@@ -581,14 +550,26 @@ class _EditOutletCustomerDetailsState extends State<EditOutletCustomerDetails> {
                                     );
                                   })
                                   .toList(),
-
                               onChanged: _isEditing
                                   ? (String? newValue) {
-                                      customerScreenProvider
-                                          .setSelectedDeliveryType(newValue);
+                                      if (newValue != null) {
+                                        customerScreenProvider
+                                            .setSelectedDeliveryType(newValue);
+                                        // Clear address fields when delivery type changes
+                                        if (newValue.toLowerCase() !=
+                                            'door delivery') {
+                                          customerScreenProvider
+                                              .landmarkController
+                                              .clear();
+                                          customerScreenProvider
+                                              .addressController
+                                              .clear();
+                                        }
+                                        // Force rebuild to show/hide landmark and address fields
+                                        setState(() {});
+                                      }
                                     }
                                   : null,
-
                               decoration: InputDecoration(
                                 enabled: _isEditing,
                                 border: OutlineInputBorder(),
@@ -600,14 +581,11 @@ class _EditOutletCustomerDetailsState extends State<EditOutletCustomerDetails> {
                                   vertical: 8,
                                 ),
                               ),
-
                               style: const TextStyle(
                                 fontSize: 13,
                                 color: Colors.black,
                               ),
-
                               dropdownColor: Colors.white,
-
                               validator: (value) {
                                 if (_isFormValid &&
                                     (value == null || value.isEmpty)) {
@@ -626,20 +604,17 @@ class _EditOutletCustomerDetailsState extends State<EditOutletCustomerDetails> {
                           const Padding(padding: EdgeInsets.all(5)),
                         ],
                       ),
-
                       const Padding(padding: EdgeInsets.all(5)),
-
-                      // Conditionally show Address and Landmark Fields if "Door Delivery" is selected
+                      // Conditional Address and Landmark Fields
                       if ((customerScreenProvider.selectedDeliveryType ?? '')
                               .toLowerCase() ==
                           'door delivery') ...[
-                        // Row for Landmark and Address
-                        // Row for Landmark and Address
                         Row(
                           children: [
                             const Padding(padding: EdgeInsets.all(5)),
                             Expanded(
                               child: TextFormField(
+                                key: const ValueKey('landmark_field'),
                                 autovalidateMode:
                                     AutovalidateMode.onUserInteraction,
                                 controller:
@@ -648,18 +623,19 @@ class _EditOutletCustomerDetailsState extends State<EditOutletCustomerDetails> {
                                   border: OutlineInputBorder(),
                                   labelText: 'Landmark',
                                   enabled: _isEditing,
-                                  labelStyle: TextStyle(fontSize: 14),
-                                  isDense:
-                                      false, // Makes the field more compact
-                                  contentPadding: EdgeInsets.symmetric(
+                                  labelStyle: const TextStyle(fontSize: 14),
+                                  isDense: false,
+                                  contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 20,
                                     vertical: 10,
                                   ),
                                   hintText:
                                       'e.g., Near ABC Park, Opposite XYZ Mall',
-                                  hintStyle: TextStyle(color: Colors.grey),
+                                  hintStyle: const TextStyle(
+                                    color: Colors.grey,
+                                  ),
                                 ),
-                                style: TextStyle(fontSize: 14),
+                                style: const TextStyle(fontSize: 14),
                                 validator: (value) {
                                   if (_isFormValid &&
                                       (value == null || value.isEmpty)) {
@@ -672,26 +648,28 @@ class _EditOutletCustomerDetailsState extends State<EditOutletCustomerDetails> {
                             const Padding(padding: EdgeInsets.all(5)),
                             Expanded(
                               child: TextFormField(
+                                key: const ValueKey('address_field'),
                                 autovalidateMode:
                                     AutovalidateMode.onUserInteraction,
                                 controller:
                                     customerScreenProvider.addressController,
-                                // readOnly: !_isEditing,
                                 decoration: InputDecoration(
                                   border: OutlineInputBorder(),
                                   labelText: 'Address',
                                   enabled: _isEditing,
-                                  labelStyle: TextStyle(fontSize: 14),
-                                  isDense:
-                                      false, // Makes the field more compact
-                                  contentPadding: EdgeInsets.symmetric(
+                                  labelStyle: const TextStyle(fontSize: 14),
+                                  isDense: false,
+                                  contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 20,
                                     vertical: 10,
                                   ),
                                   hintText:
                                       'e.g., 1234 Main Street, Apartment 12',
-                                  hintStyle: TextStyle(color: Colors.grey),
+                                  hintStyle: const TextStyle(
+                                    color: Colors.grey,
+                                  ),
                                 ),
+                                style: const TextStyle(fontSize: 14),
                                 validator: (value) {
                                   if (_isFormValid &&
                                       (value == null || value.isEmpty)) {

@@ -580,17 +580,41 @@ class CurrentSaleProvider with ChangeNotifier {
     }
   }
 
+  // double calculateItemTotal(Map<String, dynamic> item) {
+  //   try {
+  //     double price = (item['varianceData']?['variance_Defaultprice'] ?? 0.0)
+  //         .toDouble();
+  //     double quantity = (item['quantity'] as num?)?.toDouble() ?? 0.0;
+  //     return price * quantity;
+  //   } catch (e) {
+  //     print('Error calculating item total: $e for item: $item');
+  //     return 0.0;
+  //   }
+  // }
+
   double calculateItemTotal(Map<String, dynamic> item) {
-    try {
-      double price = (item['varianceData']?['variance_Defaultprice'] ?? 0.0)
-          .toDouble();
-      double quantity = (item['quantity'] as num?)?.toDouble() ?? 0.0;
+  try {
+    double price = (item['varianceData']?['variance_Defaultprice'] as num?)?.toDouble() ?? 0.0;
+    String uom = (item['uom'] as String?)?.toLowerCase() ?? '';
+
+    if (uom == 'kgs' || uom == 'kg') {
+      // For weight-based items, use 'weight' field
+      double weight = (item['weight'] as num?)?.toDouble() ?? 0.0;
+      if (weight <= 0) {
+        // Fallback: if weight is missing or zero, avoid returning 0
+        return price; // or return 0.0 if you prefer
+      }
+      return price * weight;
+    } else {
+      // For quantity-based items (Pcs, Pkt, etc.), use 'quantity'
+      double quantity = (item['quantity'] as num?)?.toDouble() ?? 1.0;
       return price * quantity;
-    } catch (e) {
-      print('Error calculating item total: $e for item: $item');
-      return 0.0;
     }
+  } catch (e) {
+    print('Error calculating item total: $e for item: $item');
+    return 0.0;
   }
+}
 
   void clearItems() async {
     _currentSaleItems.clear();

@@ -26,7 +26,11 @@ String branchPhoneno = "";
 String ordertype = "Dinning";
 String appType = ""; // "server" or "client"
 bool sentServer = false;
-
+final TextEditingController allBoxQtyController = TextEditingController();
+final TextEditingController bulkDiscountController = TextEditingController();
+final Map<String, TextEditingController> boxQtyControllers = {};
+final Map<String, TextEditingController> discountControllers = {};
+final Map<String, FocusNode> discountFocusNodes = {};
 // ======================================================
 // 🌐 SERVER CONFIGURATION
 // ======================================================
@@ -123,6 +127,7 @@ Map<String, List<String>> extraTables = {};
 List<Map<String, dynamic>> tables = [];
 
 /// Toggles and features
+bool isBranchItems = true;
 bool isKeyboardEnabled = false;
 bool isPaymentEnabled = true;
 bool isPrintEnabled = true;

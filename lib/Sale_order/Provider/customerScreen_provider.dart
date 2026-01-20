@@ -10,13 +10,16 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:yenpos/Global/Audio%20Player/audio_provider.dart';
+import 'package:yenpos/Global/Audio%20Player/audio_screen.dart';
 import 'package:yenpos/Global/Model/branch_model.dart';
 import 'package:yenpos/Global/Provider/branchwise_item_fetch.dart';
 import 'package:yenpos/Global/Provider/connectivity_internet.dart';
+import 'package:yenpos/Global/global_data_manager.dart';
 
 import 'package:yenpos/Global/globals_data.dart' as globalsData;
 import 'package:yenpos/Global/globals_data.dart' as globals;
 import 'package:yenpos/Hive_Manager/hive_manager_saleOrder.dart';
+import 'package:yenpos/Mode_page/bottomNavigation_Regular_Page/takeorderNavigator.dart';
 import 'package:yenpos/Sale_order/Models/approval_order_model.dart';
 import 'package:yenpos/Sale_order/Models/held_order_model.dart';
 import 'package:yenpos/Sale_order/Models/sale_order_model.dart';
@@ -31,7 +34,9 @@ import 'package:yenpos/Sale_order/Provider/cart_selection_provider.dart';
 import 'package:yenpos/Sale_order/Provider/get_sales_order_service.dart';
 import 'package:yenpos/Sale_order/Provider/saveAudioandImageFile.dart';
 import 'package:yenpos/Sale_order/Screens/create_sales_order.dart';
+import 'package:yenpos/Sale_order/Screens/salesorder_Customerdetails.dart';
 import 'package:yenpos/Sale_order/Widgets/Send_data_to_server.dart';
+import 'package:yenpos/Sale_order/Widgets/order_placed_dialogue.dart';
 import 'package:yenpos/Sale_order/Widgets/storetype_selection_dialogue.dart';
 import 'package:yenpos/Server_Client/handlers/saleorder_handlemessage.dart';
 import 'package:yenpos/Server_Client/handlers/webscoket_messgae_handler.dart';
@@ -43,6 +48,58 @@ import 'package:http/http.dart' as http;
 import '../../../Global/globals_data.dart' as globalbranch;
 
 class CustomerScreenProvider with ChangeNotifier {
+  // Method to reset images
+  void resetImages() {
+    pickedImages.clear();
+    // Force image widget recreation
+    notifyListeners();
+  }
+
+  String _orderType = 'Warehouse'; // default
+
+  String get orderType => _orderType;
+
+  void toggle() {
+    if (_orderType == 'Inhouse') {
+      _orderType = 'Warehouse';
+    } else {
+      _orderType = 'Inhouse';
+    }
+    notifyListeners();
+  }
+
+  void setOrderType(String type) {
+    _orderType = type;
+    notifyListeners();
+  }
+
+  List<File> _pickedImages = []; // Changed from individual fields to list
+  // Add these methods to your CustomerScreenProvider class
+  void addImages(List<File> images) {
+    _pickedImages.addAll(images);
+    notifyListeners();
+  }
+
+  void resetAudioRecording() {
+    recordedFilePath = '';
+    notifyListeners();
+  }
+
+  void removeImage(int index) {
+    if (index >= 0 && index < _pickedImages.length) {
+      _pickedImages.removeAt(index);
+      notifyListeners();
+    }
+  }
+
+  // Update getter for pickedImages
+  List<File> get pickedImages => _pickedImages;
+  // Method to reset everything when restoring an order
+  Future<void> resetAllMedia() async {
+    resetImages();
+    notifyListeners();
+  }
+
   late salesOrderReceiptPrinter receiptPrinter;
   late salesInvoiceReceiptPrinter
   invoiceReceiptPrinter; // Separate printer for invoices
@@ -84,8 +141,9 @@ class CustomerScreenProvider with ChangeNotifier {
       finalPrice: 0.0,
       discountAmount: 0.0,
       editAbout: '',
-      chargeType: '',
+      chargeType: [],
       printerProvider: printerProvider,
+      customCharge: [],
 
       // currentPatchId: '',
     );
@@ -110,6 +168,8 @@ class CustomerScreenProvider with ChangeNotifier {
       invoiceNo: '',
       saleOrderNo: "",
       printerProvider: printerProvider,
+      salesReturnNo: '',
+      salesType: '',
     );
     // Initialize connectivity provider from context
 
@@ -127,7 +187,7 @@ class CustomerScreenProvider with ChangeNotifier {
   bool isStoreTypeDialogShowing = false;
   bool isStoreTypeSelected = false;
   List<bool> itemSelections = []; // List to track selection state of each item
-  String selectedStoreType = 'Warehouse';
+
   bool showCheckBoxes = false; // To control if checkboxes should be shown
 
   final TextEditingController allBoxQtyController = TextEditingController();
@@ -151,12 +211,112 @@ class CustomerScreenProvider with ChangeNotifier {
     }
   }
 
-  /// 📸 Multiple picked images
-  List<File> pickedImages = [];
+  String? _originalApprovalStatus;
+  bool _isRestoringApprovalOrder = false;
+
+  // ... existing methods ...
+
+  void setOriginalApprovalStatus(String? status) {
+    _originalApprovalStatus = status;
+    notifyListeners();
+  }
+
+  void setRestoringApprovalOrder(bool value) {
+    _isRestoringApprovalOrder = value;
+    notifyListeners();
+  }
+
+  int? restoredBoxQty;
+
+  // ... existing methods ...
+
+  // Add these methods
+  bool isRestoringApprovalOrder = false;
+  String? originalApprovalStatus;
+  bool isOrderAlreadyApproved = false;
+
+  // Add these methods
+
+  void setIsOrderAlreadyApproved(bool value) {
+    isOrderAlreadyApproved = value;
+    notifyListeners();
+  }
+
+  // Method to check if send for approval should be enabled
+  bool get shouldEnableSendForApproval {
+    // Disable if restoring an already approved order
+    if (isRestoringApprovalOrder && isOrderAlreadyApproved) {
+      return false;
+    }
+
+    // Enable for all other cases
+    return true;
+  }
+
+  // Reset approval flags
+  void resetApprovalFlags() {
+    isRestoringApprovalOrder = false;
+    originalApprovalStatus = null;
+    isOrderAlreadyApproved = false;
+    notifyListeners();
+  }
+
+  void setRestoredBoxQty(int? value) {
+    restoredBoxQty = value;
+    notifyListeners();
+  }
+
+  void clearRestoredBoxQty() {
+    restoredBoxQty = null;
+    notifyListeners();
+  }
+
+  // Replace the list completely (avoids duplicates)
+  void setImages(List<File> images) {
+    _pickedImages = images;
+    notifyListeners();
+  }
+
+  // Optional: clear all images
+  void clearImages() {
+    _pickedImages.clear();
+    notifyListeners();
+  }
+
+  bool _isRestoringOrder = false;
+
+  bool get isRestoringOrder => _isRestoringOrder;
+
+  void setRestoringOrder(bool value) {
+    _isRestoringOrder = value;
+    notifyListeners();
+  }
+
+  // /// 📸 Multiple picked images
+  // List<File> pickedImages = [];
 
   /// Update images from ImagePickerWidget
   void setPickedImages(List<File> images) {
-    pickedImages = images;
+    _pickedImages = images;
+    notifyListeners();
+  }
+
+  /// 🔥 MUST CALL after order placed successfully
+
+  /// ✅ Call when starting a fresh order (Hold / Approval / Restore end)
+  void startNewOrder() {
+    _isRestoringOrder = false;
+    _isRestoringApprovalOrder = false;
+    _originalApprovalStatus = null;
+    notifyListeners();
+  }
+
+  /// 🔥 MUST CALL after order placed successfully
+  void resetOrderState() {
+    _isRestoringOrder = false;
+    _isRestoringApprovalOrder = false;
+    _originalApprovalStatus = null;
+    clearAudio();
     notifyListeners();
   }
 
@@ -194,9 +354,6 @@ class CustomerScreenProvider with ChangeNotifier {
     return [];
   }
 
-  String _selectedStoreType = 'Warehouse';
-  bool _isStoreTypeSelected = false;
-
   String customerType = 'Normal';
   List<Map<String, dynamic>> _hiveholdSalesOrders = [];
   List<Map<String, dynamic>> get hiveholdSalesOrders => _hiveholdSalesOrders;
@@ -215,17 +372,6 @@ class CustomerScreenProvider with ChangeNotifier {
   String? audioPlayer;
   String? selectedChargeType;
   String? photoScreen;
-  Future<void> saveStoreType(String type) async {
-    final prefs = await SharedPreferences.getInstance();
-    final currentTimestamp = DateTime.now().millisecondsSinceEpoch;
-
-    await prefs.setString('storeType', type);
-    await prefs.setInt('lastShownTimestamp', currentTimestamp);
-
-    _selectedStoreType = type;
-    _isStoreTypeSelected = true;
-    notifyListeners();
-  }
 
   List<String> selectedChargeTypes =
       []; // Instead of a single selectedChargeType
@@ -258,16 +404,13 @@ class CustomerScreenProvider with ChangeNotifier {
       );
 
       if (connectivityProvider.isConnected) {
-        print("send data to customer server");
         await sendataToServer(customerPayload);
         return true; // 🔥 SUCCESS (ONLINE)
       } else {
-        print("send customer data in local");
         handleSalesOrderAddCustomer(customerPayload);
         return true; // 🔥 SUCCESS (OFFLINE)
       }
     } catch (e) {
-      print("Error adding customer: $e");
       return false; // ❌ ERROR
     }
   }
@@ -402,6 +545,7 @@ class CustomerScreenProvider with ChangeNotifier {
         : orderData;
 
     // --- BASIC DETAILS ---
+
     receiptPrinter.employeeNameController.text = data['employeeName'] ?? '';
 
     receiptPrinter.customerNumberController.text = data['customerNumber'] ?? '';
@@ -411,34 +555,53 @@ class CustomerScreenProvider with ChangeNotifier {
     receiptPrinter.discountAmountController = (data['discountAmount'] ?? 0.0)
         .toDouble();
 
-    receiptPrinter.customChargeController = (data['customCharge'] ?? 0.0)
+    receiptPrinter.customChargeController = (data['totalCustomCharge'] ?? 0.0)
         .toDouble();
 
     receiptPrinter.selectedPaymentOptionValue = data['paymentOption'] ?? '';
 
     receiptPrinter.totalAmount = (data['totalAmount'] ?? 0.0).toDouble();
+
     receiptPrinter.totalAmount2 = (data['totalAmount2'] ?? 0.0).toDouble();
 
     receiptPrinter.discountAmount = (data['discountAmount'] ?? 0.0).toDouble();
+
     receiptPrinter.finalPrice = (data['finalPrice'] ?? 0.0).toDouble();
 
     receiptPrinter.balanceAmount = (data['balanceAmount'] ?? 0.0).toDouble();
 
     receiptPrinter.customerType = data['customerType'] ?? '';
-    receiptPrinter.editAbout = orderData['editAbout'] ?? '';
 
     receiptPrinter.deliveryDateprint = data['deliveryDate'] ?? '';
     receiptPrinter.deliveryTimeprint = data['deliveryTime'] ?? '';
 
     receiptPrinter.saleOrderNo = data['saleOrderNo'] ?? '';
+    receiptPrinter.chargeType =
+        (data['customChargeType'] as List?)?.cast<String>() ?? [];
+
+    // Option 2: More verbose but safer approach
+    if (data['customChargeType'] != null) {
+      final chargeTypes = data['customChargeType'] as List;
+      receiptPrinter.chargeType = chargeTypes.map((e) => e.toString()).toList();
+    } else {
+      receiptPrinter.chargeType = [];
+    }
+
+    // Also update your print statement to handle lists properly
 
     // --- ADVANCE AMOUNTS ---
+
     receiptPrinter.advanceAmount = data['advanceAmount'] != null
         ? List<double>.from(
             (data['advanceAmount'] as List).map((x) => (x as num).toDouble()),
           )
         : <double>[];
 
+    receiptPrinter.customCharge = data['customCharge'] != null
+        ? List<double>.from(
+            (data['customCharge'] as List).map((x) => (x as num).toDouble()),
+          )
+        : <double>[];
     receiptPrinter.advanceDateTime = List<String>.from(
       data['advanceDateTime'] ?? [],
     );
@@ -464,8 +627,11 @@ class CustomerScreenProvider with ChangeNotifier {
 
     // --- CART ITEMS ---
     globals.cartItems = [];
+
     if (data.containsKey('varianceName') && data['varianceName'] is List) {
-      for (int i = 0; i < data['varianceName'].length; i++) {
+      int itemCount = data['varianceName'].length;
+
+      for (int i = 0; i < itemCount; i++) {
         CartItem item = CartItem(
           rowId: UniqueKey().toString(), // 🔥 NEVER reuse
           itemName: (data['itemName'].length > i ? data['itemName'][i] : ''),
@@ -514,6 +680,7 @@ class CustomerScreenProvider with ChangeNotifier {
         : orderData;
 
     // --- BASIC DETAILS ---
+
     receiptPrinter.employeeNameController.text = data['employeeName'] ?? '';
 
     receiptPrinter.customerNumberController.text = data['customerNumber'] ?? '';
@@ -523,7 +690,7 @@ class CustomerScreenProvider with ChangeNotifier {
     receiptPrinter.discountAmountController = (data['discountAmount'] ?? 0.0)
         .toDouble();
 
-    receiptPrinter.customChargeController = (data['customCharge'] ?? 0.0)
+    receiptPrinter.customChargeController = (data['totalCustomCharge'] ?? 0.0)
         .toDouble();
 
     receiptPrinter.selectedPaymentOptionValue = data['paymentOption'] ?? '';
@@ -544,14 +711,32 @@ class CustomerScreenProvider with ChangeNotifier {
     receiptPrinter.deliveryTimeprint = data['deliveryTime'] ?? '';
 
     receiptPrinter.saleOrderNo = data['saleOrderNo'] ?? '';
-    receiptPrinter.chargeType = data['customChargeType'] ?? '';
+    receiptPrinter.chargeType =
+        (data['customChargeType'] as List?)?.cast<String>() ?? [];
+
+    // Option 2: More verbose but safer approach
+    if (data['customChargeType'] != null) {
+      final chargeTypes = data['customChargeType'] as List;
+      receiptPrinter.chargeType = chargeTypes.map((e) => e.toString()).toList();
+    } else {
+      receiptPrinter.chargeType = [];
+    }
+
+    // Also update your print statement to handle lists properly
+
     // --- ADVANCE AMOUNTS ---
+
     receiptPrinter.advanceAmount = data['advanceAmount'] != null
         ? List<double>.from(
             (data['advanceAmount'] as List).map((x) => (x as num).toDouble()),
           )
         : <double>[];
 
+    receiptPrinter.customCharge = data['customCharge'] != null
+        ? List<double>.from(
+            (data['customCharge'] as List).map((x) => (x as num).toDouble()),
+          )
+        : <double>[];
     receiptPrinter.advanceDateTime = List<String>.from(
       data['advanceDateTime'] ?? [],
     );
@@ -577,8 +762,11 @@ class CustomerScreenProvider with ChangeNotifier {
 
     // --- CART ITEMS ---
     globals.cartItems = [];
+
     if (data.containsKey('varianceName') && data['varianceName'] is List) {
-      for (int i = 0; i < data['varianceName'].length; i++) {
+      int itemCount = data['varianceName'].length;
+
+      for (int i = 0; i < itemCount; i++) {
         CartItem item = CartItem(
           rowId: UniqueKey().toString(), // 🔥 NEVER reuse
           itemName: (data['itemName'].length > i ? data['itemName'][i] : ''),
@@ -608,6 +796,7 @@ class CustomerScreenProvider with ChangeNotifier {
 
     // --- PRINT RECEIPT ---
     printReceipt();
+
     notifyListeners();
   }
 
@@ -623,39 +812,6 @@ class CustomerScreenProvider with ChangeNotifier {
     try {
       await invoiceReceiptPrinter.printReceiptDetails();
     } catch (e) {}
-  }
-
-  Future<void> checkAndShowStoreTypeDialog(BuildContext context) async {
-    final prefs = await SharedPreferences.getInstance();
-    final lastShownTimestamp = prefs.getInt('lastShownTimestamp') ?? 0;
-    final storedStoreType = prefs.getString('storeType') ?? '';
-
-    final lastShownDate = DateTime.fromMillisecondsSinceEpoch(
-      lastShownTimestamp,
-    );
-    final currentDate = DateTime.now();
-
-    final isSameDay =
-        lastShownDate.year == currentDate.year &&
-        lastShownDate.month == currentDate.month &&
-        lastShownDate.day == currentDate.day;
-
-    if (storedStoreType.isNotEmpty) {
-      _selectedStoreType = storedStoreType;
-      notifyListeners();
-    }
-
-    if (!isSameDay || storedStoreType.isEmpty) {
-      await showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) =>
-            StoreTypeSelectionDialog(onStoreTypeSelected: saveStoreType),
-      );
-    } else {
-      _isStoreTypeSelected = true;
-      notifyListeners();
-    }
   }
 
   void updateDate(String newDate) {
@@ -703,13 +859,14 @@ class CustomerScreenProvider with ChangeNotifier {
     double discount,
     double deductedAmount,
     double totalAmount,
-    double customCharge,
+    double
+    customCharge, // This seems redundant since we have customChargeAmount
     String remark,
     String? selectedOrderOption,
     BuildContext context,
     Map<String, double> payments,
-    double customChargeAmount,
-    String customChargeType,
+    List<String> customChargeType, // ✅ List-ആക്കുക
+    List<double> customChargeValue, // ✅ List-ആക്കുക
   ) async {
     // =====================================================
     // STEP 1: PAYMENT PROCESSING
@@ -720,6 +877,7 @@ class CustomerScreenProvider with ChangeNotifier {
     final List<String> advanceDateTime = [];
 
     void addAdvancePayment(Map<String, double> payMap) {
+      // Filter out zero or negative payments
       final filtered = Map.fromEntries(
         payMap.entries.where((e) => e.value > 0),
       );
@@ -736,30 +894,51 @@ class CustomerScreenProvider with ChangeNotifier {
       advanceDateTime.add(DateTime.now().toIso8601String());
     }
 
+    // Process payments if any
     if (payments.isNotEmpty) {
       addAdvancePayment(payments);
-    } else {}
+    }
+    // Custom Charges processing
+    final List<String> customChargeTypes = customChargeType;
+    final List<double> customChargeValues = customChargeValue;
+    double totalCustomCharge = customChargeValues.fold(
+      0.0,
+      (sum, val) => sum + val,
+    );
 
+    // Calculate total advance
     final double computedTotalAdvance = advanceAmount.fold<double>(
       0,
       (a, b) => a + b,
     );
 
+    // =====================================================
+    // STEP 2: CALCULATE TOTALS FROM SALE ORDER
+    // =====================================================
+
+    // Calculate item total from saleOrders
     final double itemTotal = saleOrders.amount.fold<double>(0, (a, b) => a + b);
 
-    final double totalAmount2 = itemTotal + customCharge;
+    // If saleOrders already has customChargeType, use it, otherwise create list
+    final List<String> existingCustomChargeTypes =
+        saleOrders.customChargeType ?? [];
 
-    final double finalPrice = itemTotal + customCharge - deductedAmount;
+    // Calculate total amount including custom charges
+    final double totalAmount2 = itemTotal + totalCustomCharge;
 
+    // Calculate final price after discount
+    final double finalPrice = itemTotal + totalCustomCharge - deductedAmount;
+
+    // Calculate balance amount
     final double balanceAmount = finalPrice - computedTotalAdvance;
 
-    // Common sales order data
+    // Common sales order data for patching
     Map<String, dynamic> orderData = {
       "discountAmount": deductedAmount,
       "discount": discount,
       "status": "Confirm Order",
-      "customChargeType": customChargeType,
-      "customCharge": customChargeAmount,
+      "customChargeType": customChargeTypes, // List<String>
+      "customCharge": customChargeValues, // List<double>
       "shiftId": [globalsData.shiftId.value],
       "advanceAmount": advanceAmount,
       "advancePaymentType": advancePaymentType,
@@ -767,43 +946,135 @@ class CustomerScreenProvider with ChangeNotifier {
       "advanceDateTime": advanceDateTime,
       "balanceAmount": balanceAmount,
       "totalAmount2": totalAmount2,
+      "finalPrice": finalPrice,
+      "totalAmount": itemTotal,
+      "remark": remark,
+      "orderType": selectedOrderOption ?? "",
+      "totalCustomCharge": totalCustomCharge, // Total sum of all custom charges
     };
 
+    // Add other fields from saleOrders if available
+    _addSaleOrderFields(orderData, saleOrders);
+
+    // =====================================================
+    // STEP 4: SAVE/UPDATE ORDER
+    // =====================================================
+
     try {
-      String jsonadvanceSalesOrder = jsonEncode({
+      // Create the patch data
+      final Map<String, dynamic> patchData = {
         "data": orderData,
         "saleOrderNo": saleOrders.saleOrderNo,
         "type": "patchSaleOrder",
         "sync": "No",
         "edit": "No",
-      });
-      final connectivityProvider = Provider.of<ConnectivityProvider>(
-        context,
-        listen: false,
-      );
-      if (connectivityProvider.isConnected) {
-        await sendataToServer(jsonDecode(jsonadvanceSalesOrder));
+        "deviceName": "POS1",
+      };
+
+      // Check connectivity
+      bool isConnected = await _checkConnectivity(context);
+
+      // Save based on connectivity
+      if (isConnected) {
+        await _saveToServer(patchData);
       } else {
-        handlePatchSaleOrder(jsonDecode(jsonadvanceSalesOrder));
+        await _saveLocally(patchData);
       }
 
-      // Small delay
-      await Future.delayed(Duration(milliseconds: 500));
+      // Show success
+      await _showSuccessDialog(context);
+    } catch (e, st) {
+      _showError(context, e);
+      rethrow;
+    } finally {}
+  }
 
+  // Helper function to add sale order fields
+  void _addSaleOrderFields(
+    Map<String, dynamic> orderData,
+    SalesOrderDisplay saleOrders,
+  ) {
+    final fieldsToAdd = {
+      "employeeName": saleOrders.employeeName,
+      "deliveryDate": saleOrders.deliveryDate,
+      "deliveryTime": saleOrders.deliveryTime,
+      "itemName": saleOrders.itemName,
+      "varianceName": saleOrders.varianceName,
+      "qty": saleOrders.qty,
+      "uom": saleOrders.uom,
+      "sellingPrice": saleOrders.sellingPrice,
+      "sellingAmount": saleOrders.sellingAmount,
+      "customerName": saleOrders.customerName,
+      "customerNumber": saleOrders.customerNumber,
+      "address": saleOrders.address,
+      "landmark": saleOrders.landmark,
+      "branchId": saleOrders.branchId,
+      "branchName": saleOrders.branchName,
+    };
+
+    fieldsToAdd.forEach((key, value) {
+      if (value != null) {
+        orderData[key] = value;
+      }
+    });
+  }
+
+  // Helper function to check connectivity
+  Future<bool> _checkConnectivity(BuildContext context) async {
+    try {
       if (context.mounted) {
-        Navigator.pop(context);
+        final connectivityProvider = Provider.of<ConnectivityProvider>(
+          context,
+          listen: false,
+        );
+        return connectivityProvider.isConnected;
       }
     } catch (e) {
-    } finally {
-      clearControllers();
+      return false;
+    }
+    return false;
+  }
 
-      isSubmitting = false;
-      showAudioandImage = false;
+  // Helper function to save to server
+  Future<void> _saveToServer(Map<String, dynamic> patchData) async {
+    try {
+      await sendataToServer(patchData);
+    } catch (e) {
+      await handlePatchSaleOrder(patchData);
+    }
+  }
 
-      advanceDateTime.clear();
-      advancePaymentType.clear();
+  // Helper function to save locally
+  Future<void> _saveLocally(Map<String, dynamic> patchData) async {
+    await handlePatchSaleOrder(patchData);
+  }
 
-      notifyListeners();
+  // Helper function to show success dialog
+  Future<void> _showSuccessDialog(BuildContext context) async {
+    if (context.mounted) {
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => PopSuccessDialog(
+          onClose: () {
+            Navigator.of(context).pop();
+          },
+        ),
+      );
+
+      Navigator.pop(context);
+    }
+  }
+
+  // Helper function to show error
+  void _showError(BuildContext context, dynamic error) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Failed to save order: $error"),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -1081,8 +1352,7 @@ class CustomerScreenProvider with ChangeNotifier {
     CartProvider cartProvider,
     String? path,
     ApiServiceSalesOrderProvider apiprovider,
-    File? img1,
-    File? img2,
+
     String customerType,
     String? audioOrderId,
     String? holdId,
@@ -1157,9 +1427,10 @@ class CustomerScreenProvider with ChangeNotifier {
                                     size: 28,
                                   ),
                                   const SizedBox(width: 10),
-                                  const Text(
-                                    'Payment Details',
-                                    style: TextStyle(
+                                  // ✅ Dynamic text instead of const
+                                  Text(
+                                    'Payment Details – ₹${orderAmount.toStringAsFixed(0)}',
+                                    style: const TextStyle(
                                       fontSize: 22,
                                       fontWeight: FontWeight.bold,
                                       color: Colors.white,
@@ -1188,14 +1459,13 @@ class CustomerScreenProvider with ChangeNotifier {
                         cartProvider: cartProvider,
                         apiprovider: apiprovider,
                         customCharge: customCharge,
-                        selectedStoreType: selectedStoreType,
+                        selectedStoreType: _orderType,
                         orderAmount: orderAmount,
                         remark: remarkController.text,
                         deductedAmount: deductedAmount,
                         customerType: customerType,
                         path: path,
-                        img1: img1,
-                        img2: img2,
+
                         audioOrderId: audioOrderId,
                         holdId: holdId,
                       ),
@@ -1323,7 +1593,7 @@ class CustomerScreenProvider with ChangeNotifier {
                         cartProvider: cartProvider,
                         apiprovider: apiprovider,
                         customCharge: customCharge,
-                        selectedStoreType: selectedStoreType,
+                        selectedStoreType: _orderType,
                         orderAmount: orderAmount,
                         remark: remarkController.text,
                         deductedAmount: deductedAmount,
@@ -1358,6 +1628,40 @@ class CustomerScreenProvider with ChangeNotifier {
     return 'SO$aliasName$currentYear';
   }
 
+  Future<void> clearMediaAfterOrder() async {
+    // Clear audio file
+    if (recordedFilePath.isNotEmpty) {
+      try {
+        final file = File(recordedFilePath);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (_) {
+        // Ignore errors for cleanup
+      }
+    }
+
+    // Reset audio state
+    recordedFilePath = '';
+    audioPlayer = null;
+
+    // Clear picked images
+    pickedImages.clear();
+    pickedImage1 = null;
+    pickedImage2 = null;
+
+    showAudioandImage = false;
+  }
+
+  void clearAudio() {
+    audioPlayer = null;
+    recordedFilePath = '';
+    photoScreen = null;
+    pickedImages.clear();
+    showAudioandImage = false;
+    notifyListeners();
+  }
+
   Future<void> saveOrder(
     CartProvider cartProvider,
     CartSelectionProvider cartSelectionProvider,
@@ -1369,17 +1673,13 @@ class CustomerScreenProvider with ChangeNotifier {
     String remark,
     String? path,
     ApiServiceSalesOrderProvider apiProvider,
-    File? img1,
-    File? img2,
     String? audioOrderId,
     String? holdOrderId,
     String? selectedOrderOption,
     BuildContext context,
     Map<String, double> payments,
   ) async {
-    // =====================================================
-    // STEP 1: PAYMENT PROCESSING
-    // =====================================================
+    String? originalAudioPath = path;
 
     final List<double> advanceAmount = [];
     final List<List<String>> advancePaymentType = [];
@@ -1403,6 +1703,17 @@ class CustomerScreenProvider with ChangeNotifier {
       advanceDateTime.add(DateTime.now().toIso8601String());
     }
 
+    // Get custom charges from cartProvider
+    final List<String> customChargeTypes = cartProvider.customChargeTypes;
+    final List<double> customChargeValues = cartProvider.customChargeValues;
+
+    // Calculate total custom charge
+    double totalCustomCharge = customChargeValues.fold(
+      0.0,
+      (sum, value) => sum + value,
+    );
+
+    // ==================================================
     if (payments.isNotEmpty) {
       addAdvancePayment(payments);
     } else {}
@@ -1445,7 +1756,7 @@ class CustomerScreenProvider with ChangeNotifier {
         .map((e) => e.itemWiseDiscount ?? 0.0)
         .toList();
     final List<double> itemWiseDiscountAmounts = globals.cartItems
-        .map((e) => e.itemWiseDiscountAmount ?? 0.0)
+        .map((e) => e.itemWiseDiscountAmount.roundToDouble())
         .toList();
     final List<int> sellingPrices = globals.cartItems
         .map((item) => (item.sellingPrice ?? 0).toInt())
@@ -1477,47 +1788,26 @@ class CustomerScreenProvider with ChangeNotifier {
     // =====================================================
     // STEP 3: ORDER METADATA
     // =====================================================
-
     final String saleOrderNo = generateSaleOrderNo();
     final String formattedTime = DateFormat('hh:mm a').format(DateTime.now());
     const String deviceName = "POS1";
 
     Directory? orderDir = await createOrderDir(saleOrderNo);
-
     final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
 
     // =====================================================
     // STEP 4: FILE SAVING (AUDIO/IMAGES)
     // =====================================================
-
     String? savedAudioPath;
-    String? savedImg1Path;
-    String? savedImg2Path;
+    List<String> savedImagePaths = [];
 
-    if (path != null && orderDir != null) {
+    if (path != null && path.isNotEmpty && orderDir != null) {
       savedAudioPath = await saveFile(
         File(path),
         orderDir,
         '${saleOrderNo}_${timestamp}_audio',
       );
     }
-
-    if (img1 != null && orderDir != null) {
-      savedImg1Path = await saveFile(
-        img1,
-        orderDir,
-        '${saleOrderNo}_${timestamp}_img1',
-      );
-    }
-
-    if (img2 != null && orderDir != null) {
-      savedImg2Path = await saveFile(
-        img2,
-        orderDir,
-        '${saleOrderNo}_${timestamp}_img2',
-      );
-    }
-    List<String> savedImagePaths = [];
 
     if (pickedImages.isNotEmpty && orderDir != null) {
       for (int i = 0; i < pickedImages.length; i++) {
@@ -1526,11 +1816,16 @@ class CustomerScreenProvider with ChangeNotifier {
           orderDir,
           '${saleOrderNo}_${timestamp}_img${i + 1}',
         );
-        savedImagePaths.add(savedPath!);
+        if (savedPath != null) {
+          savedImagePaths.add(savedPath);
+        }
       }
     }
+
     final String orderDateIso = DateTime.now().toIso8601String();
     storedBranch = branchProvider.getStoredBranch(globalbranch.branchName);
+
+    // Event DateTime parsing
     DateTime eventDateTime;
     if (birthdaydateController.text.isNotEmpty &&
         timeController.text.isNotEmpty) {
@@ -1538,22 +1833,24 @@ class CustomerScreenProvider with ChangeNotifier {
         "dd-MM-yyyy hh:mm a",
       ).parse("${birthdaydateController.text} ${timeController.text}");
     } else {
-      eventDateTime = DateTime.now(); // or null, or skip
+      eventDateTime = DateTime.now();
     }
     final String eventDateIso = eventDateTime.toIso8601String();
+
+    // Delivery DateTime parsing
     DateTime deliveryDateTime;
     if (dateController.text.isNotEmpty && timeController.text.isNotEmpty) {
       deliveryDateTime = DateFormat(
         "dd-MM-yyyy hh:mm a",
       ).parse("${dateController.text} ${timeController.text}");
     } else {
-      throw Exception("Delivery date & time missing");
+      deliveryDateTime = DateTime.now();
     }
     final String deliveryDateIso = deliveryDateTime.toIso8601String();
+
     // =====================================================
     // STEP 5: BUILD SALES ORDER OBJECT
     // =====================================================
-
     final salesOrder = SalesOrder(
       itemName: itemNames,
       varianceName: varianceNames,
@@ -1566,11 +1863,11 @@ class CustomerScreenProvider with ChangeNotifier {
       sellingPrice: sellingPrices, // now List<int>
       sellingAmount: sellingAmounts, // List<double>
       boxQty: boxQuantities,
-      totalAmount2: totalAmount2,
+      totalAmount2: totalAmount2.roundToDouble(),
       branchId: globals.branchId,
       branchName: globals.branchName,
       aliasName: globals.aliasname,
-      totalAmount: itemTotal,
+      totalAmount: itemTotal.roundToDouble(),
       itemCode: itemCodes,
       tax: taxs,
       price: prices,
@@ -1583,15 +1880,15 @@ class CustomerScreenProvider with ChangeNotifier {
       address: addressController.text,
       landmark: landmarkController.text,
       discount: discount,
-      discountAmount: deductedAmount,
+      discountAmount: deductedAmount.roundToDouble(),
 
       shiftId: [globalsData.shiftId.value],
-      customCharge: customCharge,
+      customCharge: customChargeValues,
       advanceAmount: advanceAmount,
       advancePaymentType: advancePaymentType,
       modeWiseAmount: modeWiseAmount,
-      finalPrice: finalPrice,
-      balanceAmount: balanceAmount,
+      finalPrice: finalPrice.roundToDouble(),
+      balanceAmount: balanceAmount.roundToDouble(),
       saleOrderNo: saleOrderNo,
       orderDate: orderDateIso,
       imagePaths: savedImagePaths, // List<String>
@@ -1604,20 +1901,20 @@ class CustomerScreenProvider with ChangeNotifier {
       companyName: companyNameController.text,
       companyAddress: companyAddressController.text,
       companyGST: companygstNumberController.text,
-      orderType: (selectedOrderOption ?? ""),
+      orderType: (_orderType ?? ""),
       eventDate: eventDateIso,
       itemWiseDiscount: itemWiseDiscounts,
       itemWiseDiscountAmount: itemWiseDiscountAmounts,
       holdOrderId: patchHoldOrderId,
       approvalOrderId: approvalOrderId,
-      customChargeType: selectedChargeType,
+      customChargeType: customChargeTypes,
       remark: remarkController.text,
+      totalCustomCharge: totalCustomCharge,
     );
 
     // =====================================================
     // STEP 6: SAVE & SYNC DATA
     // =====================================================
-
     try {
       final postData = {
         "data": salesOrder.toJson(),
@@ -1627,16 +1924,25 @@ class CustomerScreenProvider with ChangeNotifier {
         "WaitingForDiscountApproval": "No",
         "edit": "No",
       };
-      final connectivityProvider = Provider.of<ConnectivityProvider>(
-        context,
-        listen: false,
-      );
-      if (connectivityProvider.isConnected) {
-        await sendataToServer(postData);
+
+      // Check if context is still valid BEFORE using Provider.of
+      if (!context.mounted) {
+        // Use a fallback approach
+        await handleSaleOrder(postData); // Handle offline
       } else {
-        await handleSaleOrder(postData);
+        final connectivityProvider = Provider.of<ConnectivityProvider>(
+          context,
+          listen: false,
+        );
+
+        if (connectivityProvider.isConnected) {
+          await sendataToServer(postData);
+        } else {
+          await handleSaleOrder(postData);
+        }
       }
 
+      // Handle hold order conversion if applicable
       if (patchHoldOrderId.isNotEmpty) {
         Map<String, dynamic> requestBody = {"status": "HoldOrder Converted"};
         final patchData = {
@@ -1647,71 +1953,114 @@ class CustomerScreenProvider with ChangeNotifier {
           "holdOrderId": patchHoldOrderId,
           "deviceName": deviceName,
         };
-        if (connectivityProvider.isConnected) {
-          await sendataToServer(patchData);
+
+        // Check context before using it
+        if (context.mounted) {
+          final connectivityProvider = Provider.of<ConnectivityProvider>(
+            context,
+            listen: false,
+          );
+
+          if (connectivityProvider.isConnected) {
+            await sendataToServer(patchData);
+          } else {
+            await handlePatchHoldOrder(patchData);
+          }
         } else {
+          // Context not available - handle offline
           await handlePatchHoldOrder(patchData);
         }
 
         await fetchHolderFromHive();
         notifyListeners();
       }
+
+      // 🔥 COMPLETE AUDIO CLEANUP - WITH CONTEXT CHECK
+      if (context.mounted) {
+        try {
+          final audioProvider = Provider.of<AudioProvider>(
+            context,
+            listen: false,
+          );
+          await audioProvider.completeAudioReset();
+
+          resetAudioCompletelyAfterHeldOrder();
+        } catch (e) {}
+      } else {
+        // Fallback cleanup without context
+        resetAudioCompletelyAfterHeldOrder();
+      }
+
+      // 🔥 CLEAR CART AND STATE
+
+      // Clear global cart items FIRST
       globals.cartItems.clear();
+
+      // Clear CartProvider
+      cartProvider.clearCart();
+
+      // Force update if it's a ChangeNotifier
+      if (cartProvider is ChangeNotifier) {
+        cartProvider.updateCart();
+      }
+      cartProvider.clearAllCustomCharges();
+
+      // Also clear the custom charge controllers in the dialogue
+      for (var charge in GlobalDataManager().charges) {
+        charge['amount'] = 0.0;
+      }
+      // Clear controllers
       clearControllers();
+      resetAudioWidget();
+      // Clear selections
+      cartSelectionProvider.clearSelections();
 
-      notifyListeners();
-      // =====================================================
-      // STEP 7: CLEANUP
-      // =====================================================
-      try {
-        cartSelectionProvider.clearSelections();
-        globals.cartItems.clear();
-        clearControllers();
-        cartProvider.clearCart();
-        if (path != null) clearFile(path);
-        if (img1 != null) clearFile(img1.path);
-        if (img2 != null) clearFile(img2.path);
-        if (path != null) clearFile(path);
-        advanceDateTime.clear();
-        advancePaymentType.clear();
-        modeWiseAmount.clear();
-        advanceAmount.clear();
+      // Clear custom charges
+      cartProvider.clearCustomCharges();
 
-        isSubmitting = false;
-        showAudioandImage = false;
-        pickedImage1 = null;
-        pickedImage2 = null;
-        recordedFilePath = '';
-        photoScreen = null;
-        audioPlayer = null;
-        Navigator.of(context).pop();
-      } catch (e) {}
+      // Delete original temp audio file
+      if (originalAudioPath != null && originalAudioPath!.isNotEmpty) {
+        try {
+          final audioFile = File(originalAudioPath!);
+          if (await audioFile.exists()) {
+            await audioFile.delete();
+          } else {}
+        } catch (e) {}
+      }
+
+      // Only notify listeners if context is still valid
+      if (context.mounted) {
+        notifyListeners();
+      } else {}
     } catch (e, st) {
       rethrow;
     } finally {
-      cartProvider.clearCart();
-      cartSelectionProvider.clearSelections();
-      advanceDateTime.clear();
-      advancePaymentType.clear();
-      modeWiseAmount.clear();
-      advanceAmount.clear();
+      // Clear cart in finally block (safe even without context)
+      try {
+        cartProvider.clearCart();
+      } catch (e) {}
 
-      advanceDateTime.clear();
-      advancePaymentType.clear();
-      modeWiseAmount.clear();
-      advanceAmount.clear();
+      try {
+        cartSelectionProvider.clearSelections();
+      } catch (e) {}
+
+      // Reset other state variables
       isSubmitting = false;
+
       showAudioandImage = false;
+
       pickedImage1 = null;
       pickedImage2 = null;
+
       recordedFilePath = '';
+
       audioPlayer = null;
       photoScreen = null;
-      path = null;
-      img1 = null;
-      img2 = null;
 
-      notifyListeners();
+      // Only notify listeners if context is still valid
+      if (context.mounted) {
+        notifyListeners();
+      } else {}
     }
   }
 
@@ -1732,6 +2081,8 @@ class CustomerScreenProvider with ChangeNotifier {
     String customerType,
   ) async {
     try {
+      // Store the original audio path for cleanup
+      String? originalAudioPath = recordedFilePath;
       isSubmitting = true;
 
       final List<double> advanceAmount = [];
@@ -1759,6 +2110,15 @@ class CustomerScreenProvider with ChangeNotifier {
       final double computedTotalAdvance = advanceAmount.fold<double>(
         0,
         (a, b) => a + b,
+      );
+      // Get custom charges from cartProvider
+      final List<String> customChargeTypes = cartProvider.customChargeTypes;
+      final List<double> customChargeValues = cartProvider.customChargeValues;
+
+      // Calculate total custom charge
+      double totalCustomCharge = customChargeValues.fold(
+        0.0,
+        (sum, value) => sum + value,
       );
 
       // 🔹 Step 2: Collect cart item details
@@ -1841,8 +2201,6 @@ class CustomerScreenProvider with ChangeNotifier {
       // =====================================================
 
       String? savedAudioPath;
-      String? savedImg1Path;
-      String? savedImg2Path;
 
       if (recordedFilePath != null && orderDir != null) {
         savedAudioPath = await saveFile(
@@ -1850,23 +2208,20 @@ class CustomerScreenProvider with ChangeNotifier {
           orderDir,
           '${saleOrderNo}_${timestamp}_audio',
         );
+      } // Save audio file
+      if (originalAudioPath != null && originalAudioPath.isNotEmpty) {
+        if (orderDir != null) {
+          final audioFile = File(originalAudioPath);
+          if (await audioFile.exists()) {
+            savedAudioPath = await saveFile(
+              audioFile,
+              orderDir,
+              '${saleOrderNo}_${timestamp}_audio',
+            );
+          }
+        }
       }
 
-      if (pickedImage1 != null && orderDir != null) {
-        savedImg1Path = await saveFile(
-          pickedImage1,
-          orderDir,
-          '${saleOrderNo}_${timestamp}_img1',
-        );
-      }
-
-      if (pickedImage2 != null && orderDir != null) {
-        savedImg2Path = await saveFile(
-          pickedImage2,
-          orderDir,
-          '${saleOrderNo}_${timestamp}_img2',
-        );
-      }
       List<String> savedImagePaths = [];
 
       if (pickedImages.isNotEmpty && orderDir != null) {
@@ -1938,7 +2293,7 @@ class CustomerScreenProvider with ChangeNotifier {
         discountAmount: deductedAmount,
         remark: remarkController.text,
         shiftId: [globalsData.shiftId.value],
-        customCharge: customCharge,
+        customCharge: customChargeValues,
         advanceAmount: advanceAmount,
         advancePaymentType: advancePaymentType,
         modeWiseAmount: modeWiseAmount,
@@ -1957,7 +2312,7 @@ class CustomerScreenProvider with ChangeNotifier {
         companyName: companyNameController.text,
         companyAddress: companyAddressController.text,
         companyGST: companygstNumberController.text,
-        orderType: (selectedOrderOption ?? ""),
+        orderType: (_orderType ?? ""),
         eventDate: eventDateIso,
         itemWiseDiscount: itemWiseDiscounts,
         itemWiseDiscountAmount: itemWiseDiscountAmounts,
@@ -1974,7 +2329,8 @@ class CustomerScreenProvider with ChangeNotifier {
             summary: 'No',
           ),
         ],
-        customChargeType: selectedChargeType ?? '',
+        customChargeType: customChargeTypes,
+        totalCustomCharge: totalCustomCharge,
       );
       // 🔹 Step 5: Encode to JSON
       String jsonApprovalOrder = jsonEncode({
@@ -1984,6 +2340,16 @@ class CustomerScreenProvider with ChangeNotifier {
         'edit': 'No',
         'approvalStatusChanged': 'No',
       });
+      bool isContextValid = false;
+      try {
+        if (context.mounted) {
+          isContextValid = true;
+        }
+      } catch (e) {
+        isContextValid = false;
+      }
+
+      bool isConnected = false;
       final connectivityProvider = Provider.of<ConnectivityProvider>(
         context,
         listen: false,
@@ -1993,31 +2359,92 @@ class CustomerScreenProvider with ChangeNotifier {
       } else {
         await handleSalesApprovalOrder(jsonDecode(jsonApprovalOrder));
       }
+      // 🔥 COMPLETE AUDIO CLEANUP (DO THIS FIRST)
+      // 🔥 COMPLETE AUDIO CLEANUP - WITH CONTEXT CHECK
+      if (context.mounted) {
+        try {
+          final audioProvider = Provider.of<AudioProvider>(
+            context,
+            listen: false,
+          );
+          await audioProvider.completeAudioReset();
 
-      // 🔹 Step 7: Success feedback
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Order submitted for approval successfully!'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
-        ),
-      );
-    } catch (e, stacktrace) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error submitting approval: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      isSubmitting = false;
-      clearControllers();
+          resetAudioCompletelyAfterHeldOrder();
+        } catch (e) {}
+      } else {
+        // Fallback cleanup without context
+        resetAudioCompletelyAfterHeldOrder();
+      }
+
+      // 🔥 CLEAR CART AND STATE
+
+      // Clear global cart items FIRST
+      globals.cartItems.clear();
+
+      // Clear CartProvider
       cartProvider.clearCart();
+
+      // Force update if it's a ChangeNotifier
+      if (cartProvider is ChangeNotifier) {
+        cartProvider.updateCart();
+      }
+      // 🔥 ADD THIS: Clear custom charges
+      cartProvider.clearAllCustomCharges();
+      for (var charge in GlobalDataManager().charges) {
+        charge['amount'] = 0.0;
+      }
+      // Clear controllers
+      clearControllers();
+
+      // Clear selections
       cartSelectionProvider.clearSelections();
-      advanceDateTime?.clear();
-      advancePaymentType?.clear();
+
+      // Clear custom charges
+      cartProvider.clearCustomCharges();
+
+      // Delete original temp audio file
+      if (originalAudioPath != null && originalAudioPath!.isNotEmpty) {
+        try {
+          final audioFile = File(originalAudioPath!);
+          if (await audioFile.exists()) {
+            await audioFile.delete();
+          } else {}
+        } catch (e) {}
+      }
+
+      // Only notify listeners if context is still valid
+      if (context.mounted) {
+        notifyListeners();
+      } else {}
+    } catch (e, st) {
+      rethrow;
+    } finally {
+      // Clear cart in finally block (safe even without context)
+      try {
+        cartProvider.clearCart();
+      } catch (e) {}
+
+      try {
+        cartSelectionProvider.clearSelections();
+      } catch (e) {}
+
+      // Reset other state variables
+      isSubmitting = false;
+
       showAudioandImage = false;
-      notifyListeners();
+
+      pickedImage1 = null;
+      pickedImage2 = null;
+
+      recordedFilePath = '';
+
+      audioPlayer = null;
+      photoScreen = null;
+
+      // Only notify listeners if context is still valid
+      if (context.mounted) {
+        notifyListeners();
+      } else {}
     }
   }
 
@@ -2032,14 +2459,14 @@ class CustomerScreenProvider with ChangeNotifier {
     String remark,
     String? path,
     ApiServiceSalesOrderProvider apiProvider,
-    File? img1,
-    File? img2,
+
     String? audioOrderId,
     String? holdId,
     String? selectedOrderOption,
     BuildContext context,
     Map<String, double> payments, // 👈 new param
   ) async {
+    String? originalAudioPath = path;
     List<double> advanceAmountList = [totalAdvance];
     List<double> cashAdvance = [0.0];
     List<double> cardAdvance = [0.0];
@@ -2102,6 +2529,15 @@ class CustomerScreenProvider with ChangeNotifier {
     final List<List<String>> advancePaymentType = [];
     final List<List<double>> modeWiseAmount = [];
     final List<String> advanceDateTime = [];
+    // Get custom charges from cartProvider
+    final List<String> customChargeTypes = cartProvider.customChargeTypes;
+    final List<double> customChargeValues = cartProvider.customChargeValues;
+
+    // Calculate total custom charge
+    double totalCustomCharge = customChargeValues.fold(
+      0.0,
+      (sum, value) => sum + value,
+    );
 
     void addAdvancePayment(Map<String, double> payMap) {
       final filtered = Map.fromEntries(
@@ -2189,21 +2625,6 @@ class CustomerScreenProvider with ChangeNotifier {
       );
     }
 
-    if (img1 != null && orderDir != null) {
-      savedImg1Path = await saveFile(
-        img1,
-        orderDir,
-        '${saleOrderNo}_${timestamp}_img1',
-      );
-    }
-
-    if (img2 != null && orderDir != null) {
-      savedImg2Path = await saveFile(
-        img2,
-        orderDir,
-        '${saleOrderNo}_${timestamp}_img2',
-      );
-    }
     List<String> savedImagePaths = [];
 
     if (pickedImages.isNotEmpty && orderDir != null) {
@@ -2274,7 +2695,7 @@ class CustomerScreenProvider with ChangeNotifier {
       discountAmount: deductedAmount,
 
       shiftId: [globalsData.shiftId.value],
-      customCharge: customCharge,
+      customCharge: customChargeValues,
       advanceAmount: advanceAmount,
       advancePaymentType: advancePaymentType,
       modeWiseAmount: modeWiseAmount,
@@ -2292,13 +2713,13 @@ class CustomerScreenProvider with ChangeNotifier {
       companyName: companyNameController.text,
       companyAddress: companyAddressController.text,
       companyGST: companygstNumberController.text,
-      orderType: (selectedOrderOption ?? ""),
+      orderType: (_orderType ?? ""),
       eventDate: eventDateIso,
       itemWiseDiscount: itemWiseDiscounts,
       itemWiseDiscountAmount: itemWiseDiscountAmounts,
       holdOrderId: patchHoldOrderId,
       approvalOrderId: approvalOrderId,
-      customChargeType: selectedChargeType,
+      customChargeType: customChargeTypes,
       remark: remarkController.text,
 
       status: 'Waiting for Approval',
@@ -2311,6 +2732,7 @@ class CustomerScreenProvider with ChangeNotifier {
           summary: 'No',
         ),
       ],
+      totalCustomCharge: totalCustomCharge,
 
       // cash: cashAdvance,
       // card: cardAdvance,
@@ -2328,6 +2750,16 @@ class CustomerScreenProvider with ChangeNotifier {
         'waitingForApprovalResult': 'Yes',
         "saleOrderNo": salesOrder.saleOrderNo,
       });
+      bool isContextValid = false;
+      try {
+        if (context.mounted) {
+          isContextValid = true;
+        }
+      } catch (e) {
+        isContextValid = false;
+      }
+
+      bool isConnected = false;
       final connectivityProvider = Provider.of<ConnectivityProvider>(
         context,
         listen: false,
@@ -2337,20 +2769,89 @@ class CustomerScreenProvider with ChangeNotifier {
       } else {
         await handleSalesApprovalOrder(jsonDecode(jsonSalesOrder));
       }
+      // 🔥 COMPLETE AUDIO CLEANUP (DO THIS FIRST)
+      // 🔥 COMPLETE AUDIO CLEANUP - WITH CONTEXT CHECK
+      if (context.mounted) {
+        try {
+          final audioProvider = Provider.of<AudioProvider>(
+            context,
+            listen: false,
+          );
+          await audioProvider.completeAudioReset();
 
-      // Check if it reaches here
-    } catch (e) {
-      // Catches any errors during the request
-    } finally {
-      clearControllers();
+          resetAudioCompletelyAfterHeldOrder();
+        } catch (e) {}
+      } else {
+        // Fallback cleanup without context
+        resetAudioCompletelyAfterHeldOrder();
+      }
+
+      // 🔥 CLEAR CART AND STATE
+
+      // Clear global cart items FIRST
+      globals.cartItems.clear();
+
+      // Clear CartProvider
       cartProvider.clearCart();
+
+      // Force update if it's a ChangeNotifier
+      if (cartProvider is ChangeNotifier) {
+        cartProvider.updateCart();
+      }
+      // 🔥 ADD THIS: Clear custom charges
+      cartProvider.clearAllCustomCharges();
+      for (var charge in GlobalDataManager().charges) {
+        charge['amount'] = 0.0;
+      }
+      // Clear controllers
+      clearControllers();
+
+      // Clear selections
+
+      // Clear custom charges
+      cartProvider.clearCustomCharges();
+
+      // Delete original temp audio file
+      if (originalAudioPath != null && originalAudioPath!.isNotEmpty) {
+        try {
+          final audioFile = File(originalAudioPath!);
+          if (await audioFile.exists()) {
+            await audioFile.delete();
+          } else {}
+        } catch (e) {}
+      }
+
+      // Only notify listeners if context is still valid
+      if (context.mounted) {
+        notifyListeners();
+      } else {}
+    } catch (e, st) {
+      rethrow;
+    } finally {
+      // Clear cart in finally block (safe even without context)
+      try {
+        cartProvider.clearCart();
+      } catch (e) {}
+
+      try {} catch (e) {}
+
+      // Reset other state variables
       isSubmitting = false;
+
       showAudioandImage = false;
-      advanceDateTime!.clear();
-      advancePaymentType!.clear();
-      audioOrderId = null;
-      // clearAudioAndPhotoIds();
-      notifyListeners();
+
+      pickedImage1 = null;
+      pickedImage2 = null;
+
+      recordedFilePath = '';
+
+      audioPlayer = null;
+      photoScreen = null;
+
+      // Only notify listeners if context is still valid
+      if (context.mounted) {
+        notifyListeners();
+      } else {}
     }
   }
 
@@ -2413,12 +2914,17 @@ class CustomerScreenProvider with ChangeNotifier {
     String? selectedOrderOption,
     BuildContext context,
   ) async {
+    String? originalAudioPath = path;
+
     // =====================================================
     // STEP 1: PAYMENT PROCESSING
     // =====================================================
     final List<double> advanceAmount = [];
+
     final List<List<String>> advancePaymentType = [];
+
     final List<List<double>> modeWiseAmount = [];
+
     final List<String> advanceDateTime = [];
 
     final double computedTotalAdvance = advanceAmount.fold<double>(
@@ -2433,39 +2939,62 @@ class CustomerScreenProvider with ChangeNotifier {
     final List<String> itemNames = globals.cartItems
         .map((e) => e.itemName)
         .toList();
+
     final List<String> varianceNames = globals.cartItems
         .map((e) => e.varianceName)
         .toList();
+
     final List<int> quantities = globals.cartItems
         .map((e) => e.quantity.value)
         .toList();
+
     final List<String> itemCodes = globals.cartItems
         .map((e) => e.itemCode)
         .toList();
+
     final List<String> uoms = globals.cartItems.map((e) => e.uom).toList();
+
     final List<int> taxs = globals.cartItems.map((e) => e.tax).toList();
+
     final List<double> weights = globals.cartItems
         .map((e) => e.weight)
         .toList();
+
     final List<int> prices = globals.cartItems
         .map((e) => e.pricePerKg)
         .toList();
-    final int boxQuantities = globals.cartItems.first.boxQuantity ?? 0;
+
+    final int boxQuantities = globals.cartItems.isNotEmpty
+        ? globals.cartItems.first.boxQuantity ?? 0
+        : 0;
+
     final List<String> isBoxItem = globals.cartItems
         .map((e) => e.isBoxItem ?? '')
         .toList();
+
     final List<double> itemWiseDiscounts = globals.cartItems
         .map((e) => e.itemWiseDiscount ?? 0.0)
         .toList();
+
     final List<double> itemWiseDiscountAmounts = globals.cartItems
         .map((e) => e.itemWiseDiscountAmount ?? 0.0)
         .toList();
+
     double customCharge = 0;
 
-    // Sum all custom charges from the map
     for (var controller in cartProvider.customChargeControllers.values) {
-      customCharge += double.tryParse(controller!.text) ?? 0;
+      double parsed = double.tryParse(controller!.text) ?? 0;
+      customCharge += parsed;
     }
+
+    final List<String> customChargeTypes = cartProvider.customChargeTypes;
+
+    final List<double> customChargeValues = cartProvider.customChargeValues;
+
+    double totalCustomCharge = customChargeValues.fold(
+      0.0,
+      (sum, value) => sum + value,
+    );
 
     final List<double> amounts = globals.cartItems.map((item) {
       final base = (item.uom == 'Pcs' || item.uom == 'Pkt')
@@ -2475,25 +3004,34 @@ class CustomerScreenProvider with ChangeNotifier {
       final total = base - disc;
       return total;
     }).toList();
+
     final List<int> sellingPrices = globals.cartItems
         .map((item) => (item.sellingPrice ?? 0).toInt())
         .toList();
+
     final List<double> sellingAmounts = globals.cartItems
         .map((item) => (item.sellingAmount ?? 0.0).toDouble())
         .toList();
+
     final double itemTotal = amounts.fold<double>(0, (a, b) => a + b);
+
     final double totalAmount2 = itemTotal + customCharge;
+
     final double finalPrice = itemTotal + customCharge - deductedAmount;
+
     final double balanceAmount = finalPrice - computedTotalAdvance;
 
     // =====================================================
     // STEP 3: ORDER METADATA
     // =====================================================
     final String saleOrderNo = generateSaleOrderNo();
+
     final String formattedTime = DateFormat('hh:mm a').format(DateTime.now());
+
     const String deviceName = "POS1";
 
     Directory? orderDir = await createOrderDir(saleOrderNo);
+
     final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
 
     // =====================================================
@@ -2509,7 +3047,7 @@ class CustomerScreenProvider with ChangeNotifier {
         orderDir,
         '${saleOrderNo}_${timestamp}_audio',
       );
-    }
+    } else {}
 
     if (img1 != null && orderDir != null) {
       savedImg1Path = await saveFile(
@@ -2526,7 +3064,9 @@ class CustomerScreenProvider with ChangeNotifier {
         '${saleOrderNo}_${timestamp}_img2',
       );
     }
-    String holdOrderId = generateHoldOrderId();
+
+    String generatedHoldOrderId = generateHoldOrderId();
+
     List<String> savedImagePaths = [];
 
     if (pickedImages.isNotEmpty && orderDir != null) {
@@ -2538,20 +3078,56 @@ class CustomerScreenProvider with ChangeNotifier {
         );
         savedImagePaths.add(savedPath!);
       }
-    }
+    } else {}
+
     storedBranch = branchProvider.getStoredBranch(globalbranch.branchName);
+
     final String orderDateIso = DateTime.now().toIso8601String();
-    storedBranch = branchProvider.getStoredBranch(globalbranch.branchName);
-    DateTime eventDateTime = DateFormat(
-      "dd-MM-yyyy hh:mm a",
-    ).parse("${birthdaydateController.text} ${timeController.text}");
 
-    final String eventDateIso = eventDateTime.toIso8601String();
-    DateTime deliveryDateTime = DateFormat(
-      "dd-MM-yyyy hh:mm a",
-    ).parse("${dateController.text} ${timeController.text}");
+    // =====================================================
+    // FIXED DATE PARSING WITH ERROR HANDLING
+    // =====================================================
 
-    final String deliveryDateIso = deliveryDateTime.toIso8601String();
+    String? eventDateIso;
+    String? deliveryDateIso;
+
+    if (birthdaydateController.text.trim().isNotEmpty &&
+        timeController.text.trim().isNotEmpty) {
+      try {
+        final String eventDateText = birthdaydateController.text.trim();
+        final String eventTimeText = timeController.text.trim();
+
+        DateTime eventDateTime = DateFormat(
+          "dd-MM-yyyy hh:mm a",
+        ).parse("$eventDateText $eventTimeText");
+        eventDateIso = eventDateTime.toIso8601String();
+      } catch (e) {
+        eventDateIso = DateTime.now().toIso8601String();
+      }
+    } else {
+      eventDateIso = DateTime.now().toIso8601String();
+    }
+
+    if (dateController.text.trim().isNotEmpty &&
+        timeController.text.trim().isNotEmpty) {
+      try {
+        final String deliveryDateText = dateController.text.trim();
+        final String deliveryTimeText = timeController.text.trim();
+
+        DateTime deliveryDateTime = DateFormat(
+          "dd-MM-yyyy hh:mm a",
+        ).parse("$deliveryDateText $deliveryTimeText");
+        deliveryDateIso = deliveryDateTime.toIso8601String();
+      } catch (e) {
+        deliveryDateIso = DateTime.now().toIso8601String();
+      }
+    } else {
+      deliveryDateIso = DateTime.now().toIso8601String();
+    }
+
+    eventDateIso ??= DateTime.now().toIso8601String();
+    deliveryDateIso ??= DateTime.now().toIso8601String();
+
     // =====================================================
     // STEP 5: BUILD SALES ORDER OBJECT
     // =====================================================
@@ -2563,8 +3139,8 @@ class CustomerScreenProvider with ChangeNotifier {
       isBoxItem: isBoxItem,
       weight: weights,
       amount: amounts,
-      sellingPrice: sellingPrices, // now List<int>
-      sellingAmount: sellingAmounts, // List<double>
+      sellingPrice: sellingPrices,
+      sellingAmount: sellingAmounts,
       boxQty: boxQuantities,
       totalAmount2: totalAmount2,
       branchId: globals.branchId,
@@ -2575,7 +3151,9 @@ class CustomerScreenProvider with ChangeNotifier {
       tax: taxs,
       price: prices,
       deliveryDate: deliveryDateIso,
-      deliveryTime: timeController.text,
+      deliveryTime: timeController.text.trim().isNotEmpty
+          ? timeController.text.trim()
+          : formattedTime,
       event: (selectedEvent ?? ""),
       customerNumber: mobileNoController.text,
       customerName: customerNameController.text,
@@ -2586,28 +3164,27 @@ class CustomerScreenProvider with ChangeNotifier {
       discountAmount: deductedAmount,
       remark: remark,
       shiftId: [globalsData.shiftId.value],
-      customCharge: customCharge,
+      customCharge: customChargeValues,
       finalPrice: finalPrice,
       balanceAmount: balanceAmount,
-      imagePaths: savedImagePaths, // List<String>
+      imagePaths: savedImagePaths,
       saleOrderNo: saleOrderNo,
       orderDate: orderDateIso,
       audioPath: savedAudioPath,
-
       employeeName: searchController.text,
       status: 'Hold Order',
       advanceDateTime: advanceDateTime,
       companyName: companyNameController.text,
       companyAddress: companyAddressController.text,
       companyGST: companygstNumberController.text,
-      orderType: (selectedOrderOption ?? ""),
+      orderType: (_orderType ?? ""),
       eventDate: eventDateIso,
       itemWiseDiscount: itemWiseDiscounts,
       itemWiseDiscountAmount: itemWiseDiscountAmounts,
-      holdOrderId: holdOrderId,
+      holdOrderId: generatedHoldOrderId,
       approvalOrderId: approvalOrderId,
-      customChargeType: selectedChargeType,
-
+      customChargeType: customChargeTypes,
+      totalCustomCharge: totalCustomCharge,
       salesOrderId: '',
     );
 
@@ -2624,68 +3201,119 @@ class CustomerScreenProvider with ChangeNotifier {
         "edit": "No",
       };
 
+      bool isContextValid = false;
+      try {
+        if (context.mounted) {
+          isContextValid = true;
+        }
+      } catch (e) {
+        isContextValid = false;
+      }
+
       final connectivityProvider = Provider.of<ConnectivityProvider>(
         context,
         listen: false,
       );
+
       if (connectivityProvider.isConnected) {
         await sendataToServer(postData);
       } else {
         await handleHoldOrder(postData);
       }
-      // PATCH HOLD ORDER
 
+      // 🔥 COMPLETE AUDIO CLEANUP
+      if (isContextValid && context.mounted) {
+        try {
+          final audioProvider = Provider.of<AudioProvider>(
+            context,
+            listen: false,
+          );
+          await audioProvider.completeAudioReset();
+
+          resetAudioCompletelyAfterHeldOrder();
+        } catch (e) {}
+      }
+      // Use read() instead of watch()
+      final cartProvider = Provider.of<CartProvider>(context, listen: false);
+      cartProvider.clearCart();
+      // 🔥 CLEAR CART AND STATE
       globals.cartItems.clear();
+
       clearControllers();
 
-      notifyListeners();
-      // =====================================================
-      // STEP 7: CLEANUP
-      // =====================================================
-      try {
-        cartSelectionProvider.clearSelections();
-        globals.cartItems.clear();
-        clearControllers();
-        cartProvider.clearCart();
-        if (path != null) clearFile(path);
-        if (img1 != null) clearFile(img1.path);
-        if (img2 != null) clearFile(img2.path);
-        if (path != null) clearFile(path);
-        advanceDateTime.clear();
-        advancePaymentType.clear();
-        modeWiseAmount.clear();
-        advanceAmount.clear();
+      cartSelectionProvider.clearSelections();
 
-        isSubmitting = false;
-        showAudioandImage = false;
-        pickedImage1 = null;
-        pickedImage2 = null;
-        recordedFilePath = '';
-        photoScreen = null;
-        audioPlayer = null;
-      } catch (e) {}
+      cartProvider.clearCart();
+
+      cartProvider.clearCustomCharges();
+
+      // Delete original temp audio file
+      if (originalAudioPath != null && originalAudioPath!.isNotEmpty) {
+        try {
+          final audioFile = File(originalAudioPath!);
+          if (await audioFile.exists()) {
+            await audioFile.delete();
+          } else {}
+        } catch (e) {}
+      }
+
+      if (isContextValid && context.mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => SalesOrderScreen()),
+          (route) => false,
+        );
+      }
+
+      notifyListeners();
     } catch (e, st) {
       rethrow;
     } finally {
       cartProvider.clearCart();
+
       cartSelectionProvider.clearSelections();
-      advanceDateTime.clear();
-      advancePaymentType.clear();
-      modeWiseAmount.clear();
-      advanceAmount.clear();
 
       isSubmitting = false;
+
       showAudioandImage = false;
+
       pickedImage1 = null;
       pickedImage2 = null;
+
       recordedFilePath = '';
+
       audioPlayer = null;
       photoScreen = null;
-      path = null;
-      img1 = null;
-      img2 = null;
 
       notifyListeners();
     }
+  }
+
+  void resetAudioCompletelyAfterHeldOrder() {
+    // 1. Clear all audio-related variables
+    recordedFilePath = '';
+    audioPlayer = null;
+    showAudioandImage = false;
+    pickedImage1 = null;
+    pickedImage2 = null;
+    photoScreen = null;
+    pickedImages.clear();
+
+    // 2. Reset audio widget key to force rebuild
+    audioWidgetKey = UniqueKey();
+
+    // 3. Notify listeners
+    notifyListeners();
+  }
+
+  Key audioWidgetKey = UniqueKey();
+
+  void resetAudioWidget() {
+    audioWidgetKey = UniqueKey(); // 👈 forces rebuild
+    audioPlayer = null;
+    recordedFilePath = '';
+    showAudioandImage = false;
+    globals.cartItems.clear();
+
+    notifyListeners();
   }
 }

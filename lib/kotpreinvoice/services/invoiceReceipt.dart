@@ -168,8 +168,8 @@ class ReceiptPrinter with ChangeNotifier {
       String formattedDate = DateFormat('dd-MM-yyyy').format(now);
       String formattedTime = DateFormat('hh:mm a').format(now);
 
-      var invoiceNumberGenerator = InvoiceNumberGenerator();
-      String newInvoiceNumber = await invoiceNumberGenerator.generateInvoiceNumber();
+      // var invoiceNumberGenerator = InvoiceNumberGenerator();
+      // String newInvoiceNumber = await invoiceNumberGenerator.generateInvoiceNumber();
 
       String preInvNo = '';
       if (seathiveOrderId.isNotEmpty) {
@@ -310,7 +310,7 @@ class ReceiptPrinter with ChangeNotifier {
       bytes += generator.row([
         PosColumn(
           width: 12,
-          text: 'Invoice No: $newInvoiceNumber',
+          text: 'Invoice No: newInvoiceNumber',
           styles: const PosStyles(align: PosAlign.left),
         ),
         

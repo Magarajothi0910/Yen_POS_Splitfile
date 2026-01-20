@@ -25,8 +25,6 @@ Future<void> handleHoldOrder(Map<String, dynamic> jsonData) async {
   try {
     await box.put(holdOrderId, order);
     _processedHoldOrders.add(holdOrderId);
-    print("💾 Saved hold order $holdOrderId");
   } catch (e) {
-    print("❌ Error saving hold order: $e");
   }
 }

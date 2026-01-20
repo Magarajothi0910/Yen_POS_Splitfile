@@ -19,10 +19,12 @@ import 'package:yenpos/Sale_order/Widgets/custom_qty_keyboard.dart';
 import 'package:yenpos/Sale_order/Widgets/customcharge_keybaord.dart';
 import 'package:yenpos/Sale_order/Widgets/disposable_builder.dart';
 import 'package:yenpos/Sale_order/Widgets/numeric_Calculator.dart';
+import 'package:yenpos/Sale_order/Widgets/printer_dialogue_configuration.dart';
 import 'package:yenpos/Sale_order/Widgets/search_drop_filed.dart';
 import 'package:yenpos/Sale_order/Widgets/selected_items_dialogue.dart';
 import 'package:yenpos/Sale_order/Widgets/storetype_selection_dialogue.dart';
 import 'package:yenpos/Sale_order/Widgets/top_message.dart';
+import 'package:yenpos/printer_screen/provider/printer_config_provider.dart';
 
 class SalesOrderScreen extends StatefulWidget {
   const SalesOrderScreen({super.key});
@@ -50,21 +52,6 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
   bool _isInternalUpdate = false;
 
   @override
-  void dispose() {
-    _allBoxQtyController.dispose();
-    for (final controller in _boxQtyControllers.values) {
-      controller.dispose();
-    }
-    for (final controller in _discountControllers.values) {
-      controller.dispose();
-    }
-    _bulkDiscountController.dispose();
-    super.dispose();
-
-    super.dispose();
-  }
-
-  @override
   void initState() {
     super.initState();
     final customerProvider = Provider.of<CustomerScreenProvider>(
@@ -75,11 +62,14 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
 
     // Use read() instead of watch()
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
-    cartProvider.clearCart();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      customerProvider.checkAndShowStoreTypeDialog(context);
-    });
 
+    if (globals.cartItems.isEmpty) {
+      cartProvider.clearCart();
+      globals.cartItems.clear();
+      cartProvider.clearCustomCharges();
+      cartProvider.updateCart();
+      _clearCustomChargeDialogue();
+    }
     customerProvider.cartItemCountNotifier = ValueNotifier<int>(
       globals.cartItems.length,
     );
@@ -107,6 +97,41 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
       // Make sure to call discount update only if needed
       applySingleItemDiscount("bulk_box_qty", value);
     });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkPrinterIpAndAlert();
+    });
+  }
+
+  // CartProvider-ல் புதிய method
+  void updateGiftedItemPrice(CartItem item) {
+    if (item.isBoxItem == 'yes' && item.boxQuantity != null) {
+      // Recalculate for box items
+      double basePrice = 0.0;
+
+      if (item.uom.toLowerCase() == 'kg' || item.uom.toLowerCase() == 'kgs') {
+        basePrice = (item.weight * item.boxQuantity! * item.pricePerKg)
+            .toDouble();
+      } else {
+        basePrice = (item.boxQuantity! * item.pricePerKg).toDouble();
+      }
+
+      // Store selling amount (before discount) - This is the TOTAL amount
+      item.sellingAmount = basePrice;
+
+      // ✅ FIXED: Store selling price (per unit price)
+      item.sellingPrice = item.pricePerKg;
+
+      // Apply discount if any
+      if (item.itemWiseDiscount != null && item.itemWiseDiscount! > 0) {
+        item.itemWiseDiscountAmount =
+            basePrice * (item.itemWiseDiscount! / 100);
+        item.finalPrice = basePrice - item.itemWiseDiscountAmount!;
+      } else {
+        item.itemWiseDiscountAmount = 0;
+        item.finalPrice = basePrice;
+      }
+    }
   }
 
   void applySingleItemDiscount(String key, String value) {
@@ -125,9 +150,31 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
           item.itemWiseDiscountAmount = 0.0;
           item.finalPrice = null;
 
-          // reset price fields
-          item.sellingPrice = 0;
-          item.sellingAmount = 0.0;
+          // reset price fields - FIXED: Keep the original pricePerKg
+
+          // Recalculate selling amount based on quantity
+          if (item.isBoxItem == 'yes' && item.boxQuantity != null) {
+            // For box items
+            if (item.uom.toLowerCase() == 'kg' ||
+                item.uom.toLowerCase() == 'kgs') {
+              item.sellingAmount =
+                  (item.weight * item.boxQuantity! * item.pricePerKg)
+                      .toDouble();
+              item.sellingPrice = item.pricePerKg; // ✅ Store the unit price
+            } else {
+              item.sellingAmount = (item.boxQuantity! * item.pricePerKg)
+                  .toDouble();
+              item.sellingPrice = item.pricePerKg; // ✅ Store the unit price
+            }
+          } else {
+            num sellingAmount = (item.uom == 'Kg' || item.uom == 'Kgs')
+                ? (item.quantity.value * item.pricePerKg * item.weight)
+                : (item.quantity.value * item.pricePerKg);
+
+            item.sellingAmount = sellingAmount
+                .toDouble(); // ✅ Convert to double
+            item.sellingPrice = item.pricePerKg; // ✅ Store the unit price
+          }
         }
 
         Provider.of<CartProvider>(context, listen: false).updateCart();
@@ -151,14 +198,29 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
           // ----------------------------------------------------
           // 🔥 1️⃣ SELLING PRICE BEFORE DISCOUNT (unit price)
           // ----------------------------------------------------
+          // ✅ FIXED: Always store the unit price, not calculated amount
           item.sellingPrice = item.pricePerKg;
 
           // ----------------------------------------------------
           // 🔥 2️⃣ SELLING AMOUNT BEFORE DISCOUNT (full amount)
           // ----------------------------------------------------
-          num sellingAmount = (item.uom == 'Kg' || item.uom == 'Kgs')
-              ? (item.quantity.value * item.pricePerKg * item.weight)
-              : (item.quantity.value * item.pricePerKg);
+          num sellingAmount = 0;
+
+          // Check if it's a box item
+          if (item.isBoxItem == 'yes' && item.boxQuantity != null) {
+            if (item.uom.toLowerCase() == 'kg' ||
+                item.uom.toLowerCase() == 'kgs') {
+              sellingAmount =
+                  (item.weight * item.boxQuantity! * item.pricePerKg);
+            } else {
+              sellingAmount = (item.boxQuantity! * item.pricePerKg);
+            }
+          } else {
+            // Regular items
+            sellingAmount = (item.uom == 'Kg' || item.uom == 'Kgs')
+                ? (item.quantity.value * item.pricePerKg * item.weight)
+                : (item.quantity.value * item.pricePerKg);
+          }
 
           item.sellingAmount = sellingAmount.toDouble();
 
@@ -197,6 +259,77 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
     }
   }
 
+  Future<void> _checkPrinterIpAndAlert() async {
+    final printerProvider = Provider.of<PrinterProviderpos>(
+      context,
+      listen: false,
+    );
+
+    await printerProvider.initializeHive();
+
+    String? printerIp = printerProvider.getPrinterIpFromHive(type: 'Overall');
+
+    // If IP is already set, do nothing
+    if (printerIp != null && printerIp.isNotEmpty) return;
+
+    // Show dialog once
+    await showPrinterConfigDialog();
+
+    // After dialog closes, check again
+    printerIp = printerProvider.getPrinterIpFromHive(type: 'Overall');
+
+    if (printerIp == null || printerIp.isEmpty) {
+      // Give user some time (e.g., 5 seconds) before showing again
+      await Future.delayed(const Duration(seconds: 5));
+
+      // Optionally, you can prompt again if needed, but now it's not aggressive
+      if (mounted) {
+        await _checkPrinterIpAndAlert(); // recursive, but with delay
+      }
+    }
+  }
+
+  double _calculateSelectedItemsTotal(List<CartItem> selectedItems) {
+    double total = 0.0;
+
+    for (var item in selectedItems) {
+      // 1️⃣ Base amount calculation (discount க்கு முன்)
+      double baseAmount = 0.0;
+
+      if (item.isBoxItem == 'yes' &&
+          item.boxQuantity != null &&
+          item.boxQuantity! > 0) {
+        // Box item-க்கு
+        int boxQty = item.boxQuantity!;
+        if (item.uom?.toLowerCase() == "kg" ||
+            item.uom?.toLowerCase() == "kgs") {
+          baseAmount = (item.weight ?? 1.0) * boxQty * item.pricePerKg;
+        } else {
+          baseAmount = boxQty.toDouble() * item.pricePerKg;
+        }
+      } else {
+        // Normal item-க்கு
+        if (item.uom?.toLowerCase() == "kg" ||
+            item.uom?.toLowerCase() == "kgs") {
+          baseAmount =
+              (item.weight ?? 1.0) * item.quantity.value * item.pricePerKg;
+        } else {
+          baseAmount = item.quantity.value.toDouble() * item.pricePerKg;
+        }
+      }
+
+      // 2️⃣ Discount calculation
+      if (item.itemWiseDiscount != null && item.itemWiseDiscount! > 0) {
+        double discountAmount = baseAmount * (item.itemWiseDiscount! / 100);
+        baseAmount -= discountAmount;
+      }
+
+      total += baseAmount;
+    }
+
+    return total;
+  }
+
   Future<void> _saveStoreType(String type) async {
     final prefs = await SharedPreferences.getInstance();
     final currentTimestamp = DateTime.now().millisecondsSinceEpoch;
@@ -217,19 +350,6 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
       builder: (context) =>
           StoreTypeSelectionDialog(onStoreTypeSelected: _saveStoreType),
     );
-  }
-
-  void _removeItemState(String key) {
-    final selectionProvider = Provider.of<CartSelectionProvider>(
-      context,
-      listen: false,
-    );
-    selectionProvider.toggleItemSelection(
-      key,
-      false,
-    ); // Explicitly unselect the item
-    _boxQtyControllers.remove(key)?.dispose();
-    _discountControllers.remove(key)?.dispose();
   }
 
   Future<void> _showClearCartConfirmationDialog(
@@ -449,9 +569,8 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
 
         if (_bulkDiscountController.text.isNotEmpty) {
           _applyBulkDiscount(_bulkDiscountController.text);
+          cartProvider.updateCart();
         }
-
-        cartProvider.updateCart();
       });
     }
   }
@@ -460,6 +579,7 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
     BuildContext context,
     ApiServiceSalesOrderProvider apiService,
     CartSelectionProvider selectionProvider,
+    CustomerScreenProvider customerScreenProvider,
   ) {
     return AppBar(
       automaticallyImplyLeading: false,
@@ -488,8 +608,6 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
                   _buildNavButton(
                     label: 'All Orders',
                     onPressed: () async {
-                      // apiService.clearAllOrders();
-                      // await apiService.fetchAllOrders();
                       Navigator.of(context).pushNamed('/all-orders');
                     },
                   ),
@@ -498,7 +616,40 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
                 ],
               ),
             ),
-            _buildStoreTypeToggle(),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ChoiceChip(
+                  label: Text('Inhouse'),
+                  selected: customerScreenProvider.orderType == 'Inhouse',
+                  onSelected: (selected) {
+                    if (selected)
+                      customerScreenProvider.setOrderType('Inhouse');
+                  },
+                  selectedColor: Colors.blue,
+                  labelStyle: TextStyle(
+                    color: customerScreenProvider.orderType == 'Inhouse'
+                        ? Colors.white
+                        : Colors.black,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                ChoiceChip(
+                  label: Text('Warehouse'),
+                  selected: customerScreenProvider.orderType == 'Warehouse',
+                  onSelected: (selected) {
+                    if (selected)
+                      customerScreenProvider.setOrderType('Warehouse');
+                  },
+                  selectedColor: Colors.blue,
+                  labelStyle: TextStyle(
+                    color: customerScreenProvider.orderType == 'Warehouse'
+                        ? Colors.white
+                        : Colors.black,
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -534,44 +685,6 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
         elevation: 2,
       ),
       child: Text('Create Order'),
-    );
-  }
-
-  Widget _buildStoreTypeToggle() {
-    final customerProvider = Provider.of<CustomerScreenProvider>(context);
-
-    return ToggleButtons(
-      constraints: BoxConstraints(minHeight: 40.0, minWidth: 80.0),
-      borderRadius: BorderRadius.circular(8.0),
-      borderWidth: 2,
-      borderColor: Colors.blueGrey,
-      selectedBorderColor: Colors.blue,
-      fillColor: Colors.blue,
-      splashColor: Colors.blue.withOpacity(0.3),
-      color: Colors.black,
-      selectedColor: Colors.white,
-      isSelected: [
-        customerProvider.selectedStoreType == 'Inhouse',
-        customerProvider.selectedStoreType == 'Warehouse',
-      ],
-      onPressed: (index) {
-        final type = index == 0 ? 'Inhouse' : 'Warehouse';
-        customerProvider.saveStoreType(type);
-      },
-      children: [
-        _buildToggleButtonLabel('Inhouse'),
-        _buildToggleButtonLabel('Warehouse'),
-      ],
-    );
-  }
-
-  Widget _buildToggleButtonLabel(String label) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0),
-      child: Text(
-        label,
-        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-      ),
     );
   }
 
@@ -790,18 +903,17 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
             }
             return sum + total;
           } catch (e) {
-            print("⚠ Error calculating total for item: $e");
             return sum;
           }
         });
 
-        double customCharge = 0;
+        // ✅ புதிய method-ஐ use செய்யவும்
+        double selectedTotal = _calculateSelectedItemsTotal(selectedItems);
 
-        // Sum all custom charges from the map
-        for (var controller in cartProvider.customChargeControllers.values) {
-          customCharge += double.tryParse(controller!.text) ?? 0;
-        }
-        final selectedTotalAmount = baseAmount + customCharge;
+        // Custom charges add செய்யவும்
+        final cartProvider = Provider.of<CartProvider>(context, listen: false);
+        double customCharge = cartProvider.customCharge.value;
+        double finalTotal = selectedTotal + customCharge;
 
         return ListView(
           children: [
@@ -850,7 +962,8 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
                         ),
                         if (selectionProvider.showCheckBoxes)
                           const SizedBox(width: 10),
-                        if (selectionProvider.showCheckBoxes)
+                        if (selectionProvider.showCheckBoxes) ...[
+                          const SizedBox(width: 10),
                           Expanded(
                             flex: 1,
                             child: Column(
@@ -860,17 +973,23 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
                                 const SizedBox(height: 10),
                                 _buildBulkDiscountField(),
                                 const SizedBox(height: 10),
-                                Text(
-                                  "Total Box Amount: ₹$selectedTotalAmount",
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.green[700],
-                                  ),
+                                // ✅ புதிய total display
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "Total Box Amount: ₹${selectedTotal.round()}",
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.blue[700],
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
                           ),
+                        ],
                       ],
                     ),
                   ],
@@ -921,9 +1040,7 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
       originalIndex = globals.cartItems.indexWhere(
         (e) => e.varianceName == item.varianceName,
       );
-    } catch (e) {
-      print("⚠ Error finding original index: $e");
-    }
+    } catch (e) {}
 
     // If not found or invalid, skip this item
     if (originalIndex < 0 || originalIndex >= globals.cartItems.length) {
@@ -1149,6 +1266,7 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
   }
 
   // =====================
+  // Also update the GestureDetector in _buildCartItemContent:
   Widget _buildCartItemContent({
     required CartItem item,
     required String key,
@@ -1156,84 +1274,55 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
     required CartProvider cartProvider,
     required CartSelectionProvider selectionProvider,
   }) {
-    return GestureDetector(
-      onTap: () {
-        if (item.uom == 'Kg' || item.uom == 'Kgs') {
-          showDialog(
-            context: context,
-            builder: (_) => NumericCalculator(
-              varianceName: item.varianceName,
-              onValueSelected: (double newValue) {
-                if (mounted) {
-                  setState(() {
-                    item.weight = newValue;
-                    print(
-                      "🔹 Weight updated for ${item.varianceName}: ${item.weight}",
-                    );
-                    cartProvider.updateCart();
-                  });
+    return Padding(
+      padding: const EdgeInsets.all(12.0),
+      child: Row(
+        children: [
+          if (selectionProvider.showCheckBoxes)
+            Checkbox(
+              value: selectionProvider.itemSelectionState[key] ?? false,
+              onChanged: (bool? value) {
+                selectionProvider.toggleItemSelection(key, value ?? false);
+
+                if (value == true) {
+                  item.isBoxItem = 'yes';
+                  item.itemWiseDiscount = 0.0;
+                  item.itemWiseDiscountAmount = 0.0;
+                  item.boxQuantity =
+                      int.tryParse(_allBoxQtyController.text) ?? 0;
+                  _boxQtyControllers[key]?.text = item.boxQuantity.toString();
+                  item.quantity.value =
+                      int.tryParse(_allBoxQtyController.text) ?? 0;
+                } else {
+                  item.isBoxItem = 'no';
+                  item.itemWiseDiscount = 0.0;
+                  item.itemWiseDiscountAmount = 0.0;
+                  item.boxQuantity = 1;
+                  _boxQtyControllers[key]?.text = '1';
+                  _discountControllers[key]?.clear();
+                  item.quantity.value = 1;
                 }
+
+                setState(() {
+                  cartProvider.updateCart();
+                });
               },
             ),
-          );
-        }
-      },
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Row(
-          children: [
-            if (selectionProvider.showCheckBoxes)
-              Checkbox(
-                value: selectionProvider.itemSelectionState[key] ?? false,
-                onChanged: (bool? value) {
-                  selectionProvider.toggleItemSelection(key, value ?? false);
-
-                  if (value == true) {
-                    item.isBoxItem = 'yes';
-                    item.itemWiseDiscount = 0.0;
-                    item.itemWiseDiscountAmount = 0.0;
-                    item.boxQuantity =
-                        int.tryParse(_allBoxQtyController.text) ?? 0;
-                    _boxQtyControllers[key]?.text = item.boxQuantity.toString();
-                    item.quantity.value =
-                        int.tryParse(_allBoxQtyController.text) ?? 0;
-                    print(
-                      "✅ ${item.varianceName} selected: isBoxItem=${item.isBoxItem}, boxQuantity=${item.boxQuantity}",
-                    );
-                  } else {
-                    item.isBoxItem = 'no';
-                    item.itemWiseDiscount = 0.0;
-                    item.itemWiseDiscountAmount = 0.0;
-                    item.boxQuantity = 1;
-                    _boxQtyControllers[key]?.text = '1';
-                    _discountControllers[key]?.clear();
-                    item.quantity.value = 1;
-                    print(
-                      "❌ ${item.varianceName} unselected: isBoxItem=${item.isBoxItem}, boxQuantity=${item.boxQuantity}",
-                    );
-                  }
-
-                  setState(() {
-                    cartProvider.updateCart();
-                  });
-                },
-              ),
-            const SizedBox(width: 6),
-            Expanded(child: _buildItemDetails(item)),
-            if ((!selectionProvider.showCheckBoxes &&
-                    (selectionProvider.itemSelectionState[key] ?? false)) ||
-                (selectionProvider.showCheckBoxes &&
-                    !(selectionProvider.itemSelectionState[key] ?? false)))
-              _buildDiscountField(key),
-            _buildItemPriceAndControls(
-              item: item,
-              originalIndex: originalIndex,
-              cartProvider: cartProvider,
-              key: key,
-              selectionProvider: selectionProvider,
-            ),
-          ],
-        ),
+          const SizedBox(width: 6),
+          Expanded(child: _buildItemDetails(item)),
+          if ((!selectionProvider.showCheckBoxes &&
+                  (selectionProvider.itemSelectionState[key] ?? false)) ||
+              (selectionProvider.showCheckBoxes &&
+                  !(selectionProvider.itemSelectionState[key] ?? false)))
+            _buildDiscountField(key, item),
+          _buildItemPriceAndControls(
+            item: item,
+            originalIndex: originalIndex,
+            cartProvider: cartProvider,
+            key: key,
+            selectionProvider: selectionProvider,
+          ),
+        ],
       ),
     );
   }
@@ -1251,20 +1340,78 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
           ),
         ),
         const SizedBox(height: 4),
-        Text(
-          _getItemPriceDescription(item),
-          style: const TextStyle(fontSize: 13, color: Colors.grey),
+        // Make the entire price description clickable if it's a weight item
+        GestureDetector(
+          onTap: () {
+            if (item.uom == 'Kg' || item.uom == 'Kgs') {
+              _showWeightCalculator(context, item);
+            }
+          },
+          child: Text(
+            _getItemPriceDescription(item),
+            style: TextStyle(
+              fontSize: 13,
+              color: (item.uom == 'Kg' || item.uom == 'Kgs')
+                  ? Colors
+                        .blue // Make weight items blue to indicate they're clickable
+                  : Colors.grey,
+              decoration: (item.uom == 'Kg' || item.uom == 'Kgs')
+                  ? TextDecoration.underline
+                  : TextDecoration.none,
+            ),
+          ),
         ),
       ],
+    );
+  }
+
+  void _showWeightCalculator(BuildContext context, CartItem item) {
+    showDialog(
+      context: context,
+      builder: (_) => NumericCalculator(
+        varianceName: item.varianceName,
+        initialValue: item.weight ?? 1.0,
+        onValueSelected: (double newValue) {
+          if (mounted) {
+            setState(() {
+              item.weight = newValue;
+
+              // Recalculate price after weight change
+              if (item.quantity != null && item.pricePerKg != null) {
+                double total = newValue * item.quantity.value * item.pricePerKg;
+
+                // Reapply discount if exists
+                if (item.itemWiseDiscount != null &&
+                    item.itemWiseDiscount! > 0) {
+                  item.itemWiseDiscountAmount =
+                      total * (item.itemWiseDiscount! / 100);
+                  item.finalPrice = total - item.itemWiseDiscountAmount!;
+                } else {
+                  item.finalPrice = total;
+                }
+              }
+
+              // Update cart
+              Provider.of<CartProvider>(context, listen: false).updateCart();
+            });
+          }
+        },
+      ),
     );
   }
 
   String _getItemPriceDescription(dynamic item) {
     String priceDescription;
     if (item.uom == 'Kgs' || item.uom == 'Kg') {
-      priceDescription = item.weight >= 1
-          ? '${item.weight} kg × Rs.${item.pricePerKg}/kg'
-          : '${(item.weight * 1000)} grams × Rs.${item.pricePerKg}/kg';
+      // Weight mattum blue color la varanum, so separate pannanum
+      String weightText = item.weight >= 1
+          ? '${item.weight} kg'
+          : '${(item.weight * 1000)} grams';
+
+      String priceText = ' × Rs.${item.pricePerKg}/kg';
+
+      // Return a single string, but we'll handle color in the widget
+      priceDescription = '$weightText$priceText';
     } else {
       priceDescription =
           '${item.quantity.value} ${item.uom} × Rs.${item.pricePerKg}/${item.uom}';
@@ -1272,13 +1419,31 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
 
     if (item.itemWiseDiscount != null && item.itemWiseDiscount != 0) {
       priceDescription +=
-          '\nDiscount: ${item.itemWiseDiscount}% (Rs.${item.itemWiseDiscountAmount})';
+          '\nDiscount: ${item.itemWiseDiscount}% (Rs.${item.itemWiseDiscountAmount.round()})';
     }
 
     return priceDescription;
   }
 
   // =====================
+  String _formatOverallWeight(double totalWeightKg) {
+    if (totalWeightKg >= 1) {
+      // If weight is 1 kg or more, show in kg
+      if (totalWeightKg % 1 == 0) {
+        return 'Total: ${totalWeightKg.toInt()} kg';
+      } else {
+        return 'Total: ${totalWeightKg.toStringAsFixed(3)} kg';
+      }
+    } else {
+      // If weight is less than 1 kg, show in grams
+      double grams = totalWeightKg * 1000;
+      if (grams % 1 == 0) {
+        return 'Total: ${grams.toInt()} grams';
+      } else {
+        return 'Total: ${grams.toStringAsFixed(0)} grams';
+      }
+    }
+  }
 
   Widget _buildItemPriceAndControls({
     required CartItem item,
@@ -1315,7 +1480,8 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            if (!selectionProvider.showCheckBoxes) _buildDiscountField(key),
+            if (!selectionProvider.showCheckBoxes)
+              _buildDiscountField(key, item),
             const SizedBox(width: 10),
             _buildQuantityControls(
               originalIndex: originalIndex,
@@ -1328,15 +1494,42 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(
-              'Rs.${originalPrice.round()}',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-                decoration: discountPercent > 0
-                    ? TextDecoration.lineThrough
-                    : TextDecoration.none,
+            Container(
+              constraints: const BoxConstraints(minWidth: 200),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Overall info
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (item.uom == 'Kg' || item.uom == 'Kgs')
+                        Text(
+                          _formatOverallWeight(
+                            item.weight * item.quantity.value,
+                          ),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.blue,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                    ],
+                  ),
+
+                  // Original price
+                  Text(
+                    'Rs.${originalPrice.round()}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                      decoration: discountPercent > 0
+                          ? TextDecoration.lineThrough
+                          : TextDecoration.none,
+                    ),
+                  ),
+                ],
               ),
             ),
             if (discountPercent > 0) ...[
@@ -1359,11 +1552,57 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
     );
   }
 
-  Widget _buildDiscountField(String key) {
+  void _updateDiscountController(String key, CartItem item) {
+    if (!_discountControllers.containsKey(key)) return;
+
+    final controller = _discountControllers[key]!;
+
+    if (_isInternalUpdate) return;
+
+    if (item.itemWiseDiscount > 0) {
+      final newText = item.itemWiseDiscount.toStringAsFixed(0);
+
+      if (controller.text != newText) {
+        controller.value = controller.value.copyWith(
+          text: newText,
+          selection: TextSelection.collapsed(offset: newText.length),
+        );
+      }
+    } else if (controller.text.isNotEmpty) {
+      controller.clear();
+    }
+  }
+
+  Widget _buildDiscountField(String key, CartItem item) {
+    final customerProvider = Provider.of<CustomerScreenProvider>(
+      context,
+      listen: true,
+    );
+
+    // Check both conditions
+    bool isRestoring = customerProvider.isRestoringOrder;
+    bool isApprovalOrder =
+        customerProvider.isRestoringApprovalOrder ||
+        (customerProvider.originalApprovalStatus?.toLowerCase().contains(
+                  'approved',
+                ) ==
+                true ||
+            customerProvider.originalApprovalStatus?.toLowerCase().contains(
+                  'pending',
+                ) ==
+                true);
+
+    bool isDisabled = isRestoring || isApprovalOrder;
+
     if (!_discountControllers.containsKey(key)) {
       final controller = TextEditingController();
+      if (item.itemWiseDiscount > 0) {
+        controller.text = item.itemWiseDiscount.toStringAsFixed(0);
+      }
       _discountControllers[key] = controller;
     }
+
+    _updateDiscountController(key, item);
 
     _discountFocusNodes.putIfAbsent(key, () => FocusNode());
 
@@ -1372,72 +1611,123 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
 
     return SizedBox(
       width: 130,
-      child: TextFormField(
-        showCursor: true,
-        readOnly: true,
-        controller: ctrl,
-        focusNode: node,
-        decoration: InputDecoration(
-          labelText: 'Discount%',
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12.0),
-            borderSide: BorderSide(color: Colors.blue.shade700, width: 1.5),
+      child: AbsorbPointer(
+        absorbing: isDisabled,
+        child: Opacity(
+          opacity: isDisabled ? 0.6 : 1.0,
+          child: TextFormField(
+            showCursor: !isDisabled,
+            readOnly: true,
+            controller: ctrl,
+            focusNode: node,
+            decoration: InputDecoration(
+              labelText: 'Discount%',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12.0),
+                borderSide: BorderSide(
+                  color: isDisabled
+                      ? Colors.grey.shade400
+                      : Colors.blue.shade700,
+                  width: 1.5,
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12.0),
+                borderSide: BorderSide(
+                  color: isDisabled
+                      ? Colors.grey.shade400
+                      : Colors.blue.shade700,
+                  width: 2.0,
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12.0),
+                borderSide: BorderSide(
+                  color: isDisabled
+                      ? Colors.grey.shade300
+                      : Colors.blue.shade300,
+                  width: 1.5,
+                ),
+              ),
+              filled: true,
+              fillColor: isDisabled
+                  ? Colors.grey.shade100
+                  : Colors.blue.shade50,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12.0,
+                vertical: 8.0,
+              ),
+              labelStyle: TextStyle(
+                color: isDisabled ? Colors.grey.shade600 : Colors.blue.shade700,
+                fontSize: 11,
+              ),
+              suffixIcon: Icon(
+                Icons.percent,
+                size: 17,
+                color: isDisabled ? Colors.grey.shade500 : Colors.blue,
+              ),
+              hintText: isDisabled
+                  ? (isApprovalOrder ? 'Approval Order' : 'Restoring...')
+                  : null,
+            ),
+            onTap: isDisabled
+                ? null
+                : () {
+                    ActiveField.activate(
+                      context: context,
+                      ctrl: ctrl,
+                      node: node,
+                      numeric: true,
+                      discount: true,
+                      fieldType: "discount",
+                      onChanged: (value) {
+                        _handleDiscountChange(value, key, ctrl);
+                      },
+                    );
+                  },
+            keyboardType: TextInputType.numberWithOptions(decimal: true),
           ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12.0),
-            borderSide: BorderSide(color: Colors.blue.shade700, width: 2.0),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12.0),
-            borderSide: BorderSide(color: Colors.blue.shade300, width: 1.5),
-          ),
-          filled: true,
-          fillColor: Colors.blue.shade50,
-          contentPadding: EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-          labelStyle: TextStyle(color: Colors.blue.shade700, fontSize: 11),
-          suffixIcon: Icon(Icons.percent, size: 17),
         ),
-        onTap: () {
-          ActiveField.activate(
-            context: context,
-            ctrl: ctrl,
-            node: node,
-            numeric: true,
-            discount: true,
-            fieldType: "discount",
-            onChanged: (value) {
-              if (_isInternalUpdate) return;
-
-              _isInternalUpdate = true;
-
-              if (value.isEmpty) {
-                ctrl.clear();
-                applySingleItemDiscount(key, '');
-                _isInternalUpdate = false;
-                return;
-              }
-
-              final discount = double.tryParse(value);
-              if (discount == null || discount <= 0 || discount > 100) {
-                ctrl.clear();
-                applySingleItemDiscount(key, '');
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Discount must be between 1 and 100"),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              } else {
-                applySingleItemDiscount(key, value);
-              }
-
-              _isInternalUpdate = false;
-            },
-          );
-        },
-        keyboardType: TextInputType.numberWithOptions(decimal: true),
       ),
     );
+  }
+
+  void _handleDiscountChange(
+    String value,
+    String key,
+    TextEditingController ctrl,
+  ) {
+    if (_isInternalUpdate) return;
+
+    _isInternalUpdate = true;
+
+    if (value.isEmpty) {
+      ctrl.clear();
+      applySingleItemDiscount(key, '');
+      _isInternalUpdate = false;
+      return;
+    }
+
+    final discount = double.tryParse(value);
+    if (discount == null || discount <= 0 || discount > 100) {
+      ctrl.clear();
+      applySingleItemDiscount(key, '');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Discount must be between 1 and 100"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } else {
+      final discountValue = discount.toStringAsFixed(0);
+      print('Setting discount to: $discountValue');
+      ctrl.text = discountValue;
+      applySingleItemDiscount(key, discountValue);
+    }
+
+    _isInternalUpdate = false;
   }
 
   // =====================
@@ -1585,6 +1875,47 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
       listen: false,
     );
 
+    // Calculate correct total
+    double calculateCorrectTotal() {
+      double total = 0.0;
+
+      // 1️⃣ Normal items (non-gifted) total
+      for (var item in globals.cartItems) {
+        final isGifted =
+            selectionProvider.itemSelectionState[item.varianceName] ?? false;
+
+        if (!isGifted) {
+          // Normal item calculation
+          if (item.finalPrice != null && item.finalPrice! > 0) {
+            total += item.finalPrice!;
+          } else {
+            double itemTotal = 0.0;
+            if (item.uom?.toLowerCase() == "kg" ||
+                item.uom?.toLowerCase() == "kgs") {
+              itemTotal =
+                  (item.weight ?? 1.0) * item.quantity.value * item.pricePerKg;
+            } else {
+              itemTotal = item.quantity.value.toDouble() * item.pricePerKg;
+            }
+            total += itemTotal;
+          }
+        }
+      }
+
+      // 2️⃣ Gifted items total (box items)
+      final selectedItems = globals.cartItems.where((item) {
+        return selectionProvider.itemSelectionState[item.varianceName] ?? false;
+      }).toList();
+
+      double giftedTotal = _calculateSelectedItemsTotal(selectedItems);
+      total += giftedTotal;
+
+      // 3️⃣ Add custom charges
+      total += cartProvider.customCharge.value;
+
+      return total;
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       child: Row(
@@ -1594,7 +1925,6 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
             flex: 3,
             child: ElevatedButton(
               onPressed: () {
-                print("🔹 Custom Charge Button Pressed");
                 _showCustomChargeDialog(
                   cartProvider,
                   customerProvider,
@@ -1602,8 +1932,8 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
                 );
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue, // Always blue
-                foregroundColor: Colors.white, // Always white text
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -1631,7 +1961,6 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
                     (item) => item.boxQuantity != null && item.boxQuantity! > 0,
                   )
                   ? () {
-                      print("🔹 View Button Pressed");
                       _showSelectedItemsDialog(selectionProvider);
                     }
                   : null,
@@ -1657,16 +1986,33 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
             flex: 3,
             child: ValueListenableBuilder<double>(
               valueListenable: cartProvider.totalAmount,
-              builder: (context, total, _) {
+              builder: (context, providerTotal, _) {
+                // Calculate correct total
+                final correctTotal = calculateCorrectTotal();
+
+                // Debug log
+
+                // If mismatch, update the provider
+                if ((providerTotal - correctTotal).abs() > 0.01) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    // You may need to manually update the provider
+                  });
+                }
+
                 return Align(
                   alignment: Alignment.centerRight,
-                  child: Text(
-                    'Total ₹${total.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontSize: 23,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'Total ₹${correctTotal.round()}',
+                        style: const TextStyle(
+                          fontSize: 23,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
+                      ),
+                    ],
                   ),
                 );
               },
@@ -1682,15 +2028,37 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
     CustomerScreenProvider customerProvider,
     void Function(void Function()) setState,
   ) {
-    // Initialize controllers for all charges
-    Map<String, TextEditingController> controllers = {
+    // Get controllers from cartProvider instead of creating new ones
+    Map<String, TextEditingController> controllers = {};
+
+    // Initialize controllers from cartProvider if they exist, otherwise create new ones
+    for (var charge in GlobalDataManager().charges) {
+      final chargeType = charge['chargeType'];
+
+      if (cartProvider.customChargeControllers.containsKey(chargeType)) {
+        // Use existing controller from cartProvider
+        controllers[chargeType] =
+            cartProvider.customChargeControllers[chargeType]!;
+      } else {
+        // Create new controller and add it to cartProvider
+        final controller = TextEditingController(
+          text: (charge['amount'] ?? 0).toStringAsFixed(0),
+        );
+        controllers[chargeType] = controller;
+        cartProvider.customChargeControllers[chargeType] = controller;
+      }
+    }
+
+    // Initialize chargeValues map with current values
+    Map<String, double> chargeValues = {
       for (var charge in GlobalDataManager().charges)
-        charge['chargeType']: TextEditingController(
-          text: (charge['amount'] ?? 0).toStringAsFixed(2),
-        ),
+        charge['chargeType']: (charge['amount'] ?? 0).toDouble(),
     };
 
-    // Register controllers in provider
+    // Track which controllers have been cleared by user selection
+    Set<String> clearedControllers = {};
+
+    // Register controllers in keyboard provider
     final keyboardProvider = context.read<CustomchargeKeyboardProvider>();
     controllers.forEach((key, controller) {
       keyboardProvider.registerController(key, controller);
@@ -1698,7 +2066,9 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
         'Registered controller for $key with initial value ${controller.text}',
       );
     });
+
     final mergedControllers = Listenable.merge(controllers.values);
+
     String selectedChargeType =
         customerProvider.selectedChargeType ??
         (GlobalDataManager().charges.isNotEmpty
@@ -1795,6 +2165,14 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
                           final isSelected =
                               selectedChargeType == charge['chargeType'];
 
+                          // Check if this controller should show 0.00 or be empty
+                          final shouldShowZero =
+                              !clearedControllers.contains(
+                                charge['chargeType'],
+                              ) &&
+                              (controller.text.isEmpty ||
+                                  controller.text == '0.00');
+
                           return GestureDetector(
                             onTap: () {
                               setStateDialog(() {
@@ -1805,8 +2183,13 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
                                   charge['chargeType'],
                                 );
 
-                                // Clear the controller when selecting a charge
+                                // Clear the controller when selecting
                                 controller.clear();
+                                // Mark this controller as cleared
+                                clearedControllers.add(charge['chargeType']);
+                                // Update chargeValues
+                                chargeValues[charge['chargeType']] = 0.0;
+
                                 print(
                                   'Selected charge: $selectedChargeType, controller cleared',
                                 );
@@ -1845,9 +2228,17 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
                                       child: ValueListenableBuilder<TextEditingValue>(
                                         valueListenable: controller,
                                         builder: (context, value, _) {
+                                          // Show 0.00 if controller is empty and hasn't been cleared by user
+                                          String displayText = value.text;
+                                          if (shouldShowZero &&
+                                              value.text.isEmpty) {
+                                            displayText = '0.00';
+                                          }
+
                                           print(
-                                            'Controller ${charge['chargeType']} updated to: ${value.text}',
+                                            'Controller ${charge['chargeType']} updated to: ${value.text}, displaying: $displayText',
                                           );
+
                                           return TextFormField(
                                             controller: controller,
                                             textAlign: TextAlign.right,
@@ -1881,6 +2272,14 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
                                                   color: Colors.blueAccent,
                                                   width: 2,
                                                 ),
+                                              ),
+                                              hintText: shouldShowZero
+                                                  ? '0.00'
+                                                  : null,
+                                              hintStyle: const TextStyle(
+                                                color: Colors.grey,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16,
                                               ),
                                             ),
                                           );
@@ -1986,40 +2385,65 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
                           ),
                           onPressed: () {
                             print('Apply All pressed');
+
+                            // Update the chargeValues map with current controller values
                             for (var charge in GlobalDataManager().charges) {
                               final chargeType = charge['chargeType'];
                               final controller = controllers[chargeType];
                               if (controller != null) {
+                                // If controller is empty but hasn't been cleared by user, use 0.00
+                                final textValue =
+                                    controller.text.isEmpty &&
+                                        !clearedControllers.contains(chargeType)
+                                    ? '0.00'
+                                    : controller.text;
+
+                                final value = double.tryParse(textValue) ?? 0.0;
+                                chargeValues[chargeType] = value;
+
                                 final index = GlobalDataManager().charges
                                     .indexWhere(
                                       (c) => c['chargeType'] == chargeType,
                                     );
                                 if (index != -1) {
-                                  final value =
-                                      double.tryParse(controller.text) ?? 0.0;
                                   GlobalDataManager().charges[index]['amount'] =
                                       value;
-                                  print(
-                                    'Saved ${chargeType} with value $value',
-                                  );
+                                  print('Saved $chargeType with value $value');
                                 }
                               }
                             }
 
-                            double totalCustomCharges = GlobalDataManager()
-                                .charges
-                                .fold(
-                                  0.0,
-                                  (sum, c) => sum + (c['amount'] ?? 0.0),
-                                );
+                            double totalCustomCharges = chargeValues.values
+                                .fold(0.0, (sum, value) => sum + value);
+
                             print('Total custom charges: $totalCustomCharges');
 
+                            // Store charges in cartProvider
                             setState(() {
                               customerProvider.selectedChargeType =
                                   selectedChargeType;
                               cartProvider.customCharge.value =
                                   totalCustomCharges;
+
+                              // Store individual charge types and values
+                              cartProvider.customChargeTypes.clear();
+                              cartProvider.customChargeValues.clear();
+
+                              chargeValues.forEach((type, value) {
+                                if (value > 0) {
+                                  cartProvider.customChargeTypes.add(type);
+                                  cartProvider.customChargeValues.add(value);
+                                }
+                              });
+
+                              // IMPORTANT: Ensure all controllers are in cartProvider
+                              for (var entry in controllers.entries) {
+                                cartProvider.customChargeControllers[entry
+                                        .key] =
+                                    entry.value;
+                              }
                             });
+
                             Navigator.pop(context);
                           },
                           child: const Text(
@@ -2042,10 +2466,37 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
     );
   }
 
+  void _clearCustomChargeDialogue() {
+    // Clear all custom charge controllers
+    final cartProvider = Provider.of<CartProvider>(context, listen: false);
+
+    // Clear all controllers
+    for (var controller in cartProvider.customChargeControllers.values) {
+      controller?.clear();
+    }
+
+    // Clear the list of controllers
+    cartProvider.customChargeControllers.clear();
+
+    // Reset GlobalDataManager charges
+    for (var charge in GlobalDataManager().charges) {
+      charge['amount'] = 0.0;
+    }
+
+    // Reset custom charge in cart provider
+    cartProvider.customCharge.value = 0.0;
+
+    // Clear types and values
+    cartProvider.customChargeTypes.clear();
+    cartProvider.customChargeValues.clear();
+  }
+
   @override
   Widget build(BuildContext context) {
     // final cartProvider = Provider.of<CartProvider>(context);
     final selectionProvider = Provider.of<CartSelectionProvider>(context);
+    final customerScreenProvider = Provider.of<CustomerScreenProvider>(context);
+
     final apiService = Provider.of<ApiServiceSalesOrderProvider>(
       context,
       listen: false,
@@ -2068,7 +2519,12 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
       },
       child: Scaffold(
         backgroundColor: Colors.white,
-        appBar: _buildAppBar(context, apiService, selectionProvider),
+        appBar: _buildAppBar(
+          context,
+          apiService,
+          selectionProvider,
+          customerScreenProvider,
+        ),
         body: Row(
           children: [
             Expanded(
@@ -2095,5 +2551,20 @@ class SalesOrderScreenState extends State<SalesOrderScreen> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _allBoxQtyController.dispose();
+    for (final controller in _boxQtyControllers.values) {
+      controller.dispose();
+    }
+    for (final controller in _discountControllers.values) {
+      controller.dispose();
+    }
+    _bulkDiscountController.dispose();
+    super.dispose();
+
+    super.dispose();
   }
 }

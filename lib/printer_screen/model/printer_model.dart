@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 class Printer {
   String name;
   String ipAddress;
@@ -26,13 +28,21 @@ class Printer {
 
   // Make sure to include status in fromJson or a similar factory method
   factory Printer.fromJson(Map<String, dynamic> json) {
-    return Printer(
-      name: json['name'],
-      ipAddress: json['ipAddress'],
-      type: json['type'],
-      items: List<String>.from(json['items']),
-      status:
-          json['status'] ?? true, // Default to true if status is not present
-    );
+    try {
+      final itemsRaw = json['items'] as List<dynamic>?;
+
+      return Printer(
+        name: json['name'] as String? ?? 'Unknown',
+        ipAddress: json['ipAddress'] as String? ?? '',
+        type: json['type'] as String? ?? '',
+        items: itemsRaw != null
+            ? itemsRaw.map((e) => e.toString()).toList()
+            : <String>[],
+        status: json['status'] as bool? ?? true,
+      );
+    } catch (e) {
+    
+      rethrow; // Optional: rethrow so you can catch it outside
+    }
   }
 }

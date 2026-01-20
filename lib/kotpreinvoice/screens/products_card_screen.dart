@@ -4,7 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:yenpos/Global/global_data_manager.dart';
+import 'package:yenpos/Global/globals_data.dart';
+import 'package:yenpos/Mode_page/Regular_mode/Provider/regular_mode_screen_provider.dart';
+import 'package:yenpos/Sale_order/Widgets/numeric_Calculator.dart';
 import 'package:yenpos/Server_Client/websocketService.dart';
+import 'package:yenpos/invoice_pay_and_print_page.dart/provider/payment_provider.dart';
+import 'package:yenpos/kotpreinvoice/components/flushbar.dart';
+import '../services/autosaveholdorder.dart';
 import '../utils/custom_snackbar.dart';
 import '../services/websocketService.dart';
 import '../widgets/product_Search/holdDropdown.dart';
@@ -307,7 +314,6 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
         Provider.of<CartProviderKOT>(context, listen: false).setToggled(false);
-        print('✅ CartProvider.isToggled initialized to false after build');
 
         // Send initial products to table screen
         _sendInitialProductsToTable();
@@ -379,138 +385,140 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
     print('📤 Sent product event: $action for $productName');
   }
 
-  void _showQuickAccessDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return Consumer<QuickAccessProvider>(
-          builder: (context, quickAccessProvider, _) {
-            final quickAccessProducts = quickAccessProvider.quickAccessProducts;
-            final productProvider = Provider.of<ProductProvider>(
-              context,
-              listen: false,
-            );
+  // void _showQuickAccessDialog(BuildContext context) {
+  //   showDialog(
+  //     context: context,
+  //     builder: (ctx) {
+  //       return Consumer<QuickAccessProvider>(
+  //         builder: (context, quickAccessProvider, _) {
+  //           final quickAccessProducts = quickAccessProvider.quickAccessProducts;
+  //           final productProvider = Provider.of<ProductProvider>(
+  //             context,
+  //             listen: false,
+  //           );
 
-            return AlertDialog(
-              title: const Text(
-                'Quick Access Products',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              content: SizedBox(
-                width: double.maxFinite,
-                height: MediaQuery.of(context).size.height * 0.6,
-                child: quickAccessProducts.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'No quick access products.\nLong-press a product to add.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 13, color: Colors.grey),
-                        ),
-                      )
-                    : ListView.builder(
-                        itemCount: quickAccessProducts.length,
-                        itemBuilder: (ctx, i) {
-                          final varianceName = quickAccessProducts[i];
-                          final product = productProvider.products.firstWhere(
-                            (p) => p.varianceName == varianceName,
-                            orElse: () => _createFallbackProduct(
-                              varianceName,
-                              category: 'Quick Access',
-                            ),
-                          );
+  //           return AlertDialog(
+  //             title: const Text(
+  //               'Quick Access Products',
+  //               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+  //             ),
+  //             content: SizedBox(
+  //               width: double.maxFinite,
+  //               height: MediaQuery.of(context).size.height * 0.6,
+  //               child: quickAccessProducts.isEmpty
+  //                   ? const Center(
+  //                       child: Text(
+  //                         'No quick access products.\nLong-press a product to add.',
+  //                         textAlign: TextAlign.center,
+  //                         style: TextStyle(fontSize: 13, color: Colors.grey),
+  //                       ),
+  //                     )
+  //                   : ListView.builder(
+  //                       itemCount: quickAccessProducts.length,
+  //                       itemBuilder: (ctx, i) {
+  //                         final varianceName = quickAccessProducts[i];
+  //                         final product = productProvider.products.firstWhere(
+  //                           (p) => p.varianceName == varianceName,
+  //                           orElse: () => _createFallbackProduct(
+  //                             varianceName,
+  //                             category: 'Quick Access',
+  //                           ),
+  //                         );
 
-                          return Card(
-                            margin: const EdgeInsets.symmetric(vertical: 4),
-                            elevation: 2,
-                            child: ListTile(
-                              leading: const Icon(
-                                Icons.favorite,
-                                color: Color.fromARGB(255, 255, 61, 47),
-                                size: 18,
-                              ),
-                              title: Text(
-                                product.varianceName,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              subtitle: Text(
-                                '₹${product.price.toStringAsFixed(2)}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                              trailing: IconButton(
-                                icon: const Icon(
-                                  Icons.delete,
-                                  color: Colors.red,
-                                  size: 18,
-                                ),
-                                onPressed: () async {
-                                  await quickAccessProvider
-                                      .removeFromQuickAccess(
-                                        varianceName,
-                                        context,
-                                      );
-                                },
-                              ),
-                              onTap: () {
-                                try {
-                                  if (product.variance_Uom.toLowerCase() ==
-                                          "kg" ||
-                                      product.variance_Uom.toLowerCase() ==
-                                          "Kgs") {
-                                    _cartProvider.addToCart(
-                                      varianceName,
-                                      weight: 50,
-                                    );
-                                  } else {
-                                    _cartProvider.addToCart(varianceName);
-                                  }
-                                  _autoSaveHoldOrder();
+  //                         return Card(
+  //                           margin: const EdgeInsets.symmetric(vertical: 4),
+  //                           elevation: 2,
+  //                           child: ListTile(
+  //                             leading: const Icon(
+  //                               Icons.favorite,
+  //                               color: Color.fromARGB(255, 20, 3, 1),
+  //                               size: 18,
+  //                             ),
+  //                             title: Text(
+  //                               product.varianceName,
+  //                               style: const TextStyle(
+  //                                 fontSize: 13,
+  //                                 fontWeight: FontWeight.w500,
+  //                               ),
+  //                             ),
+  //                             subtitle: Text(
+  //                               '₹${product.price.toStringAsFixed(2)}',
+  //                               style: const TextStyle(
+  //                                 fontSize: 12,
+  //                                 color: Colors.grey,
+  //                               ),
+  //                             ),
+  //                             trailing: IconButton(
+  //                               icon: const Icon(
+  //                                 Icons.delete,
+  //                                 color: Colors.yellow,
+  //                                 size: 18,
+  //                               ),
+  //                               onPressed: () async {
+  //                                 await quickAccessProvider
+  //                                     .removeFromQuickAccess(
+  //                                       varianceName,
+  //                                       context,
+  //                                     );
+  //                               },
+  //                             ),
+  //                             onTap: () {
+  //                               try {
+  //                                 if (product.variance_Uom.toLowerCase() ==
+  //                                         "kg" ||
+  //                                     product.variance_Uom.toLowerCase() ==
+  //                                         "Kgs") {
+  //                                   _cartProvider.addToCart(
+  //                                     varianceName,
+  //                                     weight: 50,
+  //                                   );
+  //                                 } else {
+  //                                   _cartProvider.addToCart(varianceName);
+  //                                 }
+  // AutoHoldOrderService.autoSaveHoldOrder(
+  //   context,
+  // );
 
-                                  // Send product add event
-                                  _sendProductEvent('add', varianceName, {
-                                    'varianceName': varianceName,
-                                    'name': product.name,
-                                    'price': product.price.toDouble(),
-                                    'quantity': 1,
-                                  });
+  //                                 // Send product add event
+  //                                 _sendProductEvent('add', varianceName, {
+  //                                   'varianceName': varianceName,
+  //                                   'name': product.name,
+  //                                   'price': product.price.toDouble(),
+  //                                   'quantity': 1,
+  //                                 });
 
-                                  Navigator.of(ctx).pop();
-                                } catch (e) {
-                                  debugPrint(
-                                    '❌ Error adding quick access to cart: $e',
-                                  );
-                                  CustomSnackBar.show(
-                                    context,
-                                    'Error adding to cart: $e',
-                                    type: SnackType.error,
-                                  );
-                                }
-                              },
-                            ),
-                          );
-                        },
-                      ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text(
-                    'Close',
-                    style: TextStyle(fontSize: 13, color: Colors.blue),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
+  //                                 Navigator.of(ctx).pop();
+  //                               } catch (e) {
+  //                                 debugPrint(
+  //                                   '❌ Error adding quick access to cart: $e',
+  //                                 );
+  //                                 CustomSnackBar.show(
+  //                                   context,
+  //                                   'Error adding to cart: $e',
+  //                                   type: SnackType.error,
+  //                                 );
+  //                               }
+  //                             },
+  //                           ),
+  //                         );
+  //                       },
+  //                     ),
+  //             ),
+  //             actions: [
+  //               TextButton(
+  //                 onPressed: () => Navigator.of(ctx).pop(),
+  //                 child: const Text(
+  //                   'Close',
+  //                   style: TextStyle(fontSize: 13, color: Colors.blue),
+  //                 ),
+  //               ),
+  //             ],
+  //           );
+  //         },
+  //       );
+  //     },
+  //   );
+  // }
 
   void sendSeatReturnedActionToServer(String seat) {
     final webSocketService = Provider.of<WebSocketService>(
@@ -559,8 +567,14 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
     }
     final lowerQuery = query.toLowerCase();
     return products.where((product) {
-      return product.name.toLowerCase().replaceAll(RegExp(r'\s+'), '').contains(lowerQuery)||
-          product.varianceName.toLowerCase().replaceAll(RegExp(r'\s+'), '').contains(lowerQuery);
+      return product.name
+              .toLowerCase()
+              .replaceAll(RegExp(r'\s+'), '')
+              .contains(lowerQuery) ||
+          product.varianceName
+              .toLowerCase()
+              .replaceAll(RegExp(r'\s+'), '')
+              .contains(lowerQuery);
     }).toList();
   }
 
@@ -599,59 +613,63 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
     _eventProvider = Provider.of<ProductEventProvider>(context, listen: false);
   }
 
-  void _autoSaveHoldOrder() {
-    try {
-      final holdOrderProvider = Provider.of<HoldOrderProvider>(
-        context,
-        listen: false,
-      );
-      final orderProvider = Provider.of<OrderProvider>(context, listen: false);
-      final cartProvider = Provider.of<CartProviderKOT>(context, listen: false);
+  // void autoSaveHoldOrder() {
+  //   try {
+  //     final holdOrderProvider = Provider.of<HoldOrderProvider>(
+  //       context,
+  //       listen: false,
+  //     );
+  //     final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+  //     final cartProvider = Provider.of<CartProviderKOT>(context, listen: false);
 
-      final currentTable = cartProvider.currentTableNumber.value;
-      final currentSeat = cartProvider.currentSeat.value;
-      final currentArea = cartProvider.currentAreaName.value;
+  //     final currentTable = cartProvider.currentTableNumber.value;
+  //     final currentSeat = cartProvider.currentSeat.value;
+  //     final currentArea = cartProvider.currentAreaName.value;
 
-      if (currentTable.isNotEmpty &&
-          currentSeat.isNotEmpty &&
-          cartProvider.cart.isNotEmpty) {
-        final ordersForSeat = orderProvider.getRunningOrdersForSeat(
-          currentTable,
-          currentSeat,
-        );
-        bool hasActiveOrder = ordersForSeat.any(
-          (order) => order['status'] == 'active',
-        );
+  //     if (currentTable.isNotEmpty &&
+  //         currentSeat.isNotEmpty &&
+  //         cartProvider.cart.isNotEmpty) {
+  //       final ordersForSeat = orderProvider.getRunningOrdersForSeat(
+  //         currentTable,
+  //         currentSeat,
+  //       );
+  //       bool hasActiveOrder = ordersForSeat.any(
+  //         (order) => order['status'] == 'active',
+  //       );
 
-        if (!hasActiveOrder) {
-          debugPrint(
-            '💾 Auto-saving hold order for $currentTable - Seat $currentSeat',
-          );
+  //       if (!hasActiveOrder) {
+  //         debugPrint(
+  //           '💾 Auto-saving hold order for $currentTable - Seat $currentSeat',
+  //         );
 
-          // Ensure cart data is complete before saving
-          final cartDataToSave = Map<String, dynamic>.from(cartProvider.cart);
+  //         // Ensure cart data is complete before saving
+  //         final cartDataToSave = Map<String, dynamic>.from(cartProvider.cart);
 
-          // Add debug logging to see what's being saved
-          debugPrint('📦 Cart data being saved:');
-          cartDataToSave.forEach((productName, productData) {
-            debugPrint('   - $productName: $productData');
-          });
+  //         // Add debug logging to see what's being saved
+  //         debugPrint('📦 Cart data being saved:');
+  //         cartDataToSave.forEach((productName, productData) {
+  //           debugPrint('   - $productName: $productData');
+  //         });
 
-          holdOrderProvider.saveHoldOrder(
-            currentTable,
-            currentSeat,
-            cartDataToSave,
-            areaName: currentArea,
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('❌ Error in auto-save hold order: $e');
-    }
-  }
+  //         holdOrderProvider.saveHoldOrder(
+  //           currentTable,
+  //           currentSeat,
+  //           cartDataToSave,
+  //           areaName: currentArea,
+  //         );
+  //       }
+  //     }
+  //   } catch (e) {
+  //     debugPrint('❌ Error in auto-save hold order: $e');
+  //   }
+  // }
 
   // ENHANCED: Add to cart with incremental quantity and proper data
-  void _addToCartWithEvent(String varianceName, {int? weight}) {
+  void _addToCartWithEvent(
+    String varianceName,
+    double displayStock, {
+    int? weight,
+  }) {
     try {
       final productProvider = Provider.of<ProductProvider>(
         context,
@@ -662,18 +680,90 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
         orElse: () => _createFallbackProduct(varianceName),
       );
 
+      debugPrint("selected product is ${product.toJson()} ");
+
       // Get current quantity from cart
       final currentQuantity = _cartProvider.cart[varianceName]?['qty'] ?? 0;
       final newQuantity = currentQuantity + 1;
 
       // Add to cart (this should handle incremental quantity in your cart provider)
-      if (weight != null) {
-        _cartProvider.addToCart(varianceName, weight: weight);
+      // if (weight != null) {
+      //   _cartProvider.addToCart(varianceName, weight: weight);
+      // } else {
+      //   if (newQuantity <= displayStock) {
+      //     _cartProvider.addToCart(varianceName);
+      //   } else {
+      //     if (displayStock == 0) {
+      //       showCustomFlushbar(context, 'No stock', type: FlushbarType.error);
+      //     } else {
+      //       showCustomFlushbar(
+      //         context,
+      //         'Selected Quantity ${newQuantity} exceeds available stock ${displayStock} ',
+      //         type: FlushbarType.error,
+      //       );
+      //     }
+      //     // print("error on dispalytock");
+      //   }
+      // }
+
+      // Modify your add-to-cart button/action logic like this:
+
+      if (product.variance_Uom == 'kgs' || product.variance_Uom == 'Kgs') {
+        showDialog(
+          context: context,
+          builder: (dialogContext) {
+            return NumericCalculator(
+              varianceName: product.varianceName,
+              onValueSelected: (weight) {
+                if (weight <= 0) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    const SnackBar(
+                      content: Text("Invalid weight entered."),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+
+                if (weight > displayStock) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        "Selected weight (${weight.toStringAsFixed(3)} kg) exceeds available stock (${displayStock.toStringAsFixed(3)} kg).",
+                      ),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+
+                // saleProvider.updateItemQuantity(index, weight);
+                _cartProvider.addToCart(varianceName, weight: weight);
+              },
+            );
+          },
+        );
+
+        // _cartProvider.addToCart(varianceName, weight: weight);
       } else {
-        _cartProvider.addToCart(varianceName);
+        // Existing logic for non-kg UOM (e.g., Pcs)
+        // Assuming for Pcs, weight is null or irrelevant, and newQuantity is the piece count
+        if (newQuantity <= displayStock) {
+          _cartProvider.addToCart(product.varianceName);
+        } else {
+          if (displayStock == 0) {
+            showCustomFlushbar(context, 'No stock', type: FlushbarType.error);
+          } else {
+            showCustomFlushbar(
+              context,
+              'Selected Quantity $newQuantity exceeds available stock $displayStock',
+              type: FlushbarType.error,
+            );
+          }
+        }
       }
 
-      _autoSaveHoldOrder();
+      // autoSaveHoldOrder();
 
       // Send product update event with COMPLETE product data
       _sendProductEvent('update', varianceName, {
@@ -744,7 +834,8 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
         print('🗑️ Removed $varianceName from cart');
       }
 
-      _autoSaveHoldOrder();
+      // AutoHoldOrderService.performAutoSave();
+      AutoHoldOrderService.autoSaveHoldOrder(context);
     } catch (e) {
       print('❌ Error removing item from cart: $e');
       CustomSnackBar.show(
@@ -836,71 +927,9 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
         body: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.only(left: 10, top: 10),
+              padding: const EdgeInsets.only(left: 0, top: 10),
               child: Row(
                 children: [
-                  Expanded(
-                    child: SizedBox(
-                      height: 55,
-                      child: IdleKeyboardHide(
-                        controller: _searchController,
-                        decoration: InputDecoration(
-                          filled: true,
-                          fillColor: Colors.blue.shade50,
-                          labelText: 'Search Products',
-                          labelStyle: const TextStyle(color: Colors.blue),
-                          hintText: 'Search Products',
-                          hintStyle: const TextStyle(color: Colors.blue),
-                          prefixIcon: const Icon(
-                            Icons.search,
-                            color: Colors.blue,
-                          ),
-                          suffixIcon: IconButton(
-                            icon: const Icon(Icons.clear, color: Colors.blue),
-                            onPressed: () {
-                              try {
-                                Provider.of<SearchProviderDine>(
-                                  context,
-                                  listen: false,
-                                ).clearSearchQuery();
-                                _searchController.clear();
-                                FocusScope.of(context).unfocus();
-                                print('🧹 Cleared search query');
-                              } catch (e) {
-                                print('❌ Error clearing search: $e');
-                              }
-                            },
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12.0),
-                            borderSide: const BorderSide(
-                              color: Colors.blue,
-                              width: 0.0,
-                            ),
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12.0),
-                            borderSide: const BorderSide(
-                              color: Colors.blue,
-                              width: 0.0,
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8.0),
-                            borderSide: const BorderSide(
-                              color: Colors.blue,
-                              width: 2.0,
-                            ),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 20,
-                            horizontal: 12,
-                          ),
-                        ),
-                        idleDuration: const Duration(seconds: 2),
-                      ),
-                    ),
-                  ),
                   Expanded(
                     flex: 3,
                     child: Container(
@@ -970,7 +999,7 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
             Padding(
               padding: const EdgeInsets.only(
                 left: 12,
-                top: 0,
+                top: 8,
                 right: 12,
                 bottom: 10,
               ),
@@ -990,9 +1019,80 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
                         );
                       },
                     ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 10, right: 10),
+                      child: SizedBox(
+                        height: 55,
+                        child: IdleKeyboardHide(
+                          controller: _searchController,
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: Colors.white,
+                            labelText: 'Search Products',
+                            // labelStyle: const TextStyle(color: Colors.blue),
+                            hintText: 'Search Products',
+                            // hintStyle: const TextStyle(color: Colors.blue),
+                            prefixIcon: const Icon(
+                              Icons.search,
+                              // color: Colors.blue,
+                            ),
+                            suffixIcon: IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                try {
+                                  Provider.of<SearchProviderDine>(
+                                    context,
+                                    listen: false,
+                                  ).clearSearchQuery();
+                                  _searchController.clear();
+                                  FocusScope.of(context).unfocus();
+                                  print('🧹 Cleared search query');
+                                } catch (e) {
+                                  print('❌ Error clearing search: $e');
+                                }
+                              },
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12.0),
+                              borderSide: const BorderSide(
+                                color: Colors.grey,
+                                width: 0.0,
+                              ),
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12.0),
+                              borderSide: const BorderSide(
+                                color: Colors.grey,
+                                width: 0.0,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8.0),
+                              borderSide: const BorderSide(
+                                color: Colors.blue,
+                                width: 2.0,
+                              ),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 20,
+                              horizontal: 12,
+                            ),
+                          ),
+                          idleDuration: const Duration(seconds: 2),
+                        ),
+                      ),
+                    ),
+                  ),
                   ElevatedButton(
                     onPressed: () {
                       try {
+                        try {
+                          AutoHoldOrderService.autoSaveHoldOrder(context);
+                          // AutoHoldOrderService.performAutoSave();
+                        } catch (e) {
+                          debugPrint("autoSaveHoldOrder error :: $e");
+                        }
                         // Method 1: Use a callback system through providers
                         final eventProvider = Provider.of<ProductEventProvider>(
                           context,
@@ -1002,6 +1102,22 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
                           context,
                           listen: false,
                         );
+
+                        final prov = Provider.of<SalesInvoiceState>(
+                          context,
+                          listen: false,
+                        );
+
+                        // prov.updateMultiple(
+                        //   selectedEmployeeFirstName:
+                        //       "", // or extract if available
+                        //   selectedEmployeeNumber: "", // or extract if available
+                        // );
+
+                        prov.employee.text = '';
+
+                        // Optional: update global if needed elsewhere
+                        createdBy = '';
 
                         // Send event to close product card overlay
 
@@ -1058,15 +1174,15 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      backgroundColor: Colors.white70,
-                      foregroundColor: Colors.blue,
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
                       padding: EdgeInsets.symmetric(
                         horizontal: 35,
                         vertical: 15,
                       ),
                     ),
                     child: const Text(
-                      " Table Screen",
+                      "Table Screen",
                       style: TextStyle(fontSize: 18),
                     ),
                   ),
@@ -1315,8 +1431,8 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
             //   ),
             // ),
             Expanded(
-              child: Consumer<SearchProviderDine>(
-                builder: (context, searchProvider, child) {
+              child: Consumer2<SearchProviderDine, GlobalDataManager>(
+                builder: (context, searchProvider, globalManager, child) {
                   try {
                     // Start with all products
                     List<Product> products = productProvider.products;
@@ -1372,7 +1488,20 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
                       itemCount: searchedProducts.length, // FIXED
                       itemBuilder: (context, index) {
                         try {
-                          final product = searchedProducts[index]; // FIXED
+                          final product = searchedProducts[index];
+                          // final globalManager = Provider.of<GlobalDataManager>(
+                          //   context,
+                          // );
+
+                          final provider = Provider.of<RegularModeProvider>(
+                            context,
+                            listen: false,
+                          );
+                          final varianceData = provider.getVarianceDetails(
+                            product.varianceName,
+                          );
+
+                          // FIXED
 
                           final isInCart = cartProvider.cart.containsKey(
                             product.varianceName.trim(),
@@ -1385,6 +1514,18 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
                                     as int
                               : 0;
 
+                          final double liveStock = globalManager.getSystemStock(
+                            aliasname,
+                            product.varianceName,
+                          );
+
+                          double displayStock = liveStock >= 0
+                              ? liveStock
+                              : (varianceData['branchwise']?[aliasname]?['systemStock_$aliasname']
+                                            as num?)
+                                        ?.toDouble() ??
+                                    0.0;
+
                           return Consumer<QuickAccessProvider>(
                             builder: (context, quickAccessProvider, child) {
                               final isQuickAccess = quickAccessProvider
@@ -1393,8 +1534,11 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
 
                               return GestureDetector(
                                 onTap: () {
-                                  print("Tapped product: ${product.toJson()}");
-                                  _addToCartWithEvent(product.varianceName);
+                                  print("liveStock $displayStock");
+                                  _addToCartWithEvent(
+                                    product.varianceName,
+                                    displayStock,
+                                  );
                                 },
                                 onLongPress: () {
                                   quickAccessProvider.addToQuickAccess(
@@ -1441,7 +1585,7 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
                                         bottom: 10,
                                         left: 10,
                                         child: Text(
-                                          '₹${product.price.toStringAsFixed(2)}',
+                                          '₹${product.price.toStringAsFixed(2)} - ${displayStock.toStringAsFixed(1)}',
                                           style: const TextStyle(
                                             fontSize: 13,
                                             color: Colors.grey,
@@ -1463,7 +1607,7 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
                                                 ? Icons.favorite
                                                 : Icons.favorite_border,
                                             color: isQuickAccess
-                                                ? Colors.red[400]
+                                                ? Colors.red[300]
                                                 : Colors.grey,
                                             size: 22,
                                           ),
@@ -1480,7 +1624,7 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
                                             height: 30,
                                             alignment: Alignment.center,
                                             decoration: BoxDecoration(
-                                              color: Colors.red[400],
+                                              color: Colors.red[300],
                                               shape: BoxShape.circle,
                                               boxShadow: const [
                                                 BoxShadow(
@@ -1898,7 +2042,10 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
                                                     if (value != null &&
                                                         !dialogState.addons[i]
                                                             .contains(value)) {
-                                                      _autoSaveHoldOrder();
+                                                      AutoHoldOrderService.autoSaveHoldOrder(
+                                                        context,
+                                                      );
+                                                      // AutoHoldOrderService.performAutoSave();
                                                       dialogState.updateAddOn(
                                                         i,
                                                         value,
@@ -2463,7 +2610,9 @@ class _ProductCardScreenState extends State<ProductCardScreen> {
                       'variants': dialogState.variants,
                       'type': dialogState.type,
                     });
-                    _autoSaveHoldOrder();
+                    AutoHoldOrderService.autoSaveHoldOrder(context);
+
+                    // AutoHoldOrderService.performAutoSave();
 
                     dialogState.dispose();
                     Navigator.of(context).pop();
@@ -2589,12 +2738,6 @@ class QuickAccessProvider extends ChangeNotifier {
       _quickAccessProducts.add(varianceName);
       await _saveToBox();
 
-      // CustomSnackBar.show(
-      //   context,
-      //   'Added $varianceName to quick access',
-      //   type: SnackType.success,
-      // );
-
       debugPrint('⭐ Added $varianceName to quick access');
       notifyListeners();
     }
@@ -2617,7 +2760,7 @@ class QuickAccessProvider extends ChangeNotifier {
       debugPrint('🗑️ Removed $varianceName from quick access');
       notifyListeners();
     } else {
-      // CustomSnackBar.show( 
+      // CustomSnackBar.show(
       //   context,
       //   '$varianceName not found in quick access',
       //   type: SnackType.error,

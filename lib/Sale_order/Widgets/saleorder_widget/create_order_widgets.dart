@@ -12,7 +12,6 @@ import 'package:yenpos/Sale_order/Provider/saleorder_ui_provider.dart';
 import 'package:yenpos/Sale_order/Widgets/numeric_Calculator.dart';
 
 class SalesOrderWidgets {
-  
   /// Build navigation button
   static Widget buildNavButton({
     required String label,
@@ -31,7 +30,9 @@ class SalesOrderWidgets {
   }
 
   /// Build create order button
-  static Widget buildCreateOrderButton(CartSelectionProvider selectionProvider) {
+  static Widget buildCreateOrderButton(
+    CartSelectionProvider selectionProvider,
+  ) {
     return ElevatedButton(
       onPressed: () {
         // selectionProvider.toggleCheckBoxVisibility();
@@ -47,15 +48,6 @@ class SalesOrderWidgets {
   }
 
   /// Build toggle button label
-  static Widget buildToggleButtonLabel(String label) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0),
-      child: Text(
-        label,
-        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
 
   /// Build all box quantity field
   static Widget buildAllBoxQtyField(

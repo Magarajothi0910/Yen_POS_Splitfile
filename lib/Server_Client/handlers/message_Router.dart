@@ -8,6 +8,7 @@ import 'package:yenpos/Server_Client/handlers/Webscoekt_handler/handleHandShake.
 import 'package:yenpos/Server_Client/handlers/Webscoekt_handler/handle_ModifyOrder.dart';
 import 'package:yenpos/Server_Client/handlers/Webscoekt_handler/handle_holdorder_websocket.dart';
 import 'package:yenpos/Server_Client/handlers/Webscoekt_handler/handle_invoice.dart';
+import 'package:yenpos/Server_Client/handlers/Webscoekt_handler/handle_invoiceNo.dart';
 import 'package:yenpos/Server_Client/handlers/Webscoekt_handler/handle_opsaleorder_generated.dart';
 import 'package:yenpos/Server_Client/handlers/Webscoekt_handler/handle_patch_approval_order.dart';
 import 'package:yenpos/Server_Client/handlers/Webscoekt_handler/handle_patchsaleorder.dart';
@@ -65,15 +66,10 @@ class MessageRouter {
         await handleWebsocketPatchSalesOrder(data, provider);
         break;
       case 'soStockDecreaseUpdate':
-        print("1234 for stock update");
         final branchAliseName = data['branchAlias'];
-        print("branchAliseName: $branchAliseName");
         final varianceCode = data['varianceCode'];
-        print("varianceCode: $varianceCode");
         final varianceName = data['varianceName'];
-        print("varianceName: $varianceName");
         final updatedStock = data['updatedStock'];
-        print("updatedStock: $updatedStock");
         // await handleStockDecreaseUpdate(decoded);
         break;
 
@@ -94,8 +90,11 @@ class MessageRouter {
       case 'stock':
         _handleLiveStockUpdate(data);
         break;
+
+      case 'invoiceNoGenerated':
+        handleInvoiceNo(data);
+        break;
       default:
-        print('[WS] Unknown action: $action');
         break;
     }
   }
@@ -108,7 +107,6 @@ void _handleLiveStockUpdate(Map<String, dynamic> data) {
     final String? varianceName = data['varianceName']?.toString();
 
     if (branchAlias == null || varianceName == null) {
-      debugPrint("Invalid stock payload (missing branch/varianceName): $data");
       return;
     }
 
@@ -124,7 +122,6 @@ void _handleLiveStockUpdate(Map<String, dynamic> data) {
       newStock = _parseToDouble(data['systemStock']);
       newStockSO = _parseToDouble(data['systemstockSo']);
     } else {
-      debugPrint("Unknown stock action: $action");
       return;
     }
 
@@ -132,7 +129,6 @@ void _handleLiveStockUpdate(Map<String, dynamic> data) {
     newStock = double.parse(newStock.toStringAsFixed(3));
     newStockSO = double.parse(newStockSO.toStringAsFixed(3));
 
-    debugPrint("LIVE STOCK RECEIVED → $branchAlias | $varianceName = $newStock (SO: $newStockSO)");
 
     // 1. Update UI immediately
     GlobalDataManager().updateStockLive(
@@ -150,58 +146,14 @@ void _handleLiveStockUpdate(Map<String, dynamic> data) {
       systemStock: newStock,
       systemstockSo: newStockSO,
     );
-
-  } catch (e, st) {
-    debugPrint("Stock update error: $e\n$st");
-  }
+  } catch (e, st) {}
 }
-
-// double _parseToDouble(dynamic value) {
-//   if (value is num) return value.toDouble();
-//   if (value is String) return double.tryParse(value) ?? 0.0;
-//   return 0.0;
-// }
-
-// void _handleLiveStockUpdates(Map<String, dynamic> data) {
-//   try {
-//     final String? branchAlias = data['branchAlias']?.toString();
-//     final String? varianceName = data['varianceName']?.toString();
-
-//     final dynamic rawSystem = data['systemStock'];
-//     final dynamic rawSystemSO = data['systemstockSo'];
-
-//     if (branchAlias == null || varianceName == null) {
-//       debugPrint("Invalid stock update payload: $data");
-//       return;
-//     }
-
-//     double newSystem = _parseToDouble(rawSystem);
-//     double newSystemSO = _parseToDouble(rawSystemSO);
-
-//     // Clean precision
-//     newSystem = double.parse(newSystem.toStringAsFixed(3));
-//     newSystemSO = double.parse(newSystemSO.toStringAsFixed(3));
-
-//     debugPrint("LIVE STOCK → $branchAlias | $varianceName = $newSystem (SO: $newSystemSO)");
-
-//     GlobalDataManager().updateStockLive(
-//       branchAlias: branchAlias,
-//       varianceName: varianceName,
-//       newStock: newSystem,
-//       //newStockSO: newSystemSO, // if you have this param
-//     );
-
-//   } catch (e, st) {
-//     debugPrint("Stock update error: $e\n$st");
-//   }
-// }
 
 double _parseToDouble(dynamic value) {
   if (value is num) return value.toDouble();
   if (value is String) return double.tryParse(value) ?? 0.0;
   return 0.0;
 }
-
 
 /// Called from WebSocket listener on client only
 Future<void> _applyRemoteStockUpdateToLocalHive({
@@ -212,12 +164,11 @@ Future<void> _applyRemoteStockUpdateToLocalHive({
   required double systemstockSo,
 }) async {
   // ──────── ONLY RUN ON CLIENT DEVICES (NOT ON SERVER) ────────
-  if (const String.fromEnvironment('APP_TYPE', defaultValue: 'client') == 'server') {
-    debugPrint("Skipping Hive update: Running in server mode");
+  if (const String.fromEnvironment('APP_TYPE', defaultValue: 'client') ==
+      'server') {
     return;
   }
 
-  debugPrint("CLIENT: Applying remote stock update → $varianceName = $systemStock (SO: $systemstockSo)");
 
   try {
     final box = await Hive.openBox('items');
@@ -225,7 +176,6 @@ Future<void> _applyRemoteStockUpdateToLocalHive({
 
     final dynamic boxedData = await box.get(hiveKey);
     if (boxedData == null) {
-      debugPrint("No local branch data for $branchAlias – cannot apply remote update");
       return;
     }
 
@@ -274,7 +224,6 @@ Future<void> _applyRemoteStockUpdateToLocalHive({
     if (foundAndUpdated) {
       globalData['data'] = branchwiseData;
       await box.put(hiveKey, globalData);
-      debugPrint("CLIENT: Hive updated successfully for $varianceName @ $branchAlias");
 
       // Also notify UI via GlobalDataManager (your existing live update)
       GlobalDataManager().updateStockLive(
@@ -282,12 +231,8 @@ Future<void> _applyRemoteStockUpdateToLocalHive({
         varianceName: varianceName,
         systemStock: systemStock,
         soStock: systemstockSo,
-       // newStockSO: systemstockSo,
+        // newStockSO: systemstockSo,
       );
-    } else {
-      debugPrint("CLIENT: Variance '$varianceName' not found in local Hive");
-    }
-  } catch (e, st) {
-    debugPrint("Failed to apply remote stock to local Hive: $e\n$st");
-  }
+    } else {}
+  } catch (e, st) {}
 }

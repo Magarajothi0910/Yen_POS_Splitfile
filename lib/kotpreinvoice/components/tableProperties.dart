@@ -26,10 +26,7 @@ Widget buildLegendIndicatorWithCount(Color color, String label, int count) {
       Container(
         width: 10,
         height: 10,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-        ),
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
       ),
       const SizedBox(width: 6),
       Text("$label ($count)"),
@@ -37,7 +34,10 @@ Widget buildLegendIndicatorWithCount(Color color, String label, int count) {
   );
 }
 
-Map<String, int> calculateTableCounts(List<String> allTables, OrderProvider orderProvider) {
+Map<String, int> calculateTableCounts(
+  List<String> allTables,
+  OrderProvider orderProvider,
+) {
   final Map<String, int> counts = {'occupied': 0, 'available': 0};
 
   for (final table in allTables) {
@@ -47,7 +47,7 @@ Map<String, int> calculateTableCounts(List<String> allTables, OrderProvider orde
     // 👇 Remove (B), (C), etc. from table name to get main table number
     final mainTable = extractMainTable(table);
 
-    final total = orderProvider.getTableTotalPrice(mainTable);
+    final total = orderProvider.getTableTotalPrice(mainTable, seat);
 
     if (total > 0) {
       counts['occupied'] = counts['occupied']! + 1;
@@ -70,9 +70,7 @@ Widget buildActionButton({
     style: ElevatedButton.styleFrom(
       backgroundColor: Colors.white,
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
     ),
     child: Column(
@@ -90,7 +88,7 @@ Widget buildActionButton({
             fontWeight: FontWeight.w500,
             color: color,
           ),
-        )
+        ),
       ],
     ),
   );

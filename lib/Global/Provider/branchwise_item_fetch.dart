@@ -28,6 +28,8 @@ class ItemProvider with ChangeNotifier {
     fetchAndStoreDeliveryType();
     // fetchSalesOrdersPage();
     fetchAndSaveCustomers();
+    fetchAndStoreDiscount();
+    fetchAndStoreAdvancePercent(branchAlias: globals.aliasname);
   }
   Future<void> fetchAndSaveSalesOrders({String? branchAlias}) async {
     String apiUrl =
@@ -80,7 +82,6 @@ class ItemProvider with ChangeNotifier {
         try {
           var url =
               'https://yenerp.com/fluttertestapi/branchwiseitems/?branch_alias=$branchAlias';
-          debugPrint("🌐 Fetching BranchWiseItems from URL: $url");
 
           var response = await client.get(Uri.parse(url));
 
@@ -222,13 +223,12 @@ class ItemProvider with ChangeNotifier {
         var jsonData = json.decode(response.body);
 
         await lazyBox.add(jsonData);
-        print("lazyBox.values:${lazyBox.values}");
+
         GlobalDataManager().branches = jsonData;
 
         notifyListeners();
       } else {}
     } catch (e) {
-      print("❌ Error fetching branches: $e");
     } finally {
       client.close();
     }
@@ -273,6 +273,56 @@ class ItemProvider with ChangeNotifier {
         await lazyBox.put('events', jsonData);
 
         GlobalDataManager().events = jsonData;
+
+        notifyListeners();
+      } else {}
+    } catch (e, stackTrace) {
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<void> fetchAndStoreDiscount() async {
+    var client = http.Client();
+    var lazyBox = HiveManager.discounts;
+
+    try {
+      var response = await client.get(
+        Uri.parse('https://yenerp.com/nextjstestapi/discounts/'),
+      );
+
+      if (response.statusCode == 200) {
+        var jsonData = json.decode(response.body);
+
+        await lazyBox.add(jsonData);
+
+        GlobalDataManager().discounts = jsonData;
+
+        notifyListeners();
+      } else {}
+    } catch (e, stackTrace) {
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<void> fetchAndStoreAdvancePercent({String? branchAlias}) async {
+    var client = http.Client();
+    var lazyBox = HiveManager.advancePercent;
+
+    try {
+      var response = await client.get(
+        Uri.parse(
+          'https://yenerp.com/fluttertestapi/advanceamounts/advance/by-alias?aliasName=${globals.aliasname}',
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        var jsonData = json.decode(response.body);
+
+        await lazyBox.add(jsonData);
+
+        GlobalDataManager().advancePercent = jsonData;
 
         notifyListeners();
       } else {}

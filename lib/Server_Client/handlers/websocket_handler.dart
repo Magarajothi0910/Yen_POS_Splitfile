@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:hive/hive.dart';
+import 'package:intl/intl.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:web_socket_channel/io.dart';
@@ -21,13 +22,20 @@ import 'package:yenpos/kotpreinvoice/Repository/itemRepo.dart';
 import 'package:yenpos/kotpreinvoice/Repository/patchSeatOrderStatus.dart';
 import 'package:yenpos/kotpreinvoice/handlers/FullCancelOrder_Handler.dart';
 import 'package:yenpos/kotpreinvoice/handlers/ItemWiseCancel.dart';
+import 'package:yenpos/kotpreinvoice/handlers/handleRemoveHoldOrdersKOT.dart';
 import 'package:yenpos/kotpreinvoice/handlers/handleseatTransfer.dart';
+import 'package:yenpos/kotpreinvoice/handlers/holdOrdersKOT.dart';
 import 'package:yenpos/kotpreinvoice/handlers/invoice%20handler.dart';
 import 'package:yenpos/kotpreinvoice/handlers/orderhandlers.dart';
 import 'package:yenpos/kotpreinvoice/handlers/reverseOrder_handler.dart';
+import 'package:yenpos/kotpreinvoice/handlers/updateTopPriorityHandlers.dart';
 import 'package:yenpos/kotpreinvoice/providers/upi_provider.dart';
+import 'package:yenpos/kotpreinvoice/services/hive_service.dart'
+    hide loadInvoicesFromHive, savePrinterDetailsToHive;
+import 'package:yenpos/kotpreinvoice/services/preInvociePrint_services.dart';
 import 'package:yenpos/kotpreinvoice/services/sendDataToClients.dart'
     hide handleNewClientConnected;
+import 'package:yenpos/kotpreinvoice/services/sync_service.dart';
 import 'package:yenpos/main.dart';
 
 typedef DataHandler = void Function(Map<String, dynamic>);
@@ -154,34 +162,144 @@ void handleWebSocket(
         }
       } catch (e, st) {}
     },
-    'requestAllData': (data) async {
+
+    'handle_invoice_request': (data) async {
       try {
-        final context = MyApp.navigatorKey.currentContext;
-        if (context != null) {
-          final upiProvider = Provider.of<UpiProviderDine>(
-            context,
-            listen: false,
-          );
-          final upiState = upiProvider.isUpiEnabled;
+        final tableNumber = data['tableNumber'];
+        final seat = data['seat'];
+        final areaName = data['areaName'];
+        final userName = data['userName'];
+        final ipAddress = data['ipAddress'];
+        final waiter = data['waiter'];
+        final preinvoiceTime = data['preinvoiceTime'];
+        final List orders = data['orders'] ?? [];
+        final String? seathiveOrderId = data['seathiveOrderId'];
 
-          await sendAllDataToClient(channel, isUpiEnabled: upiState);
-
-          debugPrint(
-            "📡 Sent full data snapshot to client (UPI state: $upiState)",
-          );
-        } else {
-          debugPrint(
-            "⚠️ Could not update UPI state — no active context available",
-          );
+        if (seathiveOrderId == null) {
+          return;
         }
-      } catch (e, st) {}
+
+        // 1️⃣ Generate Invoice Number
+        final generator = InvoiceNumberGenerator.instance;
+        final invoiceNo = await generator.generateInvoiceNumber();
+
+        final invoiceNoBox = Hive.box('invoiceNo');
+        final invNoKeys = invoiceNoBox.keys.last;
+        final invNoValues = invoiceNoBox.values.last;
+
+        // 2️⃣ Update Orders in Hive
+
+        final ordersBox = Hive.isBoxOpen('ordersBox')
+            ? Hive.box('ordersBox')
+            : await Hive.openBox('ordersBox');
+
+        bool found = false;
+
+        for (final key in ordersBox.keys) {
+          final order = ordersBox.get(key);
+
+          if (order is Map) {
+            if (order['seathiveOrderId'] == seathiveOrderId) {
+              found = true;
+
+              final updatedOrder = Map<String, dynamic>.from(order)
+                ..['invoiceNo'] = invoiceNo
+                ..['status'] = 'confirm'
+                ..['preinvoiceTime'] = preinvoiceTime
+                ..['edit'] = "Yes"
+                ..['statusEdited'] = "true";
+
+              await ordersBox.put(key, updatedOrder);
+
+              final updatedorder = ordersBox.get(key);
+            }
+          } else {}
+        }
+
+        // final updatedOrderData = ordersBox.get(key);
+
+        if (!found) {}
+
+        // 3️⃣ Print Invoice on SERVER
+        try {
+          await InvoicePrinter.printReceipt(
+            tableNumber: tableNumber,
+            ipAddress: ipAddress,
+            seat: seat,
+            areaName: areaName,
+            seatOrders: orders,
+            waiter: waiter,
+            userName: userName,
+            invoiceNo: invoiceNo,
+          );
+        } catch (e) {}
+
+        final updatePayload = {
+          'action': 'sync_invoice_update',
+          'seathiveOrderId': seathiveOrderId,
+          'invoiceNo': invoiceNo,
+          'preinvoiceTime': preinvoiceTime,
+        };
+        final invNo = {
+          'action': "invoiceNoGenerated",
+          'invNoKeys': invNoKeys,
+          'invNoValues': invNoValues,
+        };
+
+        sendDataToClients(updatePayload, clients);
+        sendDataToClients(invNo, clients);
+
+        SyncServiceKot().patchEditedOrders();
+      } catch (e) {}
+    },
+    'requestAllData': (data) async {
+      final orders = await loadOrdersFromHiveUtility();
+      final invoices = await loadInvoicesFromHiveKOT();
+      final printerDetails = await loadPrintersFromHive();
+
+      final currentDate = DateFormat('dd-MM-yyyy').format(DateTime.now());
+
+      final filteredOrders = orders.where((order) {
+        try {
+          final orderDate = DateFormat('dd-MM-yyyy').parse(order['date']);
+          return DateFormat('dd-MM-yyyy').format(orderDate) == currentDate;
+        } catch (_) {
+          return false;
+        }
+      }).toList();
+
+      final filteredInvoices = invoices.where((invoice) {
+        try {
+          final invoiceDate = DateFormat(
+            'dd-MM-yyyy',
+          ).parse(invoice['invoiceDate']);
+          return DateFormat('dd-MM-yyyy').format(invoiceDate) == currentDate;
+        } catch (_) {
+          return false;
+        }
+      }).toList();
+
+      final Map<String, Map<String, dynamic>> uniqueInvoices = {};
+      for (var invoice in filteredInvoices) {
+        final id = invoice['hiveInvoiceId']?.toString();
+        if (id != null) uniqueInvoices[id] = invoice;
+      }
+      final dedupedInvoices = uniqueInvoices.values.toList();
+      final allDataMessage = {
+        'action': 'allDataResponse',
+        'orders': filteredOrders,
+        'invoicesKOT': dedupedInvoices,
+        'KOTprinters': printerDetails,
+        'tables': tables,
+      };
+      sendDataToClients(allDataMessage, clients);
     },
     'seat_tapped': (data) async {
-      sendDataToClientsKOT(data);
+      sendDataToClients(data, clients);
       onDataReceived(data);
     },
     'seat_returned': (data) async {
-      sendDataToClientsKOT(data);
+      sendDataToClients(data, clients);
       onDataReceived(data);
     },
     'patchOrderStatusBySeathiveOrderId': (data) async {
@@ -198,37 +316,16 @@ void handleWebSocket(
           orderRemark: orderRemark,
           preinvoiceTime: preinvoiceTime,
         );
-        debugPrint(
-          "✅ Patched order status for seatHiveOrderId=$seathiveOrderId",
-        );
       } catch (e, st) {}
     },
     'seat_transfer': (data) async {
       try {
-        await handleSeatTransfer(data: data, receivedData: receivedData);
+        await handleSeatTransfer(
+          data: data, //receivedData: receivedData
+        );
       } catch (e, st) {}
     },
-    // 'newClientConnected': (data) async {
-    //   try {
-    //     final deviceCode = data['deviceCode']?.toString();
-    //     if (deviceCode != null) {
-    //       // Deduplicate: Close old channel for this deviceCode
-    //       if (deviceClientMap.containsKey(deviceCode)) {
-    //         final oldChannel = deviceClientMap[deviceCode];
-    //         clients.remove(oldChannel);
-    //         oldChannel?.sink.close();
-    //         print("🔌 Removed old connection for deviceCode: $deviceCode");
-    //       }
-    //       // Associate new channel with deviceCode
-    //       deviceClientMap[deviceCode] = channel;
-    //       print("🔗 Associated deviceCode: $deviceCode with channel");
-    //     }
-    //     //await handleNewClientConnected(data, channel);
-    //     print("👥 New client handshake complete for deviceCode: $deviceCode");
-    //   } catch (e, st) {
-    //     print("❌ Error handling new client: $e\n$st");
-    //   }
-    // },
+
     'FullCancelOrderPatch': (data) async {
       try {
         await OrderPatchHandler.handleFullCancelOrderPatch(data);
@@ -256,7 +353,7 @@ void handleWebSocket(
           'invoiceNo': invoiceNo,
         };
 
-        sendDataToClientsKOT(response);
+        sendDataToClients(response, clients);
       } catch (e, st) {}
     },
     'update_orders_with_invoice': (data) async {
@@ -286,7 +383,7 @@ void handleWebSocket(
           'invoiceNo': invoiceNo,
         };
 
-        sendDataToClientsKOT(updatePayload);
+        sendDataToClients(updatePayload, clients);
       } catch (e) {}
     },
     'reverseCancelOrderItem': (data) async {
@@ -298,6 +395,7 @@ void handleWebSocket(
             .toDouble();
         final double totalAmount = (data['totalAmount'] as num).toDouble();
         final bool partiallycancelled = data['partiallycancelled'] == true;
+        final String ipAddress = data['ipAddress'];
 
         await patchOrderInHiveIndexWise(
           hiveOrderId,
@@ -306,9 +404,10 @@ void handleWebSocket(
           updatedCancelledQty,
           totalAmount,
           partiallycancelled,
+          ipAddress,
         );
 
-        sendDataToClientsKOT({
+        sendDataToClients({
           'action': 'reverseCancelOrderItem',
           'hiveOrderId': hiveOrderId,
           'updatedIndex': updatedIndex,
@@ -316,7 +415,40 @@ void handleWebSocket(
           'updatedCancelledQty': updatedCancelledQty,
           'totalAmount': totalAmount,
           'partiallycancelled': partiallycancelled,
-        });
+        }, clients);
+      } catch (e, st) {}
+    },
+    'clientDeviceData': (data) async {
+      try {
+        final deviceData = data['data'] as Map<String, dynamic>?;
+
+        if (deviceData == null) {
+          return;
+        }
+
+        // Add IP to data for storage and uniqueness
+        final String? clientIp = deviceData['clientIp'] as String?;
+        deviceData['lastUpdated'] = DateTime.now().toIso8601String();
+
+        final box = Hive.isBoxOpen('connectedDevices')
+            ? Hive.box('connectedDevices')
+            : await Hive.openBox('connectedDevices');
+
+        // Enforce: Only one device per IP (latest wins)
+        final existingKeys = box.keys.where(
+          (key) => (box.get(key) as Map?)?['clientIp'] == clientIp,
+        );
+
+        for (final key in existingKeys) {
+          await box.delete(key);
+        }
+
+        // Store with unique key (use IP or deviceCode + timestamp)
+        final uniqueKey = 'device_$clientIp';
+        await box.put(uniqueKey, deviceData);
+
+        // === Recalculate Top 5 Priorities ===
+        await updateTopPrioritiesAndBroadcast();
       } catch (e, st) {}
     },
   };
@@ -326,6 +458,11 @@ void handleWebSocket(
       {
         'handshake': (data) async => handleHandShake(data, clients),
         'updateDispatch': (data) => handleUpdateDispatch(
+          clients: clients,
+          branchAlias: aliasname,
+          message: data,
+        ),
+        'decreaseDispatch': (data) => handleDecreaseDispatch(
           clients: clients,
           branchAlias: aliasname,
           message: data,
@@ -350,6 +487,11 @@ void handleWebSocket(
         'salesOrder_created_confirm': (data) async =>
             handleApprovedSaleOrder(data),
 
+        'addHoldOrdersKOT': (data) async =>
+            handleAddHoldOrdersKOT(data, clients),
+        'removeHoldOrdersKOT': (data) async =>
+            handleRemoveHoldOrdersKOT(data, clients),
+
         'patchHoldOrder': (data) async => handlePatchHoldOrder(data),
         'postToApprove': (data) async => handleToApproveOrder(data),
         'modifySaleOrder': (data) async => handleModifyOrder(data),
@@ -358,6 +500,7 @@ void handleWebSocket(
             handlePatchwebsocketSaleOrder(data),
         'dispatch_received': (data) async =>
             handlePatchwebsocketSaleOrder(data),
+        'received': (data) async => handlePatchwebsocketSaleOrder(data),
         'patchInvoiceSaleOrder': (data) async =>
             handleInvoicePatchSaleOrder(data),
         'approval_updated': (data) async => handlePatchApprovalSaleOrder(data),
@@ -434,7 +577,6 @@ handleHandShake(
   Map<String, dynamic> data,
   Set<WebSocketChannel> clients,
 ) async {
-  print('Server HandShake : $data');
   final d = {'action': 'handshake', 'message': 'From server'};
   sendDataToClients(d, clients);
 }

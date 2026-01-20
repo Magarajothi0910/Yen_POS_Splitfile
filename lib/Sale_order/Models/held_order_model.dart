@@ -49,8 +49,7 @@ class HeldOrder {
   String? aliasName;
   List<double> sellingAmount;
   List<int> sellingPrice;
-  final String? imagePath1;
-  final String? imagePath2;
+
   final String? audioPath;
   List<String> itemCode;
   List<int> tax;
@@ -69,15 +68,15 @@ class HeldOrder {
   double discount;
   double discountAmount;
   String? remark;
-  double? customCharge;
+  List<double>? customCharge;
   List<String>? imagePaths;
-
+  double? totalCustomCharge;
   double totalAmount;
   double? totalAmount2;
   double? cash;
   double? card;
   double? upi;
-  String? customChargeType;
+  List<String>? customChargeType;
   double finalPrice;
   double? balanceAmount;
   String saleOrderNo;
@@ -157,8 +156,8 @@ class HeldOrder {
     this.approvalDetails,
     this.approvalOrderId,
     this.eventDate,
-    this.imagePath1,
-    this.imagePath2,
+
+    this.totalCustomCharge,
     this.audioPath,
   });
 
@@ -179,7 +178,7 @@ class HeldOrder {
       'weight': weight,
       'sellingPrice': sellingPrice,
       'sellingAmount': sellingAmount,
-
+      'totalCustomCharge': totalCustomCharge,
       'totalAmount2': totalAmount2,
       'deliveryDate': deliveryDate,
       'deliveryTime': deliveryTime,
@@ -220,8 +219,7 @@ class HeldOrder {
       'boxQty': boxQty,
       'approvalDetails': approvalDetails?.map((x) => x.toJson()).toList(),
       'approvalOrderId': approvalOrderId,
-      'imagePath1': imagePath1,
-      'imagePath2': imagePath2,
+
       'audioPath': audioPath,
     };
   }
@@ -251,7 +249,12 @@ class HeldOrder {
       sellingPrice: List<int>.from(map['sellingPrice'] ?? []),
       tax: List<int>.from(map['tax'] ?? []),
       qty: List<int>.from(map['qty'] ?? []),
-      customChargeType: map["customChargeType"]?.toString(),
+      customChargeType: List<String>.from(map['customChargeType'] ?? []),
+      customCharge: map['customCharge'] != null
+          ? List<double>.from(
+              (map['customCharge'] as List).map((e) => (e as num).toDouble()),
+            )
+          : [],
       price: List<int>.from(map['price'] ?? []),
       totalAmount: (map['totalAmount'] ?? 0).toDouble(),
       totalAmount2: map['totalAmount2'] != null
@@ -279,8 +282,8 @@ class HeldOrder {
       discount: (map['discount'] ?? 0).toDouble(),
       discountAmount: (map['discountAmount'] ?? 0).toDouble(),
       remark: map['remark']?.toString(),
-      customCharge: map['customCharge'] != null
-          ? (map['customCharge'] as num).toDouble()
+      totalCustomCharge: map['totalCustomCharge'] != null
+          ? (map['totalCustomCharge'] as num).toDouble()
           : null,
       saleOrderNo: map['saleOrderNo']?.toString() ?? '',
       orderDate: map['orderDate']?.toString(),
@@ -325,8 +328,7 @@ class HeldOrder {
             )
           : null,
       approvalOrderId: map['approvalOrderId']?.toString(),
-      imagePath1: map['imagePath1']?.toString(),
-      imagePath2: map['imagePath2']?.toString(),
+
       audioPath: map['audioPath']?.toString(),
       imagePaths: map['imagePaths'] != null
           ? List<String>.from(map['imagePaths'].map((x) => x.toString()))

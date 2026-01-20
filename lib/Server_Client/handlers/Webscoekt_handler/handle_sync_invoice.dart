@@ -6,16 +6,13 @@ Future<void> handleSyncInvoice(Map<String, dynamic> data) async {
     final key = data['invoiceHiveKey'];
 
     if (key == null) {
-      print("syncInvoice → Missing invoiceHiveKey");
       return;
     }
 
-    print("syncInvoice → Updating Hive for key: $key");
 
     final box = await HiveManager.invoiceBox;
 
     if (!box.containsKey(key)) {
-      print("syncInvoice → No invoice found in Hive for key: $key");
       return;
     }
 
@@ -25,8 +22,6 @@ Future<void> handleSyncInvoice(Map<String, dynamic> data) async {
 
     await box.put(key, invoice);
 
-    print("syncInvoice → Hive updated successfully (sync = Yes) for $key");
   } catch (e, st) {
-    print("syncInvoice handler error: $e\n$st");
   }
 }

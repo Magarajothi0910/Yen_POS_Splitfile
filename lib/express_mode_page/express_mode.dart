@@ -41,7 +41,6 @@
 //     });
 //     _focusNode.requestFocus(); // Focus on the text field immediately
 
-
 //     _keyboardControllers = [
 //       _controller,
 //       prov.customerNumberController];
@@ -60,7 +59,6 @@
 //       });
 //     }
 
-   
 //   }
 
 //   @override
@@ -70,7 +68,6 @@
 //     super.dispose();
 //   }
 
-  
 //     late List<FocusNode> _focusNodes;
 //     late ValueNotifier<int> _currentFocusIndexNotifier;
 //     late List<TextEditingController> _keyboardControllers;
@@ -78,7 +75,7 @@
 //       int index = _keyboardControllers.indexOf(controller);
 //       return index >= 0 ? _focusNodes[index] : FocusNode();
 //     }
- 
+
 //   void _onTextInput(String text) {
 //     final value = prov.customerNumberController.text;
 //     final selection = prov.customerNumberController.selection;
@@ -101,9 +98,8 @@
 //   //    currentController.text= _controller.text;
 //   //   } else {
 //   //     currentController.text = prov.customerNumberController.text;
-//   //   } 
 //   //   }
-  
+//   //   }
 
 //   void _onBackspace() {
 //     final value = _controller.text;
@@ -569,7 +565,6 @@
 //   }
 // }
 
-
 // express_mode_screen.dart
 // express_mode_screen.dart
 import 'dart:convert';
@@ -624,7 +619,6 @@ class _ExpressModeScreenState extends State<ExpressModeScreen> {
       await _audioPlayer.stop();
       await _audioPlayer.play(AssetSource('beep.mp3'));
     } catch (e) {
-      debugPrint('Beep failed: $e');
     }
   }
 
@@ -699,73 +693,79 @@ class _ExpressModeScreenState extends State<ExpressModeScreen> {
   // }
 
   Future<void> _handleScan(String raw) async {
-  if (_isProcessing || raw.isEmpty) return;
-  setState(() => _isProcessing = true);
+    if (_isProcessing || raw.isEmpty) return;
+    setState(() => _isProcessing = true);
 
-  await _playBeep();
+    await _playBeep();
 
-  try {
-    final data = _parse(raw);
-    if (!data.containsKey('ItemCode')) {
-      _snack('Invalid QR – no ItemCode');
-      return;
-    }
+    try {
+      final data = _parse(raw);
+      if (!data.containsKey('ItemCode')) {
+        _snack('Invalid QR – no ItemCode');
+        return;
+      }
 
-    final itemCode = data['ItemCode'];
-    final qty = data['Qty'] ?? 1;
-    final uom = data['UOM'] ?? '';
+      final itemCode = data['ItemCode'];
+      final qty = data['Qty'] ?? 1;
+      final uom = data['UOM'] ?? '';
 
-    final itemProvider = Provider.of<ItemProvider>(context, listen: false);
-    final matches =await itemProvider.checkVarianceItemCode(itemCode,aliasname);
-
-    if (matches.isEmpty) {
-      _snack('Item not found: $itemCode');
-      return;
-    }
-
-    final item = matches.first;
-
-    // ─────────────────────────────────────────────
-    // ⭐ STOCK VALIDATION HERE ⭐
-    // ─────────────────────────────────────────────
-    final stock = _toDouble(item['varianceData']['variance_Stock'] ?? 0);
-
-    if (stock <= 0) {
-      _snack('Out of Stock: ${item['varianceData']['varianceName']}');
-      return;
-    }
-
-    if (_toDouble(qty) > stock) {
-      _snack(
-        'Only $stock available, but scanned qty = ${_toDouble(qty)}',
+      final itemProvider = Provider.of<ItemProvider>(context, listen: false);
+      final matches = await itemProvider.checkVarianceItemCode(
+        itemCode,
+        aliasname,
       );
-      return;
+
+      if (matches.isEmpty) {
+        _snack('Item not found: $itemCode');
+        return;
+      }
+
+      final item = matches.first;
+
+      // ─────────────────────────────────────────────
+      // ⭐ STOCK VALIDATION HERE ⭐
+      // ─────────────────────────────────────────────
+      final stock = _toDouble(item['varianceData']['variance_Stock'] ?? 0);
+
+      if (stock <= 0) {
+        _snack('Out of Stock: ${item['varianceData']['varianceName']}');
+        return;
+      }
+
+      if (_toDouble(qty) > stock) {
+        _snack('Only $stock available, but scanned qty = ${_toDouble(qty)}');
+        return;
+      }
+      // ─────────────────────────────────────────────
+
+      final saleProvider = Provider.of<CurrentSaleProvider>(
+        context,
+        listen: false,
+      );
+
+      saleProvider.addItemToCartExpressMode({
+        ...item,
+        'quantity': _toDouble(qty),
+        'uom': uom,
+        'varianceData': {
+          ...item['varianceData'],
+          'variance_Defaultprice': _toDouble(
+            item['varianceData']['variance_Defaultprice'],
+          ),
+        },
+      });
+
+      _snack(
+        'Added: ${item['varianceData']['varianceName']} × ${_toDouble(qty)}',
+      );
+    } catch (e) {
+      _snack('Error: $e');
+    } finally {
+      _scannerController.clear();
+      _scannerFocus.requestFocus();
+      setState(() => _isProcessing = false);
     }
-    // ─────────────────────────────────────────────
-
-    final saleProvider = Provider.of<CurrentSaleProvider>(context, listen: false);
-
-    saleProvider.addItemToCartExpressMode({
-      ...item,
-      'quantity': _toDouble(qty),
-      'uom': uom,
-      'varianceData': {
-        ...item['varianceData'],
-        'variance_Defaultprice':
-            _toDouble(item['varianceData']['variance_Defaultprice']),
-      },
-    });
-
-    _snack('Added: ${item['varianceData']['varianceName']} × ${_toDouble(qty)}');
-  } catch (e) {
-    _snack('Error: $e');
-  } finally {
-    _scannerController.clear();
-    _scannerFocus.requestFocus();
-    setState(() => _isProcessing = false);
   }
-}
-
 
   void _snack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -813,20 +813,30 @@ class _ExpressModeScreenState extends State<ExpressModeScreen> {
                                       // Loading / Empty
                                       Expanded(
                                         child: provider.isLoading
-                                            ? const Center(child: CircularProgressIndicator())
+                                            ? const Center(
+                                                child:
+                                                    CircularProgressIndicator(),
+                                              )
                                             : provider.items.isEmpty
-                                                ? const Center(
-                                                    child: CustomText(
-                                                      text: "Please scan the items",
-                                                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blueGrey),
-                                                    ),
-                                                  )
-                                                : const Center(
-                                                    child: Text(
-                                                      "Scan to add items",
-                                                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-                                                    ),
+                                            ? const Center(
+                                                child: CustomText(
+                                                  text: "Please scan the items",
+                                                  style: TextStyle(
+                                                    fontSize: 24,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.blueGrey,
                                                   ),
+                                                ),
+                                              )
+                                            : const Center(
+                                                child: Text(
+                                                  "Scan to add items",
+                                                  style: TextStyle(
+                                                    fontSize: 20,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ),
                                       ),
                                     ],
                                   ),
@@ -837,7 +847,9 @@ class _ExpressModeScreenState extends State<ExpressModeScreen> {
                                 // ─── RIGHT PANEL (CART) ───
                                 Expanded(
                                   flex: 1,
-                                  child: RepaintBoundary(child: CurrentSaleSection()),
+                                  child: RepaintBoundary(
+                                    child: CurrentSaleSection(),
+                                  ),
                                 ),
                               ],
                             ),
@@ -865,8 +877,13 @@ class _ExpressModeScreenState extends State<ExpressModeScreen> {
                           enableInteractiveSelection: false,
                           // ←←← IMPORTANT: allow real keyboard (USB scanner)
                           keyboardType: TextInputType.none,
-                          style: const TextStyle(fontSize: 1, color: Colors.transparent),
-                          decoration: const InputDecoration(border: InputBorder.none),
+                          style: const TextStyle(
+                            fontSize: 1,
+                            color: Colors.transparent,
+                          ),
+                          decoration: const InputDecoration(
+                            border: InputBorder.none,
+                          ),
 
                           // Most USB scanners send Enter → onSubmitted
                           onSubmitted: (v) => _handleScan(v.trim()),
@@ -874,7 +891,9 @@ class _ExpressModeScreenState extends State<ExpressModeScreen> {
                           // Fallback: some send \n inside the string
                           onChanged: (v) {
                             if (v.contains('\n') || v.contains('\r')) {
-                              final clean = v.replaceAll(RegExp(r'[\n\r]'), '').trim();
+                              final clean = v
+                                  .replaceAll(RegExp(r'[\n\r]'), '')
+                                  .trim();
                               if (clean.isNotEmpty) _handleScan(clean);
                               _scannerController.clear();
                             }

@@ -23,31 +23,18 @@ Future<void> savePosSaleOrderToHive(
   Map<String, dynamic> saleOrder,
   Box saleOrderBox,
 ) async {
-  print("\n💾 [SAVE TO HIVE - PRIMARY] --- START ---");
-
   try {
     saleOrderBox = await Hive.openBox('saleOrderBox');
-    print("📦 Hive Box opened: ${saleOrderBox.name}");
 
     final String shortId = generateShortHiveInvoiceId();
     saleOrder['hiveId'] = shortId;
     saleOrder['sync'] = 'No';
     saleOrder['edit'] = 'No';
 
-    print("🧾 Generated Hive Short ID: $shortId");
-    print("📝 Writing to Hive...");
-
     await saleOrderBox.put(shortId, saleOrder);
-    print("✅ Saved order with ID: $shortId");
 
     final savedData = saleOrderBox.get(shortId);
-    print("🔍 Data verification successful. Keys: ${savedData?.keys.toList()}");
-  } catch (e, st) {
-    print("❌ [SAVE TO HIVE - PRIMARY] Exception: $e");
-    print("🧾 StackTrace:\n$st");
-  }
-
-  print("💾 [SAVE TO HIVE - PRIMARY] --- END ---\n");
+  } catch (e, st) {}
 }
 
 Future<void> savePosInvoiceOrderToHive(
@@ -119,66 +106,6 @@ Future<void> saveKotInvoiceToHive(Map<String, dynamic> invoice) async {
   savePosInvoiceToHive(savedInvoice);
 }
 
-// Future<void> savePosInvoiceToHive(Map<String, dynamic> posInvoice) async {
-//   print("🟢 [savePosInvoiceToHive] STARTED");
-//   print("🟢 Invoice data to save: $posInvoice");
-
-//   try {
-//     // Step 1: Open the Hive box
-//     var posInvoiceBox = await HiveManager.invoiceBox;
-//     print("🟢 Hive box opened successfully");
-
-//     // Step 2: Save the invoice to Hive
-//     final key = await posInvoiceBox.add(posInvoice);
-//     print("✅ Invoice saved successfully with key: $key");
-
-//     // Step 3: Debug: Current count of invoices in Hive
-//     final count = posInvoiceBox.length;
-//     print("🟢 Current total invoices in Hive: $count");
-
-//     // Optional: Log the last saved invoice
-//     final lastInvoice = posInvoiceBox.getAt(count - 1);
-//     print("🟢 Last saved invoice in Hive: $lastInvoice");
-//   } catch (e, st) {
-//     print("❌ Error saving invoice to Hive: $e");
-//     print("❌ StackTrace: $st");
-//   }
-
-//   print("🟢 [savePosInvoiceToHive] FINISHED");
-// }
-
-// Future<void> savePosInvoiceToHive(Map<String, dynamic> posInvoice) async {
-//   print("🟢 [savePosInvoiceToHive] STARTED");
-//   print("🟢 Full invoice data received: $posInvoice");
-
-//   try {
-//     // 🔥 Extract ONLY the salesOrderId object
-//     final Map<String, dynamic> invoiceToSave = posInvoice["salesOrderId"];
-//     print("🟢 Extracted invoice to save: $invoiceToSave");
-
-//     // Step 1: Open the Hive box
-//     var posInvoiceBox = await HiveManager.invoiceBox;
-//     print("🟢 Hive box opened successfully");
-
-//     // Step 2: Save ONLY the extracted part
-//     final key = await posInvoiceBox.add(invoiceToSave);
-//     print("✅ Invoice saved successfully with key: $key");
-
-//     // Step 3: Debug: Current count of invoices in Hive
-//     final count = posInvoiceBox.length;
-//     print("🟢 Current total invoices in Hive: $count");
-
-//     // Optional: Log the last saved invoice
-//     final lastInvoice = posInvoiceBox.getAt(count - 1);
-//     print("🟢 Last saved invoice in Hive: $lastInvoice");
-//   } catch (e, st) {
-//     print("❌ Error saving invoice to Hive: $e");
-//     print("❌ StackTrace: $st");
-//   }
-
-//   print("🟢 [savePosInvoiceToHive] FINISHED");
-// }
-
 Future<void> savePosInvoiceToHive(Map<String, dynamic> message) async {
   try {
     final salesOrder = message['salesOrderId'];
@@ -186,7 +113,6 @@ Future<void> savePosInvoiceToHive(Map<String, dynamic> message) async {
 
     final String? invoiceNo = salesOrder['invoiceNo']?.toString();
     if (invoiceNo == null || invoiceNo.isEmpty) {
-      print("Missing invoiceNo → skip save");
       return;
     }
 
@@ -194,16 +120,12 @@ Future<void> savePosInvoiceToHive(Map<String, dynamic> message) async {
 
     // PREVENT DUPLICATES — Critical!
     if (box.containsKey(invoiceNo)) {
-      print("Invoice $invoiceNo already exists locally → skip");
       return;
     }
 
     // Save the actual sales order (clean data)
     await box.put(invoiceNo, salesOrder);
-    print("Invoice saved locally → $invoiceNo");
-  } catch (e, st) {
-    print("Error in savePosInvoiceToHive: $e\n$st");
-  }
+  } catch (e, st) {}
 }
 
 /// Save hold order using the 'holdOrders' box

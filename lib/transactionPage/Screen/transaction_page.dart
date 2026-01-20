@@ -35,7 +35,6 @@ class _TransactionPageState extends State<TransactionPage> {
   @override
   void initState() {
     super.initState();
-    print("🟢 [TransactionPage] initState called");
 
     // Fetch invoices from provider
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -55,27 +54,18 @@ class _TransactionPageState extends State<TransactionPage> {
     );
 
     // 🔹 Prepare Data
-    print(
-      "🟡 [TransactionPage] Preparing salesCompletedOrders from invoiceList",
-    );
     final salesCompletedOrders = transactionProvider.invoiceList.map((order) {
       return Transaction.fromMap(order);
     }).toList();
 
-    print(
-      "🟢 [TransactionPage] Total completed sales: ${salesCompletedOrders.length}",
-    );
 
-    print("🟡 [TransactionPage] Preparing openOrders from hivefilteredOrders");
     final openOrders = apiService.hivefilteredOrders
         .map((order) {
-          print("    - Mapping open order: $order");
           return SalesOrderDisplay.fromMap(order);
         })
         .where((order) => order.status == "Open Order")
         .toList();
 
-    print("🟢 [TransactionPage] Total open orders: ${openOrders.length}");
 
     // ⚠️ Be careful: setState in build can cause infinite rebuild
     // setState(() {}); // ⚠️ Removed to prevent infinite rebuild
@@ -122,7 +112,6 @@ class _TransactionPageState extends State<TransactionPage> {
                         ],
                       ),
                       onTap: (index) {
-                        print("🟡 [TransactionPage] Tab tapped: $index");
                         setState(() {
                           transactionProvider.selectedIndex = index;
                           transactionProvider.selectedTransactionIndex = null;
@@ -156,7 +145,7 @@ class _TransactionPageState extends State<TransactionPage> {
                 child: Row(
                   children: transactionProvider.selectedIndex == 0
                       ? buildSalesCompletedLayout(
-                          salesCompletedOrders,
+                          salesCompletedOrders.cast<Map<String, dynamic>>(),
                           apiService,
                           transactionProvider,
                           context,
@@ -176,6 +165,10 @@ class _TransactionPageState extends State<TransactionPage> {
       ),
     );
   }
+
+  // --------------------------
+  // Open Order Layout (3 columns)
+  // --------------------------
 
   // --------------------------
   // Open Order Layout (3 columns)
@@ -417,11 +410,35 @@ class _TransactionPageState extends State<TransactionPage> {
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            salesOrder.uom[index] != 'Kgs'
-                ? '${salesOrder.qty[index]} ${salesOrder.uom[index]} x ${salesOrder.price[index]}'
-                : '${salesOrder.weight[index]} ${salesOrder.uom[index]} x ${salesOrder.price[index]}',
-            style: TextStyle(fontSize: 10),
+          Builder(
+            builder: (context) {
+              final uom = salesOrder.uom[index];
+              final isKg =
+                  uom.toLowerCase() == "kg" || uom.toLowerCase() == "kgs";
+              final weight = salesOrder.weight[index];
+              final qty = salesOrder.qty[index];
+              final price = salesOrder.price[index];
+
+              if (isKg) {
+                if (weight >= 1) {
+                  return Text(
+                    '${weight.toStringAsFixed(1)} kg × ₹${price.toStringAsFixed(0)}/kg',
+                    style: TextStyle(fontSize: 10),
+                  );
+                } else {
+                  final grams = weight * 1000;
+                  return Text(
+                    '${qty.toInt()} × ${grams.toStringAsFixed(0)} g × ₹${price.toStringAsFixed(0)}/kg',
+                    style: TextStyle(fontSize: 10),
+                  );
+                }
+              } else {
+                return Text(
+                  '${qty.toInt()} ${uom} × ₹${price.toStringAsFixed(0)}',
+                  style: TextStyle(fontSize: 10),
+                );
+              }
+            },
           ),
         ],
       ),

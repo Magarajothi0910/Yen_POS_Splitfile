@@ -51,7 +51,7 @@ class PrinterService {
             "userName": userName,
             "isOverall": isOverall,
             "orderType": orderType,
-            //"printerName": ${printerProvider.getPrinterNameByIp(ipAddress) ?? "Unknown"}, // Added printer name to stored order
+            // "printerName": ${printerProvider.getPrinterNameByIp(ipAddress) ?? "Unknown"}, // Added printer name to stored order
           });
           print("💾 Order stored for retry later: token $tokenNumber");
         }

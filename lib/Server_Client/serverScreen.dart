@@ -14,6 +14,7 @@ import 'package:udp/udp.dart';
 
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:yenpos/Global/Provider/branchwise_item_fetch.dart';
+import 'package:yenpos/Global/get_device_info.dart';
 
 import 'package:yenpos/Global/globals_data.dart';
 import 'package:yenpos/Global/globals_data.dart' as globals;
@@ -53,6 +54,7 @@ class _LoginScreenState extends State<LoginScreen> {
     ConnectivityResult.none,
   );
   //
+
   List<Map<String, dynamic>> orders = [];
   HttpServer? _wsServer;
   Set<String> sentPatchOrders = {};
@@ -85,25 +87,8 @@ class _LoginScreenState extends State<LoginScreen> {
       _connectivityResult.value =
           result.first; // Handle Stream<List<ConnectivityResult>>
     });
-    //
-    // HiveManager().invoices.then((_) => _loadInvoices());
-    // HiveManager().posInvoiceBox; // Just to ensure it's initialized
+
     HiveManager.initialize(); // Just to ensure it's initialized
-
-    // _syncTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
-    //   SyncService();
-    //   _syncService.syncUnsyncedSaleOrders();
-    //   _syncService.syncUnsyncedHoldOrders();
-    //   _syncService.syncUnsyncedInvoices();
-    //   _syncService.syncPendingPatches();
-    //   _syncService.syncUnsyncedHoldOrders();
-    // });
-    // // Provider.of<LoginProvider>(context, listen: false).fetchAndStoreLoginData();
-
-    // _approvalCheckTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
-    //   checkPendingApprovals(HiveManager.salesOrderBox);
-    //   chequePendingDiscountApproval(HiveManager.holdOrderBox);
-    // });
 
     checkIfServerWasPreviouslyStored();
     // discoverServerAndHandle();
@@ -149,6 +134,8 @@ class _LoginScreenState extends State<LoginScreen> {
             context,
             listen: false,
           ).fetchAllData(context);
+
+          await collectAndSendDeviceInfo('server', localIp ?? '0.0.0.0');
         } else {}
       } else {
         // 🌐 Client Mode
@@ -157,11 +144,14 @@ class _LoginScreenState extends State<LoginScreen> {
           savedIp,
           int.parse(savedPort),
         );
-
         if (reachable) {
           appType = 'client';
           await configBox.put('appType', 'client');
-
+          await Provider.of<ProductProvider>(
+            context,
+            listen: false,
+          ).fetchAllData(context);
+          await collectAndSendDeviceInfo('client', localIp ?? '0.0.0.0');
           try {
             await ForegroundHelper.startIfNotRunning(appType: 'client');
           } catch (e) {
@@ -201,47 +191,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // Future<void> startServer(Set<WebSocketChannel> clients, Function(Map<String, dynamic>, WebSocketChannel) onDataReceived) async {
-  //   try {
-  //     final server = await HttpServer.bind(InternetAddress.anyIPv4, 8686);
-  //     print("✅ [SERVER] Started on port 8686");
-  //     print("===========================================");
-
-  //     await for (HttpRequest request in server) {
-  //       if (WebSocketTransformer.isUpgradeRequest(request)) {
-  //         final socket = await WebSocketTransformer.upgrade(request);
-  //         final channel = IOWebSocketChannel(socket);
-  //         final clientId = DateTime.now().millisecondsSinceEpoch.toString();
-
-  //         clients.add(channel);
-  //         clientIds[channel] = clientId;
-
-  //         print("🟢 [CLIENT CONNECTED] ID: $clientId");
-  //         print("📡 [TOTAL CONNECTED CLIENTS]: ${clients.length}");
-  //         print("-------------------------------------------");
-
-  //         handleWebSocket(channel, clients, (data) {
-  //           onDataReceived(data, channel);
-  //         });
-  //         channel.stream.listen(
-  //           (data) => onDataReceived(jsonDecode(data), channel),
-  //           onDone: () {
-  //             print("🔴 [CLIENT DISCONNECTED]");
-  //             clients.remove(channel);
-  //             print("📉 Active clients: ${clients.length}");
-  //           },
-  //           onError: (err) {
-  //             print("⚠️server WebSocket error: $err");
-  //             clients.remove(channel);
-  //           },
-  //         );
-  //       }
-  //     }
-  //   } catch (e, st) {
-  //     print("🔥 [SERVER START ERROR]: $e");
-  //   }
-  // }
-
   Future<void> startServer(
     Set<WebSocketChannel> clients,
     Function(Map<String, dynamic>, WebSocketChannel) onDataReceived,
@@ -263,12 +212,7 @@ class _LoginScreenState extends State<LoginScreen> {
       });
     } catch (e) {
       if (mounted) {
-        debugPrint('Failed to start server: $e');
-        // CustomSnackBar.show(
-        //   context,
-        //   'Failed to start server: $e',
-        //   type: SnackType.error,
-        // );
+      
       }
     }
   }
@@ -340,10 +284,13 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> proceedToDashboard(BuildContext context) async {
-    print("🚀 [proceedToDashboard] Function called");
+    final data = jsonEncode({'type': 'handshake'});
+    sendataToServer(jsonDecode(data));
+    // if (!context.mounted) {
+    //   return;
+    // }
 
     if (!context.mounted) {
-      print("⚠️ Context not mounted. Returning.");
       return;
     }
 
@@ -353,21 +300,17 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       // Step 1: Alias check
       if (globals.aliasname == null || globals.aliasname!.trim().isEmpty) {
-        print("⚠️ Alias name is null or empty");
         hideLoadingDialog(context);
         return;
       }
-      print("✅ Alias name: ${globals.aliasname}");
 
       // Step 2: Branch info
       final itemProvider = Provider.of<ItemProvider>(context, listen: false);
-      print("🔄 Fetching branch info...");
       final branchInfo = await itemProvider.getBranchInfoFromAlias(
         globals.aliasname!,
       );
 
       if (branchInfo == null) {
-        print("❌ Branch info not found");
         hideLoadingDialog(context);
         return;
       }
@@ -376,45 +319,44 @@ class _LoginScreenState extends State<LoginScreen> {
       globals.branchAddress = branchInfo['address'] ?? "";
       globals.branchPhoneno = branchInfo['phone'] ?? "";
 
-      print("📌 Branch set: ${globals.branchName}");
+      if (!context.mounted) {
+        return;
+      }
 
+      if (globals.branchName == null ||
+          globals.branchName == 'Branch Not Found') {
+        return;
+      }
       // Step 3: Shift API
       final url = Uri.parse(
         'https://yenerp.com/fluttertestapi/dayendvalidations/status'
         '?empId=$userName&branchName=${globals.branchName}',
       );
+      final client = http.Client();
 
-      print("🌐 API URL: $url");
-
-      final response = await http.get(url);
-
-      print("📡 Response: ${response.statusCode} | ${response.body}");
+      final response = await client.get(url);
 
       hideLoadingDialog(context); // ✅ HIDE LOADING AFTER API
 
       if (response.statusCode == 200 && response.body.isNotEmpty) {
         final data = jsonDecode(response.body);
+        globals.shiftOpenStatus.value =
+            data['shiftStatus']?.toString() ?? 'close';
 
         globals.shiftId.value = data['shiftId']?.toString() ?? '0';
         globals.shiftNumber.value = data['shiftNumber']?.toString() ?? '0';
-
-        print(
-          "📌 ShiftId: ${globals.shiftId.value}, ShiftNumber: ${globals.shiftNumber.value}",
-        );
 
         int shiftNumberInt = int.tryParse(globals.shiftNumber.value) ?? 0;
 
         if (!context.mounted) return;
 
-        if (shiftNumberInt != 0) {
-          print("✅ Open shift found → ChooseModePage");
+        if (shiftOpenStatus.value == 'open') {
           hideLoadingDialog(context);
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => ChooseModePage()),
           );
         } else {
-          print("⚠️ No open shift → OpenShift");
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('No open shift found for today'),
@@ -429,7 +371,6 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       } else {
         hideLoadingDialog(context);
-        print("❌ Failed to fetch shift data");
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Failed to fetch shift data'),
@@ -439,8 +380,6 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e, stack) {
       hideLoadingDialog(context);
-      print("❌ Exception: $e");
-      print("📄 StackTrace: $stack");
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -452,8 +391,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   /// 📡 Discover server or create one if not found
   Future<void> discoverServerAndHandle() async {
-    print("🔍 [discoverServerAndHandle] called");
-
     final udp = await UDP.bind(Endpoint.any());
     udp.send(
       utf8.encode('WHO_IS_SERVER'),
@@ -471,8 +408,6 @@ class _LoginScreenState extends State<LoginScreen> {
           final message = utf8.decode(datagram.data);
 
           if (message.startsWith('SERVER:')) {
-            print("✅ Server found via UDP");
-
             final parts = message.split(':');
             final ip = parts[1];
             final port = parts[2];
@@ -496,9 +431,7 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         }
       }
-    } catch (e) {
-      print("❌ UDP discovery error: $e");
-    }
+    } catch (e) {}
 
     /// 🟥 No server found → show dialog
     if (!found && mounted) {
@@ -522,8 +455,6 @@ class _LoginScreenState extends State<LoginScreen> {
               return;
             }
 
-            print("🖥️ Creating server on IP: $ip");
-
             final box = await Hive.openBox('serverBox');
             await box.put('serverIp', ip);
             await box.put('serverPort', port);
@@ -531,6 +462,11 @@ class _LoginScreenState extends State<LoginScreen> {
             final configBox = HiveManager().configBox;
             appType = 'server';
             await configBox.put('appType', 'server');
+
+            Provider.of<ItemProvider>(
+              context,
+              listen: false,
+            ).fetchDataIfNeeded(branchAlias: globals.aliasname);
 
             serverip = ip;
 
@@ -543,24 +479,27 @@ class _LoginScreenState extends State<LoginScreen> {
             startUdpResponder(ip, udpPort);
             startServer(clients, onDataReceived);
 
-            print("📦 Fetching initial data...");
-
             await Provider.of<ProductProvider>(
               context,
               listen: false,
             ).fetchAllData(context);
 
-            await Provider.of<OrderProvider>(
-              context,
-              listen: false,
-            ).requestDataFromServer();
+            collectAndSendDeviceInfo('server', ip ?? '0.0.0.0');
+
+            // await Provider.of<OrderProvider>(
+            //   context,
+            //   listen: false,
+            // ).requestDataFromServer();
 
             await Provider.of<ItemProvider>(
               context,
               listen: false,
             ).fetchAndSaveSalesOrders(branchAlias: globals.aliasname);
 
-            print("✅ Server setup complete");
+            await Provider.of<ItemProvider>(
+              context,
+              listen: false,
+            ).fetchAndStoreAdvancePercent(branchAlias: globals.aliasname);
 
             /// 🚀 NOW GO TO DASHBOARD
             await proceedToDashboard(context);
@@ -724,6 +663,28 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     holdOrderBox.toMap().forEach((key, value) {});
+  }
+
+  Future<bool> hasRealInternetConnection() async {
+    // First, check basic connectivity
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult == ConnectivityResult.none) {
+      return false;
+    }
+
+    // Then, perform a real reachability check
+    try {
+      final result = await InternetAddress.lookup(
+        'google.com',
+      ).timeout(const Duration(seconds: 5));
+      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } on TimeoutException {
+      return false;
+    } on SocketException {
+      return false;
+    } catch (e) {
+      return false;
+    }
   }
 
   @override
@@ -1134,7 +1095,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                             return;
                                           }
 
-                                          if (!isConnected) {
+                                          final bool hasInternet =
+                                              await hasRealInternetConnection();
+
+                                          if (!hasInternet) {
                                             showPremiumDialog(
                                               context: context,
                                               title: 'Network Error',

@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:yenpos/Hive_Manager/hive_manager_saleOrder.dart';
 import 'package:yenpos/Sale_order/Provider/customerScreen_provider.dart';
@@ -9,7 +10,9 @@ final Set<String> _activeOrders = {};
 Future<void> handleSalesOrder(
   Map<String, dynamic> jsonData,
   CustomerScreenProvider customerProvider,
+
 ) async {
+
   Map<String, dynamic>? orderData;
 
   try {
@@ -29,6 +32,7 @@ Future<void> handleSalesOrder(
       return;
     }
 
+
     if (_activeOrders.contains(saleOrderNo)) {
       return;
     }
@@ -41,13 +45,13 @@ Future<void> handleSalesOrder(
 
     // Extract audio and image paths
     final audioPath = salesOrder["data"]?['audioPath'] ?? '';
-    final image1Path = salesOrder["data"]?['imagePath1'] ?? '';
-    final image2Path = salesOrder["data"]?['imagePath2'] ?? '';
+    final imagePath = salesOrder["data"]?['imagePaths'] ?? '';
 
+
+    // Add metadata to order data
     orderData['type'] = 'salesOrder';
     orderData['audioPath'] = audioPath;
-    orderData['imagePath1'] = image1Path;
-    orderData['imagePath2'] = image2Path;
+    orderData['imagePaths'] = imagePath;
 
     final salesOrderBox2 = HiveManager.salesOrderBox;
 
@@ -58,6 +62,7 @@ Future<void> handleSalesOrder(
     }
 
     await salesOrderBox2.put(saleOrderNo, orderData);
+
     _processedOrders.add(saleOrderNo);
 
     final orders = await getSavedSalesOrders();
@@ -65,19 +70,27 @@ Future<void> handleSalesOrder(
       return;
     }
 
+
     // Step 3: Get the most recent order
     final lastOrder = orders.last;
 
-    // Step 4: Print the patched receipt
+    // Step 4: Update receipt data in provider
     customerProvider.updateReceiptData(orderData);
+
   } catch (e, st) {
+
     if (orderData != null && orderData['saleOrderNo'] != null) {
-      _processedOrders.remove(orderData['saleOrderNo']);
-      _activeOrders.remove(orderData['saleOrderNo']);
+      final failedOrderNo = orderData['saleOrderNo'];
+      _processedOrders.remove(failedOrderNo);
+      _activeOrders.remove(failedOrderNo);
     }
   } finally {
     if (orderData != null && orderData['saleOrderNo'] != null) {
-      _activeOrders.remove(orderData['saleOrderNo']);
+      final orderNo = orderData['saleOrderNo'];
+      if (_activeOrders.contains(orderNo)) {
+        _activeOrders.remove(orderNo);
+      }
     }
+
   }
 }

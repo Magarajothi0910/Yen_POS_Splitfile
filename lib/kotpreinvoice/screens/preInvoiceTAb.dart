@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:yenpos/kotpreinvoice/screens/table_screen.dart';
 import 'package:yenpos/loginPage/provider/loginPageProvider.dart';
 import '../components/flushbar.dart';
 import '../providers/upi_provider.dart';
@@ -43,84 +44,7 @@ double calculateSeatTotalAmount(
 }
 
 // 🔔 ChangeNotifier to manage PreInvoiceScreen state
-class PreInvoiceState extends ChangeNotifier {
-  String? _storedDeviceCode;
-  String? _errorMessage;
-  Timer? _timer;
 
-  String? get storedDeviceCode => _storedDeviceCode;
-  String? get errorMessage => _errorMessage;
-
-  PreInvoiceState() {
-    debugPrint('🟢 PreInvoiceState initialized');
-    _initState();
-  }
-
-  // 🔹 Initialize data safely
-  Future<void> _initState() async {
-    try {
-      await loadDeviceCode();
-      // startTimer();
-    } catch (e, stack) {
-      _errorMessage = 'Initialization failed: $e';
-      debugPrint('❌ Error during initialization: $e');
-      debugPrint(stack.toString());
-      notifyListeners();
-    }
-  }
-
-  // 📡 Load device code from Hive with error handling
-  Future<void> loadDeviceCode() async {
-    debugPrint('📥 Loading device code from Hive...');
-    try {
-      final box = await Hive.openBox('deviceData');
-      final code = box.get('deviceCode', defaultValue: 'UnknownDevice');
-      _storedDeviceCode = code?.toString();
-      debugPrint('✅ Device code loaded: $_storedDeviceCode');
-    } on HiveError catch (hiveError) {
-      _errorMessage = 'Hive error: ${hiveError.message}';
-      debugPrint('🚨 HiveError: ${hiveError.message}');
-    } catch (e, stack) {
-      _errorMessage = 'Failed to load device code: $e';
-      debugPrint('❌ Exception while loading device code: $e');
-      debugPrint(stack.toString());
-    }
-    notifyListeners();
-  }
-
-  // ⏲️ Start periodic timer to update UI
-  // void startTimer() {
-  //   try {
-  //     _timer?.cancel(); // Cancel previous timer if any
-  //     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-  //       debugPrint(
-  //         '⏱️ Timer tick: ${DateTime.now()} | Device: $_storedDeviceCode',
-  //       );
-  //       notifyListeners();
-  //     });
-  //     debugPrint('✅ Timer started successfully');
-  //   } catch (e, stack) {
-  //     _errorMessage = 'Failed to start timer: $e';
-  //     debugPrint('❌ Error starting timer: $e');
-  //     debugPrint(stack.toString());
-  //     notifyListeners();
-  //   }
-  // }
-
-  // 🧹 Clean up resources safely
-  @override
-  void dispose() {
-    debugPrint('🧹 Disposing PreInvoiceState...');
-    try {
-      _timer?.cancel();
-      debugPrint('🛑 Timer cancelled successfully');
-    } catch (e, stack) {
-      debugPrint('⚠️ Error cancelling timer: $e');
-      debugPrint(stack.toString());
-    }
-    super.dispose();
-  }
-}
 
 class PreInvoiceScreen extends StatelessWidget {
   const PreInvoiceScreen({super.key});

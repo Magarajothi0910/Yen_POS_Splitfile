@@ -218,10 +218,7 @@ class _SearchDropdownState extends State<SearchDropdown> {
       tax = 0; // default tax if missing
     }
 
-    print(
-      "Selected item: $itemName, Tax: $tax%, Price: $price, , itemCode: $itemCode, ",
-    );
-
+  
     if (varianceUOM.toLowerCase() == 'kgs' ||
         varianceUOM.toLowerCase() == 'kg') {
       // Weighted items
@@ -229,7 +226,8 @@ class _SearchDropdownState extends State<SearchDropdown> {
         context: context,
         builder: (context) {
           return NumericCalculator(
-            varianceName: varianceName,
+            varianceName:
+                '$varianceName (${varianceUOM.toUpperCase()})', // Laddu (KGS)
             onValueSelected: (weight) {
               cartProvider.addItemToCart(
                 CartItem(

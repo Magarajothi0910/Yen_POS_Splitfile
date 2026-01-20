@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
+import 'package:provider/provider.dart';
 import 'package:yenpos/Hive_Manager/hive_manager_saleOrder.dart';
 import 'package:yenpos/Sale_order/Models/held_order_model.dart';
+import 'package:yenpos/Sale_order/Provider/cartProvider.dart';
+import 'package:yenpos/Sale_order/Provider/cart_selection_provider.dart';
+import 'package:yenpos/Sale_order/Provider/customerScreen_provider.dart';
 import 'package:yenpos/Sale_order/Widgets/restore_order_date.dart';
-import 'package:yenpos/Server_Client/handlers/webscoket_messgae_handler.dart';
 
 // ✅ Extract latest approvalStatus safely
 String approvalStatus = '';
+
 void showDiscountStatus(BuildContext context) {
   showModalBottomSheet(
     context: context,
@@ -112,13 +116,9 @@ Map<String, dynamic> convertToMapStringDynamic(Map<dynamic, dynamic> map) {
 }
 
 Future<List<HeldOrder>> getSavedApprovalOrder() async {
-  print("🔹 Fetching saved approval orders from Hive...");
-
   var approvalOrderBox = HiveManager.salesApprovalOrder;
-  print("📦 Total items in Hive box: ${approvalOrderBox.length}");
 
   if (approvalOrderBox.isEmpty) {
-    print("⚠️ No approval orders found. Returning empty list.");
     return [];
   }
 
@@ -135,15 +135,11 @@ Future<List<HeldOrder>> getSavedApprovalOrder() async {
     final combinedMap = {...orderMap, ...dataMap};
     combinedMap.remove('data');
 
-    print("➡️ Flattened order map for HeldOrder: $combinedMap");
-
     final heldOrder = HeldOrder.fromMap(combinedMap);
-    print("✅ Converted HeldOrder: $heldOrder");
 
     return heldOrder;
   }).toList();
 
-  print("📊 Total approval orders fetched: ${approvalOrders.length}");
   return approvalOrders;
 }
 
@@ -151,18 +147,12 @@ Widget _buildApproveOrdersList(
   BuildContext context,
   ScrollController scrollController,
 ) {
-  print("🔹 Building Approve Orders List widget...");
-
   return FutureBuilder<List<HeldOrder>>(
     future: getSavedApprovalOrder(),
     builder: (context, snapshot) {
-      print("🔹 FutureBuilder snapshot state: ${snapshot.connectionState}");
-
       if (snapshot.connectionState == ConnectionState.waiting) {
-        print("⏳ Waiting for approval orders...");
         return const Center(child: CircularProgressIndicator());
       } else if (snapshot.hasError) {
-        print("❌ Error while fetching approval orders: ${snapshot.error}");
         return Center(
           child: Text(
             'Error: ${snapshot.error}',
@@ -173,7 +163,6 @@ Widget _buildApproveOrdersList(
           ),
         );
       } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-        print("⚠️ No approval orders available.");
         return const Center(
           child: Text(
             'No approve orders available',
@@ -183,19 +172,12 @@ Widget _buildApproveOrdersList(
       }
 
       final orders = snapshot.data!;
-      print(
-        "✅ Approval orders fetched successfully. Total orders: ${orders.length}",
-      );
-      for (int i = 0; i < orders.length; i++) {
-        print("📄 Order $i: ${orders[i]}");
-      }
 
       return ListView.builder(
         controller: scrollController,
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         itemCount: orders.length,
         itemBuilder: (context, index) {
-          print("🔹 Building list item for order at index: $index");
           return _buildApproveOrderListItem(context, orders[index]);
         },
       );
@@ -204,44 +186,92 @@ Widget _buildApproveOrdersList(
 }
 
 Widget _buildApproveOrderListItem(BuildContext context, HeldOrder order) {
+  String status = 'Unknown';
+
   if (order.approvalDetails != null && order.approvalDetails!.isNotEmpty) {
     try {
-      // Get the latest detail that has a non-null, non-empty approvalStatus
       final lastDetailWithStatus = order.approvalDetails!.lastWhere(
         (d) => d.approvalStatus != null && d.approvalStatus!.isNotEmpty,
         orElse: () => order.approvalDetails!.last,
       );
-
-      approvalStatus = lastDetailWithStatus.approvalStatus ?? 'Unknown';
+      status = lastDetailWithStatus.approvalStatus ?? 'Unknown';
     } catch (e, stackTrace) {
-      approvalStatus = 'Unknown';
+      status = 'Unknown';
     }
-  } else {}
+  }
 
+  // Check if order is approved
+  final bool isApproved = status.toLowerCase() == 'approved';
+  print("status for approval: $status");
+  print("isApproved: $isApproved");
   return AnimatedContainer(
     duration: const Duration(milliseconds: 300),
     curve: Curves.easeOutCubic,
     child: Card(
-      color: Colors.white.withOpacity(0.8),
-      elevation: 6,
-      shadowColor: Colors.black.withOpacity(0.08),
+      color: isApproved
+          ? Colors.grey.shade200.withOpacity(0.6) // Lighter color for approved
+          : Colors.white.withOpacity(0.8),
+      elevation: isApproved ? 2 : 6,
+      shadowColor: Colors.black.withOpacity(isApproved ? 0.04 : 0.08),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        // onTap: () {
-        //   restoreHeldOrderData(context, order);
-        // },
-        splashColor: Colors.blue.withOpacity(0.05),
-        highlightColor: Colors.blueAccent.withOpacity(0.1),
+        onTap: () {
+          if (!isApproved) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Order cannot be restored because it is "$status".',
+                ),
+                backgroundColor: Colors.orange,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+            return;
+          }
+
+          // ✅ Approved → allow restore
+          final customerProvider = Provider.of<CustomerScreenProvider>(
+            context,
+            listen: false,
+          );
+          final cartProvider = Provider.of<CartProvider>(
+            context,
+            listen: false,
+          );
+          final selectionProvider = Provider.of<CartSelectionProvider>(
+            context,
+            listen: false,
+          );
+
+          _restoreOrderData(
+            context,
+            order,
+            customerProvider: customerProvider,
+            cartProvider: cartProvider,
+            selectionProvider: selectionProvider,
+          );
+        }, // ❌ Disable tap for all non-approved statuses
+        splashColor: isApproved
+            ? Colors.transparent
+            : Colors.blue.withOpacity(0.05),
+        highlightColor: isApproved
+            ? Colors.transparent
+            : Colors.blueAccent.withOpacity(0.1),
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             gradient: LinearGradient(
-              colors: [
-                Colors.white.withOpacity(0.95),
-                Colors.blueGrey.withOpacity(0.02),
-              ],
+              colors: isApproved
+                  ? [
+                      Colors.grey.shade100.withOpacity(0.8),
+                      Colors.grey.shade200.withOpacity(0.3),
+                    ]
+                  : [
+                      Colors.white.withOpacity(0.95),
+                      Colors.blueGrey.withOpacity(0.02),
+                    ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -257,16 +287,19 @@ Widget _buildApproveOrderListItem(BuildContext context, HeldOrder order) {
                   Expanded(
                     child: Text(
                       order.customerName,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 17,
-                        color: Colors.black87,
+                        color: isApproved ? Colors.grey : Colors.black87,
                         letterSpacing: 0.3,
+                        decoration: isApproved
+                            ? TextDecoration.lineThrough
+                            : TextDecoration.none,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  _buildStatusChip(order.status),
+                  _buildStatusChip(status, isApproved: isApproved),
                 ],
               ),
               const SizedBox(height: 4),
@@ -274,8 +307,10 @@ Widget _buildApproveOrderListItem(BuildContext context, HeldOrder order) {
                 height: 2,
                 width: 40,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Colors.blueAccent, Colors.lightBlueAccent],
+                  gradient: LinearGradient(
+                    colors: isApproved
+                        ? [Colors.grey, Colors.grey.shade400]
+                        : [Colors.blueAccent, Colors.lightBlueAccent],
                   ),
                   borderRadius: BorderRadius.circular(2),
                 ),
@@ -284,20 +319,46 @@ Widget _buildApproveOrderListItem(BuildContext context, HeldOrder order) {
               _buildInfoRow(
                 Icons.calendar_month_rounded,
                 "Delivery Date: ${order.deliveryDate ?? '--'}",
-                iconColor: Colors.deepPurpleAccent,
+                iconColor: isApproved ? Colors.grey : Colors.deepPurpleAccent,
+                isApproved: isApproved,
               ),
               const SizedBox(height: 6),
               _buildInfoRow(
                 Icons.access_time_filled_rounded,
                 "Delivery Time: ${order.deliveryTime ?? '--'}",
-                iconColor: Colors.orangeAccent,
+                iconColor: isApproved ? Colors.grey : Colors.orangeAccent,
+                isApproved: isApproved,
               ),
               const SizedBox(height: 6),
               _buildInfoRow(
                 Icons.verified_rounded,
-                "Approval Status: $approvalStatus",
-                iconColor: Colors.green,
+                "Approval Status: $status",
+                iconColor: isApproved ? Colors.grey : Colors.green,
+                isApproved: isApproved,
               ),
+              // Show a disabled message for approved orders
+              if (isApproved)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        size: 14,
+                        color: Colors.grey.shade500,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Approved orders cannot be restored',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade600,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
         ),
@@ -306,9 +367,40 @@ Widget _buildApproveOrderListItem(BuildContext context, HeldOrder order) {
   );
 }
 
-Widget _buildStatusChip(String? status) {
+void _restoreOrderData(
+  BuildContext context,
+  HeldOrder order, {
+  required CustomerScreenProvider customerProvider,
+  required CartProvider cartProvider,
+  required CartSelectionProvider selectionProvider,
+}) {
+  try {
+    // Close the bottom sheet
+    Navigator.of(context).pop();
+    print("ontap:");
+    // Call restore function with providers
+    restoreHeldOrderData(
+      context: context,
+      order: order,
+      customerProvider: customerProvider,
+      cartProvider: cartProvider,
+      selectionProvider: selectionProvider,
+    );
+  } catch (e) {
+    // Show error message
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Error restoring order: ${e.toString()}'),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+}
+
+Widget _buildStatusChip(String status, {bool isApproved = false}) {
   Color bgColor;
-  switch (status?.toLowerCase()) {
+  switch (status.toLowerCase()) {
     case 'approved':
       bgColor = Colors.green;
       break;
@@ -323,33 +415,35 @@ Widget _buildStatusChip(String? status) {
   }
 
   return Container(
-    padding: const EdgeInsets.symmetric(
-      horizontal: 10,
-      vertical: 4,
-    ), // smaller chip
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
     decoration: BoxDecoration(
       gradient: LinearGradient(
-        colors: [bgColor.withOpacity(0.9), bgColor.withOpacity(0.7)],
+        colors: [
+          bgColor.withOpacity(isApproved ? 0.5 : 0.9),
+          bgColor.withOpacity(isApproved ? 0.3 : 0.7),
+        ],
       ),
       borderRadius: BorderRadius.circular(14),
-      boxShadow: [
-        BoxShadow(
-          color: bgColor.withOpacity(0.3),
-          blurRadius: 6,
-          offset: const Offset(0, 2),
-        ),
-      ],
+      boxShadow: isApproved
+          ? []
+          : [
+              BoxShadow(
+                color: bgColor.withOpacity(0.3),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
     ),
     child: Row(
       children: [
-        Icon(Icons.circle, size: 8, color: Colors.white), // smaller dot
+        Icon(Icons.circle, size: 8, color: Colors.white),
         const SizedBox(width: 4),
         Text(
-          status ?? 'Unknown',
-          style: const TextStyle(
+          status,
+          style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w600,
-            fontSize: 12, // reduced from 14
+            fontSize: 12,
           ),
         ),
       ],
@@ -361,26 +455,30 @@ Widget _buildInfoRow(
   IconData icon,
   String text, {
   Color iconColor = Colors.blueGrey,
+  bool isApproved = false,
 }) {
   return Row(
     children: [
       Container(
-        padding: const EdgeInsets.all(4), // reduced from 6
+        padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: iconColor.withOpacity(0.12),
+          color: iconColor.withOpacity(isApproved ? 0.06 : 0.12),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(icon, size: 16, color: iconColor), // smaller icon
+        child: Icon(icon, size: 16, color: iconColor),
       ),
-      const SizedBox(width: 8), // reduced from 12
+      const SizedBox(width: 8),
       Expanded(
         child: Text(
           text,
-          style: const TextStyle(
-            fontSize: 13, // reduced from 15
-            color: Colors.black87,
+          style: TextStyle(
+            fontSize: 13,
+            color: isApproved ? Colors.grey : Colors.black87,
             fontWeight: FontWeight.w500,
             letterSpacing: 0.2,
+            decoration: isApproved
+                ? TextDecoration.lineThrough
+                : TextDecoration.none,
           ),
         ),
       ),

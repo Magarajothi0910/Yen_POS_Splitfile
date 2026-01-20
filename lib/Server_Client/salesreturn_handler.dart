@@ -1,9 +1,11 @@
-
-
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
+import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:yenpos/Server_Client/handlers/invoice_handler.dart'
+    hide getStockDeductionAmount;
 import 'package:yenpos/Server_Client/sendDataToClients.dart';
 import 'package:yenpos/Server_Client/stockupdateService.dart';
 
@@ -12,38 +14,47 @@ Future<void> handleSalesReturn(
   Set<WebSocketChannel> clients,
 ) async {
   try {
-    debugPrint('SalesReturn received: ${jsonEncode(data)}');
-
-    // ← CORRECT: You sent { type: "salesReturn", data: {...} }
+  
     if (data['type'] != 'salesReturn') {
-      debugPrint("Not a sales return message");
       return;
     }
 
-    final salesReturnRaw = data['data']; // ← This is your actual return map
+    final salesReturnRaw = data['data'];
     if (salesReturnRaw is! Map<String, dynamic>) {
-      debugPrint("Invalid sales return data format");
       return;
     }
 
     final branchAlias = salesReturnRaw['aliasName']?.toString() ?? 'AR';
-    final invoiceNo = salesReturnRaw['invoiceNo']?.toString();
     final salesReturnNo = salesReturnRaw['salesReturnNo']?.toString();
 
-    debugPrint("Processing Sales Return: $salesReturnNo | Invoice: $invoiceNo | Branch: $branchAlias");
+    // ←←← NEW: POST TO SERVER FIRST ←←←
+    final bool postSuccess = await _postSalesReturnAndWait(salesReturnRaw);
+
+    if (!postSuccess) {
+      return; // ←←← STOP EVERYTHING HERE
+    }
+
+    // === ONLY NOW: Do all local stuff ===
+    final salesReturnBox = await Hive.openBox("salesReturns");
+
+    // Optional: double-check not already saved (safety)
+    if (salesReturnBox.containsKey(salesReturnNo)) {
+      return;
+    }
 
     // Save to Hive
-    // final box = await Hive.openBox('salesReturns');
-    // await box.put(salesReturnNo, salesReturnRaw);
-    debugPrint("Sales Return saved to Hive: $salesReturnNo");
+    await salesReturnBox.put(salesReturnNo, salesReturnRaw);
+    printer.updateReceiptData(salesReturnRaw);
 
-    // === STOCK INCREASE ===
+    // === STOCK INCREASE (same as before) ===
     try {
-      final List<dynamic> varianceCodesRaw = (salesReturnRaw['varianceitemCode'] is List)
+      final List<dynamic> varianceCodesRaw =
+          (salesReturnRaw['varianceitemCode'] is List)
           ? List.from(salesReturnRaw['varianceitemCode'])
           : [];
 
-      final List<dynamic> varianceNamesRaw = (salesReturnRaw['varianceName'] is List)
+      final List<dynamic> varianceNamesRaw =
+          (salesReturnRaw['varianceName'] is List)
           ? List.from(salesReturnRaw['varianceName'])
           : [];
 
@@ -72,25 +83,38 @@ Future<void> handleSalesReturn(
       List<double> increaseAmounts = [];
 
       for (int i = 0; i < maxItems; i++) {
-        final code = i < varianceCodesRaw.length ? varianceCodesRaw[i]?.toString().trim() : null;
-        final name = i < varianceNamesRaw.length ? varianceNamesRaw[i]?.toString().trim() : null;
+        final code = i < varianceCodesRaw.length
+            ? varianceCodesRaw[i]?.toString().trim()
+            : null;
+        final name = i < varianceNamesRaw.length
+            ? varianceNamesRaw[i]?.toString().trim()
+            : null;
         final qtyVal = i < qtyRaw.length ? qtyRaw[i] : 0.0;
         final weightVal = i < weightRaw.length ? weightRaw[i] : 0.0;
-        final uomVal = i < uomRaw.length ? uomRaw[i]?.toString() ?? 'Pcs' : 'Pcs';
+        final uomVal = i < uomRaw.length
+            ? uomRaw[i]?.toString() ?? 'Pcs'
+            : 'Pcs';
 
-        if (code == null || code.isEmpty || name == null || name.isEmpty) continue;
+        if (code == null || code.isEmpty || name == null || name.isEmpty)
+          continue;
 
-        double qty = qtyVal is num ? qtyVal.toDouble() : (double.tryParse(qtyVal.toString()) ?? 0.0);
-        double weight = weightVal is num ? weightVal.toDouble() : (double.tryParse(weightVal.toString()) ?? 0.0);
+        double qty = qtyVal is num
+            ? qtyVal.toDouble()
+            : (double.tryParse(qtyVal.toString()) ?? 0.0);
+        double weight = weightVal is num
+            ? weightVal.toDouble()
+            : (double.tryParse(weightVal.toString()) ?? 0.0);
 
-        final increase = getStockDeductionAmount(uom: uomVal, weight: weight, qty: qty);
+        final increase = getStockDeductionAmount(
+          uom: uomVal,
+          weight: weight,
+          qty: qty,
+        );
         if (increase <= 0) continue;
 
         varianceCodes.add(code);
         varianceNames.add(name);
         increaseAmounts.add(increase);
-
-        debugPrint("Return → Increase stock: $name (+$increase $uomVal)");
       }
 
       if (varianceCodes.isNotEmpty) {
@@ -102,21 +126,43 @@ Future<void> handleSalesReturn(
           stockIncreaseAmounts: increaseAmounts,
           uoms: uomRaw.map((e) => e?.toString() ?? 'Pcs').toList(),
         );
-        debugPrint("Stock increased for return: ${varianceCodes.length} items");
       }
-    } catch (e, st) {
-      debugPrint("Stock increase failed on return: $e\n$st");
-    }
+    } catch (e, st) {}
 
     // Notify all clients
     sendDataToClients({
       'action': 'salesReturnProcessed',
       'returnData': salesReturnRaw,
       'salesReturnNo': salesReturnNo,
-      'invoiceNo': invoiceNo,
     }, clients);
+  } catch (e, st) {}
+}
 
-  } catch (e, st) {
-    debugPrint("handleSalesReturn error: $e\n$st");
+bool _isPostingReturn = false;
+
+Future<bool> _postSalesReturnAndWait(Map<String, dynamic> returnData) async {
+  if (_isPostingReturn) {
+    return false;
+  }
+  _isPostingReturn = true;
+
+  try {
+    final response = await http
+        .post(
+          Uri.parse('https://yenerp.com/fluttertestapi/salesreturns/'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(returnData),
+        )
+        .timeout(const Duration(seconds: 20));
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return true;
+    } else {
+      return false;
+    }
+  } catch (e) {
+    return false;
+  } finally {
+    _isPostingReturn = false;
   }
 }

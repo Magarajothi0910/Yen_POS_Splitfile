@@ -487,7 +487,7 @@ Widget buildVarianceTile(
       final bool isSelected = selectedVariances[varianceName] ?? false;
 
       // LIVE STOCK USING NAME
-      final double liveStock = globalManager.getLiveStock(
+      final double liveStock = globalManager.getSystemStock(
         aliasname,
         varianceName,
       );

@@ -105,72 +105,42 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
 
   /// Handles incoming WebSocket messages
   Future<void> _handleWebSocketMessage(dynamic rawMessage) async {
-    print(
-      "\n================= 🔵 WEBSOCKET MESSAGE RECEIVED =================",
-    );
-    print("📩 RAW Message: $rawMessage");
-    print(
-      "=================================================================\n",
-    );
 
     try {
-      print("👉 Step 1: Decoding JSON...");
       final data = jsonDecode(rawMessage);
-      print("✅ JSON Decoded Successfully: $data\n");
 
-      print("👉 Step 2: Extracting fields...");
       final type = data['type'];
       final messageText = data['message'] ?? 'Update received';
       final payload = data['data'] ?? {};
 
-      print("🔍 Extracted Details:");
-      print("   • Type            : $type");
-      print("   • Message Text    : $messageText");
-      print("   • Payload Data    : $payload\n");
 
-      print("👉 Step 3: Preparing notification titles...");
       final notificationTitles = {
         'salesOrder_updated': 'Sale Order Updated',
         'Approved_salesOrder_updated': 'Order Approved',
         'dispatch_received': 'Dispatch Received',
+        'received': 'Stock Received',
+
         'salesOrder_created': 'Open Order Created',
         'salesOrder_approval_updated': 'Sale Order Approval Updated',
         'approval_updated': 'Approval Approved',
         'salesOrder_created_confirm': "Confirm Order Created",
       };
-      print("✅ Notification Titles Loaded\n");
 
-      print("👉 Step 4: Checking notification type...");
       if (notificationTitles.containsKey(type)) {
-        print("🎯 Valid notification type detected: $type");
-        print("📌 Notification Title: ${notificationTitles[type]}\n");
 
         _lastUpdateMessage = messageText;
-        print("📝 Updated last message: $_lastUpdateMessage");
 
-        print("🔔 Triggering UI update via notifyListeners()...");
         notifyListeners();
-        print("✅ UI Updated\n");
 
-        print("👉 Step 5: Showing local notification...");
         await NotificationService.showNotification(
           notificationTitles[type]!,
           messageText,
         );
-        print("✅ Notification Shown\n");
 
-        print("👉 Step 6: Sending data to server...");
         await sendataToServer({"type": type, "data": payload});
-        print("✅ Data sent to server successfully\n");
       } else {
-        print("⚠️ Unknown message type received: $type");
-        print("❌ No action taken for this message\n");
       }
     } catch (e, stack) {
-      print("\n================= ❌ ERROR OCCURRED =================");
-      print("Error: $e");
-      print("Stack Trace: $stack");
-      print("=====================================================\n");
     }
   }
 
@@ -381,10 +351,7 @@ class ApiServiceSalesOrderProvider extends ChangeNotifier {
 
   void toggleGrouping() {
     _groupByDeliveryDate = !_groupByDeliveryDate;
-    // _allSalesOrders.clear();
-    // _ordersByDate.clear();
-    // print('_groupByDeliveryDate${_groupByDeliveryDate}');
-    // fetchAllOrders(); // This will fetch with the new grouping
+
 
     notifyListeners();
   }

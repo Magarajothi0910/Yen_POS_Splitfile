@@ -257,7 +257,6 @@ class VoiceRecorder extends StatelessWidget {
   }
 }
 
-// Voice Recorder View
 class VoiceRecorderView extends StatelessWidget {
   final Function(String) onRecordingComplete;
 
@@ -268,151 +267,122 @@ class VoiceRecorderView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<VoiceRecorderState>(
       builder: (context, state, _) {
-        return Scaffold(
-          backgroundColor: Colors.white,
-          body: Center(
-            child: Stack(
+        return Material(
+          color: Colors.transparent,
+          child: SizedBox(
+            width: 180,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(10),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color.fromARGB(255, 204, 204, 204),
-                            blurRadius: 5,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 4,
+                        offset: Offset(0, 2),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Row(
-                        children: [
-                          if (!state.isRecording && state.filePath.isNotEmpty)
-                            IconButton(
-                              onPressed: state.togglePlayback,
-                              icon: Icon(
-                                state.isPlaying
-                                    ? Icons.pause
-                                    : Icons.play_arrow,
-                              ),
-                              color: Colors.blue,
-                              iconSize: 30,
-                            )
-                          else
-                            const SizedBox(width: 28),
-                          Expanded(
-                            child: Container(
-                              height: 55,
-                              child: state.isRecording
-                                  ? audio_waveforms.AudioWaveforms(
-                                      recorderController: state.recorder!,
-                                      size: Size(double.infinity, 50),
-                                      waveStyle:
-                                          const audio_waveforms.WaveStyle(
-                                            waveColor: Colors.blue,
-                                            extendWaveform: true,
-                                            showMiddleLine: false,
-                                          ),
-                                    )
-                                  : state.filePath.isNotEmpty
-                                  ? audio_waveforms.AudioFileWaveforms(
-                                      size: Size(double.infinity, 50),
-                                      playerController: state.player!,
-                                      enableSeekGesture: true,
-                                      waveformType:
-                                          audio_waveforms.WaveformType.fitWidth,
-                                      playerWaveStyle:
-                                          const audio_waveforms.PlayerWaveStyle(
-                                            fixedWaveColor: Colors.grey,
-                                            liveWaveColor: Colors.blue,
-                                            seekLineColor: Colors.red,
-                                            showBottom: false,
-                                          ),
-                                    )
-                                  : const SizedBox(),
-                            ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      if (!state.isRecording && state.filePath.isNotEmpty)
+                        IconButton(
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          icon: Icon(
+                            state.isPlaying ? Icons.pause : Icons.play_arrow,
+                            size: 22,
+                            color: Colors.blue,
                           ),
-                          GestureDetector(
-                            onTap: () {
-                              if (!state.isRecording) {
-                                state.startRecording();
-                              } else if (!state.isLocked) {
-                                state.stopRecording();
-                                onRecordingComplete(state.filePath);
-                              }
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: state.isRecording
-                                    ? Colors.red
-                                    : Colors.blue,
-                                borderRadius: BorderRadius.circular(50),
-                              ),
-                              child: Icon(
-                                state.isRecording ? Icons.stop : Icons.mic,
-                                color: Colors.white,
-                                size: 15,
-                              ),
-                            ),
+                          onPressed: state.togglePlayback,
+                        )
+                      else
+                        const SizedBox(width: 22),
+
+                      /// 🔹 Waveform
+                      Expanded(
+                        child: SizedBox(
+                          height: 40,
+                          child: state.isRecording
+                              ? audio_waveforms.AudioWaveforms(
+                                  recorderController: state.recorder!,
+                                  size: const Size(double.infinity, 40),
+                                  waveStyle: const audio_waveforms.WaveStyle(
+                                    waveColor: Colors.blue,
+                                    extendWaveform: true,
+                                    showMiddleLine: false,
+                                  ),
+                                )
+                              : state.filePath.isNotEmpty
+                              ? audio_waveforms.AudioFileWaveforms(
+                                  playerController: state.player!,
+                                  size: const Size(double.infinity, 40),
+                                  enableSeekGesture: true,
+                                  waveformType:
+                                      audio_waveforms.WaveformType.fitWidth,
+                                  playerWaveStyle:
+                                      const audio_waveforms.PlayerWaveStyle(
+                                        fixedWaveColor: Colors.grey,
+                                        liveWaveColor: Colors.blue,
+                                        showBottom: false,
+                                      ),
+                                )
+                              : const SizedBox(),
+                        ),
+                      ),
+
+                      /// 🔹 Mic / Stop button
+                      GestureDetector(
+                        onTap: () {
+                          if (!state.isRecording) {
+                            state.startRecording();
+                          } else {
+                            state.stopRecording();
+                            onRecordingComplete(state.filePath);
+                          }
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.only(left: 6),
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: state.isRecording ? Colors.red : Colors.blue,
+                            shape: BoxShape.circle,
                           ),
-                        ],
+                          child: Icon(
+                            state.isRecording ? Icons.stop : Icons.mic,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
-                    ),
-                    SizedBox(height: 5),
-                    Text(
-                      state.isRecording
-                          ? "${state.formatDuration(state.elapsedDuration)} / ${state.formatDuration(state.maxDuration)}"
-                          : state.filePath.isNotEmpty
-                          ? "${state.formatDuration(state.playbackDuration)} / ${state.formatDuration(state.totalDuration)}"
-                          : "",
-                      style: const TextStyle(
-                        fontSize: 8,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 4),
+
+                /// 🔹 Time Text
+                Text(
+                  state.isRecording
+                      ? "${state.formatDuration(state.elapsedDuration)} / ${state.formatDuration(state.maxDuration)}"
+                      : state.filePath.isNotEmpty
+                      ? "${state.formatDuration(state.playbackDuration)} / ${state.formatDuration(state.totalDuration)}"
+                      : "",
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
           ),
-        );
-      },
-    );
-  }
-}
-
-class AudioList extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    var audioBox = Hive.box<String>('audioFiles');
-
-    return ValueListenableBuilder(
-      valueListenable: audioBox.listenable(),
-      builder: (context, Box<String> box, _) {
-        if (box.isEmpty) {
-          return const Text("No recordings available");
-        }
-
-        return ListView.builder(
-          itemCount: box.length,
-          itemBuilder: (context, index) {
-            final filePath = box.getAt(index) ?? "";
-            return ListTile(
-              title: Text("Recording ${index + 1}"),
-              subtitle: Text(filePath),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete),
-                onPressed: () async {
-                  await box.deleteAt(index);
-                },
-              ),
-            );
-          },
         );
       },
     );

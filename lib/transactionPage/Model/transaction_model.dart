@@ -573,7 +573,7 @@ class Transaction {
   final double totalAmount;
   final double netAmount;
   final double grossAmount;
-  final double customCharge;
+  final List<double> customCharge;
   final double? discountAmount;
   final double discountPercentage;
 
@@ -719,6 +719,11 @@ class Transaction {
     );
     final uom = parseList<String>(map['uom'], (v) => v.toString());
 
+    final customCharge = parseList<double>(
+      map['customCharge'],
+      (v) => double.tryParse(v.toString()) ?? 0.0,
+    );
+
     // Determine the max length to ensure all lists have same number of items
     final itemCount = [
       varianceitemCode.length,
@@ -732,6 +737,7 @@ class Transaction {
       amount.length,
       tax.length,
       uom.length,
+      customCharge.length,
     ].reduce((a, b) => a > b ? a : b);
 
     // Function to pad lists with empty values if needed
@@ -760,12 +766,13 @@ class Transaction {
       amount: padList(amount, itemCount, 0.0),
       tax: padList(tax, itemCount, 0.0),
       uom: padList(uom, itemCount, ''),
+      customCharge: padList(customCharge, itemCount, 0),
 
       totalAmount: double.tryParse(map['totalAmount']?.toString() ?? '0') ?? 0,
       netAmount: double.tryParse(map['netAmount']?.toString() ?? '0') ?? 0,
       grossAmount: double.tryParse(map['grossAmount']?.toString() ?? '0') ?? 0,
-      customCharge:
-          double.tryParse(map['customCharge']?.toString() ?? '0') ?? 0,
+      // customCharge:
+      //     double.tryParse(map['customCharge']?.toString() ?? '0') ?? 0,
       discountAmount: map['discountAmount'] != null
           ? double.tryParse(map['discountAmount'].toString())
           : null,
@@ -818,47 +825,52 @@ class Transaction {
   }
 
   // Helper method to get item data as a list of maps for easier handling
- List<Map<String, dynamic>> getItems() {
-  final List<Map<String, dynamic>> items = [];
+  List<Map<String, dynamic>> getItems() {
+    final List<Map<String, dynamic>> items = [];
 
-  for (int i = 0; i < itemName.length; i++) {
-    final double qtyVal = i < qty.length ? qty[i] : 1.0;
-    final double sellingPriceVal = i < sellingPrice.length ? sellingPrice[i] : 0.0;
-    final double taxRate = i < tax.length ? tax[i] : 0.0;
+    for (int i = 0; i < itemName.length; i++) {
+      final double qtyVal = i < qty.length ? qty[i] : 1.0;
+      final double sellingPriceVal = i < sellingPrice.length
+          ? sellingPrice[i]
+          : 0.0;
+      final double taxRate = i < tax.length ? tax[i] : 0.0;
 
-    // CRITICAL FIX: If price is 0 or missing, reconstruct from sellingPrice + tax
-    int originalMrp = i < price.length ? price[i] : 0;
-    if (originalMrp <= 0 && sellingPriceVal > 0) {
-      // Reverse calculate MRP from selling price (after discount)
-      // sellingPrice = MRP × (100 - discount%) / 100
-      final discountPct = discountPercentage ?? 0.0;
-      if (discountPct > 0) {
-        originalMrp = (sellingPriceVal * 100 / (100 - discountPct)).round();
-      } else {
-        originalMrp = sellingPriceVal.round(); // No discount? MRP = selling price
+      // CRITICAL FIX: If price is 0 or missing, reconstruct from sellingPrice + tax
+      int originalMrp = i < price.length ? price[i] : 0;
+      if (originalMrp <= 0 && sellingPriceVal > 0) {
+        // Reverse calculate MRP from selling price (after discount)
+        // sellingPrice = MRP × (100 - discount%) / 100
+        final discountPct = discountPercentage ?? 0.0;
+        if (discountPct > 0) {
+          originalMrp = (sellingPriceVal * 100 / (100 - discountPct)).round();
+        } else {
+          originalMrp = sellingPriceVal
+              .round(); // No discount? MRP = selling price
+        }
       }
+
+      final double originalAmount = originalMrp * qtyVal;
+      final double paidAmount = sellingPriceVal * qtyVal;
+
+      items.add({
+        'varianceitemCode': i < varianceitemCode.length
+            ? varianceitemCode[i]
+            : '',
+        'itemName': i < itemName.length ? itemName[i] : '',
+        'varianceName': i < varianceName.length ? varianceName[i] : '',
+        'price': originalMrp, // Now 100 (reconstructed!)
+        'sellingPrice': sellingPriceVal, // 95
+        'sellingAmount': paidAmount, // 95
+        'weight': i < weight.length ? weight[i] : 0.0,
+        'qty': qtyVal,
+        'amount': originalAmount, // Now 100 (fixed!)
+        'tax': taxRate,
+        'uom': i < uom.length ? uom[i] : 'Pcs',
+        'hsnCode': 21069099, // Default HSN for mixtures/sweets
+      });
     }
-
-    final double originalAmount = originalMrp * qtyVal;
-    final double paidAmount = sellingPriceVal * qtyVal;
-
-    items.add({
-      'varianceitemCode': i < varianceitemCode.length ? varianceitemCode[i] : '',
-      'itemName': i < itemName.length ? itemName[i] : '',
-      'varianceName': i < varianceName.length ? varianceName[i] : '',
-      'price': originalMrp,                    // Now 100 (reconstructed!)
-      'sellingPrice': sellingPriceVal,         // 95
-      'sellingAmount': paidAmount,             // 95
-      'weight': i < weight.length ? weight[i] : 0.0,
-      'qty': qtyVal,
-      'amount': originalAmount,                // Now 100 (fixed!)
-      'tax': taxRate,
-      'uom': i < uom.length ? uom[i] : 'Pcs',
-      'hsnCode': 21069099,                     // Default HSN for mixtures/sweets
-    });
+    return items;
   }
-  return items;
-}
 
   // Create a return transaction from this sale
   Transaction createReturnTransaction({
@@ -927,7 +939,7 @@ class Transaction {
       totalAmount: returnTotalAmount,
       netAmount: returnNetAmount,
       grossAmount: returnGrossAmount,
-      customCharge: 0,
+      customCharge: List.filled(returnItemNames.length, 0.0),
       discountAmount: discountAmount,
       discountPercentage: discountPercentage,
       gst: returnGst,

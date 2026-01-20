@@ -1,15 +1,20 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:connectivity_plus_platform_interface/src/enums.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get_connect/http/src/utils/utils.dart';
 import 'package:hive/hive.dart';
 import 'package:provider/provider.dart';
+import 'package:yenpos/Global/Provider/bottomNavprovider.dart';
 import 'package:yenpos/Global/Provider/branchwise_item_fetch.dart';
 import 'package:yenpos/Global/Widget/custom_colors.dart';
 
 import 'package:yenpos/Global/globals_data.dart';
 import 'package:yenpos/Global/globals_data.dart';
 import 'package:yenpos/Server_Client/sync_service.dart';
+import 'package:yenpos/kotpreinvoice/widgets/holdOrder.dart';
 import 'package:yenpos/more_page/providers/cash_management_provider.dart';
 import 'package:yenpos/regular_mode_page/widget/viewBillScreen.dart';
 
@@ -1224,6 +1229,8 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
   final TextEditingController _upiController = TextEditingController();
   final TextEditingController _cardController = TextEditingController();
 
+  //bool _isProcessing = false;
+
   @override
   void initState() {
     super.initState();
@@ -1729,7 +1736,33 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
     ValueNotifier<ConnectivityResult> connectivityResult,
     ValueNotifier<String> soApprovalStatus,
   ) {
-    bool _isProcessing = false;
+    final bottomNavProvider = Provider.of<BottomNavProvider>(
+      context,
+      listen: false,
+    );
+    final prov = Provider.of<CashManagementProvider>(context, listen: false);
+
+    Future<bool> hasRealInternetConnection() async {
+      // First, check basic connectivity
+      final connectivityResult = await Connectivity().checkConnectivity();
+      if (connectivityResult == ConnectivityResult.none) {
+        return false;
+      }
+
+      // Then, perform a real reachability check
+      try {
+        final result = await InternetAddress.lookup(
+          'google.com',
+        ).timeout(const Duration(seconds: 6));
+        return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+      } on TimeoutException {
+        return false;
+      } on SocketException {
+        return false;
+      } catch (e) {
+        return false;
+      }
+    }
 
     return ValueListenableBuilder<bool>(
       valueListenable: CashManagementProvider.isShiftClosed,
@@ -1743,21 +1776,185 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
                 final isConnected = connectivity != ConnectivityResult.none;
 
                 return IgnorePointer(
-                  ignoring: _isProcessing,
+                  ignoring: prov.isLoading,
                   child: ElevatedButton(
-                    onPressed: isConnected && !_isProcessing
+                    onPressed: isConnected && !prov.isLoading
                         ? () async {
                             debugPrint("Shift Closing Button Pressed");
-                            if (_isProcessing) return;
-                            _isProcessing = true;
+                            if (prov.isLoading) return;
+                            prov.isLoading = true;
+
+                            final bool hasInternet =
+                                await hasRealInternetConnection();
+
+                            if (!hasInternet) {
+                              showDialog(
+                                context: context,
+                                barrierDismissible: true,
+                                builder: (context) => Dialog(
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  elevation: 10,
+                                  backgroundColor: Colors.transparent,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Colors.white,
+                                          Colors.grey.shade100,
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      borderRadius: BorderRadius.circular(20),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black26,
+                                          blurRadius: 15,
+                                          offset: Offset(0, 8),
+                                        ),
+                                      ],
+                                    ),
+                                    padding: EdgeInsets.all(20),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          padding: EdgeInsets.all(12),
+                                          decoration: BoxDecoration(
+                                            color: Colors.redAccent.withOpacity(
+                                              0.1,
+                                            ),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Icon(
+                                            Icons.wifi_off_rounded,
+                                            color: Colors.redAccent,
+                                            size: 40,
+                                          ),
+                                        ),
+                                        SizedBox(height: 15),
+                                        Text(
+                                          'No Internet Connection',
+                                          style: TextStyle(
+                                            fontFamily: 'Poppins',
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.black87,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        SizedBox(height: 10),
+                                        Text(
+                                          'Please check your internet connection and try again.',
+                                          style: TextStyle(
+                                            fontFamily: 'Poppins',
+                                            fontSize: 16,
+                                            color: Colors.black54,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        SizedBox(height: 20),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: ElevatedButton(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.redAccent,
+                                              padding: EdgeInsets.symmetric(
+                                                vertical: 14,
+                                              ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                              elevation: 5,
+                                            ),
+                                            onPressed: () {
+                                              Navigator.pop(context);
+                                              prov.isLoading = false;
+                                            },
+                                            child: Text(
+                                              'OK',
+                                              style: TextStyle(
+                                                fontFamily: 'Poppins',
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                              return; // Stop further execution
+                            }
 
                             try {
                               // ---- NEW: Check for saved (hold) bills ----
                               final box = await Hive.openBox('cartBox');
+                              final box2 = await Hive.openBox('holdOrdersKOT');
+                              final box3 = await Hive.openBox('ordersBox');
                               final hasSavedBills = box.values.any(
                                 (bill) =>
                                     bill is Map && bill['status'] == 'hold',
                               );
+                              final hasKOTOrders = box3.values.any(
+                                (bill) =>
+                                    bill is Map &&
+                                        bill['status'] == 'confirm' ||
+                                    bill['status'] == 'active',
+                              );
+                              debugPrint('hasKOTOrders: $hasKOTOrders');
+                              final hasHoldBills = box2.length != 0;
+
+                              if (hasKOTOrders) {
+                                final action = await showDialog<String>(
+                                  context: context,
+                                  barrierDismissible: false,
+                                  builder: (context) => AlertDialog(
+                                    backgroundColor: CustomColors.whiteColor,
+                                    title: const Text("Saved Bills Detected"),
+                                    content: const Text(
+                                      "There are some incomplete orders in Dine in \n."
+                                      "You must complete Dine in  orders:\n"
+                                      "before closing the shift.",
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, "view"),
+                                        child: const Text("View Saved Bills"),
+                                      ),
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, "cancel"),
+                                        child: const Text(
+                                          "Cancel",
+                                          style: TextStyle(
+                                            fontFamily: 'Poppins',
+                                            color: CustomColors.blueColor,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+
+                                if (action == "view") {
+                                  // Navigator.pop(
+                                  //   context,
+                                  // ); // Close shift dialog if needed
+                                  // ViewSavedBillsWidget().viewBills(context);
+
+                                  bottomNavProvider.updateIndex(2);
+                                }
+                                prov.isLoading = false;
+                                return;
+                              }
 
                               if (hasSavedBills) {
                                 final action = await showDialog<String>(
@@ -1767,7 +1964,7 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
                                     backgroundColor: CustomColors.whiteColor,
                                     title: const Text("Saved Bills Detected"),
                                     content: const Text(
-                                      "There are saved bills (on hold). "
+                                      "There are saved bills (on hold) in TakeAway."
                                       "You must either:\n"
                                       "• Load them to cart, or\n"
                                       "• Delete them\n"
@@ -1775,7 +1972,13 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
                                     ),
                                     actions: [
                                       // TextButton(
-                                      //   onPressed: () => Navigator.pop(context, "view"),
+                                      //   onPressed: () {
+                                      //     ViewSavedBillsWidget().viewBills(
+                                      //       context,
+                                      //     );
+                                      //     Navigator.pop(context);
+                                      //     _isProcessing = false;
+                                      //   },
                                       //   child: const Text("View Saved Bills"),
                                       // ),
                                       TextButton(
@@ -1794,12 +1997,72 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
                                 );
 
                                 if (action == "view") {
-                                  Navigator.pop(
-                                    context,
-                                  ); // Close shift dialog if needed
+                                  // Navigator.pop(
+                                  //   context,
+                                  // ); // Close shift dialog if needed
                                   ViewSavedBillsWidget().viewBills(context);
+                                  bottomNavProvider.updateIndex(5);
                                 }
-                                _isProcessing = false;
+                                prov.isLoading = false;
+                                return;
+                              }
+                              if (hasHoldBills) {
+                                final action = await showDialog<String>(
+                                  context: context,
+                                  barrierDismissible: false,
+                                  builder: (context) => AlertDialog(
+                                    backgroundColor: CustomColors.whiteColor,
+                                    title: const Text("Hold Bills Detected"),
+                                    content: const Text(
+                                      "There are on hold bills in Dine in."
+                                      "You must either:\n"
+                                      "• Load them to cart, or\n"
+                                      "• Delete them\n"
+                                      "before closing the shift.",
+                                    ),
+                                    actions: [
+                                      // Row(
+                                      //   mainAxisAlignment:
+                                      //       MainAxisAlignment.spaceBetween,
+                                      //   children: [
+                                      // Expanded(
+                                      //   child: TextButton(
+                                      //     onPressed: () {
+                                      //       Navigator.pop(
+                                      //         context,
+                                      //         "cancel",
+                                      //       );
+                                      //       _isProcessing = false;
+                                      //     },
+                                      //     child: HoldOrdersDropdown(
+                                      //       elevation: 0,
+                                      //       color: const Color.fromARGB(
+                                      //         255,
+                                      //         255,
+                                      //         255,
+                                      //         255,
+                                      //       ),
+                                      //     ),
+                                      //   ),
+                                      // ),
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, "cancel"),
+                                        child: const Text(
+                                          "Cancel",
+                                          style: TextStyle(
+                                            fontFamily: 'Poppins',
+                                            color: CustomColors.blueColor,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  //   ],
+                                  // ),
+                                );
+
+                                prov.isLoading = false;
                                 return;
                               }
 
@@ -1847,7 +2110,7 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
                                 );
 
                                 if (proceed != true) {
-                                  _isProcessing = false;
+                                  prov.isLoading = false;
                                   return;
                                 }
                               }
@@ -1893,32 +2156,30 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
                               );
 
                               if (confirm != true) {
-                                _isProcessing = false;
+                                prov.isLoading = false;
                                 return;
                               }
 
                               // ---- Sync unsynced invoices if any ----
-                              var invoiceBox = await Hive.openBox(
-                                'invoicesBox',
-                              );
+                              var invoiceBox = await Hive.openBox('invoices');
                               bool needsSync = invoiceBox.values.any((
                                 invoiceData,
                               ) {
                                 if (invoiceData is String) {
-                                  invoiceData =
-                                      jsonDecode(invoiceData)
-                                          as Map<String, dynamic>;
+                                  try {
+                                    invoiceData = jsonDecode(invoiceData);
+                                  } catch (_) {
+                                    return false; // skip invalid entries like dates
+                                  }
                                 }
+
                                 return invoiceData is Map<String, dynamic> &&
                                     invoiceData['sync'] == 'No';
                               });
 
                               if (needsSync) {
-                                final syncService = Provider.of<SyncService>(
-                                  context,
-                                  listen: false,
-                                );
-                                await syncService.syncUnsyncedInvoices();
+                              final SyncService _syncService = SyncService();
+                                await _syncService.syncUnsyncedInvoices();
                               }
 
                               // ---- Final: Patch shift closing ----
@@ -1927,11 +2188,11 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
                                 context,
                               );
                             } finally {
-                              _isProcessing = false;
+                              prov.isLoading = false;
                             }
                           }
                         : () {
-                            if (!_isProcessing) {
+                            if (!prov.isLoading) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   backgroundColor: CustomColors.redColor,
@@ -1973,7 +2234,10 @@ class _ShiftClosingContainerState extends State<ShiftClosingContainer> {
 
   @override
   Widget build(BuildContext context) {
-    return buildShiftClosingContainer(context, widget.connectivityResult);
+    final prov = Provider.of<CashManagementProvider>(context);
+    return prov.isLoading
+        ? Center(child: CircularProgressIndicator())
+        : buildShiftClosingContainer(context, widget.connectivityResult);
   }
 }
 

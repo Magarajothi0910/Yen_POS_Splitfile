@@ -9,10 +9,7 @@ import 'package:yenpos/Global/globals_data.dart';
 import 'package:yenpos/regular_mode_page/provider/quantity_provider.dart';
 import 'package:yenpos/regular_mode_page/widget/custom_reusable_widget/scafflodMesseger.dart';
 
-/// Shows a quantity dialog that works everywhere:
-///  • Adding from SearchDropdown
-///  • Adding from VarianceDialog
-///  • Updating a cart item
+
 void showCommonQuantityDialog({
   required BuildContext context,
   required String itemName,
@@ -25,6 +22,13 @@ void showCommonQuantityDialog({
   // Reset the provider to the initial value
   final qtyProvider = Provider.of<QuantityProvider>(context, listen: false);
   qtyProvider.setQuantity(initialQuantity.toInt());
+
+  debugPrint("🔹 showCommonQuantityDialog called");
+  debugPrint("   Item Name      : $itemName");
+  debugPrint("   Variance Name  : $varianceName");
+  debugPrint("   Price          : ₹$price");
+  debugPrint("   Initial Qty    : $initialQuantity");
+  debugPrint("   systemStockOverride: $systemStockOverride");
 
   showDialog(
     context: context,
@@ -93,12 +97,16 @@ void showCommonQuantityDialog({
                             LengthLimitingTextInputFormatter(5),
                           ],
                           onChanged: (value) {
+                            debugPrint("📝 Quantity TextField changed to: '$value'");
                             if (value.isEmpty) {
                               return;
                             }
                             final int? parsed = int.tryParse(value);
                             if (parsed != null && parsed > 0) {
                               provider.setQuantity(parsed);
+                              debugPrint("   → Provider updated to: $parsed");
+                            } else {
+                              debugPrint("   → Invalid input, ignored");
                             }
                           },
                           onTap: () {
@@ -138,10 +146,17 @@ void showCommonQuantityDialog({
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text(
+            onPressed: () {
+              debugPrint("❌ Cancel button pressed");
+              Navigator.of(dialogContext).pop();
+            },
+            child: Text(
               "Cancel",
-              style: TextStyle(fontFamily: 'Poppins', fontSize: 16),
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 16,
+                color: CustomColors.black.withOpacity(0.7),
+              ),
             ),
           ),
 
@@ -150,10 +165,14 @@ void showCommonQuantityDialog({
             builder: (ctx, provider, _) {
               return TextButton(
                 onPressed: () async {
+                  debugPrint("✅ Add to Cart button pressed");
+
                   final selectedQty = provider.quantity.toDouble();
+                  debugPrint("   Selected Quantity: $selectedQty");
 
                   // ---- VALIDATE MINIMUM ----
                   if (selectedQty <= 0) {
+                    debugPrint("   → Validation failed: quantity <= 0");
                     ScaffoldMessenger.of(dialogContext).showSnackBar(
                       const SnackBar(
                         content: Text(
@@ -168,42 +187,66 @@ void showCommonQuantityDialog({
 
                   // ---- STOCK VALIDATION ----
                   double systemStock = systemStockOverride ?? 0.0;
+                  debugPrint("   systemStockOverride provided: $systemStockOverride");
+                  debugPrint("   Initial systemStock value: $systemStock");
+
                   if (systemStock <= 0) {
-                    // final branchwiseItems = GlobalDataManager().branchwiseItems['data'] as Map<dynamic, dynamic>?;
-                    final lazyBox = await Hive.openBox('items');
-                    final storedData = await lazyBox.get(
-                      'branchwiseItems_$aliasname',
-                    );
+                    debugPrint("   → Fetching stock from Hive...");
+                    try {
+                      final lazyBox = await Hive.openBox('items');
+                      final storedData = await lazyBox.get(
+                        'branchwiseItems_$aliasname',
+                      );
 
-                    final branchwiseItems =
-                        storedData?['data'] as Map<dynamic, dynamic>?;
+                      debugPrint("   Hive key used: branchwiseItems_$aliasname");
+                      debugPrint("   Stored data found: ${storedData != null}");
 
-                    final itemData = branchwiseItems?[itemName];
-                    final varianceData = itemData?['variance']?[varianceName];
-                    systemStock =
-                        (varianceData?['branchwise']?[aliasname]?['systemStock_$aliasname']
-                                as num?)
-                            ?.toDouble() ??
-                        0.0;
+                      final branchwiseItems =
+                          storedData?['data'] as Map<dynamic, dynamic>?;
+
+                      debugPrint("   branchwiseItems['data'] keys: ${branchwiseItems?.keys.join(', ')}");
+
+                      final itemData = branchwiseItems?[itemName];
+                      debugPrint("   Lookup itemName: '$itemName' → Found: ${itemData != null}");
+
+                      if (itemData != null) {
+                        final varianceMap = itemData['variance'] as Map?;
+                        debugPrint("   Variance map keys: ${varianceMap?.keys.join(', ')}");
+
+                        final varianceData = varianceMap?[varianceName];
+                        debugPrint("   Lookup varianceName: '$varianceName' → Found: ${varianceData != null}");
+
+                        if (varianceData != null) {
+                          final branchStock = varianceData['branchwise']?[aliasname]?['systemStock_$aliasname'];
+                          systemStock = (branchStock as num?)?.toDouble() ?? 0.0;
+                          debugPrint("   → Fetched systemStock: $systemStock");
+                        } else {
+                          debugPrint("   → varianceData not found for '$varianceName'");
+                        }
+                      } else {
+                        debugPrint("   → itemData not found for '$itemName'");
+                      }
+                    } catch (e) {
+                      debugPrint("   → Error fetching stock from Hive: $e");
+                    }
                   }
+
+                  debugPrint("   Final systemStock used for validation: $systemStock");
+                  debugPrint("   Comparing: selectedQty ($selectedQty) > systemStock ($systemStock)? ${selectedQty > systemStock}");
 
                   if (selectedQty > systemStock) {
-                     showAutoDismissMessage(
+                    debugPrint("   → Stock validation FAILED");
+                    Navigator.of(dialogContext).pop();
+                    showAutoDismissMessage(
                       context,
-                      "Selected quantity ($selectedQty) exceeds available stock ($systemStock)"
-                      ,
-                      backgroundColor: const Color.fromARGB(255, 231, 63, 61));
-                    // ScaffoldMessenger.of(dialogContext).showSnackBar(
-                    //   SnackBar(
-                    //     content: Text(
-                    //       "Selected quantity ($selectedQty) exceeds available stock ($systemStock).",
-                    //     ),
-                    //     backgroundColor: CustomColors.redColor,
-                    //     duration: const Duration(seconds: 2),
-                    //   ),
-                    // );
+                      "Selected quantity ($selectedQty) exceeds available stock ($systemStock)",
+                      backgroundColor: const Color.fromARGB(255, 231, 63, 61),
+                    );
                     return;
                   }
+
+                  debugPrint("   → Stock validation PASSED");
+                  debugPrint("   → Closing dialog and calling onAddToCart($selectedQty)");
 
                   // ---- SUCCESS ----
                   Navigator.of(dialogContext).pop();

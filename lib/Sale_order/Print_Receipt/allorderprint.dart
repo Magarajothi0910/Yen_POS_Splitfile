@@ -26,6 +26,8 @@ class salesInvoiceReceiptPrinter {
   String customerType;
   String invoiceNo;
   String saleOrderNo;
+  String salesReturnNo;
+  String salesType;
 
   // final BuildContext context;
   final TextEditingController customAmountController;
@@ -55,24 +57,21 @@ class salesInvoiceReceiptPrinter {
     required this.cashAmount,
     required this.invoiceNo,
     required this.saleOrderNo,
-
+    required this.salesReturnNo,
+    required this.salesType,
     required this.cardAmount,
     required this.upiAmount,
     required this.printerProvider, // ✅ inject dependency
     // required this.saveInvoiceToHiveAndPrint,
   });
   Future<void> printReceiptDetails() async {
-    print("🚀 [printReceiptDetails] Function called");
-
     // Step 1: Get cart items
     var cartItems = globals.invoiceItems ?? [];
-    print("📦 [Step 1] Cart items fetched: ${cartItems.length} items");
 
     // Step 2: Current date and time
     DateTime now = DateTime.now();
     String formattedDate = DateFormat('dd-MM-yyyy').format(now);
     String formattedTime = DateFormat('hh:mm a').format(now);
-    print("🕒 [Step 2] Current Date: $formattedDate, Time: $formattedTime");
 
     // Step 3: Determine payment amount
     String paymentAmount;
@@ -80,20 +79,14 @@ class salesInvoiceReceiptPrinter {
       if (selectedPaymentOption == 'Cash: Custom' &&
           customAmountController.text.isNotEmpty) {
         paymentAmount = 'Rs ${customAmountController.text}';
-        print("💰 [Step 3] Custom cash payment selected: $paymentAmount");
       } else if (selectedPaymentOption.contains(':')) {
         paymentAmount =
             'Rs ${selectedPaymentOption.split(': ').last.replaceAll('', '').trim()}';
-        print("💰 [Step 3] Payment option parsed: $paymentAmount");
       } else {
         paymentAmount = 'Rs ${totalAmount.toStringAsFixed(0)}';
-        print("💰 [Step 3] Default total amount used: $paymentAmount");
       }
     } catch (e) {
       paymentAmount = 'Rs 0';
-      print(
-        "⚠️ [Step 3] Error calculating payment amount: $e. Defaulting to Rs 0",
-      );
     }
 
     // Step 4: Employee display name
@@ -101,13 +94,10 @@ class salesInvoiceReceiptPrinter {
     String employeeDisplayName = fullEmployeeName.contains('-')
         ? fullEmployeeName.split('-').last.trim()
         : fullEmployeeName;
-    print("👤 [Step 4] Employee display name: $employeeDisplayName");
 
     await printerProvider.initializeHive(); // Make sure Hive is loaded
     // **Fetch printer IP from Hive directly**
     String? printerIp = printerProvider.getPrinterIpFromHive(type: 'Overall');
-    print("printerIp:$printerIp");
-    print("🖨️ [Step 5] Setting up printer with IP: $printerIp");
 
     final profile = await CapabilityProfile.load();
     final printer = NetworkPrinter(PaperSize.mm80, profile);
@@ -166,9 +156,7 @@ class salesInvoiceReceiptPrinter {
             bytes += generator.image(aligned, align: PosAlign.center);
           }
         }
-      } catch (e, st) {
-        debugPrint("Logo error: $e");
-      }
+      } catch (e, st) {}
 
       bytes += generator.row([
         createPosColumn(
@@ -176,17 +164,30 @@ class salesInvoiceReceiptPrinter {
           text: '',
           styles: createPosStyles(align: PosAlign.left),
         ),
-        createPosColumn(
-          width: 8,
-          text: 'Sales Invoice',
-          styles: PosStyles(
-            align: PosAlign.center,
-            height: PosTextSize.size1,
-            width: PosTextSize.size2,
-            bold: true,
-            codeTable: 'CP1252',
+        if (salesType == 'salesReturn')
+          createPosColumn(
+            width: 8,
+            text: 'Sales Return',
+            styles: PosStyles(
+              align: PosAlign.center,
+              height: PosTextSize.size1,
+              width: PosTextSize.size2,
+              bold: true,
+              codeTable: 'CP1252',
+            ),
+          )
+        else
+          createPosColumn(
+            width: 8,
+            text: 'Sales Invoice',
+            styles: PosStyles(
+              align: PosAlign.center,
+              height: PosTextSize.size1,
+              width: PosTextSize.size2,
+              bold: true,
+              codeTable: 'CP1252',
+            ),
           ),
-        ),
         createPosColumn(
           width: 2,
           text: '',
@@ -217,11 +218,18 @@ class salesInvoiceReceiptPrinter {
           text: 'Branch: ${globals.branchName}',
           styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
         ),
-        createPosColumn(
-          width: 7,
-          text: 'BillNo: $invoiceNo',
-          styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
-        ),
+        if (salesType != 'salesReturn')
+          createPosColumn(
+            width: 7,
+            text: 'BillNo: $invoiceNo',
+            styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
+          )
+        else
+          createPosColumn(
+            width: 7,
+            text: 'BillNo: $salesReturnNo',
+            styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
+          ),
       ]);
 
       bytes += generator.feed(1);
@@ -278,17 +286,11 @@ class salesInvoiceReceiptPrinter {
       for (var item in cartItems) {
         double itemTotal = item.amount;
         double taxRate = (item.tax).toDouble();
-        debugPrint(
-          "🧾 Item: ${item.itemName}, Total: $itemTotal, TaxRate: $taxRate",
-        );
 
         originalSubTotal += itemTotal;
 
         if (isGSTEnabled) {
           itemTotalsMap[taxRate] = (itemTotalsMap[taxRate] ?? 0.0) + itemTotal;
-          debugPrint(
-            "💰 GST Enabled → itemTotalsMap[$taxRate] = ${itemTotalsMap[taxRate]}",
-          );
         }
       }
 
@@ -318,9 +320,6 @@ class salesInvoiceReceiptPrinter {
           sgstMap[taxRate] = sgstForRate;
           netMap[taxRate] = netForRate;
 
-          debugPrint(
-            "📈 TaxRate: $taxRate | Net: $netForRate | CGST: $cgstForRate | SGST: $sgstForRate",
-          );
         });
       }
 
@@ -333,9 +332,6 @@ class salesInvoiceReceiptPrinter {
           ? totalNetAmount + totalCGST + totalSGST
           : discountedGrossTotal;
 
-      debugPrint(
-        "📊 TotalNetAmount: $totalNetAmount | TotalCGST: $totalCGST | TotalSGST: $totalSGST",
-      );
 
       final custom = customChargeController;
 
@@ -344,9 +340,6 @@ class salesInvoiceReceiptPrinter {
       double changeAmount = receivedAmount - finalTotal;
       double total = discountedTotal + custom;
 
-      debugPrint(
-        "💰 ReceivedAmount: $receivedAmount | FinalTotal: $finalTotal | Change: $changeAmount",
-      );
 
       // Print Cart Items
       for (int i = 0; i < cartItems.length; i++) {
@@ -364,9 +357,6 @@ class salesInvoiceReceiptPrinter {
         double item_discount_amt = orig_amount * (discountPercentage / 100);
         double item_disc_amount = orig_amount - item_discount_amt;
 
-        debugPrint(
-          "🧩 Item[$i]: $varianceName | Qty: $qty | UOM: $uom | Price: $price | Amount: $orig_amount | DiscountAmt: $item_discount_amt",
-        );
 
         bytes += generator.row([
           createPosColumn(
@@ -380,21 +370,19 @@ class salesInvoiceReceiptPrinter {
             styles: createPosStyles(align: PosAlign.left, codeTable: 'CP1252'),
           ),
         ]);
-        debugPrint("variance name : $varianceName");
 
         String priceDescription = '';
         if (item.uom.toLowerCase() == 'kgs' || item.uom.toLowerCase() == 'kg') {
           priceDescription = item.weight >= 1
               ? '${item.qty} ${item.uom} (${item.weight.toStringAsFixed(2)} kg) × Rs.${item.price.toStringAsFixed(0)}/kg'
-              : '${item.qty} × (${(item.weight * 1000).toStringAsFixed(0)} g) × Rs.${item.price.toStringAsFixed(0)}/kg';
+              : '${item.qty}(${(item.weight * 1000).toStringAsFixed(0)} g) × Rs.${item.price.toStringAsFixed(0)}/kg';
         } else {
           priceDescription =
               '${item.qty.toStringAsFixed(0)} ${item.uom} × Rs.${item.price.toStringAsFixed(0)}';
         }
         if (isGSTEnabled) {
-          priceDescription += " (Tax ${item.tax}%)";
+          priceDescription += "(Tax ${item.tax}%)";
         }
-        debugPrint("Price Description : $priceDescription");
 
         if (discountPercentage > 0) {
           final imgBytes = await textWithStrikeImage(
@@ -455,7 +443,6 @@ class salesInvoiceReceiptPrinter {
             ),
           ]);
         }
-        print("item name : $itemName");
         bytes += generator.row([
           createPosColumn(
             width: 12,
@@ -466,7 +453,6 @@ class salesInvoiceReceiptPrinter {
       }
 
       bytes += generator.hr();
-      print("discount percentage : $discountPercentage");
       if (discountPercentage > 0) {
         final imgBytes = await textWithStrikeImage(
           snoText: '',
@@ -507,7 +493,6 @@ class salesInvoiceReceiptPrinter {
           ),
         ]);
       }
-      print("custom charge : $custom");
       if (custom > 0) {
         bytes += generator.row([
           createPosColumn(
@@ -593,9 +578,6 @@ class salesInvoiceReceiptPrinter {
 
       // ✅ ADVANCE PAYMENT DETAILS - MATCHED BY SALE ORDER NUMBER
       try {
-        debugPrint(
-          "🔍 Fetching advance payment details for SaleOrderNo: $saleOrderNo",
-        );
 
         final saleOrdersBox = HiveManager.salesOrderBox;
         if (saleOrdersBox != null && saleOrdersBox.isNotEmpty) {
@@ -611,9 +593,6 @@ class salesInvoiceReceiptPrinter {
                   saleData['saleOrderNo'].toString().trim() ==
                       saleOrderNo.trim()) {
                 matchingSaleOrder = saleData;
-                debugPrint(
-                  "✅ Found matching SaleOrder: ${saleData['saleOrderNo']}",
-                );
                 break;
               }
             }
@@ -719,21 +698,11 @@ class salesInvoiceReceiptPrinter {
                 ]);
               }
             } else {
-              debugPrint(
-                "⚠️ No advance payments found for SaleOrderNo: $saleOrderNo",
-              );
             }
           } else {
-            debugPrint(
-              "❌ No matching SaleOrder found for SaleOrderNo: $saleOrderNo",
-            );
           }
-        } else {
-          debugPrint("❌ SalesOrderBox is empty or null");
-        }
-      } catch (e, st) {
-        debugPrint("❌ Error fetching advance details: $e\n$st");
-      }
+        } else {}
+      } catch (e, st) {}
 
       // ======================== PAYMENT DETAILS SECTION ========================
       bytes += generator.hr();
@@ -832,7 +801,7 @@ class salesInvoiceReceiptPrinter {
         ),
         createPosColumn(
           width: 5,
-          text: "Rs ${receivedAmount.toStringAsFixed(2)}",
+          text: "Rs ${receivedAmount.toStringAsFixed(0)}",
           styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
         ),
       ]);
@@ -850,7 +819,7 @@ class salesInvoiceReceiptPrinter {
         ),
         createPosColumn(
           width: 5,
-          text: "Rs ${changeAmount.toStringAsFixed(2)}",
+          text: "Rs ${changeAmount.toStringAsFixed(0)}",
           styles: createPosStyles(align: PosAlign.right, codeTable: 'CP1252'),
         ),
       ]);

@@ -30,7 +30,7 @@ class NotificationService {
         }
       }
     } catch (e) {
-      print('❌ Notification permission error: $e');
+ 
     }
   }
 

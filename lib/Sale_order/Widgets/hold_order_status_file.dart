@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:yenpos/Sale_order/Models/held_order_model.dart';
 import 'package:yenpos/Sale_order/Provider/cartProvider.dart';
+import 'package:yenpos/Sale_order/Provider/cart_selection_provider.dart';
 import 'package:yenpos/Sale_order/Provider/customerScreen_provider.dart';
 import 'package:yenpos/Sale_order/Provider/get_sales_order_service.dart';
 import 'package:yenpos/Sale_order/Widgets/restore_order_date.dart';
@@ -10,6 +11,13 @@ void showHoldOrdersSheet(
   BuildContext context,
   CustomerScreenProvider customerScreenProvider,
 ) {
+  // Get all required providers before showing the bottom sheet
+  final cartProvider = Provider.of<CartProvider>(context, listen: false);
+  final selectionProvider = Provider.of<CartSelectionProvider>(
+    context,
+    listen: false,
+  );
+
   showModalBottomSheet(
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
@@ -133,24 +141,21 @@ void showHoldOrdersSheet(
                               child: InkWell(
                                 borderRadius: BorderRadius.circular(18),
                                 onTap: () async {
-                                  // Restore held order safely
-                                  final heldOrder = HeldOrder.fromMap(order);
-                                  await restoreHeldOrderData(
-                                    context,
-                                    heldOrder,
+                                  // Store the context in a local variable
+                                  final safeContext = context;
+
+                                  // Close the bottom sheet first
+                                  Navigator.of(safeContext).pop();
+
+                                  // Then restore the held order
+                                  await _restoreHeldOrder(
+                                    safeContext,
+                                    order,
+                                    customerScreenProvider:
+                                        customerScreenProvider,
+                                    cartProvider: cartProvider,
+                                    selectionProvider: selectionProvider,
                                   );
-
-                                  // Reset controllers before updating cart
-                                  final cartProvider =
-                                      Provider.of<CartProvider>(
-                                        context,
-                                        listen: false,
-                                      );
-                                  customerScreenProvider
-                                      .resetControllers(); // NEW method to clear old data
-                                  cartProvider.updateCart();
-
-                                  Navigator.of(context).pop();
                                 },
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(
@@ -286,4 +291,63 @@ void showHoldOrdersSheet(
       );
     },
   );
+}
+
+// Helper function to restore held order safely
+Future<void> _restoreHeldOrder(
+  BuildContext context,
+  Map<String, dynamic> order, {
+  required CustomerScreenProvider customerScreenProvider,
+  required CartProvider cartProvider,
+  required CartSelectionProvider selectionProvider,
+}) async {
+  try {
+
+
+    // Convert to HeldOrder model
+    final heldOrder = HeldOrder.fromMap(order);
+
+    // Reset providers
+    customerScreenProvider.resetControllers();
+    cartProvider.clearCart();
+    selectionProvider.clearSelections();
+
+    // Call the restoration function with all providers
+    await restoreHeldOrderData(
+      context: context,
+      order: heldOrder,
+      customerProvider: customerScreenProvider,
+      cartProvider: cartProvider,
+      selectionProvider: selectionProvider,
+    );
+
+    // Update cart
+    cartProvider.updateCart();
+
+    // Show success message
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Order restored successfully'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+
+  
+  } catch (e, stackTrace) {
+    
+
+    // Show error message
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to restore order: ${e.toString()}'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
 }

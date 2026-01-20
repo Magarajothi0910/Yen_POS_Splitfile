@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:yenpos/Global/global_data_manager.dart';
 import 'package:yenpos/Global/globals_data.dart' as globals;
 import 'package:yenpos/Sale_order/Widgets/custom_qty_keyboard.dart';
 
@@ -27,7 +28,8 @@ class CartItem {
   final String uom;
   ValueNotifier<int> quantity; // ✅ make quantity a ValueNotifier
   double weight;
-
+  bool showDiscount = false;
+  bool showBoxQuantity = false;
   CartItem({
     String? rowId, // optional, will be generated if null
     required this.varianceName,
@@ -46,6 +48,8 @@ class CartItem {
     required this.uom,
     required int quantity, // input int
     required this.weight,
+    this.showDiscount = false,
+    this.showBoxQuantity = false,
   }) : quantity = ValueNotifier<int>(quantity),
        rowId = rowId ?? UniqueKey().toString(); // assign stable ID
 }
@@ -118,9 +122,108 @@ class CartProvider extends ChangeNotifier {
     if (globals.cartItems.isNotEmpty &&
         index >= 0 &&
         index < globals.cartItems.length) {
-      globals.cartItems[index].quantity.value = quantity;
-    } else {}
-    _recalculateTotal();
+      final item = globals.cartItems[index];
+
+      // ✅ Update the quantity
+      item.quantity.value = quantity;
+
+      // ✅ Recalculate price based on new quantity
+      _recalculateItemPrice(item);
+
+      // ✅ Recalculate total
+      recalculateTotal();
+
+      notifyListeners();
+    }
+  }
+
+  void _recalculateItemPrice(CartItem item) {
+    // Calculate base price
+    double basePrice = 0;
+
+    if (item.uom.toLowerCase() == 'kg' || item.uom.toLowerCase() == 'kgs') {
+      basePrice = (item.weight * item.quantity.value * item.pricePerKg)
+          .toDouble();
+    } else {
+      basePrice = (item.quantity.value * item.pricePerKg).toDouble();
+    }
+
+    // Store the selling amount (before discount)
+    item.sellingAmount = basePrice;
+
+    // Apply discount if any
+    if (item.itemWiseDiscount != null && item.itemWiseDiscount! > 0) {
+      item.itemWiseDiscountAmount = basePrice * (item.itemWiseDiscount! / 100);
+      item.finalPrice = basePrice - item.itemWiseDiscountAmount!;
+    } else {
+      // If no discount, final price is the base price
+      item.itemWiseDiscountAmount = 0;
+      item.finalPrice = basePrice;
+    }
+  }
+
+  // In CartProvider class
+  void syncCustomChargeControllers(
+    Map<String, TextEditingController> dialogControllers,
+  ) {
+    // Clear existing controllers
+    customChargeControllers.forEach((key, controller) {
+      controller?.dispose();
+    });
+    customChargeControllers.clear();
+
+    // Add all controllers from dialog
+    customChargeControllers.addAll(dialogControllers);
+
+    // Calculate total
+    double total = 0.0;
+    customChargeTypes.clear();
+    customChargeValues.clear();
+
+    dialogControllers.forEach((key, controller) {
+      final value = double.tryParse(controller.text) ?? 0.0;
+      if (value > 0) {
+        customChargeTypes.add(key);
+        customChargeValues.add(value);
+        total += value;
+      }
+    });
+
+    customCharge.value = total;
+    notifyListeners();
+  }
+
+  void clearAllCustomCharges() {
+    // Clear all custom charge controllers
+    for (var controller in customChargeControllers.values) {
+      controller?.clear();
+    }
+
+    // Clear custom charge lists
+    customChargeTypes.clear();
+    customChargeValues.clear();
+
+    // Reset custom charge value
+    customCharge.value = 0.0;
+
+    // Clear individual charge values in GlobalDataManager
+    for (var charge in GlobalDataManager().charges) {
+      charge['amount'] = 0.0;
+    }
+
+    notifyListeners();
+  }
+
+  void clearCustomCharges() {
+    // Clear text in all controllers
+    for (final controller in customChargeControllers.values) {
+      controller!.clear();
+    }
+
+    customChargeTypes.clear();
+    customChargeValues.clear();
+    customCharge.value = 0.0;
+
     notifyListeners();
   }
 
@@ -146,32 +249,50 @@ class CartProvider extends ChangeNotifier {
     }
 
     _cartItems = globals.cartItems;
-    _recalculateTotal();
+    recalculateTotal();
     notifyListeners();
   }
 
   void increaseQuantity(int index) {
-    globals.cartItems[index].quantity.value++;
-    _recalculateTotal();
-    notifyListeners();
+    if (index >= 0 && index < globals.cartItems.length) {
+      final item = globals.cartItems[index];
+      item.quantity.value++;
+
+      // ✅ Recalculate price
+      _recalculateItemPrice(item);
+
+      recalculateTotal();
+      notifyListeners();
+    }
   }
 
   void decreaseQuantity(int index) {
-    if (globals.cartItems[index].quantity.value > 1) {
-      globals.cartItems[index].quantity.value--;
-    } else {
-      globals.cartItems.removeAt(index);
+    if (index >= 0 && index < globals.cartItems.length) {
+      final item = globals.cartItems[index];
+
+      if (item.quantity.value > 1) {
+        item.quantity.value--;
+        // ✅ Recalculate price
+        _recalculateItemPrice(item);
+      } else {
+        // Remove item if quantity becomes 0
+        globals.cartItems.removeAt(index);
+      }
+
+      recalculateTotal();
+      notifyListeners();
     }
-    _recalculateTotal();
-    notifyListeners();
   }
 
-  // void clearCart() async {
-  //   globals.cartItems.clear();
-  //   _cartItems.clear();
-  //   customChargeController.clear();
-  //   notifyListeners();
-  // }
+  void clearCart() async {
+    globals.cartItems.clear();
+    _cartItems.clear();
+
+    // 🔥 ADD THIS: Clear custom charges
+    clearAllCustomCharges();
+
+    notifyListeners();
+  }
 
   // Closing Stock Cart Methods
 
@@ -243,46 +364,77 @@ class CartProvider extends ChangeNotifier {
     }
   }
 
-  // For multiple charges
-  // void updateCustomCharge(String chargeType, String value) {
-  //   // Initialize map if not already
-  //   if (!_customChargeValues.containsKey(chargeType)) {
-  //     _customChargeValues[chargeType] = 0.0;
-  //   }
-
-  //   _customChargeValues[chargeType] = double.tryParse(value) ?? 0.0;
-
-  //   _recalculateTotal();
-  // }
-
   // Optional: store all charge values
-  Map<String, double> _customChargeValues = {};
-  Map<String, double> get customChargeValues => _customChargeValues;
-  void _recalculateTotal() {
+  List<String> customChargeTypes = [];
+  List<double> customChargeValues = [];
+  // Add method to clear custom charges
+
+  // Add method to set custom charges
+  void setCustomCharges(Map<String, double> charges) {
+    customChargeTypes.clear();
+    customChargeValues.clear();
+
+    charges.forEach((type, value) {
+      if (value > 0) {
+        customChargeTypes.add(type);
+        customChargeValues.add(value);
+      }
+    });
+
+    customCharge.value = charges.values.fold(0.0, (sum, value) => sum + value);
+
+    notifyListeners();
+  }
+
+  void recalculateTotal() {
     double total = 0;
 
-    for (var item in _cartItems) {
-      double itemTotal =
-          item.finalPrice?.toDouble() ??
-          ((item.uom.toLowerCase() == 'kgs' || item.uom.toLowerCase() == 'kg')
-              ? (item.weight * item.quantity.value * item.pricePerKg).toDouble()
-              : (item.quantity.value * item.pricePerKg).toDouble());
-      total += itemTotal;
+    for (var item in globals.cartItems) {
+      // ✅ Always use finalPrice if available
+      if (item.finalPrice != null && item.finalPrice! > 0) {
+        total += item.finalPrice!;
+      } else {
+        // Fallback calculation
+        double itemTotal =
+            (item.uom.toLowerCase() == 'kgs' || item.uom.toLowerCase() == 'kg')
+            ? (item.weight * item.quantity.value * item.pricePerKg).toDouble()
+            : (item.quantity.value * item.pricePerKg).toDouble();
+        total += itemTotal;
+      }
     }
+
     total += customCharge.value;
     totalAmount.value = total;
+
     notifyListeners();
   }
 
-  void clearCart() {
-    _cartItems.clear();
+  // void clearCart() {
+  //   // Clear all cart items
+  //   _cartItems.clear();
+  //   globals.cartItems.clear();
 
-    globals.cartItems.clear();
-    _cartItems.clear();
+  //   // Clear all custom charge controllers
+  //   for (var controller in customChargeControllers.values) {
+  //     controller?.dispose();
+  //   }
+  //   customChargeControllers.clear();
+  //   customChargeTypes.clear();
+  //   customChargeValues.clear();
+  //   customCharge.value = 0.0;
 
-    _recalculateTotal();
-    notifyListeners();
-  }
+  //   // Reset total amount
+  //   totalAmount.value = 0.0;
+
+  //   // Reset added variances
+  //   _addedVariances.clear();
+
+  //   // Reset any item selections
+  //   itemSelections.clear();
+  //   clearCustomCharges();
+  //   // Notify all listeners
+  //   notifyListeners();
+  // }
 
   double getTotalAmount() {
     double totalAmount = 0;
@@ -318,7 +470,7 @@ class CartProvider extends ChangeNotifier {
   }
 
   void updateCart() {
-    _recalculateTotal();
+    recalculateTotal();
     notifyListeners();
   }
 
@@ -341,7 +493,6 @@ class CartProvider extends ChangeNotifier {
     );
 
     if (index < 0) {
-      print("⚠ Cannot delete. Item not found: $varianceName");
       return;
     }
 
@@ -355,7 +506,7 @@ class CartProvider extends ChangeNotifier {
     } else {
       customChargeControllers[chargeType]!.text = value;
     }
-    _recalculateTotal();
+    recalculateTotal();
     notifyListeners();
   }
 
@@ -376,12 +527,16 @@ class CartProvider extends ChangeNotifier {
     if (index == -1) return;
 
     globals.cartItems.removeAt(index);
+
+    // ✅ CRITICAL
+    recalculateTotal();
+    updateCart();
+
     notifyListeners();
   }
 
   void removeItemByIndex(int index) {
     if (index < 0 || index >= cartItems.length) {
-      print("⚠ Invalid index: $index");
       return;
     }
     cartItems.removeAt(index);
@@ -391,7 +546,6 @@ class CartProvider extends ChangeNotifier {
   // Remove item from the cart by index
   void removeItemFromCart(int index) {
     if (index < 0 || index >= globals.cartItems.length) {
-      print("⚠ ERROR AVOIDED → removeItemFromCart invalid index: $index");
       return;
     }
 
@@ -545,28 +699,23 @@ class CartProvider extends ChangeNotifier {
                         Expanded(
                           child: ElevatedButton(
                             onPressed: () {
-                              final newQuantity = double.tryParse(
+                              final newQuantity = int.tryParse(
                                 quantityController.text,
                               );
-                              if (newQuantity == 0) {
+                              if (newQuantity == null || newQuantity <= 0) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text('Cannot add 0 quantity'),
+                                    content: Text(
+                                      'Please enter a valid quantity',
+                                    ),
                                   ),
                                 );
                                 return;
                               }
-                              if (newQuantity != null && newQuantity >= 0) {
-                                updateQuantity(index, newQuantity.toInt());
-                                // if (uom == 'Pcs' || uom == 'Pkt') {
-                                //   updateQuantity(index, newQuantity.toInt());
-                                // } else {
-                                //   updateWeight(index, newQuantity);
-                                // }
-                                Navigator.of(context).pop();
-                              }
-                              updateCart();
-                              notifyListeners();
+
+                              // ✅ Use the updateQuantity method which recalculates price
+                              updateQuantity(index, newQuantity);
+                              Navigator.of(context).pop();
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.blueAccent,

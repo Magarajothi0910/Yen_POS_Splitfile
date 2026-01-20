@@ -16,8 +16,8 @@ class PrinterProviderpos with ChangeNotifier {
     try {
       _printerBox = await Hive.openBox('printers');
       _clientIp = _printerBox!.get('clientIp');
-
       _loadPrintersFromHive();
+      notifyListeners();
     } catch (e) {}
   }
 
@@ -31,7 +31,6 @@ class PrinterProviderpos with ChangeNotifier {
   void _loadPrintersFromHive() {
     try {
       final data = _printerBox!.get('data');
-
       if (data != null && data is List) {
         _printers = data
             .map((json) {
@@ -44,40 +43,56 @@ class PrinterProviderpos with ChangeNotifier {
             })
             .whereType<Printer>()
             .toList();
-
         notifyListeners();
       } else {}
-    } catch (e) {}
+    } catch (e) {
+    }
   }
 
   String? getPrinterIpFromHive({String? type, String? itemName}) {
+
     try {
       final data = _printerBox?.get('data');
-      if (data != null && data is List) {
-        for (var json in data) {
-          if (json is Map<String, dynamic>) {
-            final printer = Printer.fromJson(json);
 
-            // If type is specified (like 'Overall'), return that IP
-            if (type != null && printer.type == type) {
+      if (data == null || data is! List) {
+        return null;
+      }
+
+      for (int i = 0; i < data.length; i++) {
+        var json = data[i];
+
+        // FIX: Accept both Map<String, dynamic> and Map<dynamic, dynamic>
+        Map<String, dynamic> jsonMap;
+        if (json is Map<String, dynamic>) {
+          jsonMap = json;
+        } else if (json is Map) {
+          // Safely cast dynamic keys/values to String,dynamic
+          jsonMap = json.map((k, v) => MapEntry(k.toString(), v));
+        } else {
+          continue;
+        }
+
+        Printer? printer;
+        try {
+          printer = Printer.fromJson(jsonMap);
+        } catch (e, stack) {
+          continue;
+        }
+
+        if (type != null && printer.type == type) {
+          return printer.ipAddress;
+        }
+
+        if (itemName != null) {
+          for (var item in printer.items) {
+            if (item.trim().toLowerCase() == itemName.trim().toLowerCase()) {
               return printer.ipAddress;
-            }
-
-            // If itemName is specified, find printer for that item
-            if (itemName != null) {
-              for (var item in printer.items) {
-                if (item.trim().toLowerCase() ==
-                    itemName.trim().toLowerCase()) {
-                  return printer.ipAddress;
-                }
-              }
             }
           }
         }
       }
-    } catch (e) {
-      print("Error fetching printer IP from Hive: $e");
-    }
+    } catch (e, stack) {}
+
     return null;
   }
 

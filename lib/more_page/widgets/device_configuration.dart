@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:yenpos/more_page/screen/server_ip_screen.dart';
 import 'package:yenpos/more_page/screen/wifi_ip_list.dart';
 
 
@@ -7,6 +8,7 @@ class DeviceConfigurationScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const WifiDevicesScreen();
+   // return const WifiDevicesScreen();
+   return const ServerIPScreen();
   }
 }

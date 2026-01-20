@@ -6,7 +6,15 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import 'package:yenpos/Hive_Manager/hive_manager_kot.dart';
+import 'package:yenpos/Hive_Manager/hive_manager_saleOrder.dart';
+import 'package:yenpos/Sale_order/Widgets/Send_data_to_server.dart';
+import 'package:yenpos/kotpreinvoice/handlers/handleRemoveHoldOrdersKOT.dart';
+import 'package:yenpos/kotpreinvoice/handlers/holdOrdersKOT.dart';
+import 'package:yenpos/kotpreinvoice/handlers/priorityUpdateHandler.dart';
 import 'package:yenpos/kotpreinvoice/providers/timerProvider.dart';
+import 'package:yenpos/kotpreinvoice/services/hive_service.dart';
+import 'package:yenpos/kotpreinvoice/services/sendDataToClients.dart';
+import 'package:yenpos/main.dart';
 import '../handlers/FullCancelOrder_Handler.dart';
 import '../handlers/ItemWiseCancel.dart';
 import '../handlers/global_datamanager.dart';
@@ -17,7 +25,7 @@ import 'package:yenpos/Global/globals_data.dart';
 import '../models/printer.dart';
 import '../screens/Receiver methods/FullorderPatch_receiver.dart';
 import '../screens/Receiver methods/itemwiseCancelreceiver.dart';
-import '../services/hive_service.dart';
+// import '../services/hive_service.dart';
 import '../services/serverreachable.dart';
 import '../providers/printer_provider.dart';
 import 'package:uuid/uuid.dart';
@@ -33,6 +41,7 @@ class OrderProvider with ChangeNotifier {
   Box? canceledOrderBox;
   Box? preInvoicesBox;
   Box? invoiceBox;
+  Box? branchwise_tables;
   late Box _orderBox;
   List<Map<String, dynamic>> _preInvoices = [];
   List<Map<String, dynamic>> _invoices = [];
@@ -195,48 +204,74 @@ class OrderProvider with ChangeNotifier {
       'updateFullOrderCancelStatus': _handleFullOrderCancelStatus,
       'orderCancelled': _handleOrderCancelled,
       'branchwiseItems': _handleBranchwiseItems,
+
       'seat_transfer_applied': (data) async {
         final seathiveOrderId = data['seathiveOrderId'];
         final newTable = data['newTable'] ?? data['targetTable'];
         final newSeat = data['newSeat'] ?? data['targetSeat'];
 
         if (seathiveOrderId == null || newTable == null || newSeat == null) {
+          debugPrint('⚠️ Invalid seat transfer payload: $data');
           return;
         }
 
-        final ordersBox = HiveManagerKot().ordersBox;
-        final allOrders = List<Map<String, dynamic>>.from(
-          ordersBox.get('data') ?? [],
-        );
+        try {
+          // final ordersBox = HiveManager.instance.ordersBox;
+          final ordersBox = Hive.isBoxOpen('ordersBox')
+              ? Hive.box('ordersBox')
+              : await Hive.openBox('ordersBox');
+          bool foundInHive = false;
 
-        bool foundInHive = false;
-
-        for (var order in allOrders) {
-          if (order['seathiveOrderId'] == seathiveOrderId) {
-            order['table'] = newTable;
-            order['seat'] = newSeat;
-            foundInHive = true;
+          // 🔹 Iterate through all Hive entries (keys: 0, 1, 2, ...)
+          for (var key in ordersBox.keys) {
+            final order = ordersBox.get(key);
+            if (order is Map<String, dynamic> &&
+                order['seathiveOrderId'] == seathiveOrderId) {
+              order['table'] = newTable;
+              order['seat'] = newSeat;
+              await ordersBox.put(key, order);
+              foundInHive = true;
+            }
           }
-        }
 
-        if (foundInHive) {
-          await ordersBox.put('data', allOrders);
-        } else {}
-
-        bool foundInMemory = false;
-
-        for (var order in _orders) {
-          if (order['seathiveOrderId'] == seathiveOrderId) {
-            order['table'] = newTable;
-            order['seat'] = newSeat;
-            foundInMemory = true;
+          if (foundInHive) {
+            debugPrint(
+              '✅ Seat transfer applied in Hive for order: $seathiveOrderId',
+            );
+          } else {
+            debugPrint(
+              '⚠️ Seat transfer: Order not found in Hive: $seathiveOrderId',
+            );
           }
-        }
 
-        if (foundInMemory) {
+          bool foundInMemory = false;
+
+          // 🔹 Update in-memory orders
+          for (var order in _orders) {
+            if (order['seathiveOrderId'] == seathiveOrderId) {
+              order['table'] = newTable;
+              order['seat'] = newSeat;
+              foundInMemory = true;
+            }
+          }
+
+          if (foundInMemory) {
+            notifyListeners();
+            debugPrint(
+              '✅ Seat transfer applied to in-memory orders: $seathiveOrderId',
+            );
+          } else {
+            debugPrint(
+              '⚠️ Seat transfer: Order not found in memory: $seathiveOrderId',
+            );
+          }
+
           notifyListeners();
-        } else {}
+        } catch (e, st) {
+          debugPrint('❌ Error applying seat transfer: $e\n$st');
+        }
       },
+
       'reverseCancelOrderItem': _handleReverseCancelItem,
       'stockIncreaseUpdate': _handleStockIncreaseUpdate,
       'stockDecreaseUpdate': _handleStockDecreaseUpdate,
@@ -267,14 +302,22 @@ class OrderProvider with ChangeNotifier {
       'sync_invoice_update': (data) async {
         final seathiveOrderId = data['seathiveOrderId'];
         final invoiceNo = data['invoiceNo'];
+        final preinvoiceTime = data['preinvoiceTime'];
 
-        final ordersBox = await Hive.openBox('ordersBox');
+        // final ordersBox = HiveManager.instance.ordersBox;
+        final ordersBox = Hive.isBoxOpen('ordersBox')
+            ? Hive.box('ordersBox')
+            : await Hive.openBox('ordersBox');
 
         for (final key in ordersBox.keys) {
           final order = ordersBox.get(key);
+
           if (order is Map && order['seathiveOrderId'] == seathiveOrderId) {
             final updatedOrder = Map<String, dynamic>.from(order)
-              ..['invoiceNo'] = invoiceNo;
+              ..['invoiceNo'] = invoiceNo
+              ..['status'] = 'confirm'
+              ..['preinvoiceTime'] = preinvoiceTime; // ✅ update status here
+
             await ordersBox.put(key, updatedOrder);
           }
         }
@@ -282,7 +325,14 @@ class OrderProvider with ChangeNotifier {
         print(
           '🔁 Synced invoice number update locally for seathiveOrderId: $seathiveOrderId',
         );
+
+        await loadOrdersFromHive();
       },
+
+      'addHoldOrdersKOT': (data) async => handleAddHoldOrdersKOT(data, clients),
+      'removeHoldOrdersKOT': (data) async =>
+          handleRemoveHoldOrdersKOT(data, clients),
+      'priorityUpdate': (data) async => handlePriorityUpdate(data),
     };
   }
 
@@ -295,11 +345,6 @@ class OrderProvider with ChangeNotifier {
   void _initializeTypeHandlers() {
     _typeHandlers = {'order': (data) async => processOrderData(data)};
   }
-
-  // void refreshUI() {
-  //   refreshNotifier.value = !refreshNotifier.value;
-  //   notifyListeners();
-  // }
 
   List<Map<String, dynamic>> get orders => _orders;
 
@@ -332,13 +377,31 @@ class OrderProvider with ChangeNotifier {
     await ensureWebSocketConnection();
   }
 
+  // Future<void> _handleInvoiceGenerated(Map<String, dynamic> data) async {
+  //   final invoice = data['invoiceKOT'] as Map<String, dynamic>;
+  //   final invoiceId = invoice['invoiceNo'] as String?;
+  //   if (invoiceId != null && !_processedInvoiceIds.contains(invoiceId)) {
+  //     _processedInvoiceIds.add(invoiceId);
+  //     await addInvoice(invoice);
+  //   } else {}
+  // }
+
   Future<void> _handleInvoiceGenerated(Map<String, dynamic> data) async {
-    final invoice = data['invoiceKOT'] as Map<String, dynamic>;
-    final invoiceId = invoice['invoiceNo'] as String?;
-    if (invoiceId != null && !_processedInvoiceIds.contains(invoiceId)) {
-      _processedInvoiceIds.add(invoiceId);
-      await addInvoice(invoice);
-    } else {}
+    try {
+      final invoice = data['invoiceKOT'] as Map<String, dynamic>;
+      final invoiceId = invoice['invoiceNo'] as String?;
+      if (invoiceId != null && !_processedInvoiceIds.contains(invoiceId)) {
+        _processedInvoiceIds.add(invoiceId);
+        await addInvoice(invoice);
+        debugPrint('✅ Invoice generated and processed: $invoiceId');
+        notifyListeners();
+      } else {
+        debugPrint('⚠️ Invoice already processed or invalid: $invoiceId');
+        notifyListeners();
+      }
+    } catch (e, st) {
+      debugPrint('❌ Error handling invoice generated: $e\n$st');
+    }
   }
 
   Future<void> _handleBranchwiseItems(Map<String, dynamic> data) async {
@@ -347,7 +410,7 @@ class OrderProvider with ChangeNotifier {
     );
     final payload = data['data']; // Full item map
     try {
-      final productBox = Hive.box('productBox');
+      final productBox = Hive.box('items');
 
       // ✅ Only this line is needed
       await productBox.put('data', {'data': payload});
@@ -396,12 +459,14 @@ class OrderProvider with ChangeNotifier {
   }
 
   Future<void> _handleReverseCancelItem(Map<String, dynamic> data) async {
+    debugPrint("received from sever : $data");
     String hiveOrderId = data['hiveOrderId'];
     int updatedIndex = data['updatedIndex'];
     double updatedQuantity = data['updatedQuantity'];
     double updatedCancelledQty = data['updatedCancelledQty'];
     double totalAmount = data['totalAmount'];
     bool partiallyCancelled = data['partiallycancelled'];
+    List config = data['config'];
 
     int index = orders.indexWhere((o) => o['hiveOrderId'] == hiveOrderId);
     if (index != -1) {
@@ -409,6 +474,7 @@ class OrderProvider with ChangeNotifier {
       orders[index]['cancelledQty'][updatedIndex] = updatedCancelledQty;
       orders[index]['totalAmount'] = totalAmount;
       orders[index]['partiallycancelled'] = partiallyCancelled;
+      orders[index]['config'] = config;
 
       // ✅ Make sure status is active
       orders[index]['status'] = 'active';
@@ -527,11 +593,10 @@ class OrderProvider with ChangeNotifier {
   Future<void> requestDataFromServer() async {
     await initializeHive();
     await ensureWebSocketConnection();
+
     try {
-      channel.sink.add(jsonEncode({'action': 'requestAllData'}));
-      channel.sink.add(
-        jsonEncode({'action': 'requestBranchwiseItemsForClient'}),
-      );
+      sendataToServer({'action': 'requestAllData'});
+      sendataToServer({'action': 'requestBranchwiseItemsForClient'});
       debugPrint("📤 Requested all data and branchwise items from server");
     } catch (e) {
       debugPrint("❌ Error sending data requests to server: $e");
@@ -547,9 +612,16 @@ class OrderProvider with ChangeNotifier {
       await HiveManagerKot().init();
 
       // Now safe to assign the boxes
-      _orderBox = HiveManagerKot().ordersBox;
-      canceledOrderBox = HiveManagerKot().cancelledOrderBox;
-      invoiceBox = HiveManagerKot().invoicesBox;
+      _orderBox = Hive.isBoxOpen('ordersBox')
+          ? Hive.box('ordersBox')
+          : await Hive.openBox('ordersBox');
+      // canceledOrderBox = HiveManagerKot().cancelledOrderBox;
+      canceledOrderBox = Hive.isBoxOpen('cancelledOrderBox')
+          ? Hive.box('cancelledOrderBox')
+          : await Hive.openBox('cancelledOrderBox');
+      invoiceBox = Hive.isBoxOpen('invoicesKOT')
+          ? Hive.box('invoicesKOT')
+          : await Hive.openBox('invoicesKOT');
 
       await loadOrdersFromHive(); // await loading after boxes ready
 
@@ -559,53 +631,97 @@ class OrderProvider with ChangeNotifier {
     }
   }
 
+  // Future<void> loadOrdersFromHive() async {
+  //   print('📦 [Hive] Starting to load orders from Hive...');
+
+  //   try {
+  //     Box? orderBox;
+
+  //     // ✅ Open the box safely
+  //     if (!Hive.isBoxOpen('ordersBox')) {
+  //       orderBox = await Hive.openBox('ordersBox');
+  //     } else {
+  //       orderBox = Hive.box('ordersBox');
+  //     }
+
+  //     // ✅ Check if the box is empty
+  //     if (orderBox.isEmpty) {
+  //       print('⚠️ [Hive] No orders found in box. Returning empty list.');
+  //       _orders = [];
+  //       notifyListeners();
+  //       return;
+  //     }
+
+  //     // ✅ Load and convert Hive data to in-memory list
+  //     _orders = orderBox.values
+  //         .whereType<Map>() // Ensure valid map entries
+  //         .map((orderData) {
+  //           return Map<String, dynamic>.from(orderData);
+  //         })
+  //         .toList();
+
+  //     print('✅ [Hive] Loaded ${_orders.length} orders successfully.');
+
+  //     notifyListeners();
+  //   } on HiveError catch (hiveError) {
+  //     print('❌ [HiveError] Failed to load orders: $hiveError');
+  //     _orders = [];
+  //     notifyListeners();
+  //   } on FormatException catch (formatError) {
+  //     print(
+  //       '⚠️ [FormatError] Invalid data format while loading orders: $formatError',
+  //     );
+  //     _orders = [];
+  //     notifyListeners();
+  //   } catch (e, stack) {
+  //     print('🔥 [Error] Unexpected error while loading orders: $e');
+  //     print('📜 Stack Trace: $stack');
+  //     _orders = [];
+  //     notifyListeners();
+  //   }
+  // }
+
+  void _safeNotify() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!hasListeners) return;
+      notifyListeners();
+    });
+  }
+
   Future<void> loadOrdersFromHive() async {
     print('📦 [Hive] Starting to load orders from Hive...');
 
     try {
-      Box? orderBox;
-
-      // ✅ Open the box safely
-      if (!Hive.isBoxOpen('ordersBox')) {
-        orderBox = await Hive.openBox('ordersBox');
-      } else {
-        orderBox = Hive.box('ordersBox');
-      }
-
-      // ✅ Check if the box is empty
-      if (orderBox.isEmpty) {
-        print('⚠️ [Hive] No orders found in box. Returning empty list.');
+      if (!_orderBox.isOpen) {
+        print('⚠️ [Hive] ordersBox not open. Cannot load orders.');
         _orders = [];
-        notifyListeners();
+        _safeNotify();
         return;
       }
 
-      // ✅ Load and convert Hive data to in-memory list
-      _orders = orderBox.values
-          .whereType<Map>() // Ensure valid map entries
-          .map((orderData) {
-            return Map<String, dynamic>.from(orderData);
-          })
+      if (_orderBox.isEmpty) {
+        print('⚠️ [Hive] No orders found in box. Returning empty list.');
+        _orders = [];
+        _safeNotify();
+        return;
+      }
+
+      _orders = _orderBox.values
+          .whereType<Map>()
+          .map((orderData) => Map<String, dynamic>.from(orderData))
           .toList();
 
       print('✅ [Hive] Loaded ${_orders.length} orders successfully.');
-
-      notifyListeners();
-    } on HiveError catch (hiveError) {
-      print('❌ [HiveError] Failed to load orders: $hiveError');
+      _safeNotify();
+    } on HiveError catch (e) {
+      print('❌ [HiveError] Failed to load orders: $e');
       _orders = [];
-      notifyListeners();
-    } on FormatException catch (formatError) {
-      print(
-        '⚠️ [FormatError] Invalid data format while loading orders: $formatError',
-      );
-      _orders = [];
-      notifyListeners();
+      _safeNotify();
     } catch (e, stack) {
       print('🔥 [Error] Unexpected error while loading orders: $e');
       print('📜 Stack Trace: $stack');
       _orders = [];
-      notifyListeners();
+      _safeNotify();
     }
   }
 
@@ -631,20 +747,51 @@ class OrderProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  // void _saveOrdersToHive() async {
+  //   try {
+  //     print('💾 Starting to save orders to Hive...');
+  //     print('📦 Total orders to save: ${_orders.length}');
+  //     print('📂 Hive box name: ${_orderBox.name}');
+
+  //     _orderBox.clear();
+
+  //     await _orderBox.put('data', _orders);
+  //     final fullorders = await _orderBox.get('data');
+
+  //     print("_orderBox of orders  $fullorders");
+
+  //     print('✅ Orders successfully saved to Hive!');
+  //     notifyListeners();
+  //     print('🔄 Listeners notified after saving orders.');
+  //   } catch (e, stackTrace) {
+  //     print('❌ Error saving orders to Hive: $e');
+  //     print('📜 StackTrace:\n$stackTrace');
+  //   }
+  // }
+
   void _saveOrdersToHive() async {
     try {
-      print('💾 Starting to save orders to Hive...');
-      print('📦 Total orders to save: ${_orders.length}');
-      print('📂 Hive box name: ${_orderBox.name}');
+      print('💾 [Hive] Saving orders to box...');
 
-      await _orderBox.put('data', _orders);
+      final box = _orderBox;
 
-      print('✅ Orders successfully saved to Hive!');
+      // 🧹 Clear old data
+      await box.clear();
+
+      // 🧩 Create a map of key → value pairs like {0: order1, 1: order2, ...}
+      final Map<int, dynamic> ordersMap = {
+        for (int i = 0; i < _orders.length; i++) i: _orders[i],
+      };
+
+      // ⚡ Save all orders at once
+      await box.putAll(ordersMap);
+
+      print('✅ [Hive] Orders saved successfully.');
+      print('📦 Total Orders Saved: ${_orders.length}');
       notifyListeners();
-      print('🔄 Listeners notified after saving orders.');
-    } catch (e, stackTrace) {
-      print('❌ Error saving orders to Hive: $e');
-      print('📜 StackTrace:\n$stackTrace');
+    } catch (e, stack) {
+      print('❌ [HiveError] Failed to save orders: $e');
+      print('📜 Stack Trace: $stack');
     }
   }
 
@@ -691,36 +838,49 @@ class OrderProvider with ChangeNotifier {
         .toList();
   }
 
-  double getTableTotalPrice(String tableNumber) {
-    final tableOrders = _orders
-        .where(
-          (order) =>
-              order['table'] == tableNumber &&
-              (order['status'] == 'active' || order['status'] == 'confirm'),
-        )
-        .toList();
-
-    final total = tableOrders.fold(0.0, (sum, order) {
-      final totalAmount = (order['totalAmount'] as num?)?.toDouble() ?? 0.0;
-      return sum + totalAmount;
-    });
-
-    return total;
-  }
-
-  // double getTableTotalPrice(String tableNumber, String seat) {
-  //   final tableOrders = _orders.where((order) =>
-  //       order['table'].toString() == tableNumber &&
-  //       order['seat'].toString() == seat &&
-  //       order['status'] == 'active');
+  // double getTableTotalPrice(String tableNumber) {
+  //   final tableOrders = _orders
+  //       .where(
+  //         (order) =>
+  //             order['table'] == tableNumber &&
+  //             (order['status'] == 'active' || order['status'] == 'confirm'),
+  //       )
+  //       .toList();
 
   //   final total = tableOrders.fold(0.0, (sum, order) {
-  //     final amount = (order['totalAmount'] ?? order['amount']) as num? ?? 0.0;
-  //     return sum + amount.toDouble();
+  //     final totalAmount = (order['totalAmount'] as num?)?.toDouble() ?? 0.0;
+  //     return sum + totalAmount;
   //   });
 
   //   return total;
   // }
+
+  double getTableTotalPrice(String tableNumber, String seatNumber) {
+    final tableOrders = _orders
+        .where(
+          (order) =>
+              order['table'] == tableNumber &&
+              order['seat'] == seatNumber &&
+              (order['status'] == 'active' || order['status'] == 'confirm'),
+        )
+        .toList();
+
+    final total = tableOrders.fold<double>(
+      0.0,
+      (sum, order) => sum + ((order['totalAmount'] as num?)?.toDouble() ?? 0.0),
+    );
+
+    return total;
+  }
+
+  int getActiveTableCount(String tableNumber) {
+    return _orders
+        .where(
+          (order) =>
+              order['table'] == tableNumber && (order['status'] == 'active'),
+        )
+        .length;
+  }
 
   double getseatTotalPrice(String tableNumber, String seat) {
     // Fetch active orders for the specified table and seat
@@ -826,43 +986,205 @@ class OrderProvider with ChangeNotifier {
     }
   }
 
-  void handleReceivedData(Map<String, dynamic> data) async {
-    if (data.containsKey('orders')) {
-      final List<Map<String, dynamic>> orders = List<Map<String, dynamic>>.from(
-        data['orders'],
-      );
-      for (var order in orders) {
-        order['prices'] = toDoubleList(order['prices']);
-        order['quantities'] = toDoubleList(order['quantities']);
-        order['weights'] = toDoubleList(order['weights']);
-        order['taxes'] = toDoubleList(order['taxes']);
-      }
-      await _saveToHiveBox(_orderBox, orders, 'orders');
-      _orders = orders;
-    }
-    if (data.containsKey('invoicesKOT')) {
-      final List<Map<String, dynamic>> invoices =
-          List<Map<String, dynamic>>.from(data['invoicesKOT']);
-      await _saveToHiveBox(invoiceBox, invoices, 'invoicesKOT');
-      _invoices = invoices;
+  // void handleReceivedData(Map<String, dynamic> data) async {
+  //   print("recieved message from sever , ${data['action']}");
+  //   if (data.containsKey('orders')) {
+  //     final List<Map<String, dynamic>> orders = List<Map<String, dynamic>>.from(
+  //       data['orders'],
+  //     );
+  //     for (var order in orders) {
+  //       order['prices'] = toDoubleList(order['prices']);
+  //       order['quantities'] = toDoubleList(order['quantities']);
+  //       order['weights'] = toDoubleList(order['weights']);
+  //       order['taxes'] = toDoubleList(order['taxes']);
+  //     }
+  //     await _saveToHiveBox(_orderBox, orders, 'orders');
+  //     _orders = orders;
+  //   }
+  //   if (data.containsKey('invoicesKOT')) {
+  //     final List<Map<String, dynamic>> invoices =
+  //         List<Map<String, dynamic>>.from(data['invoicesKOT']);
+  //     await _saveToHiveBox(invoiceBox, invoices, 'invoicesKOT');
+  //     _invoices = invoices;
+  //   }
+
+  //   if (data.containsKey('KOTprinters')) {
+  //     final List<dynamic> printers = data['KOTprinters'];
+  //     for (var printerJson in printers) {
+  //       if (printerJson is Map<String, dynamic>) {
+  //         final printer = Printer.fromJson(
+  //           Map<String, dynamic>.from(printerJson),
+  //         );
+  //         printerProvider.addPrinter(
+  //           printer,
+  //         ); // Use the PrinterProvider to store printer details in Hive
+  //       }
+  //     }
+  //   }
+
+  //   if (data.containsKey('tables')) {
+  //     print("client : tabels are recieved");
+  //     tables = data['tables'];
+  //     print("client : ${data['tables']}");
+
+  //     await _saveToHiveBox(branchwise_tables, tables, 'branchwise_tables');
+  //   }
+
+  //   loadPrintersFromHive();
+  //   notifyListeners();
+  // }
+
+  List<Map<String, dynamic>> buildTotalTableFromFlat(
+    List<Map<String, dynamic>> flatTables,
+  ) {
+    final Map<String, List<Map<String, dynamic>>> areaMap = {};
+
+    for (final table in flatTables) {
+      final areaName = table['areaName']?.toString() ?? 'Unknown Area';
+
+      areaMap.putIfAbsent(areaName, () => []);
+      areaMap[areaName]!.add({
+        'tableNumber': table['tableNumber'],
+        'seats': table['seats'],
+        'position': table['position'],
+      });
     }
 
-    if (data.containsKey('KOTprinters')) {
-      final List<dynamic> printers = data['KOTprinters'];
-      for (var printerJson in printers) {
-        if (printerJson is Map<String, dynamic>) {
-          final printer = Printer.fromJson(
-            Map<String, dynamic>.from(printerJson),
-          );
-          printerProvider.addPrinter(
-            printer,
-          ); // Use the PrinterProvider to store printer details in Hive
+    return areaMap.entries.map((entry) {
+      return {'areaName': entry.key, 'tables': entry.value};
+    }).toList();
+  }
+
+  Future<void> saveTablesForBranch({
+    required String aliasName,
+    required List<Map<String, dynamic>> flatTables,
+  }) async {
+    final totalTable = buildTotalTableFromFlat(flatTables);
+
+    final List<Map<String, dynamic>> hiveData = [
+      {'location': aliasName, 'totalTable': totalTable},
+    ];
+
+    await productProvider?.tableBox.put('data', hiveData);
+
+    debugPrint("✅ Tables saved to Hive in UI-compatible format");
+    debugPrint("📍 Location: $aliasName");
+    debugPrint("🏷️ Areas: ${totalTable.length}");
+  }
+
+  Future<void> handleReceivedData(Map<String, dynamic> data) async {
+    try {
+      final hiveManager = HiveManager();
+
+      // 🔹 ORDERS
+      if (data.containsKey('orders')) {
+        final List<Map<String, dynamic>> orders =
+            List<Map<String, dynamic>>.from(data['orders']);
+
+        for (var order in orders) {
+          order['prices'] = toDoubleList(order['prices']);
+          order['quantities'] = toDoubleList(order['quantities']);
+          order['weights'] = toDoubleList(order['weights']);
+          order['taxes'] = toDoubleList(order['taxes']);
         }
-      }
-    }
 
-    loadPrintersFromHive();
-    notifyListeners();
+        await _saveToHiveBox(_orderBox, orders, 'ordersBox');
+
+        _orders = orders;
+        debugPrint('✅ Orders data received and saved');
+      }
+
+      // 🔹 INVOICES
+      if (data.containsKey('invoicesKOT')) {
+        final List<Map<String, dynamic>> invoices =
+            List<Map<String, dynamic>>.from(data['invoicesKOT']);
+
+        await _saveToHiveBox(invoiceBox, invoices, 'invoicesKOT');
+
+        _invoices = invoices;
+        debugPrint('✅ Invoices data received and saved');
+      }
+
+      if (data.containsKey('tables') && data['tables'] is List) {
+        debugPrint("📥 Raw Tables Data received");
+
+        final List<Map<String, dynamic>> parsedTables = [];
+
+        for (final area in data['tables']) {
+          if (area is! Map) continue;
+
+          final String areaName = area['areaName']?.toString() ?? '';
+
+          final List<dynamic> areaTables = area['tables'] is List
+              ? area['tables']
+              : [];
+
+          for (final table in areaTables) {
+            if (table is! Map) continue;
+
+            parsedTables.add({
+              'areaName': areaName,
+              'tableNumber': table['tableNumber']?.toString() ?? '',
+              'seats': table['seats'] ?? 0,
+              'position': table['position'],
+            });
+          }
+        }
+
+        debugPrint("📊 Total tables parsed: ${parsedTables.length}");
+        if (parsedTables.isNotEmpty) {
+          debugPrint("🧾 First table: ${parsedTables.first}");
+          debugPrint("🧾 Last table: ${parsedTables.last}");
+        }
+
+        // ✅ Save in UI-compatible Hive format
+        final deviceBox = Hive.box('deviceData');
+        final String? aliasName = deviceBox.get('aliasName');
+
+        if (aliasName != null) {
+          final totalTable = buildTotalTableFromFlat(parsedTables);
+
+          // ✅ Save to Hive
+          final List<Map<String, dynamic>> hiveData = [
+            {'location': aliasName, 'totalTable': totalTable},
+          ];
+          await productProvider?.tableBox.put('data', hiveData);
+
+          // ✅ CRITICAL: Update globals.tables with grouped data
+          tables = totalTable;
+
+          debugPrint("Updated globals.tables with ${tables.length} areas");
+          for (var area in tables) {
+            debugPrint(
+              "Area: ${area['areaName']}, Tables: ${(area['tables'] as List).length}",
+            );
+          }
+        }
+
+        debugPrint("✅ Tables parsed, grouped, and saved correctly");
+      }
+
+      // 🔹 KOT PRINTERS
+      if (data.containsKey('KOTprinters')) {
+        final List<dynamic> printers = data['KOTprinters'];
+
+        for (var printerJson in printers) {
+          if (printerJson is Map<String, dynamic>) {
+            final printer = Printer.fromJson(
+              Map<String, dynamic>.from(printerJson),
+            );
+            printerProvider.addPrinter(printer);
+          }
+        }
+
+        debugPrint('✅ Printers data received');
+      }
+
+      await loadPrintersFromHive();
+      notifyListeners();
+    } catch (e, st) {
+      debugPrint('❌ Error handling received data: $e\n$st');
+    }
   }
 
   Future<void> _saveToHiveBox(
@@ -870,14 +1192,18 @@ class OrderProvider with ChangeNotifier {
     List<Map<String, dynamic>> data,
     String boxName,
   ) async {
-    if (box == null) {
-      return;
+    if (box == null) return;
+
+    // ✅ Do NOT clear if incoming data is empty
+    if (data.isNotEmpty) {
+      await box.clear();
     }
 
-    await box.clear(); // Clear existing data to avoid duplicates
-    for (var item in data) {
+    for (final item in data) {
       await box.add(item);
     }
+
+    debugPrint('✅ [$boxName] Saved ${data.length} records to Hive.');
   }
 
   Future<void> patchSeatOrderStatus(
@@ -885,7 +1211,9 @@ class OrderProvider with ChangeNotifier {
     String newStatus,
     String preinvoiceTime,
   ) async {
-    final ordersBox = HiveManagerKot().ordersBox;
+    final ordersBox = Hive.isBoxOpen('ordersBox')
+        ? Hive.box('ordersBox')
+        : await Hive.openBox('ordersBox');
 
     try {
       // Filter matching orders
@@ -908,6 +1236,7 @@ class OrderProvider with ChangeNotifier {
           print('Skipped invalid order at key $orderKey: $order');
         }
       }
+      loadOrdersFromHive();
 
       notifyListeners(); // Refresh UI after updates
     } catch (e, stackTrace) {
@@ -921,7 +1250,9 @@ class OrderProvider with ChangeNotifier {
     String newStatus,
     String orderRemark,
   ) async {
-    final ordersBox = HiveManagerKot().ordersBox;
+    final ordersBox = Hive.isBoxOpen('ordersBox')
+        ? Hive.box('ordersBox')
+        : await Hive.openBox('ordersBox');
 
     try {
       // Filter orders matching the seathiveOrderId
@@ -1106,7 +1437,7 @@ class OrderProvider with ChangeNotifier {
       };
 
       print('📤 Sending patch data: ${jsonEncode(patchData)}');
-      channel.sink.add(jsonEncode(patchData));
+      sendataToServer(patchData);
 
       // ✅ FIXED: Update in-memory orders immediately
       // bool updatedInMemory = false;
@@ -1154,6 +1485,10 @@ class OrderProvider with ChangeNotifier {
         }
       }
 
+      if (updatedInMemory) {
+        notifyListeners();
+      }
+
       // Update all matching Hive orders
       final ordersBox = Hive.box('ordersBox');
       final dynamic hiveData = ordersBox.get('data') ?? [];
@@ -1179,9 +1514,7 @@ class OrderProvider with ChangeNotifier {
         }
       }
 
-      // ✅ FIXED: Force immediate UI update
-      // refreshUI(); // Call this again to ensure UI rebuilds
-      notifyListeners(); // Notify all listeners
+      notifyListeners();
 
       print('🔔 Notified listeners after patching order status');
     } catch (e, stackTrace) {
@@ -1200,7 +1533,6 @@ class OrderProvider with ChangeNotifier {
     try {
       print('🔄 Force reloading orders from Hive...');
       await loadOrdersFromHive();
-      // refreshUI();`
       print('✅ Orders force reloaded successfully');
     } catch (e) {
       print('❌ Error force reloading orders: $e');
@@ -1249,7 +1581,9 @@ class OrderProvider with ChangeNotifier {
 
   Future<void> addInvoice(Map<String, dynamic> invoice) async {
     try {
-      var invoiceBox = HiveManagerKot().invoicesBox;
+      final invoiceBox = Hive.isBoxOpen('invoicesKOT')
+          ? Hive.box('invoicesKOT')
+          : await Hive.openBox('invoicesKOT');
 
       // Ensure box values are Maps
       final existingInvoices = invoiceBox.values
@@ -1260,7 +1594,7 @@ class OrderProvider with ChangeNotifier {
 
       try {
         existingInvoice = existingInvoices.firstWhere(
-          (entry) => entry['hiveInvoiceId'] == invoice['hiveInvoiceId'],
+          (entry) => entry['invoiceNo'] == invoice['invoiceNo'],
         );
       } catch (e) {
         // Not found, leave existingInvoice as null
@@ -1269,10 +1603,10 @@ class OrderProvider with ChangeNotifier {
 
       if (existingInvoice == null) {
         await invoiceBox.add(invoice);
-        print("✅ Invoice added: ${invoice['hiveInvoiceId']}");
+        print("✅ Invoice added: ${invoice['invoiceNo']}");
         await loadInvoices();
       } else {
-        print("⚠️ Invoice already exists: ${invoice['hiveInvoiceId']}");
+        print("⚠️ Invoice already exists: ${invoice['invoiceNo']}");
       }
 
       notifyListeners();
@@ -1282,7 +1616,9 @@ class OrderProvider with ChangeNotifier {
   }
 
   Future<void> loadInvoices() async {
-    var invoiceBox = HiveManagerKot().invoicesBox;
+    var invoiceBox = Hive.isBoxOpen('invoicesKOT')
+        ? Hive.box('invoicesKOT')
+        : await Hive.openBox('invoicesKOT');
 
     _invoices = invoiceBox.values
         .where(
@@ -1350,7 +1686,17 @@ class OrderProvider with ChangeNotifier {
     return list?.map((e) => (e is num ? e.toDouble() : 0.0)).toList() ?? [];
   }
 
-  void processOrderData(Map<String, dynamic> orderData) {
+  void processOrderData(Map<String, dynamic> orderData) async {
+    final holdOrdersBox = await Hive.openBox('holdOrdersKOT');
+
+    final key = '${orderData['table']}_${orderData['seat']}';
+
+    if (holdOrdersBox.containsKey(key)) {
+      holdOrdersBox.delete(key);
+      debugPrint('🗑️ Removed hold order for this key $key');
+    } else {
+      debugPrint('⚠️ No hold order to remove for $key');
+    }
     if (orderData['hiveOrderId'] == null) {
       orderData['hiveOrderId'] = const Uuid().v4();
     }
@@ -1395,7 +1741,9 @@ class OrderProvider with ChangeNotifier {
     Map<String, dynamic> newAddon,
   ) async {
     try {
-      final ordersBox = HiveManagerKot().ordersBox;
+      final ordersBox = Hive.isBoxOpen('ordersBox')
+          ? Hive.box('ordersBox')
+          : await Hive.openBox('ordersBox');
 
       // Retrieve all orders from Hive
       var allOrders = ordersBox.get('data') ?? [];

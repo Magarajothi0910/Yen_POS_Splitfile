@@ -22,7 +22,7 @@ import 'package:yenpos/Sale_order/Provider/get_sales_order_service.dart';
 import 'package:yenpos/Sale_order/Screens/create_sales_order.dart';
 import 'package:yenpos/Sale_order/Screens/editcustomerdetails.dart';
 import 'package:yenpos/Sale_order/Widgets/add_advance_dialogue.dart';
-import 'package:yenpos/Sale_order/Widgets/advance-dialog.dart';
+
 import 'package:yenpos/Sale_order/Widgets/cancel_order_dialogue.dart';
 import 'package:yenpos/Sale_order/Widgets/date_button.dart';
 import 'package:yenpos/Sale_order/Widgets/numeric_Calculator.dart';
@@ -453,6 +453,13 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                     context,
                     MaterialPageRoute(builder: (context) => SalesOrderScreen()),
                   );
+                  final cartProvider = Provider.of<CartProvider>(
+                    context,
+                    listen: false,
+                  );
+
+                  cartProvider.clearCart();
+                  globals.cartItems.clear();
                 },
                 style: ElevatedButton.styleFrom(
                   shape: RoundedRectangleBorder(
@@ -815,7 +822,10 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(18),
                                   gradient: LinearGradient(
-                                    colors: [Colors.white, Colors.grey.shade100],
+                                    colors: [
+                                      Colors.white,
+                                      Colors.grey.shade100,
+                                    ],
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
                                   ),
@@ -1152,24 +1162,23 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
       /// ----------------------------
       final finalAmount = sellingAmount - discountAmount;
 
-      /// --------------------------------------
-      /// PRICE DESCRIPTION BASED ON KG OR PCS
-      /// --------------------------------------
-      bool isKg = uom.toLowerCase() == "kg";
-
       String priceDescription;
+
+      // Check for both "kg" and "kgs"
+      bool isKg = uom.toLowerCase() == "kg" || uom.toLowerCase() == "kgs";
 
       if (isKg) {
         if (currentWeight >= 1) {
           priceDescription =
-              '$currentQty $uom (${currentWeight.toStringAsFixed(2)} kg) × ₹${pricePerUnit.toStringAsFixed(0)}/kg';
+              '${currentWeight} kg × ₹${pricePerUnit.toStringAsFixed(0)}/kg';
         } else {
+          double grams = currentWeight * 1000;
           priceDescription =
-              '$currentQty × ${(currentWeight * 1000).toStringAsFixed(0)} g × ₹${pricePerUnit.toStringAsFixed(0)}/kg';
+              '${currentQty.toInt()} × ${grams.toStringAsFixed(0)} g × ₹${pricePerUnit.toStringAsFixed(0)}/kg';
         }
       } else {
         priceDescription =
-            '${currentQty.toInt()} $uom × ₹${pricePerUnit.toStringAsFixed(0)}';
+            '${currentQty.toInt()} ${uom} × ₹${pricePerUnit.toStringAsFixed(0)}';
       }
 
       final originalAmount = (salesOrder.amount.length > index)
@@ -1944,21 +1953,19 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
     SalesOrderDisplay salesOrder,
     EditCustomerScreenProvider customerprovider,
   ) {
-    // Safe totals
+    // ---------------- SAFE TOTALS ----------------
     double totalAdvanceAmount = (salesOrder.advanceAmount ?? []).fold(
       0.0,
-      (sum, value) => (value ?? 0.0).toDouble() + sum,
+      (sum, value) => sum + ((value ?? 0.0) as num).toDouble(),
     );
-
-    // double customCharge = (salesOrder.customCharge ?? 0.0).toDouble();
     double customCharge = customerprovider.modifiedCustomCharge;
 
     double totalAmount2 =
         (salesOrder.totalAmount2 ?? salesOrder.totalAmount ?? 0.0).toDouble();
+
     double discount = (salesOrder.discount ?? 0.0).toDouble();
     double discountAmount = (salesOrder.discountAmount ?? 0.0).toDouble();
     double finalPrice = (salesOrder.finalPrice ?? totalAmount2).toDouble();
-
     List<double> advanceAmounts = (salesOrder.advanceAmount ?? [])
         .map((e) => (e ?? 0.0).toDouble())
         .toList();
@@ -1968,15 +1975,21 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
         ? advanceAmounts.length
         : advanceDates.length;
 
+    // Debug
+
     return Padding(
-      padding: const EdgeInsets.all(8.0), // reduced from 12
+      padding: const EdgeInsets.all(8.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ---------------- BASIC SUMMARY ----------------
           _summaryRow("Total", salesOrder.totalAmount),
+
           if (customCharge > 0)
             _summaryRow("Custom Charge", customCharge, color: Colors.orange),
+
           if (customCharge > 0) _summaryRow("Total Amount", totalAmount2),
+
           if (discount > 0)
             _summaryRow(
               "Discount",
@@ -1984,9 +1997,10 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
               prefix: "${discount.toStringAsFixed(0)}% (-)",
               color: Colors.red,
             ),
+
           if (discount > 0) _summaryRow("Order Amount", finalPrice),
 
-          // ---- Modification Summary ----
+          // ---------------- MODIFICATION SUMMARY ----------------
           ValueListenableBuilder(
             valueListenable: customerprovider.increasedItems,
             builder: (context, incList, _) {
@@ -1997,6 +2011,10 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                       (incList.isEmpty && decList.isEmpty)) {
                     return const SizedBox.shrink();
                   }
+
+                  double modified = customerprovider.calculateModifiedTotal(
+                    salesOrder,
+                  );
 
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -2031,8 +2049,8 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                             (sum, item) =>
                                 sum + ((item['amount'] ?? 0.0) as num),
                           ),
-                          color: Colors.green,
                           prefix: "+",
+                          color: Colors.green,
                         ),
 
                       if (decList.isNotEmpty)
@@ -2043,35 +2061,23 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                             (sum, item) =>
                                 sum + ((item['amount'] ?? 0.0) as num),
                           ),
-                          color: Colors.red,
                           prefix: "-",
+                          color: Colors.red,
                         ),
-                      ValueListenableBuilder(
-                        valueListenable: customerprovider.increasedItems,
-                        builder: (context, _, __) {
-                          return ValueListenableBuilder(
-                            valueListenable: customerprovider.decreasedItems,
-                            builder: (context, __, ___) {
-                              double modified = customerprovider
-                                  .calculateModifiedTotal(salesOrder);
-                              return _summaryRow(
-                                "Modified Total",
-                                modified,
-                                color: Colors.blue,
-                              );
-                            },
-                          );
-                        },
-                      ),
 
-                      // ❗ This stays — but modifiedTotal is not recalculated here
+                      _summaryRow(
+                        "Modified Total",
+                        modified,
+                        color: Colors.blue,
+                      ),
                     ],
                   );
                 },
               );
             },
           ),
-          // ---- Advance Payments ----
+
+          // ---------------- ADVANCE PAYMENTS (FIXED) ----------------
           if (advanceLength > 0) ...[
             const Divider(height: 14),
             const Text(
@@ -2121,6 +2127,7 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
             ),
           ],
 
+          // ---------------- BALANCE ----------------
           const Divider(height: 14),
           ValueListenableBuilder(
             valueListenable: customerprovider.increasedItems,
@@ -2130,20 +2137,15 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                 builder: (context, __, ___) {
                   double balance;
 
-                  // Check if there are any increased/decreased items
-                  if ((customerprovider.increasedItems.value.isNotEmpty) ||
-                      (customerprovider.decreasedItems.value.isNotEmpty)) {
-                    // Recalculate balance if items were modified
+                  if (customerprovider.increasedItems.value.isNotEmpty ||
+                      customerprovider.decreasedItems.value.isNotEmpty) {
                     double modified = customerprovider.calculateModifiedTotal(
                       salesOrder,
                     );
-                    balance = modified - totalAdvanceAmount + customCharge;
 
-                    print("⚡ Recalculated balance: $balance");
+                    balance = modified - totalAdvanceAmount + customCharge;
                   } else {
-                    // Otherwise, show balance from salesOrder
-                    balance = salesOrder.balanceAmount ?? 0;
-                    print("✅ Normal balance from salesOrder: $balance");
+                    balance = salesOrder.balanceAmount ?? 0.0;
                   }
 
                   return _summaryRow(
@@ -2207,7 +2209,7 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
     );
 
     // ======== ADD CUSTOM CHARGE HERE =========
-    double customCharge = salesOrder.customCharge ?? 0.0;
+    double customCharge = salesOrder.totalCustomCharge ?? 0.0;
 
     // NEW TOTAL (totalAmount + customCharge - advances)
     final total = (salesOrder.totalAmount + customCharge) - totalAdvanceAmount;
@@ -2266,12 +2268,7 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                               customerscreenprovider.recordedFilePath.isNotEmpty
                               ? customerscreenprovider.recordedFilePath
                               : null;
-                          print(
-                            "_pickedImage1: ${customerscreenprovider.pickedImage1}",
-                          );
-                          print(
-                            "_pickedImage2: ${customerscreenprovider.pickedImage2}",
-                          );
+
                           // Call popup function
                           customerscreenprovider.showAdvancePaymentPopup(
                             context,
@@ -2280,8 +2277,8 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                             customerscreenprovider.decreasedItems.value,
                             audioPath,
                             apiService,
-                            customerscreenprovider.pickedImage1,
-                            customerscreenprovider.pickedImage2,
+                            customerscreenprovider.pickedImages,
+
                             customerscreenprovider.modifiedTotal.value,
                             isModifyMode,
                             totalAdvanceAmount,
@@ -2318,9 +2315,7 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                           CustomButton(
                             text: 'Pay ₹ ${total.toStringAsFixed(2)}',
                             onPressed: () async {
-                              if (salesOrder.status == "Confirm Order" ||
-                                  salesOrder.status == "dispatched" ||
-                                  salesOrder.status == "received") {
+                              if (salesOrder.status == "received") {
                                 // Open Hive box
                                 var lazyBox = await Hive.openBox('items');
                                 var branchwiseItems =
@@ -2483,17 +2478,14 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                                 TopMessage.show(
                                   context,
                                   message:
-                                      "Payment is available only after dispatch.",
+                                      "Payment is available only after Received.",
                                   backgroundColor: Colors.orangeAccent,
                                   textColor: Colors.white,
                                   duration: const Duration(seconds: 3),
                                 );
                               }
                             },
-                            backgroundColor:
-                                salesOrder.status == "Confirm Order" ||
-                                    salesOrder.status == "dispatched" ||
-                                    salesOrder.status == "received"
+                            backgroundColor: salesOrder.status == "received"
                                 ? CustomColors.primaryColor
                                 : Colors.grey,
                             textColor: CustomColors.whiteColor,
@@ -2502,31 +2494,6 @@ class _AllOrdersPageState extends State<AllOrdersPage> {
                               vertical: 11,
                             ),
                           ),
-                          // CustomButton(
-                          //   text: 'Pay ₹ ${total.toStringAsFixed(2)}',
-                          //   onPressed: () {
-                          //     if (salesOrder.status == "dispatched") {
-                          //       _showPaymentDialog(context, salesOrder);
-                          //     } else {
-                          //       TopMessage.show(
-                          //         context,
-                          //         message:
-                          //             "Payment is available only after dispatch.",
-                          //         backgroundColor: Colors.orangeAccent,
-                          //         textColor: Colors.white,
-                          //         duration: const Duration(seconds: 3),
-                          //       );
-                          //     }
-                          //   },
-                          //   backgroundColor: salesOrder.status == "dispatched"
-                          //       ? CustomColors.primaryColor
-                          //       : Colors.grey,
-                          //   textColor: CustomColors.whiteColor,
-                          //   padding: const EdgeInsets.symmetric(
-                          //     horizontal: 25,
-                          //     vertical: 11,
-                          //   ),
-                          // ),
                         ],
                       ),
                   ],

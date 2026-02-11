@@ -1,0 +1,670 @@
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:yen_pos/Global/Provider/branchwise_item_fetch.dart';
+import 'package:yen_pos/Global/globals_data.dart';
+import 'package:yen_pos/Sale_order/Provider/cartProvider.dart';
+import 'package:yen_pos/Sale_order/Provider/regularmode_provider_saleorder.dart';
+import '../../Global/Widget/custom_textWidgets.dart';
+import 'numeric_Calculator.dart';
+
+final FocusNode focusNode = FocusNode();
+
+class SearchDropdown extends StatefulWidget {
+  const SearchDropdown({Key? key}) : super(key: key);
+
+  @override
+  _SearchDropdownState createState() => _SearchDropdownState();
+}
+
+class _SearchDropdownState extends State<SearchDropdown> {
+  final TextEditingController _controller = TextEditingController();
+  final TextEditingController _hiddenController = TextEditingController();
+  OverlayEntry? _overlayEntry;
+  final LayerLink _layerLink = LayerLink();
+  bool _isQrMode = false;
+  bool _isProcessing = false;
+  final FocusNode _searchFocus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controller.addListener(_updateOverlay);
+  }
+
+  @override
+  void dispose() {
+    _searchFocus.dispose();
+    _controller.removeListener(_updateOverlay);
+    _controller.clear();
+    _controller.dispose();
+    _hiddenController.dispose();
+    _removeOverlay();
+    super.dispose();
+  }
+
+  void _updateOverlay() {
+    final provider = Provider.of<SaleOrderRegularModeProvider>(
+      context,
+      listen: false,
+    );
+    provider.filterVarianceNamesBySearchQuery(_controller.text.trim());
+    if (_controller.text.isEmpty) {
+      _removeOverlay();
+      return;
+    }
+    if (_overlayEntry == null) {
+      _showOverlay();
+    }
+  }
+
+  void _showOverlay() {
+    if (_overlayEntry == null) {
+      _overlayEntry = _createOverlayEntry();
+      Overlay.of(context).insert(_overlayEntry!);
+    }
+  }
+
+  void _removeOverlay() {
+    if (_overlayEntry != null) {
+      _overlayEntry?.remove();
+      _overlayEntry = null;
+    }
+  }
+
+  OverlayEntry _createOverlayEntry() {
+    RenderBox renderBox = context.findRenderObject() as RenderBox;
+    var size = renderBox.size;
+
+    return OverlayEntry(
+      builder: (context) => GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        child: Stack(
+          children: [
+            Positioned(
+              width: size.width,
+              child: CompositedTransformFollower(
+                link: _layerLink,
+                showWhenUnlinked: false,
+                offset: Offset(0, size.height + 3.0),
+                child: Material(
+                  elevation: 6.0,
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Consumer<SaleOrderRegularModeProvider>(
+                    builder: (_, provider, __) {
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.blue.shade100.withOpacity(0.6),
+                              blurRadius: 6,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        constraints: BoxConstraints(maxHeight: 200),
+                        child: provider.filteredVarianceNames.isNotEmpty
+                            ? ListView.builder(
+                                padding: EdgeInsets.zero,
+                                itemCount:
+                                    provider.filteredVarianceNames.length,
+                                itemBuilder: (_, index) {
+                                  final varianceName =
+                                      provider.filteredVarianceNames[index];
+                                  return ListTile(
+                                    dense: true,
+                                    contentPadding: EdgeInsets.symmetric(
+                                      vertical: 4.0,
+                                      horizontal: 8.0,
+                                    ),
+                                    title: CustomText(
+                                      text: varianceName,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.blue.shade700,
+                                        fontWeight: FontWeight.w400,
+                                      ),
+                                    ),
+                                    hoverColor: Colors.blue.shade50,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    onTap: () {
+                                      setState(() {
+                                        if (index <
+                                            provider
+                                                .filteredVarianceNames
+                                                .length) {
+                                          final varianceData = provider
+                                              .getVarianceFullDetails(
+                                                varianceName,
+                                              );
+                                          if (varianceData.isNotEmpty) {
+                                            final varianceUOM =
+                                                provider.getUOMForVariance(
+                                                  varianceName,
+                                                ) ??
+                                                'Unknown UOM';
+                                            _handleItemSelection(
+                                              varianceData,
+                                              varianceUOM,
+                                            );
+                                            _removeOverlay();
+                                          }
+                                        }
+                                      });
+                                    },
+                                  );
+                                },
+                              )
+                            : Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(8.0),
+                                  child: Text(
+                                    "No results found",
+                                    style: TextStyle(fontSize: 12),
+                                  ),
+                                ),
+                              ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _handleItemSelection(
+    Map<String, dynamic> selectedItem,
+    String varianceUOM,
+  ) {
+    final cartProvider = Provider.of<CartProvider>(context, listen: false);
+
+    print('================ ITEM SELECTION START ================');
+
+    // 🔹 RAW values
+    print('RAW ITEM DATA');
+    print('itemName      : ${selectedItem['itemName']}');
+    print('varianceName  : ${selectedItem['varianceName']}');
+    print('itemCode      : ${selectedItem['itemCode']}');
+    print('varianceUOM   : "$varianceUOM"');
+    print('rawPrice      : ${selectedItem['takeawayPrice']}');
+    print('rawTax        : ${selectedItem['tax']}');
+    print('------------------------------------------------------');
+
+    final varianceName = selectedItem['varianceName']?.toString() ?? '';
+    final itemCode = selectedItem['itemCode']?.toString() ?? '';
+    final itemName = selectedItem['itemName']?.toString() ?? '';
+
+    // 🔹 PRICE HANDLING
+    int price = 0;
+    final rawTakeaway = selectedItem['takeawayPrice'];
+    final rawDefault = selectedItem['varianceDefaultPrice'];
+
+    if (rawTakeaway is num && rawTakeaway > 0) {
+      price = rawTakeaway.round();
+      print('✅ USING TAKEAWAY PRICE');
+    } else if (rawDefault is num) {
+      price = rawDefault.round();
+      print('ℹ️ USING DEFAULT VARIANCE PRICE');
+    }
+
+    // 🔹 TAX HANDLING
+    int tax = 0;
+    final rawTax = selectedItem['tax'];
+    if (rawTax is num) {
+      tax = rawTax.round();
+    } else if (rawTax is String && rawTax.trim().isNotEmpty) {
+      tax = double.tryParse(rawTax)?.round() ?? 0;
+    } else {
+      tax = 0;
+    }
+
+    print('PARSED VALUES');
+    print('pricePerKg / price : $price');
+    print('tax                : $tax');
+    print('------------------------------------------------------');
+
+    // 🔥 UOM warning
+    if (varianceUOM.trim().isEmpty) {
+      print('🚨 WARNING: UOM IS EMPTY — defaulting to PCS logic');
+    }
+
+    // 🔹 WEIGHTED ITEM FLOW
+    if (varianceUOM.toLowerCase() == 'kg' ||
+        varianceUOM.toLowerCase() == 'kgs') {
+      print('⚖️ WEIGHTED ITEM FLOW TRIGGERED');
+
+      showDialog(
+        context: context,
+        builder: (context) {
+          return NumericCalculator(
+            varianceName: '$varianceName (${varianceUOM.toUpperCase()})',
+            onValueSelected: (weight) {
+              print('⚖️ WEIGHT SELECTED');
+              print('weight        : $weight');
+              print('pricePerKg   : $price');
+              print('qty          : 1');
+              print('amount calc  : ${weight * price}');
+              print('--------------------------------------------------');
+
+              cartProvider.addItemToCart(
+                CartItem(
+                  rowId: UniqueKey().toString(),
+                  varianceName: varianceName,
+                  pricePerKg: price,
+                  itemName: itemName,
+                  uom: varianceUOM,
+                  weight: weight,
+                  quantity: 1,
+                  isBoxItem: 'no',
+                  tax: tax,
+                  itemCode: itemCode,
+                  itemWiseDiscountAmount: 0,
+                  itemWiseDiscount: 0,
+                ),
+              );
+
+              print('🛒 CART ITEM ADDED (WEIGHTED)');
+              print('itemName     : $itemName');
+              print('varianceName : $varianceName');
+              print('uom          : "$varianceUOM"');
+              print('price        : $price');
+              print('weight       : $weight');
+              print('tax          : $tax');
+              print('==================================================');
+            },
+          );
+        },
+      );
+    }
+    // 🔹 NORMAL (PCS / OTHERS) FLOW
+    else {
+      print('📦 QUANTITY ITEM FLOW TRIGGERED');
+      print('qty          : 1');
+      print('price        : $price');
+      print('amount calc  : ${price * 1}');
+      print('--------------------------------------------------');
+
+      cartProvider.addItemToCart(
+        CartItem(
+          rowId: UniqueKey().toString(),
+          varianceName: varianceName,
+          pricePerKg: price,
+          itemName: itemName,
+          uom: varianceUOM,
+          weight: 0,
+          quantity: 1,
+          isBoxItem: 'no',
+          tax: tax,
+          itemCode: itemCode,
+          itemWiseDiscountAmount: 0,
+          itemWiseDiscount: 0,
+        ),
+      );
+
+      print('🛒 CART ITEM ADDED (PCS)');
+      print('itemName     : $itemName');
+      print('varianceName : $varianceName');
+      print('uom          : "$varianceUOM"');
+      print('price        : $price');
+      print('qty          : 1');
+      print('tax          : $tax');
+      print('==================================================');
+    }
+
+    _clearSelection();
+
+    print('================ ITEM SELECTION END =================');
+  }
+
+  void _clearSelection() {
+    _controller.clear();
+    focusNode.unfocus();
+    _searchFocus.unfocus();
+    _removeOverlay();
+  }
+
+  void _toggleQrMode() {
+    setState(() {
+      _isQrMode = !_isQrMode;
+      if (_isQrMode) {
+        focusNode.requestFocus();
+      } else {
+        focusNode.unfocus();
+      }
+    });
+  }
+
+  void _handleInput(String value) async {
+    if (_isProcessing || !_isQrMode || value.isEmpty) return;
+
+    setState(() {
+      _isProcessing = true;
+    });
+
+    try {
+      final Map<String, dynamic> scannedData = _parseScannedData(value);
+      if (scannedData.containsKey('ItemCode')) {
+        final itemCode = scannedData['ItemCode'] ?? "";
+        final quantity = parseToDouble(scannedData['Qty'] ?? 1);
+        final uom = scannedData['UOM'] ?? '';
+
+        final itemProvider = Provider.of<ItemProvider>(context, listen: false);
+        final provider = Provider.of<SaleOrderRegularModeProvider>(
+          context,
+          listen: false,
+        );
+        final result = await itemProvider.checkVarianceItemCode(
+          itemCode,
+          aliasname,
+        );
+
+        if (result.isNotEmpty) {
+          final itemData = result.first;
+          final varianceName = itemData['varianceData']['varianceName'] ?? '';
+          final selectedItem = provider.getVarianceDetails(varianceName);
+          if (selectedItem != null) {
+            final varianceData = provider.getVarianceDetails(varianceName);
+            final itemName = varianceData['itemName'] ?? 'Unknown Item';
+            final varianceUOM =
+                provider.getUOMForVariance(varianceName) ?? 'Unknown UOM';
+            _handleItemSelection(selectedItem, varianceUOM);
+          }
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Item not found for the scanned code."),
+              duration: Duration(milliseconds: 500),
+            ),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Invalid QR data. 'ItemCode' not found."),
+            duration: Duration(milliseconds: 500),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error: ${e.toString()}"),
+          duration: const Duration(milliseconds: 500),
+        ),
+      );
+    } finally {
+      _controller.clear();
+      setState(() {
+        _isProcessing = false;
+      });
+    }
+  }
+
+  Map<String, dynamic> _parseScannedData(String value) {
+    try {
+      return json.decode(value);
+    } catch (_) {
+      final Map<String, dynamic> parsedData = {};
+      value.replaceAll('{', '').replaceAll('}', '').split(',').forEach((pair) {
+        final keyValue = pair.split(':');
+        if (keyValue.length == 2) {
+          parsedData[keyValue[0].trim()] = keyValue[1].trim();
+        }
+      });
+      return parsedData;
+    }
+  }
+
+  double parseToDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? 0.0;
+    return 0.0;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        _removeOverlay();
+        focusNode.unfocus();
+        _searchFocus.unfocus();
+      },
+      behavior: HitTestBehavior.translucent,
+      child: CompositedTransformTarget(
+        link: _layerLink,
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: FocusScope(
+                    onFocusChange: (hasFocus) {
+                      if (!hasFocus) _removeOverlay();
+                    },
+                    child: TextField(
+                      readOnly: true,
+                      showCursor: true,
+                      focusNode: _searchFocus,
+                      controller: _controller,
+                      decoration: InputDecoration(
+                        labelText: 'Search items',
+                        prefixIcon: Icon(
+                          Icons.search,
+                          color: Colors.blue.shade700,
+                        ),
+
+                        // 👉 Clear suffix icon
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.clear),
+                          color: Colors.blue.shade600,
+                          onPressed: () {
+                            setState(() {
+                              _controller.clear();
+                              _removeOverlay(); // optional – if you want overlay to close
+                            });
+                          },
+                        ),
+
+                        focusedBorder: OutlineInputBorder(
+                          borderSide: BorderSide(
+                            color: Colors.blue.shade700,
+                            width: 2.0,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderSide: BorderSide(
+                            color: Colors.blue.shade300,
+                            width: 1.5,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        fillColor: Colors.blue.shade50,
+                        filled: true,
+                        labelStyle: TextStyle(color: Colors.blue.shade700),
+                        hintStyle: TextStyle(color: Colors.blue.shade300),
+                      ),
+                      onTap: () => ActiveField.activate(
+                        context: context,
+                        ctrl: _controller,
+                        node: _searchFocus,
+                        numeric: false,
+                      ),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(
+                    _isQrMode ? Icons.qr_code_scanner : Icons.qr_code,
+                    color: _isQrMode ? Colors.green : Colors.blue.shade700,
+                  ),
+                  onPressed: _toggleQrMode,
+                ),
+              ],
+            ),
+            Offstage(
+              offstage: !_isQrMode,
+              child: TextField(
+                controller: _hiddenController,
+                focusNode: focusNode,
+                decoration: InputDecoration(
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(vertical: 0.0),
+                ),
+                style: const TextStyle(fontSize: 0),
+                keyboardType: TextInputType.none,
+                onSubmitted: _handleInput,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+void showQuantityDialog(
+  BuildContext context,
+  String varianceName,
+  double price,
+  Function(double) onAddToCart,
+) {
+  double quantity = 1.0;
+  final TextEditingController _controller = TextEditingController(
+    text: quantity.toInt().toString(),
+  );
+
+  showDialog(
+    context: context,
+    builder: (BuildContext context) {
+      return StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: Text(
+              "$varianceName ₹${price.toStringAsFixed(2)}",
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    IconButton(
+                      iconSize: 40,
+                      onPressed: () {
+                        if (quantity > 1) {
+                          setState(() {
+                            quantity--;
+                            _controller.text = quantity.toInt().toString();
+                          });
+                        }
+                      },
+                      icon: const Icon(Icons.remove_circle, color: Colors.blue),
+                    ),
+                    const SizedBox(width: 10),
+                    SizedBox(
+                      width: 60,
+                      child: TextField(
+                        controller: _controller,
+                        keyboardType: TextInputType.number,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        onChanged: (value) {
+                          if (value.isEmpty) {
+                            setState(() {
+                              quantity = 0.0;
+                            });
+                          } else {
+                            final int? newValue = int.tryParse(value);
+                            if (newValue != null && newValue > 0) {
+                              setState(() {
+                                quantity = newValue.toDouble();
+                              });
+                            } else {
+                              setState(() {
+                                quantity = 1.0;
+                                _controller.text = quantity.toInt().toString();
+                              });
+                            }
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    IconButton(
+                      iconSize: 40,
+                      onPressed: () {
+                        setState(() {
+                          quantity++;
+                          _controller.text = quantity.toInt().toString();
+                        });
+                      },
+                      icon: const Icon(Icons.add_circle, color: Colors.blue),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                style: TextButton.styleFrom(
+                  backgroundColor: Colors.redAccent.withOpacity(0.1),
+                  foregroundColor: Colors.redAccent,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 22,
+                    vertical: 15,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text("Cancel", style: TextStyle(fontSize: 16)),
+              ),
+              TextButton(
+                onPressed: () {
+                  if (quantity > 0) {
+                    Navigator.of(context).pop();
+                    onAddToCart(quantity);
+                  }
+                },
+                style: TextButton.styleFrom(
+                  backgroundColor: Colors.blueAccent.withOpacity(0.1),
+                  foregroundColor: Colors.blueAccent,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 22,
+                    vertical: 15,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text(
+                  'Add to Cart',
+                  style: TextStyle(fontSize: 16),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+}

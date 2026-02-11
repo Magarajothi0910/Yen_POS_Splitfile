@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+message QRData {
+  string rowId = 1;
+  string itemCode = 2;
+  string varianceName = 3;
+  string uom = 4;
+  string qty = 5;
+  string price = 6;
+  string pkdDate = 7;
+  string expDate = 8;
+  bool isBirthdayCake = 9;
+  string cakeId = 10;
+}

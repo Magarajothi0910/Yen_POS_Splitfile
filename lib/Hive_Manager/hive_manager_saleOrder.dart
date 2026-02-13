@@ -20,7 +20,7 @@ class HiveManager {
   static Box? _branches;
   static Box? _discounts;
   static Box? _advancePercent;
-
+  static Box? _holdOrderIdBox;
   late Box? userBox;
   late Box? serverBox;
   late Box configBox;
@@ -45,6 +45,8 @@ class HiveManager {
 
     _toApproveOrderBox = await Hive.openBox('toApproveOrderBox');
     _holdOrderBox = await Hive.openBox('holdOrders');
+    _holdOrderIdBox = await Hive.openBox('holdOrdersID');
+
     _salesOrderNumberBox = await Hive.openBox('salesOrderNumberBox');
     _salesApprovalOrder = await Hive.openBox('salesApprovalOrder');
     _saleOrderModifyOrders = await Hive.openBox('saleOrderModifyOrders');
@@ -98,6 +100,15 @@ class HiveManager {
       );
     }
     return _toApproveOrderBox!;
+  }
+
+  static Box get holdOrderIdBox {
+    if (_toApproveOrderBox == null) {
+      throw Exception(
+        'To Approval Hive not initialized! Call HiveManager.initialize() first',
+      );
+    }
+    return _holdOrderIdBox!;
   }
 
   static Box get holdOrderBox {

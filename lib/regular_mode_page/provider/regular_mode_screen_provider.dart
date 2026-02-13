@@ -529,7 +529,6 @@ class RegularModeProvider with ChangeNotifier {
                   }(),
                   'varianceUOM': (variance['variance_Uom'] ?? "").toString(),
                   'takeawayPrice': takeawayPrice,
-                  'itemCode': (variance['itemCode'] ?? "").toString(),
                   'branchwise': branchwise,
                 };
               }).toList();

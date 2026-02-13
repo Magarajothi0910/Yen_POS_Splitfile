@@ -14,12 +14,13 @@ Future<void> sendApprove(
   String tableNumber,
   String seat,
   String remark,
+  String cancelType,
 ) async {
+  debugPrint("orderCancel type is $ordersForSeat ");
   final TextEditingController remarkController = TextEditingController(
     text: remark == "" ? "" : remark,
   );
 
-  // remarkController.text = remark;
   final result = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
@@ -98,7 +99,11 @@ Future<void> sendApprove(
   if (result == true) {
     final approvePayload = {
       'type': 'approveCancelOrder',
-      'cancelType': 'orderCancel',
+      'cancelType': cancelType == 'orderCancel'
+          ? 'orderCancel'
+          : cancelType == 'itemCancel'
+          ? 'itemCancel'
+          : '',
       'status': 'pending',
       'tableNumber': tableNumber,
       'seat': seat,
@@ -122,21 +127,44 @@ Future<void> handleApproveCancelOrder(
     final approveStatus = data['status'];
     final approveOrders = data['orders'];
     final approveRemark = data['remark'];
-    final approveCancelType = data['cancelType'];
+    final String approveCancelType = data['cancelType'];
     final seathiveOrderId = data['orders'][0]['seathiveOrderId'];
 
-    final key = '${approveTable}_${approveSeat}_$seathiveOrderId';
+    if (approveCancelType == 'orderCancel') {
+      final key = '${approveTable}_${approveSeat}_$seathiveOrderId';
 
-    final HiveData = {
-      'cancelType': approveCancelType,
-      'tableNumber': approveTable,
-      'seat': approveSeat,
-      'status': approveStatus,
-      'remark': approveRemark,
-      'seathiveOrderId': seathiveOrderId,
-    };
-    final box = await Hive.openBox('approvelOrdersKOT');
-    await box.put(key, HiveData);
+      final HiveData = {
+        'cancelType': approveCancelType,
+        'tableNumber': approveTable,
+        'seat': approveSeat,
+        'status': approveStatus,
+        'remark': approveRemark,
+        'seathiveOrderId': seathiveOrderId,
+      };
+
+      debugPrint("hive data is $HiveData");
+      final box = await Hive.openBox('approvelOrdersKOT');
+      await box.put(key, HiveData);
+    }
+
+    if (approveCancelType == 'itemCancel') {
+      final varianceitemCode = data['orders'][0]['varianceitemCodes'];
+
+      final key =
+          '${approveTable}_${approveSeat}_${seathiveOrderId}_$varianceitemCode';
+
+      final HiveData = {
+        'cancelType': approveCancelType,
+        'tableNumber': approveTable,
+        'seat': approveSeat,
+        'status': approveStatus,
+        'remark': approveRemark,
+        'seathiveOrderId': seathiveOrderId,
+        'varianceitemCode': varianceitemCode,
+      };
+      final box = await Hive.openBox('approvelOrdersKOT');
+      await box.put(key, HiveData);
+    }
 
     final approvalData = {
       'action': 'approveCancelOrder',
@@ -152,124 +180,3 @@ Future<void> handleApproveCancelOrder(
     debugPrint("handleApproveCancelOrder :: $e");
   }
 }
-
-// void showApproveDialog({
-//   required String table,
-//   required String seat,
-//   required String status,
-//   required List<dynamic> orders,
-// }) {
-//   final context = global.navigatorKey.currentContext;
-//   if (context == null) return;
-
-//   final order = orders.first; // assuming single order per request
-
-//   showDialog(
-//     context: context,
-//     barrierDismissible: true,
-//     builder: (_) => AlertDialog(
-//       title: Row(
-//         children: const [
-//           Icon(Icons.info, color: Colors.blue),
-//           SizedBox(width: 8),
-//           Text('Cancel Order Approval'),
-//         ],
-//       ),
-//       content: SizedBox(
-//         width: MediaQuery.of(context).size.width * 0.5,
-//         child: SingleChildScrollView(
-//           child: Column(
-//             crossAxisAlignment: CrossAxisAlignment.start,
-//             children: [
-//               // 🔹 Info text
-//               Text(
-//                 'Cancel order approval request for Table $table, Seat $seat.',
-//                 style: const TextStyle(fontWeight: FontWeight.w600),
-//               ),
-//               const SizedBox(height: 12),
-
-//               const Divider(),
-
-//               // 🔹 Order details header
-//               Text(
-//                 'Order Details - $status',
-//                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-//               ),
-//               const SizedBox(height: 8),
-
-//               // 🔹 Item list
-//               ListView.builder(
-//                 shrinkWrap: true,
-//                 physics: const NeverScrollableScrollPhysics(),
-//                 itemCount: order['itemNames'].length,
-//                 itemBuilder: (context, index) {
-//                   return Padding(
-//                     padding: const EdgeInsets.symmetric(vertical: 4),
-//                     child: Row(
-//                       children: [
-//                         Expanded(
-//                           child: Text(
-//                             order['itemNames'][index],
-//                             style: const TextStyle(fontWeight: FontWeight.w500),
-//                           ),
-//                         ),
-//                         Text('x${order['quantities'][index]}'),
-//                         const SizedBox(width: 10),
-//                         Text(
-//                           '₹${order['amounts'][index]}',
-//                           style: const TextStyle(fontWeight: FontWeight.w600),
-//                         ),
-//                       ],
-//                     ),
-//                   );
-//                 },
-//               ),
-
-//               const Divider(),
-
-//               // 🔹 Total amount
-//               Align(
-//                 alignment: Alignment.centerRight,
-//                 child: Text(
-//                   'Total: ₹${order['totalAmount']}',
-//                   style: const TextStyle(
-//                     fontSize: 16,
-//                     fontWeight: FontWeight.bold,
-//                   ),
-//                 ),
-//               ),
-//             ],
-//           ),
-//         ),
-//       ),
-//       actions: [
-//         TextButton(
-//           onPressed: () {
-//             Navigator.of(context).pop();
-//             sendataToServer({
-//               'type': 'cancelOrderApprovalResponse',
-//               'status': 'declined',
-//               'tableNumber': table,
-//               'seat': seat,
-//               'orders': orders,
-//             });
-//           },
-//           child: const Text('Decline', style: TextStyle(color: Colors.red)),
-//         ),
-//         ElevatedButton(
-//           onPressed: () {
-//             Navigator.of(context).pop();
-//             sendataToServer({
-//               'type': 'cancelOrderApprovalResponse',
-//               'status': 'approved',
-//               'tableNumber': table,
-//               'seat': seat,
-//               'orders': orders,
-//             });
-//           },
-//           child: const Text('Approve'),
-//         ),
-//       ],
-//     ),
-//   );
-// }

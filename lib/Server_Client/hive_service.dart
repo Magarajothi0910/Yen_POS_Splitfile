@@ -264,7 +264,7 @@ Future<void> initHiveInBackground() async {
     Hive.openBox('salesOrders'),
     Hive.openBox('openOrderBox'),
     Hive.openBox('opensaleOrders'),
-
+    Hive.openBox('holdOrdersID'),
     Hive.openBox('logo'),
     Hive.openBox('customerBox'),
   ]);

@@ -385,6 +385,8 @@ class OrderProvider with ChangeNotifier {
 
   Future<void> initializeWebSocket() async {
     await ensureWebSocketConnection();
+    // _initializeActionHandlers();
+    // _initializeTypeHandlers();
   }
 
   // Future<void> _handleInvoiceGenerated(Map<String, dynamic> data) async {

@@ -1,20 +1,11 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
-import 'package:intl/intl.dart';
-import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:yen_pos/Global/globals_data.dart';
-import 'package:yen_pos/Global/salesorder_websocket_service.dart';
 import 'package:yen_pos/Sale_order/Models/sales_order_display_model.dart';
 import 'package:yen_pos/Sale_order/Print_Receipt/allorderprint.dart';
 import 'package:yen_pos/Sale_order/Provider/customerScreen_provider.dart';
-import 'package:yen_pos/Sale_order/Widgets/Send_data_to_server.dart';
 import 'package:yen_pos/Sale_order/Widgets/advance_amount_payment_keybaord.dart';
-import 'package:yen_pos/Sale_order/Widgets/cheque_details.dart';
-import 'package:yen_pos/Sale_order/Widgets/employee_selection.dart';
 import 'package:yen_pos/Sale_order/Widgets/top_message.dart';
 import 'package:yen_pos/invoice_pay_and_print_page.dart/provider/payment_provider.dart';
 import 'package:yen_pos/invoice_pay_and_print_page.dart/provider/razorpay_provider.dart';
@@ -870,6 +861,7 @@ class _CancelOrderPaymentState extends State<CancelOrderPayment> {
             : _returnAmountController.text,
         "cancelOrderDate": DateTime.now().toIso8601String(),
         "approvalDetails": [approvalDetails],
+
       };
 
       // Step 4: Call Provider method

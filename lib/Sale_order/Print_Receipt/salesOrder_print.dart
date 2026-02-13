@@ -79,6 +79,30 @@ class salesOrderReceiptPrinter {
 
     // required this.saveInvoiceToHiveAndPrint,
   });
+  String getPatchReceiptTitle(String editAbout) {
+    switch (editAbout.trim().toLowerCase()) {
+      case 'add advance':
+        return 'Advance Receipt';
+
+      case 'order updated':
+      case 'update order':
+      case 'order edited':
+        return 'Update Receipt';
+
+      case 'customer details updated':
+        return 'Customer Update';
+
+      case 'order & customer details updated':
+        return 'Order & Customer Update';
+
+      case 'cancel order':
+      case 'order cancelled':
+        return 'Cancellation Receipt';
+
+      default:
+        return 'Update Receipt';
+    }
+  }
 
   Future<void> patchprintReceiptDetails() async {
     String employeeName = employeeNameController.text;
@@ -99,21 +123,10 @@ class salesOrderReceiptPrinter {
       paymentAmount = 'Rs ${totalAmount.toStringAsFixed(0)}';
     }
     // 🔹 Dynamically decide the receipt header based on editAbout
-    String receiptTitle;
+    // 🔥 CLEAN RECEIPT TITLE
+    String receiptTitle = getPatchReceiptTitle(editAbout);
 
-    switch (editAbout.trim().toLowerCase()) {
-      case 'add advance':
-        receiptTitle = 'Advance Added Receipt';
-        break;
-      case 'edit order':
-        receiptTitle = 'Order Edited Receipt';
-        break;
-      case 'cancel order':
-        receiptTitle = 'Order Cancelled Receipt';
-        break;
-      default:
-        receiptTitle = 'Order Receipt';
-    }
+    debugPrint('🧾 Receipt Title => $receiptTitle');
     String fullEmployeeName = employeeNameController.text.trim();
     String employeeDisplayName = fullEmployeeName.contains('-')
         ? fullEmployeeName.split('-').last.trim()

@@ -282,19 +282,53 @@ Future<void> handleInvoices(
   }
 }
 
-Future<void> _saveToHiveBox(List<Map<String, dynamic>> data) async {
-  print("handleInvoices _saveToHiveBox  $data");
-  final box = await Hive.openBox('invoices');
-  if (box == null) return;
+// Future<void> _saveToHiveBox(List<Map<String, dynamic>> data) async {
+//   print("handleInvoices _saveToHiveBox  $data");
+//   final box = await Hive.openBox('invoices');
+//   if (box == null) return;
 
-  // ✅ Do NOT clear if incoming data is empty
-  if (data.isNotEmpty) {
-    await box.clear();
-  }
+//   // ✅ Do NOT clear if incoming data is empty
+//   if (data.isNotEmpty) {
+//     await box.clear();
+//   }
+
+//   for (final item in data) {
+//     await box.add(item);
+//   }
+
+//   // debugPrint('✅ [$boxName] Saved ${data.length} records to Hive.');
+// }
+
+Future<void> _saveToHiveBox(List<Map<String, dynamic>> data) async {
+  print("handleInvoices _saveToHiveBox $data");
+
+  final box = await Hive.openBox('invoices');
+
+  if (data.isEmpty) return;
+
+  // 🔹 Collect existing invoiceNos from Hive
+  final Set<String> existingInvoiceNos = box.values
+      .whereType<Map>()
+      .map((e) => e['invoiceNo']?.toString())
+      .where((e) => e != null && e.isNotEmpty)
+      .cast<String>()
+      .toSet();
+
+  int inserted = 0;
 
   for (final item in data) {
+    final invoiceNo = item['invoiceNo']?.toString();
+
+    // ❌ Skip if invoiceNo missing
+    if (invoiceNo == null || invoiceNo.isEmpty) continue;
+
+    // ❌ Skip duplicates
+    if (existingInvoiceNos.contains(invoiceNo)) continue;
+
     await box.add(item);
+    existingInvoiceNos.add(invoiceNo); // prevent duplicates within same batch
+    inserted++;
   }
 
-  // debugPrint('✅ [$boxName] Saved ${data.length} records to Hive.');
+  print("✅ Hive invoices inserted: $inserted");
 }

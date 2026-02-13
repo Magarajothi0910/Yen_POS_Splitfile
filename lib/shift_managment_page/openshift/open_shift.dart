@@ -133,7 +133,7 @@ class _OpenShiftState extends State<OpenShift> {
       "systemClosingBalance": globals.systemOpeningCash,
       "dayEndStatus": "open",
       "status": "open",
-      "locationId": globals.locationId,
+      "locationId": locationId,
       "branchName": branchName,
       "empId": userName,
       "empName": userName,

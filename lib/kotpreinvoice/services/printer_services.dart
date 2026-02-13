@@ -40,7 +40,7 @@ class PrinterService {
       List<int> bytes = [];
       const int lineWidth = 48;
 
-      // ───────────── HEADER ─────────────
+      // ───────── HEADER ─────────
       bytes += generator.reset();
       bytes += generator.text(
         'KOT $orderType',
@@ -71,7 +71,7 @@ class PrinterService {
           )
           .join(' ');
 
-      // ───────────── STEP 1: BUILD PRINT ROWS ─────────────
+      // ───────── BUILD ROWS ─────────
       List<Map<String, dynamic>> buildRows(List<Map<String, dynamic>> items) {
         final List<Map<String, dynamic>> rows = [];
 
@@ -112,11 +112,49 @@ class PrinterService {
         return rows;
       }
 
-      final allRows = buildRows(seatOrders);
-      final diningRows = allRows.where((r) => r['type'] != 'Parcel').toList();
-      final parcelRows = allRows.where((r) => r['type'] == 'Parcel').toList();
+      // ───────── MERGE SIMPLE ITEMS ONLY ─────────
+      List<Map<String, dynamic>> mergeSimpleRows(
+        List<Map<String, dynamic>> rows,
+      ) {
+        final Map<String, Map<String, dynamic>> merged = {};
+        final List<Map<String, dynamic>> result = [];
 
-      // ───────────── TABLE HEADER ─────────────
+        for (final row in rows) {
+          final bool isSimple =
+              (row['weight'] ?? 0) == 0 &&
+              (row['addons'] as List).isEmpty &&
+              (row['variant'] ?? '').toString().isEmpty &&
+              (row['remark'] ?? '').toString().trim().isEmpty;
+
+          if (!isSimple) {
+            result.add(row); // keep complex items separate
+            continue;
+          }
+
+          final key = row['varianceName'];
+
+          if (merged.containsKey(key)) {
+            merged[key]!['qty'] += row['qty'];
+          } else {
+            merged[key] = Map<String, dynamic>.from(row);
+          }
+        }
+
+        result.addAll(merged.values);
+        return result;
+      }
+
+      final allRows = buildRows(seatOrders);
+
+      final diningRows = mergeSimpleRows(
+        allRows.where((r) => r['type'] != 'Parcel').toList(),
+      );
+
+      final parcelRows = mergeSimpleRows(
+        allRows.where((r) => r['type'] == 'Parcel').toList(),
+      );
+
+      // ───────── TABLE HEADER ─────────
       bytes += generator.row([
         PosColumn(text: 'S.No', width: 2, styles: const PosStyles(bold: true)),
         PosColumn(
@@ -133,14 +171,13 @@ class PrinterService {
 
       bytes += generator.text('-' * lineWidth);
 
-      // ───────────── DINING ─────────────
+      // ───────── DINING ─────────
       if (diningRows.isNotEmpty) {
         bytes += generator.text('DINING', styles: const PosStyles(bold: true));
         bytes += generator.text('-' * lineWidth);
 
         int sno = 1;
         for (final row in diningRows) {
-          // Item row
           bytes += generator.row([
             PosColumn(text: '$sno', width: 2),
             PosColumn(text: cap(row['varianceName']), width: 7),
@@ -151,7 +188,6 @@ class PrinterService {
             ),
           ]);
 
-          // ✅ WEIGHT BELOW ITEM NAME
           final double weight = (row['weight'] ?? 0).toDouble();
           if (weight > 0) {
             bytes += generator.text(
@@ -159,19 +195,16 @@ class PrinterService {
             );
           }
 
-          // Add-ons
           for (int i = 0; i < row['addons'].length; i++) {
             bytes += generator.text(
               '  + ${row['addons'][i]} x${row['addonQty'][i]}',
             );
           }
 
-          // Variant
           if ((row['variant'] ?? '').toString().isNotEmpty) {
             bytes += generator.text('  * ${row['variant']}');
           }
 
-          // Remark
           final rmk = (row['remark'] ?? '').toString().trim();
           if (rmk.isNotEmpty) {
             bytes += generator.text('  Remark: $rmk');
@@ -182,7 +215,7 @@ class PrinterService {
         }
       }
 
-      // ───────────── PARCEL ─────────────
+      // ───────── PARCEL ─────────
       if (parcelRows.isNotEmpty) {
         bytes += generator.hr(ch: '=');
         bytes += generator.text('PARCEL', styles: const PosStyles(bold: true));
@@ -200,7 +233,6 @@ class PrinterService {
             ),
           ]);
 
-          // ✅ WEIGHT BELOW ITEM NAME
           final double weight = (row['weight'] ?? 0).toDouble();
           if (weight > 0) {
             bytes += generator.text(
@@ -228,7 +260,7 @@ class PrinterService {
         }
       }
 
-      // ───────────── FOOTER ─────────────
+      // ───────── FOOTER ─────────
       bytes += generator.text('=' * lineWidth);
       bytes += generator.text('Date: $date   Time: $time');
       bytes += generator.cut();

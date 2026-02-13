@@ -249,8 +249,7 @@ class _SearchDropdownState extends State<SearchDropdown> {
     String itemCode =
         varianceData['varianceItemCode']?.toString() ?? varianceName;
     double price =
-        (varianceData['branchwise']?['${locationId}']?['Price_${locationId}']
-                as num?)
+        (varianceData['branchwise']?['${locationId}']?['Price'] as num?)
             ?.toDouble() ??
         0.0;
 

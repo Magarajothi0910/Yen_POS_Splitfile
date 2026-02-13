@@ -552,12 +552,15 @@ void handleWebSocket(
     },
     'reverseCancelOrderItem': (data) async {
       try {
+        debugPrint("data of the reverseCancelOrder Item is $data");
         final hiveOrderId = data['hiveOrderId'];
         final int updatedIndex = data['updatedIndex'];
         final double updatedQty = (data['updatedQuantity'] as num).toDouble();
+        final double revertedQty = (data['revertedQty'] as num).toDouble();
         final double updatedCancelledQty = (data['updatedCancelledQty'] as num)
             .toDouble();
         final double totalAmount = (data['totalAmount'] as num).toDouble();
+        final double updatedAmount = (data['updatedAmount'] as num).toDouble();
         final bool partiallycancelled = data['partiallycancelled'] == true;
         final String ipAddress = data['ipAddress'];
 
@@ -565,7 +568,9 @@ void handleWebSocket(
           hiveOrderId,
           updatedIndex,
           updatedQty,
+          revertedQty,
           updatedCancelledQty,
+          updatedAmount,
           totalAmount,
           partiallycancelled,
           ipAddress,
@@ -659,7 +664,7 @@ void handleWebSocket(
         //   debugPrint(
         //     '📡 Triggering updateTopPrioritiesAndBroadcast() (new client joined)',
         //   );
-          await updateTopPrioritiesAndBroadcast();
+        await updateTopPrioritiesAndBroadcast();
         // } else {
         //   debugPrint('⏭️ Skipping priority update (heartbeat / server update)');
         // }

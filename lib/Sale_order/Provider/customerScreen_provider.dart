@@ -225,15 +225,21 @@ class CustomerScreenProvider with ChangeNotifier {
     storedBranch = branchProvider.getStoredBranch(globalbranch.branchName);
   }
   void updatePatchReceiptData(Map<String, dynamic> orderData) {
-    // 🔹 Extract inner data map if present
-    final data = orderData['data'] is Map<String, dynamic>
-        ? Map<String, dynamic>.from(orderData['data'])
-        : orderData;
+    print("FULL ORDER DATA => $orderData");
 
-    // --- BASIC DETAILS ---
+    // 🔹 Extract inner data safely
+    final Map<String, dynamic> data = orderData['data'] is Map<String, dynamic>
+        ? Map<String, dynamic>.from(orderData['data'])
+        : Map<String, dynamic>.from(orderData);
+
+    // 🧾 EDIT ABOUT (🔥 FIX)
+    receiptPrinter.editAbout =
+        data['editAbout'] ?? orderData['editAbout'] ?? '';
+
+    print("PRINT EDIT ABOUT => ${receiptPrinter.editAbout}");
 
     receiptPrinter.employeeNameController.text = data['employeeName'] ?? '';
-
+    receiptPrinter.editAbout = data['editAbout'] ?? '';
     receiptPrinter.customerNumberController.text = data['customerNumber'] ?? '';
 
     receiptPrinter.discountController = (data['discount'] ?? 0.0).toDouble();
@@ -764,6 +770,7 @@ class CustomerScreenProvider with ChangeNotifier {
         'type': 'cancelOrder', // Action identifier for server
         'saleOrderNo': salesOrderId,
         'data': payload,
+        'editAbout': "order cancelled",
       };
       final connectivityProvider = Provider.of<ConnectivityProvider>(
         context,
@@ -781,27 +788,74 @@ class CustomerScreenProvider with ChangeNotifier {
   }
 
   Future<List<Map<String, dynamic>>> fetchHolderFromHive() async {
+    debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    debugPrint('[HOLD ORDER][FETCH] Started fetching from HOLD ORDER BOX');
+
     try {
-      final hiveOrders = await getSavedHoldOrders();
+      final box = HiveManager.holdOrderBox;
 
-      if (hiveOrders.isEmpty) return [];
+      debugPrint('[HOLD ORDER][FETCH] Hive box name → ${box.name}');
+      debugPrint('[HOLD ORDER][FETCH] Total keys → ${box.keys.length}');
+      debugPrint('[HOLD ORDER][FETCH] Keys → ${box.keys}');
 
-      // Filter orders with status "Hold Order"
-      final holdOrders = hiveOrders.where((order) {
-        final data = order['data'] ?? {};
+      if (box.isEmpty) {
+        debugPrint('[HOLD ORDER][FETCH] ❌ Hold order box is EMPTY');
+        return [];
+      }
+
+      final List<Map<String, dynamic>> holdOrders = [];
+
+      for (final key in box.keys) {
+        final rawOrder = box.get(key);
+
+        debugPrint('────────────────────────────');
+        debugPrint('[HOLD ORDER][RAW] Key → $key');
+        debugPrint('[HOLD ORDER][RAW] Value → $rawOrder');
+
+        if (rawOrder == null || rawOrder is! Map) {
+          debugPrint('[HOLD ORDER][SKIP] Invalid order format');
+          continue;
+        }
+
+        /// ✅ IMPORTANT FIX
+        /// Handle both formats:
+        /// 1) { data : { ... } }
+        /// 2) { ... }
+        final Map<String, dynamic> data = rawOrder['data'] is Map
+            ? Map<String, dynamic>.from(rawOrder['data'])
+            : Map<String, dynamic>.from(rawOrder);
+
+        final holdOrderId = data['holdOrderId'];
         final status = (data['status'] ?? '').toString().toLowerCase().trim();
-        return status == 'hold order';
-      }).toList();
 
-      // Flatten for easier UI access
-      final flattenedOrders = holdOrders
-          .map((order) => Map<String, dynamic>.from(order['data'] ?? {}))
-          .toList();
+        debugPrint(
+          '[HOLD ORDER][CHECK] holdOrderId=$holdOrderId | status="$status"',
+        );
 
-      _hiveholdSalesOrders = List.from(flattenedOrders);
+        if (status.contains('hold')) {
+          holdOrders.add(data);
+          debugPrint('[HOLD ORDER][ADD] Added hold order → $holdOrderId');
+        } else {
+          debugPrint('[HOLD ORDER][SKIP] Not a hold order');
+        }
+      }
+
+      debugPrint(
+        '[HOLD ORDER][FETCH] Total HOLD orders after filter → ${holdOrders.length}',
+      );
+
+      _hiveholdSalesOrders = List.from(holdOrders);
+
       notifyListeners();
+      debugPrint('[HOLD ORDER][UI] notifyListeners() called');
+
+      debugPrint('[HOLD ORDER][FETCH] ✅ Fetch completed successfully');
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
       return _hiveholdSalesOrders;
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('[HOLD ORDER][FETCH] ❌ ERROR → $e');
+      debugPrint(st.toString());
       return [];
     }
   }
@@ -1309,7 +1363,6 @@ class CustomerScreenProvider with ChangeNotifier {
           builder: (context) =>
               PopSuccessDialog(onClose: () => Navigator.of(context).pop()),
         );
-        Navigator.pop(context);
       }
     } catch (e, st) {
       if (context.mounted) {
@@ -1989,13 +2042,6 @@ class CustomerScreenProvider with ChangeNotifier {
     }
   }
 
-  // ==================== HELD ORDER ====================
-  // Function to generate holdOrderId like HOLD01, HOLD02...
-  String generateHoldOrderId() {
-    _holdOrderCounter++;
-    return 'HOLD${_holdOrderCounter.toString().padLeft(2, '0')}';
-  }
-
   Future<void> heldrder(
     CartProvider cartProvider,
     CartSelectionProvider cartSelectionProvider,
@@ -2164,8 +2210,6 @@ class CustomerScreenProvider with ChangeNotifier {
       );
     }
 
-    String generatedHoldOrderId = generateHoldOrderId();
-
     List<String> savedImagePaths = [];
 
     if (pickedImages.isNotEmpty && orderDir != null) {
@@ -2280,7 +2324,7 @@ class CustomerScreenProvider with ChangeNotifier {
       eventDate: eventDateIso,
       itemWiseDiscount: itemWiseDiscounts,
       itemWiseDiscountAmount: itemWiseDiscountAmounts,
-      holdOrderId: generatedHoldOrderId,
+      holdOrderId: "HOLD",
       approvalOrderId: approvalOrderId,
       customChargeType: customChargeTypes,
       totalCustomCharge: totalCustomCharge,
@@ -2294,7 +2338,7 @@ class CustomerScreenProvider with ChangeNotifier {
       final postData = {
         "data": hodOrders.toJson(),
         "type": "holdOrder",
-        "deviceName": deviceName,
+        "deviceName": "POS1",
         "sync": "No",
         "WaitingForDiscountApproval": "No",
         "edit": "No",

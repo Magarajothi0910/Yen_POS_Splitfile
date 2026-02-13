@@ -615,57 +615,409 @@ class EditCustomerScreenProvider with ChangeNotifier {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Confirm Order'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Are you sure you want to complete the order?'),
-              const SizedBox(height: 10),
-              if (customCharge > 0) Text('Custom Charge: ₹$customCharge'),
-              if (deductedAmount > 0) Text('Discount: ₹$deductedAmount'),
-              Text('Item Total: ₹$itemTotal'),
-              Text('Final Price: ₹$finalPrice'),
-              if (pickedImages.isNotEmpty)
-                Text('Images: ${pickedImages.length}'),
-              Text('Advance Amount: ₹$totalAdvanceAmount'),
-              Text('Balance Amount: ₹$balanceAmount'),
-            ],
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 24,
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('Cancel'),
+          child: Container(
+            width: 400, // Fixed width for premium look
+
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(28),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 30,
+                  offset: const Offset(0, 10),
+                  spreadRadius: 0,
+                ),
+              ],
             ),
-            TextButton(
-              onPressed: () async {
-                try {
-                  await saveModifiedOrder(
-                    salesorder,
-                    increasedItems,
-                    decreasedItems,
-                    path,
-                    pickedImages,
-                    itemTotal,
-                    totalAdvanceAmount,
-                    balanceAmount,
-                    context,
-                    isModifyMode,
-                  );
-                } catch (e, stack) {}
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
-              child: const Text(
-                'Confirm',
-                style: TextStyle(color: Colors.white),
-              ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Premium Header with Gradient
+                Container(
+                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color.fromARGB(255, 68, 121, 221), // Deep blue
+                        Color.fromARGB(255, 58, 115, 212), // Royal blue
+                      ],
+                    ),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(28),
+                      topRight: Radius.circular(28),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Icon(
+                          Icons.receipt_long_rounded,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Confirm Order',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'Review your order details',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Content Section
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Main Message
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: const Color(0xFFE2E8F0),
+                              width: 1,
+                            ),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline_rounded,
+                                color: Color(0xFF475569),
+                                size: 20,
+                              ),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Please verify all details before confirming',
+                                  style: TextStyle(
+                                    color: Color(0xFF475569),
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        // Order Details Card
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: const Color(0xFFE2E8F0),
+                              width: 1,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.02),
+                                blurRadius: 10,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              // Item Total
+                              _buildDetailRow(
+                                label: 'Item Total',
+                                value: '₹$itemTotal',
+                                icon: Icons.shopping_bag_outlined,
+                                isHighlighted: false,
+                              ),
+
+                              if (customCharge > 0) ...[
+                                const SizedBox(height: 12),
+                                _buildDetailRow(
+                                  label: 'Custom Charge',
+                                  value: '₹$customCharge',
+                                  icon: Icons.build_outlined,
+                                  valueColor: const Color(0xFF059669),
+                                ),
+                              ],
+
+                              if (deductedAmount > 0) ...[
+                                const SizedBox(height: 12),
+                                _buildDetailRow(
+                                  label: 'Discount',
+                                  value: '- ₹$deductedAmount',
+                                  icon: Icons.discount_outlined,
+                                  valueColor: const Color(0xFFDC2626),
+                                ),
+                              ],
+
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 12),
+                                child: Divider(
+                                  color: Color(0xFFE2E8F0),
+                                  height: 1,
+                                  thickness: 1,
+                                ),
+                              ),
+
+                              // Final Price
+                              _buildDetailRow(
+                                label: 'Final Price',
+                                value: '₹$finalPrice',
+                                icon: Icons.price_check_rounded,
+                                isBold: true,
+                                valueColor: const Color(0xFF1E3C72),
+                              ),
+
+                              const SizedBox(height: 16),
+
+                              // Additional Details Container
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Column(
+                                  children: [
+                                    _buildCompactRow(
+                                      label: 'Advance Paid',
+                                      value: '₹$totalAdvanceAmount',
+                                      icon: Icons.payments_outlined,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _buildCompactRow(
+                                      label: 'Balance Due',
+                                      value: '₹$balanceAmount',
+                                      icon:
+                                          Icons.account_balance_wallet_outlined,
+                                      isBold: true,
+                                      valueColor: balanceAmount > 0
+                                          ? const Color(0xFFB45309)
+                                          : const Color(0xFF059669),
+                                    ),
+                                    if (pickedImages.isNotEmpty) ...[
+                                      const SizedBox(height: 12),
+                                      _buildCompactRow(
+                                        label: 'Images Attached',
+                                        value: '${pickedImages.length}',
+                                        icon: Icons.image_outlined,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // Action Buttons with Premium Styling
+                Container(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(28),
+                      bottomRight: Radius.circular(28),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF475569),
+                            side: const BorderSide(color: Color(0xFFCBD5E1)),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: const Text(
+                            'Cancel',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            try {
+                              await saveModifiedOrder(
+                                salesorder,
+                                increasedItems,
+                                decreasedItems,
+                                path,
+                                pickedImages,
+                                itemTotal,
+                                totalAdvanceAmount,
+                                balanceAmount,
+                                context,
+                                isModifyMode,
+                              );
+                            } catch (e, stack) {}
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF1E3C72),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.check_circle_outline_rounded,
+                                size: 18,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Confirm',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         );
       },
+    );
+  } // Helper widgets for consistent styling
+
+  Widget _buildDetailRow({
+    required String label,
+    required String value,
+    required IconData icon,
+    bool isBold = false,
+    bool isHighlighted = false,
+    Color? valueColor,
+  }) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F5F9).withOpacity(0.7),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 16, color: const Color(0xFF64748B)),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 15,
+              color: const Color(0xFF475569),
+              fontWeight: isBold ? FontWeight.w600 : FontWeight.w500,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: isBold ? FontWeight.w700 : FontWeight.w600,
+            color: valueColor ?? const Color(0xFF0F172A),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompactRow({
+    required String label,
+    required String value,
+    required IconData icon,
+    bool isBold = false,
+    Color? valueColor,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: const Color(0xFF64748B)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              color: const Color(0xFF475569),
+              fontWeight: isBold ? FontWeight.w600 : FontWeight.w400,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: isBold ? FontWeight.w700 : FontWeight.w600,
+            color: valueColor ?? const Color(0xFF0F172A),
+          ),
+        ),
+      ],
     );
   }
 
@@ -700,23 +1052,21 @@ class EditCustomerScreenProvider with ChangeNotifier {
     bool isModified,
   ) async {
     try {
-      // Step 1: Calculate modified item total
+      // STEP 1: Calculate modified item total
       double modifiedItemTotal = calculateModifiedItemTotal(
         originalOrder,
         increasedItems,
         decreasedItems,
       );
 
-      // Step 2: Get custom charges from provider
+      // STEP 2: Custom charges
       final editProvider = context.read<EditCustomerScreenProvider>();
       final Map<String, double> currentCharges =
           editProvider.customChargeValues;
 
-      // Convert to list format for API
       List<String> customChargeTypes = [];
       List<double> customChargeValues = [];
 
-      // Add only charges with values > 0
       currentCharges.forEach((type, value) {
         if (value > 0) {
           customChargeTypes.add(type);
@@ -724,22 +1074,16 @@ class EditCustomerScreenProvider with ChangeNotifier {
         }
       });
 
-      // Calculate custom charge total
-      double customChargeTotal = customChargeValues.fold(
-        0,
-        (sum, value) => sum + value,
-      );
+      double customChargeTotal = customChargeValues.fold(0, (a, b) => a + b);
 
-      // Get discount/deductions from original order
       double deductedAmount = originalOrder.discountAmount ?? 0;
 
-      // Calculate using the formula
       double totalAmount2 = modifiedItemTotal + customChargeTotal;
       double finalPrice =
           modifiedItemTotal + customChargeTotal - deductedAmount;
       double computedBalanceAmount = finalPrice - totalAdvance;
 
-      // Step 3: Prepare original order JSON
+      // STEP 3: Original order (for history)
       final jsonSalesOrder = jsonEncode({
         "data": originalOrder.toJson(),
         "deviceName": globals.deviceName,
@@ -749,12 +1093,12 @@ class EditCustomerScreenProvider with ChangeNotifier {
         "edit": "No",
       });
 
-      // Step 4: Prepare modified order data
+      // STEP 4: Modified order data
       final modifiedOrderData = _mergeOrderModifications(
         originalOrder,
         increasedItems,
         decreasedItems,
-        modifiedItemTotal, // Pass item total
+        modifiedItemTotal,
         totalAdvance,
         computedBalanceAmount,
         audioPath ?? originalOrder.audio,
@@ -773,16 +1117,26 @@ class EditCustomerScreenProvider with ChangeNotifier {
         finalPrice,
       );
 
+      // 🔥 STEP 5: Decide editAbout dynamically
+      final editAboutLabel = getEditAboutLabel(
+        originalOrder: originalOrder,
+        modifiedData: modifiedOrderData,
+        increasedItems: increasedItems,
+        decreasedItems: decreasedItems,
+      );
+
+      // STEP 6: Patch sale order payload
       final jsonModifiedSalesOrder = jsonEncode({
         "data": modifiedOrderData,
         "deviceName": globals.deviceName,
         "type": "patchSaleOrder",
         "saleOrderNo": originalOrder.saleOrderNo,
         "sync": "No",
+        "editAbout": editAboutLabel, // ✅ DYNAMIC
         "edit": "Yes",
       });
 
-      // Step 5: Check connectivity
+      // STEP 7: Connectivity handling
       final connectivityProvider = Provider.of<ConnectivityProvider>(
         context,
         listen: false,
@@ -790,14 +1144,13 @@ class EditCustomerScreenProvider with ChangeNotifier {
 
       if (connectivityProvider.isConnected) {
         await sendataToServer(jsonDecode(jsonSalesOrder));
-
         await sendataToServer(jsonDecode(jsonModifiedSalesOrder));
       } else {
         handleModifyOrder(jsonDecode(jsonSalesOrder));
         handlePatchSaleOrder(jsonDecode(jsonModifiedSalesOrder));
       }
 
-      // Step 6: Show success message
+      // STEP 8: Success message
       if (context.mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -809,7 +1162,7 @@ class EditCustomerScreenProvider with ChangeNotifier {
         });
       }
 
-      // Step 7: Clear temp variables & trackers
+      // STEP 9: Cleanup
       increasedItems.clear();
       decreasedItems.clear();
       globals.quantityChangesNotifier.value = {};
@@ -830,8 +1183,54 @@ class EditCustomerScreenProvider with ChangeNotifier {
       }
     } finally {
       if (context.mounted) {
-        Navigator.of(context).pop(); // Close dialog
+        Navigator.of(context).pop();
       }
+    }
+  }
+
+  String getEditAboutLabel({
+    required SalesOrderDisplay originalOrder,
+    required Map<String, dynamic> modifiedData,
+    required List<Map<String, dynamic>> increasedItems,
+    required List<Map<String, dynamic>> decreasedItems,
+  }) {
+    // 1️⃣ Order changes
+    bool isOrderChanged =
+        increasedItems.isNotEmpty || decreasedItems.isNotEmpty;
+
+    // 2️⃣ Customer changes (SAFE CHECK)
+    bool isCustomerChanged = false;
+
+    if (modifiedData.containsKey('customerName') &&
+        modifiedData['customerName'] != null &&
+        modifiedData['customerName'].toString().trim().isNotEmpty &&
+        modifiedData['customerName'] != originalOrder.customerName) {
+      isCustomerChanged = true;
+    }
+
+    if (modifiedData.containsKey('customerNumber') &&
+        modifiedData['customerNumber'] != null &&
+        modifiedData['customerNumber'].toString().trim().isNotEmpty &&
+        modifiedData['customerNumber'] != originalOrder.customerNumber) {
+      isCustomerChanged = true;
+    }
+
+    if (modifiedData.containsKey('address') &&
+        modifiedData['address'] != null &&
+        modifiedData['address'].toString().trim().isNotEmpty &&
+        modifiedData['address'] != originalOrder.address) {
+      isCustomerChanged = true;
+    }
+
+    // 3️⃣ Decide label
+    if (isOrderChanged && isCustomerChanged) {
+      return "Order & Customer Details Updated";
+    } else if (isOrderChanged) {
+      return "Order Updated";
+    } else if (isCustomerChanged) {
+      return "Customer Details Updated";
+    } else {
+      return "Order Updated"; // fallback
     }
   }
 

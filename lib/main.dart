@@ -145,6 +145,7 @@ void main() async {
     Hive.openBox('opensaleOrders'),
     Hive.openBox('userBox'),
     Hive.openBox('holdOrders'),
+    Hive.openBox('holdOrdersID'),
     Hive.openBox('pendingPrintOrders'),
     Hive.openBox('deviceData'),
     Hive.openBox('branchData'),

@@ -19,6 +19,9 @@ Future<void> handleOrder(Map<String, dynamic> data) async {
 
   try {
     // ─────────────────── BASIC INFO ───────────────────
+
+    // data['action'] = data['type'];
+    // data.remove('type');
     dynamic branchName = data['branchName'];
     String aliasNameRaw = data['aliasName'] ?? '';
     final table = data['table'];

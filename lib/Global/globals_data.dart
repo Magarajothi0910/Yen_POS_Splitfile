@@ -50,8 +50,8 @@ final ValueNotifier<String> ip = ValueNotifier<String>('');
 
 ValueNotifier<String> locSubnetIp = ValueNotifier<String>('');
 String serverip = "";
-int port = 8585;
-int udpPort = 58587;
+int port = 1342;
+int udpPort = 53421;
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 

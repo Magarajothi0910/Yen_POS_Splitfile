@@ -4039,7 +4039,7 @@ class CashManagementProvider extends ChangeNotifier {
         shifts,
         context,
       );
-      await CashManagementProvider().patchDayEnd(branchName);
+      await CashManagementProvider().patchDayEnd(locationId);
       await fetchDispatchDetails();
       if (context.mounted) {
         ScaffoldMessenger.of(
@@ -4055,7 +4055,7 @@ class CashManagementProvider extends ChangeNotifier {
 
   static Future<List<Map<String, String>>> fetchValidationDetails() async {
     String apiUrl =
-        "https://yenerp.com/fastapi/dayendvalidations/Validation?branchName=$branchName";
+        "https://yenerp.com/fluttertestapi/dayendvalidations/Validation?locationId=$locationId";
     try {
       final response = await _dio.get(apiUrl);
 
@@ -4110,7 +4110,7 @@ class CashManagementProvider extends ChangeNotifier {
     final now = DateTime.now();
     final formattedDate = DateFormat('dd-MM-yyyy').format(now);
     String apiUrl =
-        "https://yenerp.com/fastapi/dispatches/?start_date=$formattedDate&end_date=$formattedDate";
+        "https://yenerp.com/fluttertestapi/dispatches/?start_date=$formattedDate&end_date=$formattedDate";
 
     try {
       final response = await _dio.get(apiUrl);
@@ -4135,7 +4135,7 @@ class CashManagementProvider extends ChangeNotifier {
 
   static Future<String> fetchShiftOpenCheck() async {
     String apiUrl =
-        "https://yenerp.com/fastapi/dayendvalidations/status?empId=$userName&branchName=$branchName";
+        "https://yenerp.com/fluttertestapi/dayendvalidations/status?empId=$userName&locationId=$locationId";
 
     try {
       final response = await _dio.get(apiUrl);
@@ -4182,10 +4182,10 @@ class CashManagementProvider extends ChangeNotifier {
 
   // Patch day-end data to API
 
-  Future<List<Map<String, dynamic>>> patchDayEnd(String branchName) async {
+  Future<List<Map<String, dynamic>>> patchDayEnd(String locationId) async {
     // String apiUrl = "https://yenerp.com/fastapi/shifts/dayend/$branchName";
     String apiUrl =
-        "https://yenerp.com/fluttertestapi/shifts/dayend/$branchName";
+        "https://yenerp.com/fluttertestapi/shifts/dayend/$locationId";
 
     try {
       final response = await _dio.patch(

@@ -432,6 +432,7 @@ class _BottomNavigationPageRegularModeScreenState
                         (item) => item is Map && item['status'] == 'active',
                       )
                       .length;
+
                   int transactionCountKOT = kotBox.values.length;
                   int transactionCount =
                       transactionCountInvoices + transactionCountKOT;

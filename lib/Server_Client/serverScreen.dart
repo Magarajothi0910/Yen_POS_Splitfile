@@ -35,7 +35,6 @@ import 'package:yen_pos/Server_Client/websocketService.dart';
 import 'package:yen_pos/Server_Client/wifi_change_manager.dart';
 import 'package:yen_pos/background_task/background_permission_guard.dart';
 import 'package:yen_pos/background_task/flutter_foreground_task.dart';
-import 'package:yen_pos/kotpreinvoice/handlers/updateTopPriorityHandlers.dart';
 import 'package:yen_pos/kotpreinvoice/providers/order_provider.dart';
 import 'package:yen_pos/kotpreinvoice/providers/product_provider.dart';
 import 'package:yen_pos/loginPage/provider/loginPageProvider.dart';
@@ -341,6 +340,10 @@ class _LoginScreenState extends State<LoginScreen> {
         context,
         listen: false,
       ).fetchDataIfNeeded(branchAlias: globals.locationId);
+      await Provider.of<ItemProvider>(
+        context,
+        listen: false,
+      ).fetchAndStoreAdvancePercent(locationId: globals.locationId);
 
       if (branchInfo == null) {
         print("❌ Branch info not found");
@@ -354,7 +357,6 @@ class _LoginScreenState extends State<LoginScreen> {
       globals.aliasname = branchInfo['aliasName'] ?? "";
 
       print("📌 Branch set: ${globals.branchName}");
-      print("📌 aliasName set: ${globals.aliasname}");
 
       if (!context.mounted) {
         print(
@@ -717,7 +719,7 @@ class _LoginScreenState extends State<LoginScreen> {
       bool found = false;
 
       // Fast timeout (1.5 seconds instead of 2)
-      final timeout = const Duration(milliseconds: 2000);
+      final timeout = const Duration(milliseconds: 3000);
       debugPrint(
         "⏱️ [Discovery] Listening for responses (timeout: ${timeout.inMilliseconds}ms)",
       );
@@ -849,10 +851,8 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       // Fast parallel connection and data fetch
-      await Future.wait([
-        webSocketService.connect(),
-        productProvider.fetchAllData(contexts),
-      ]);
+      await webSocketService.connect();
+      await productProvider.fetchAllData(contexts);
 
       if (!webSocketService.isConnected) {
         throw Exception("Connection failed");
@@ -922,13 +922,11 @@ class _LoginScreenState extends State<LoginScreen> {
             serverFoundNotifier.value = true;
 
             // 3️⃣ Start services
-            await Future.wait([
-              ForegroundHelper.startIfNotRunning(appType: 'server'),
-              startUdpResponder(serverip, udpPort),
-              startServer(clients),
+            await ForegroundHelper.startIfNotRunning(appType: 'server');
+            await startUdpResponder(serverip, udpPort);
+            await startServer(clients);
 
-              collectAndSendDeviceInfo('server', ip),
-            ]);
+            await collectAndSendDeviceInfo('server', ip);
 
             if (!proceedToDashboardCalled) {
               debugPrint('fetchAllData');
@@ -1446,6 +1444,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                           await CashManagementProvider.fetchValidationDetails();
                                           await CashManagementProvider.fetchShiftDetails();
                                           await CashManagementProvider.fetchShiftOpenCheck();
+                                          bool checkDayEnd =
+                                              await CashManagementProvider.checkDayEnd(
+                                                locationId,
+                                              );
 
                                           final status = globals.status.value;
                                           final dayEndStatus =
@@ -1657,6 +1659,24 @@ class _LoginScreenState extends State<LoginScreen> {
                                             return;
                                           }
 
+                                          if (!checkDayEnd) {
+                                            showPremiumDialog(
+                                              context: context,
+                                              title: 'Error',
+                                              content: const Text(
+                                                'Some shifts are not closed',
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                  fontFamily: 'Poppins',
+                                                  color: Colors.black54,
+                                                  fontSize: 16,
+                                                ),
+                                              ),
+                                              accentColor: Colors.redAccent,
+                                              icon: Icons.error_outline,
+                                            );
+                                          }
+
                                           if (!isDispatchApproved &&
                                               dispatch.isNotEmpty) {
                                             showPremiumDialog(
@@ -1805,8 +1825,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                                     try {
                                                       CashManagementProvider.fetchShiftDetails();
                                                       final dayEndPost = {
-                                                        "branchName":
-                                                            branchName,
+                                                        "locationId":
+                                                            locationId,
                                                         // Add other necessary fields
                                                       };
                                                       await CashManagementProvider.postDayEndData(

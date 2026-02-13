@@ -160,10 +160,8 @@ class RegularModeProvider with ChangeNotifier {
                     return 0.0;
                   }(),
                   'varianceUOM': (variance['variance_Uom'] ?? "").toString(),
-                  'varianceItemCode':
-                      (variance['varianceitemCode'] ??
-                              variance['varianceItemCode'] ??
-                              "")
+                  'itemCode':
+                      (variance['itemCode'] ?? variance['itemCode'] ?? "")
                           .toString(), // ✅ handle both naming styles safely
                   'takeawayPrice': takeawayPrice,
                   'branchwise': branchwise,

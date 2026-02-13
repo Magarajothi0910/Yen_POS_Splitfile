@@ -130,6 +130,7 @@ Future<void> collectAndSendDeviceInfo(
   String deviceType,
   String clientIp,
 ) async {
+  print('collectAndSendDeviceInfo');
   try {
     // 1. Get the device information using the function we created
     final Map<String, dynamic> deviceInfo = await getDeviceInfo();

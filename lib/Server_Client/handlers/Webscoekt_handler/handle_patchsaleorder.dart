@@ -34,7 +34,7 @@ Future<void> handlePatchSalesOrder(
     if (matchedOrder.isEmpty) {
       return;
     }
-    // Step 4️⃣ Send the matched order to provider for printing
-    customerProvider.updatePatchReceiptData(matchedOrder);
+    // // Step 4️⃣ Send the matched order to provider for printing
+    // customerProvider.updatePatchReceiptData(matchedOrder);
   } catch (e, st) {}
 }

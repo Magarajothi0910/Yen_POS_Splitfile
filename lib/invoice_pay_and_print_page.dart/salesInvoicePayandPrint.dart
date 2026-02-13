@@ -1188,8 +1188,13 @@ class SalesInvoicePayAndPrintState extends State<SalesInvoicePayAndPrint> {
           .replaceAll(RegExp(r'[^0-9]'), ''),
     );
 
-    String salesPersonId = stateProvider.selectedEmployeeNumber ?? '';
-    String salesPersonName = stateProvider.selectedEmployeeFirstName ?? '';
+    int? salesPersonId = int.tryParse(
+      _employeeNumberController.text.split(' - ').first.trim(),
+    );
+    String salesPersonName = _employeeNumberController.text
+        .split(' - ')
+        .last
+        .trim();
 
     Map<String, dynamic> invoiceData = {
       'HiveInvoiceId': hiveInvoiceId,

@@ -1190,7 +1190,6 @@ import 'package:yen_pos/Server_Client/serverreachable.dart';
 import 'package:yen_pos/Server_Client/startServers.dart';
 import 'package:yen_pos/Server_Client/wifi_change_manager.dart';
 import 'package:yen_pos/background_task/flutter_foreground_task.dart';
-import 'package:yen_pos/kotpreinvoice/handlers/updateTopPriorityHandlers.dart';
 import 'package:yen_pos/kotpreinvoice/models/printer.dart';
 import 'package:yen_pos/kotpreinvoice/providers/order_provider.dart';
 import 'package:yen_pos/kotpreinvoice/providers/order_type_provider.dart';
@@ -1683,6 +1682,7 @@ class WebSocketService with ChangeNotifier {
 
       // _hideConnectionLostDialog();
       await clearConnectedDevices();
+
       // 5️⃣ Start server services (ORDER MATTERS)
       await startServer(clients);
       await startUdpResponder(myIp, udpPort);
@@ -1920,6 +1920,12 @@ class WebSocketService with ChangeNotifier {
         'message': 'client_register',
       });
       debugPrint('connect: connected and registered');
+      final cxt = navigatorKey.currentContext!;
+      final orderProv = Provider.of<OrderProvider>(cxt, listen: false);
+      orderProv.initializeWebSocket();
+      final data = jsonEncode({'type': 'handshake'});
+      sendataToServer(jsonDecode(data));
+
       notifyListeners();
     } catch (e, st) {
       debugPrint('connect error: $e\n$st');
